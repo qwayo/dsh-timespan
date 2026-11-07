@@ -36,6 +36,15 @@ const BACKFILL_EVENT_TYPES = new Set([
 const BACKFILL_STATUSES = new Set(['idle', 'running', 'done', 'failed'])
 
 /**
+ * 回填完成事件的原因。版本升级重扫、清空数据后的再次回填、手动重试都算
+ * 新一代事件；通知记录用同一组值描述「事件类型」。
+ */
+const BACKFILL_EVENT_KINDS = new Set(['initial', 'version', 'retry', 'clear'])
+
+/** 通知记录只保留最近若干条；回填事件不频繁，几十条足够回看。 */
+const BACKFILL_NOTICE_LIMIT = 20
+
+/**
  * 回填算法版本。升级它即让此前 status=done 的旧结果失效并重新扫描，避免
  * 「重复启动不重复计数」退化成「算法升级后永不补扫」。旧 meta 缺版本按 0 读。
  */
@@ -50,6 +59,18 @@ export function initialBackfillStatus() {
     tasksWritten: 0,
     error: null,
     updatedAt: 0,
+    // 回填完成事件：eventId 是该代事件的稳定标识；readEventId 是已读锚点。
+    // 新事件开始时 eventId 换代，旧已读锚点就不会把新事件误判成已读。
+    eventId: '',
+    eventKind: '',
+    eventAt: 0,
+    eventSeq: 0,
+    readEventId: '',
+    readAt: 0,
+    // 清空统计时记下时间，作为「清空后的再次回填」事件原因；消费后归零。
+    clearedAt: 0,
+    // 通知记录：已读后仍可回看的历史事件。
+    notices: [],
   }
 }
 
@@ -57,6 +78,8 @@ export function initialBackfillStatus() {
 export function normalizeBackfillStatus(value) {
   const base = initialBackfillStatus()
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return base
+  const notices = normalizeBackfillNotices(value.notices)
+  const eventId = boundedText(value.eventId, 128)
   return {
     status: BACKFILL_STATUSES.has(value.status) ? value.status : base.status,
     version: nonNegative(value.version),
@@ -65,7 +88,46 @@ export function normalizeBackfillStatus(value) {
     tasksWritten: nonNegative(value.tasksWritten),
     error: typeof value.error === 'string' && value.error.length > 0 ? value.error.slice(0, 512) : null,
     updatedAt: nonNegative(value.updatedAt),
+    eventId,
+    eventKind: BACKFILL_EVENT_KINDS.has(value.eventKind) ? value.eventKind : '',
+    eventAt: nonNegative(value.eventAt),
+    // 代次同时参考事件 id：即使旧 meta 只留下 eventId，也不会复用同一代。
+    eventSeq: Math.max(nonNegative(value.eventSeq), notices.length, eventSeqOf(eventId)),
+    readEventId: boundedText(value.readEventId, 128),
+    readAt: nonNegative(value.readAt),
+    clearedAt: nonNegative(value.clearedAt),
+    notices,
   }
+}
+
+function eventSeqOf(eventId) {
+  const match = /^backfill_(\d+)_v\d+$/.exec(eventId)
+  return match === null ? 0 : Number(match[1])
+}
+
+/** 规范化通知记录；缺少 eventId 的脏记录直接丢弃，其余字段给安全默认值。 */
+function normalizeBackfillNotices(value) {
+  if (!Array.isArray(value)) return []
+  const notices = []
+  for (const row of value) {
+    if (row === null || typeof row !== 'object' || Array.isArray(row)) continue
+    const eventId = boundedText(row.eventId, 128)
+    if (eventId === '') continue
+    notices.push({
+      eventId,
+      kind: BACKFILL_EVENT_KINDS.has(row.kind) ? row.kind : '',
+      version: nonNegative(row.version),
+      total: nonNegative(row.total),
+      tasksWritten: nonNegative(row.tasksWritten),
+      completedAt: nonNegative(row.completedAt),
+      readAt: nonNegative(row.readAt),
+    })
+  }
+  return notices.slice(-BACKFILL_NOTICE_LIMIT)
+}
+
+function boundedText(value, maxLength) {
+  return typeof value === 'string' && value.length > 0 ? value.slice(0, maxLength) : ''
 }
 
 /**

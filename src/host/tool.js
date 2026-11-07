@@ -6,6 +6,7 @@
  * 同一个 Host 领域操作，永远不会各算一套。
  */
 
+import { DURATION_FORMATS, formatDurationByPreset, normalizeDurationFormat } from '../domain/duration-format.js'
 import { PERIODS, pad2 } from '../domain/periods.js'
 
 export const CHRONO_STATS_TOOL_NAME = 'chrono_stats'
@@ -161,12 +162,13 @@ const SUCCESS_SCHEMA = {
     period: { type: 'string', enum: PERIODS },
     groupBy: { type: 'string', enum: GROUP_BY_VALUES },
     weekStartsOn: { type: 'number' },
+    durationFormat: { type: 'string', enum: [...DURATION_FORMATS] },
     range: RANGE_SCHEMA,
     totals: TOTALS_SCHEMA,
     filters: FILTERS_SCHEMA,
     groups: { type: 'array', items: GROUP_SCHEMA },
   },
-  required: ['ok', 'period', 'groupBy', 'weekStartsOn', 'range', 'totals', 'groups'],
+  required: ['ok', 'period', 'groupBy', 'weekStartsOn', 'durationFormat', 'range', 'totals', 'groups'],
   additionalProperties: false,
 }
 
@@ -267,7 +269,9 @@ async function executeChronoStats(service, rawArgs) {
   const stats = service.queryStats(query)
   const filterFailure = describeFilterFailure(stats.filters)
   if (filterFailure !== null) return filterFailure
-  return successValue(stats, period, groupBy, { from, to: toStart })
+  // 页面、导出与工具共用 Host 设置里的同一份格式；工具没有自己的格式参数。
+  const durationFormat = normalizeDurationFormat(service.getSettings?.().durationFormat)
+  return successValue(stats, period, groupBy, { from, to: toStart }, durationFormat)
 }
 
 function parseLocalDateKey(value, field) {
@@ -328,12 +332,13 @@ function describeFilterFailure(filters) {
   return null
 }
 
-function successValue(stats, period, groupBy, requested = {}) {
+function successValue(stats, period, groupBy, requested = {}, durationFormat = 'hms') {
   const value = {
     ok: true,
     period,
     groupBy,
     weekStartsOn: stats.weekStartsOn,
+    durationFormat: normalizeDurationFormat(durationFormat),
     range: {
       from: stats.range.from,
       to: stats.range.to,
@@ -382,6 +387,7 @@ function renderChronoStats(_args, value) {
     return [{ type: 'text', text: `ChronoScope 查询未完成：${value.error?.message ?? '未知原因'}` }]
   }
   const lines = []
+  const format = normalizeDurationFormat(value.durationFormat)
   if (value.filters?.workspace) {
     lines.push(`筛选：工作区「${value.filters.workspace.requested}」`)
   }
@@ -389,18 +395,18 @@ function renderChronoStats(_args, value) {
     lines.push(`筛选：会话「${value.filters.session.requested}」`)
   }
   lines.push(`ChronoScope 统计（${value.range.label}）：`)
-  lines.push(`活跃时长 ${readableDuration(value.totals.activeMs)}；任务时长 ${readableDuration(value.totals.taskMs)}；任务次数 ${value.totals.taskCount}。`)
+  lines.push(`活跃时长 ${formatDurationByPreset(value.totals.activeMs, format)}；任务时长 ${formatDurationByPreset(value.totals.taskMs, format)}；任务次数 ${value.totals.taskCount}。`)
   if (value.filters === undefined) {
-    lines.push(`在线时长 ${readableDuration(value.totals.onlineMs)}。`)
+    lines.push(`在线时长 ${formatDurationByPreset(value.totals.onlineMs, format)}。`)
   }
   if (value.totals.activeSumMs !== value.totals.activeMs || value.totals.taskSumMs !== value.totals.taskMs) {
-    lines.push(`按会话累计：活跃 ${readableDuration(value.totals.activeSumMs)}；任务 ${readableDuration(value.totals.taskSumMs)}。`)
+    lines.push(`按会话累计：活跃 ${formatDurationByPreset(value.totals.activeSumMs, format)}；任务 ${formatDurationByPreset(value.totals.taskSumMs, format)}。`)
   }
   if (Array.isArray(value.groups) && value.groups.length > 0) {
     lines.push(`按${value.groupBy === 'workspace' ? '工作区' : '会话'}（累计工时）：`)
     for (const group of value.groups) {
       const name = group.title ?? '未归属'
-      lines.push(`- ${name}：活跃 ${readableDuration(group.activeMs)}，任务 ${readableDuration(group.taskMs)}，任务 ${group.taskCount} 次`)
+      lines.push(`- ${name}：活跃 ${formatDurationByPreset(group.activeMs, format)}，任务 ${formatDurationByPreset(group.taskMs, format)}，任务 ${group.taskCount} 次`)
     }
   }
   return [{ type: 'text', text: lines.join('\n') }]
@@ -431,15 +437,4 @@ function formatRangeLabel(from, to) {
 function formatDateTime(timestamp) {
   const at = new Date(timestamp)
   return `${at.getFullYear()}-${pad2(at.getMonth() + 1)}-${pad2(at.getDate())} ${pad2(at.getHours())}:${pad2(at.getMinutes())}`
-}
-
-/** 模型可见文本用「1小时02分」这种自然语言；毫秒原值始终保留在 JSON 里。 */
-function readableDuration(ms) {
-  const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000))
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  if (hours > 0) return `${hours}小时${pad2(minutes)}分`
-  if (minutes > 0) return `${minutes}分${pad2(seconds)}秒`
-  return `${seconds}秒`
 }

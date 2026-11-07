@@ -131,3 +131,25 @@ function pushBucket(buckets, key, from, end, now) {
   const to = Math.max(from, Math.min(end, now))
   buckets.push({ key, from, to, future: from > now })
 }
+
+/**
+ * 给定起止自然日（含首尾两天），派生逐日桶边界。
+ *
+ * `from` / `to` 只用于确定首末自然日，时刻部分被忽略；返回的 `range.to`
+ * 是末日之后的开区间上界。逐日推进走 `new Date(y, m, d + 1)` 而不是时间戳
+ * 加固定毫秒，夏令时切换日仍按本地日历日切分。
+ */
+export function localDayRange(from, to) {
+  const first = localDayBounds(from)
+  const last = localDayBounds(to)
+  const days = []
+  if (first.from > last.from) return { range: { from: first.from, to: last.to }, days }
+
+  let cursor = first.from
+  while (cursor <= last.from) {
+    const bounds = localDayBounds(cursor)
+    days.push({ dateKey: bounds.dateKey, from: bounds.from, to: bounds.to })
+    cursor = bounds.to
+  }
+  return { range: { from: first.from, to: last.to }, days }
+}

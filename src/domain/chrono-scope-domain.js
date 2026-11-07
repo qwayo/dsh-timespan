@@ -15,6 +15,7 @@ import {
   PERIODS,
   isPeriod,
   localDayBounds,
+  localDayRange,
   normalizeWeekStart,
   periodRange,
   trendBuckets,
@@ -856,6 +857,68 @@ export function createChronoScopeDomain({ domain, clock }) {
   }
 
   /**
+   * 按 Host 本地时区的自然日返回逐日三项时长序列，供热力图使用。
+   *
+   * `from` / `to` 只用来确定首末自然日（含首尾），时刻部分被忽略；每个桶
+   * 都是完整的本地自然日。原始区间在查询时裁剪，不写入任何预聚合数据。
+   * 在线与活跃是时间并集（实际占用），任务沿用 `queryStats` 的顶层任务
+   * 并集口径；子代理任务不进入三项时长总计。`hasObservations` 表示该日
+   * 是否存在可计入三项口径的观测记录，启用前与无数据的日期为 false。
+   */
+  function queryDailySeries({ from, to } = {}) {
+    if (typeof from !== 'number' || !Number.isFinite(from) || typeof to !== 'number' || !Number.isFinite(to)) {
+      throw new Error('queryDailySeries 需要有限数字的 from 与 to')
+    }
+    if (from > to) throw new Error('queryDailySeries 的 from 不能晚于 to')
+
+    const current = now()
+    const calendar = localDayRange(from, to)
+    const days = calendar.days.map((day) => {
+      const taskRows = projectTasks(day.from, day.to, current)
+      const topLevelRows = taskRows.filter((task) => task.origin !== 'subagent')
+      const activeRanges = projectActiveRanges(day.from, day.to, current)
+      const onlineMs = unionDuration(intervals, ONLINE_INTERVAL, day.from, day.to,
+        (interval) => onlineIntervalEnd(interval, current, day.to))
+      const activeMs = unionRanges(activeRanges.map((entry) => [entry.start, entry.end]))
+      const taskMs = sumTaskUnion(topLevelRows, day.from, day.to)
+      return {
+        dateKey: day.dateKey,
+        from: day.from,
+        to: day.to,
+        onlineMs,
+        activeMs,
+        taskMs,
+        hasObservations: onlineMs > 0 || activeMs > 0 || topLevelRows.length > 0,
+      }
+    })
+    const observedDays = days.filter((day) => day.hasObservations)
+    const onlineMs = observedDays.reduce((total, day) => total + day.onlineMs, 0)
+    const activeMs = observedDays.reduce((total, day) => total + day.activeMs, 0)
+    const taskMs = observedDays.reduce((total, day) => total + day.taskMs, 0)
+    const activeDays = observedDays.filter((day) => day.activeMs > 0).length
+    let peak = null
+    for (const day of observedDays) {
+      if (day.activeMs <= 0) continue
+      if (peak === null || day.activeMs > peak.activeMs) {
+        peak = { dateKey: day.dateKey, activeMs: day.activeMs }
+      }
+    }
+    return {
+      range: calendar.range,
+      days,
+      summary: {
+        onlineMs,
+        activeMs,
+        taskMs,
+        activeDays,
+        observedDays: observedDays.length,
+        dailyAverageActiveMs: observedDays.length > 0 ? Math.round(activeMs / observedDays.length) : 0,
+        peak,
+      },
+    }
+  }
+
+  /**
    * 把工具传入的工作区/会话名称解析成稳定 ID。优先精确 ID，其次大小写不敏感的
    * 完整标题匹配；重名不算匹配，避免把两个同名工作区悄悄合并成一份统计。
    * 返回结构只包含查询需要的身份与状态，不读也不改任何设置。
@@ -1019,12 +1082,13 @@ export function createChronoScopeDomain({ domain, clock }) {
       const format = options?.format
       if (!isExportFormat(format)) throw new Error(`不支持的导出格式：${String(format)}`)
       const exportedAt = now()
+      const settings = currentSettings()
       const intervalRows = [...intervals.entries()].map(([, record]) => ({ ...record }))
       const taskRows = [...tasks.entries()].map(([, record]) => ({ ...record }))
       const days = format === 'csv' ? collectDayRows(exportedAt) : null
       const content = format === 'json'
-        ? buildJsonExport({ exportedAt, settings: currentSettings(), intervals: intervalRows, tasks: taskRows })
-        : buildCsvExport({ dayRows: days.rows })
+        ? buildJsonExport({ exportedAt, settings, intervals: intervalRows, tasks: taskRows })
+        : buildCsvExport({ dayRows: days.rows, durationFormat: settings.durationFormat })
       return {
         format,
         filename: exportFilename(format, exportedAt),
@@ -1131,13 +1195,17 @@ export function createChronoScopeDomain({ domain, clock }) {
       })
 
       const meta = readMeta()
+      const previousBackfill = normalizeBackfillStatus(meta.backfill)
       await domain.global.set({
         ...meta,
         settings: currentSettings(),
         // installTime 是插件启用时间，不属于统计数据，清空后保持原值。
         currentBootId: bootId,
         lastHeartbeat: at,
+        // 清空结束当前完成事件，但不抹掉通知记录；clearedAt 让下一次真正
+        // 发生的回填（手动重试或版本升级）被识别为「清空后重新回填」。
         backfill: normalizeBackfillStatus({
+          ...previousBackfill,
           status: 'done',
           version: BACKFILL_VERSION,
           scanned: 0,
@@ -1145,6 +1213,12 @@ export function createChronoScopeDomain({ domain, clock }) {
           tasksWritten: 0,
           error: null,
           updatedAt: at,
+          eventId: '',
+          eventKind: '',
+          eventAt: 0,
+          readEventId: '',
+          readAt: 0,
+          clearedAt: at,
         }),
       })
       return { clearedAt: at, intervalsRemoved, tasksRemoved }
@@ -1517,6 +1591,15 @@ export function createChronoScopeDomain({ domain, clock }) {
     if (typeof loadSessions !== 'function') {
       return setBackfillStatus({ status: 'failed', error: '回填缺少会话读取器' }, generation)
     }
+    // 本次完成事件的原因：清空后的再次回填优先于手动重试，因为用户先清空
+    // 再重试时，记成「清空后重新回填」更贴近真实变化；版本升级次之。
+    const eventKind = existing.clearedAt > 0
+      ? 'clear'
+      : options.force === true
+        ? 'retry'
+        : existing.status === 'done' && existing.version !== BACKFILL_VERSION
+          ? 'version'
+          : 'initial'
     const yieldFn = typeof options.yield === 'function' ? options.yield : () => Promise.resolve()
     let scanned = 0
     let total = 0
@@ -1558,6 +1641,22 @@ export function createChronoScopeDomain({ domain, clock }) {
         // 会话之间让出事件循环，让实时 session/event 与 presence 心跳有机会执行。
         await yieldFn()
       }
+      // 每完成一次真实的回填扫描就生成一代新事件：eventId 一旦写入 meta 就
+      // 稳定不变，同一事件多次查询不会漂移；旧 readEventId 自然不等于新 id，
+      // 因此版本升级、清空后的再次回填、手动重试都会重新提示一次。
+      const completedAt = now()
+      const current = getBackfillStatus()
+      const eventSeq = Math.max(current.eventSeq, current.notices.length) + 1
+      const eventId = `backfill_${eventSeq}_v${BACKFILL_VERSION}`
+      const notice = {
+        eventId,
+        kind: eventKind,
+        version: BACKFILL_VERSION,
+        total,
+        tasksWritten,
+        completedAt,
+        readAt: 0,
+      }
       return await setBackfillStatus({
         status: 'done',
         version: BACKFILL_VERSION,
@@ -1565,6 +1664,12 @@ export function createChronoScopeDomain({ domain, clock }) {
         total,
         tasksWritten,
         error: null,
+        eventId,
+        eventKind,
+        eventAt: completedAt,
+        eventSeq,
+        clearedAt: 0,
+        notices: [...current.notices, notice],
       }, generation)
     } catch (error) {
       if (generation !== dataGeneration) return getBackfillStatus()
@@ -1616,6 +1721,27 @@ export function createChronoScopeDomain({ domain, clock }) {
     })
   }
 
+  /**
+   * 写入回填完成事件的已读锚点。只接受当前事件，未知/旧事件保持原状，
+   * 避免页面持有旧 eventId 与新一代事件竞态时误把新事件标成已读。
+   * 已读是幂等的：同一事件重复标记不会改写第一次的已读时间。
+   */
+  async function markBackfillRead(eventId) {
+    return withWriteLock(async () => {
+      const meta = readMeta()
+      const status = normalizeBackfillStatus(meta.backfill)
+      if (typeof eventId !== 'string' || eventId.length === 0) return status
+      if (status.eventId === '' || status.eventId !== eventId) return status
+      if (status.readEventId === eventId) return status
+      const at = now()
+      const notices = status.notices.map((notice) =>
+        notice.eventId === eventId ? { ...notice, readAt: at } : notice)
+      const next = normalizeBackfillStatus({ ...status, readEventId: eventId, readAt: at, notices })
+      await domain.global.set({ ...meta, backfill: next })
+      return next
+    })
+  }
+
   // 对外暴露的是加锁包装；backfill 自身不整体持锁，内部按事件分段申请，
   // 否则一次长回填会把实时记录堵在写队列后面。
   return {
@@ -1623,6 +1749,7 @@ export function createChronoScopeDomain({ domain, clock }) {
     recordPresence: (input) => withWriteLock(() => recordPresence(input)),
     recordSessionEvent: (input) => withWriteLock(() => applySessionEvent(input)),
     queryStats,
+    queryDailySeries,
     getSettings,
     setSettings,
     exportData,
@@ -1630,6 +1757,7 @@ export function createChronoScopeDomain({ domain, clock }) {
     close: () => withWriteLock(close),
     backfill,
     getBackfillStatus,
+    markBackfillRead,
   }
 }
 

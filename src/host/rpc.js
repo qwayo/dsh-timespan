@@ -1,11 +1,11 @@
 /**
  * ChronoScope 的包内私有 RPC。
  *
- * Client 半通过它做四件事：每 15 秒上报一次 presence 心跳（可见性、窗口
+ * Client 半通过它做几件事：每 15 秒上报一次 presence 心跳（可见性、窗口
  * 聚焦、前台会话与最近操作），按日/周/月读取统计与仪表盘明细（同一响应
- * 带回回填状态与子代理明细），读写三项设置、导出 JSON/CSV，以及二次确认后
- * 清空全部统计；另有失败时的历史回填重试。这里沿用 DSH 的
- * connection.rpc 通道：Host 侧用
+ * 带回回填状态与子代理明细），读取按天三项时长序列，读写三项设置、导出
+ * JSON/CSV，以及二次确认后清空全部统计；另有失败时的历史回填重试、回填
+ * 通知读取与「已读」锚点写入。这里沿用 DSH 的 connection.rpc 通道：Host 侧用
  * connection.fetch.register 挂一条 /api/chrono-scope 的精确路由，Client 用
  * connection.rpc.call('/api', 'chrono-scope', { method, payload }) 调用。
  *
@@ -67,6 +67,12 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
         return reportPresence(payload)
       case 'queryStats':
         return queryStats(payload)
+      case 'queryDailySeries':
+        return queryDailySeries(payload)
+      case 'getBackfillStatus':
+        return readBackfillStatus()
+      case 'markBackfillRead':
+        return markBackfillRead(payload)
       case 'retryBackfill':
         return retryBackfill()
       case 'getSettings':
@@ -108,6 +114,20 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
     return service.getBackfillStatus()
   }
 
+  /**
+   * 写入回填完成事件的已读锚点。事件 id 由 Client 从 queryStats 的 backfill
+   * 里带回；Host 只接受当前事件，未知/旧事件在领域服务里保持原状。
+   */
+  function markBackfillRead(payload) {
+    if (payload === null || typeof payload !== 'object' || typeof payload.eventId !== 'string' || payload.eventId.length === 0) {
+      throw new Error('markBackfillRead 载荷缺少 eventId')
+    }
+    if (typeof service.markBackfillRead !== 'function') {
+      throw new Error('历史回填已读状态不可用')
+    }
+    return service.markBackfillRead(payload.eventId)
+  }
+
   /** 接受 Client 的事实上报；时间以 Host 时钟为准，客户端只提供 lastInteractionAt。 */
   async function reportPresence(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('presence 载荷必须是对象')
@@ -145,10 +165,14 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
     const period = normalizePeriod(payload?.period)
     const view = payload?.view === 'dashboard' ? 'dashboard' : 'summary'
     const stats = service.queryStats({ period, view })
+    const settings = service.getSettings()
     const result = {
       asOf: now,
       period,
       weekStartsOn: stats.weekStartsOn,
+      // 页面与侧栏的初始数字格式：设置是权威副本，随每次取数一起带回，
+      // Client 不另存一份业务状态。刷新后自然回到已保存值。
+      durationFormat: settings.durationFormat,
       view,
       from: stats.from,
       to: stats.to,
@@ -178,6 +202,24 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
   }
 
   /**
+   * 每日时长热力图的只读数据源：只接受 `{ from, to }` 两个有限数字，
+   * 其余规则（自然日切桶、裁剪与三项口径）全部由领域服务决定。
+   */
+  function queryDailySeries(payload) {
+    if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('queryDailySeries 载荷必须是对象')
+    }
+    const extra = Object.keys(payload).find((key) => key !== 'from' && key !== 'to')
+    if (extra !== undefined) throw new Error(`queryDailySeries 只接受 from 与 to，收到多余参数：${extra}`)
+    const { from, to } = payload
+    if (typeof from !== 'number' || !Number.isFinite(from) || typeof to !== 'number' || !Number.isFinite(to)) {
+      throw new Error('queryDailySeries 需要有限数字的 from 与 to')
+    }
+    if (from > to) throw new Error('queryDailySeries 的 from 不能晚于 to')
+    return service.queryDailySeries({ from, to })
+  }
+
+  /**
    * 设置、导出、清空都只转发到 Host 领域服务。RPC 不复制规则、不缓存状态：
    * 设置项由领域服务归一化并持久化，导出内容由领域服务序列化，清空只删本域。
    */
@@ -188,7 +230,7 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
   function setSettings(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('setSettings 载荷必须是对象')
     const patch = {}
-    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents']) {
+    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName']) {
       if (Object.hasOwn(payload, key)) patch[key] = payload[key]
     }
     return service.setSettings(patch)
