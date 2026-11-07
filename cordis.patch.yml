@@ -1,0 +1,3 @@
+- insert:
+    - id: chrono-scope
+      name: '@local/chrono-scope'
