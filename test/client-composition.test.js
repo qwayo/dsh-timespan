@@ -88,6 +88,14 @@ async function loadClientFunctions(windowExtras = {}) {
       VIEW_ENTER_MS: typeof VIEW_ENTER_MS === 'number' ? VIEW_ENTER_MS : undefined,
       VIEW_EXIT_MS: typeof VIEW_EXIT_MS === 'number' ? VIEW_EXIT_MS : undefined,
       prefersReducedMotion: typeof prefersReducedMotion === 'function' ? prefersReducedMotion : undefined,
+      normalizeFocus: typeof normalizeFocus === 'function' ? normalizeFocus : undefined,
+      readStoredFocus: typeof readStoredFocus === 'function' ? readStoredFocus : undefined,
+      writeStoredFocus: typeof writeStoredFocus === 'function' ? writeStoredFocus : undefined,
+      focusTransitionMs: typeof focusTransitionMs === 'function' ? focusTransitionMs : undefined,
+      FOCUS_KEY: typeof FOCUS_KEY === 'string' ? FOCUS_KEY : undefined,
+      renderZoomButton: typeof renderZoomButton === 'function' ? renderZoomButton : undefined,
+      renderHeroCard: typeof renderHeroCard === 'function' ? renderHeroCard : undefined,
+      renderHeroFocusPage: typeof renderHeroFocusPage === 'function' ? renderHeroFocusPage : undefined,
     };\n${anchor}`)
   const React = createTestReact()
   const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) }, ...windowExtras }
@@ -1427,4 +1435,202 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   assert.ok(dialog, '第二次确认时显示确认框')
   assert.match(textOf(dialog), /确认清空/)
   assert.match(textOf(dialog), /取消/)
+})
+
+/** 首屏相关测试共用的今日/本周/本月数据：活跃 2:48:16、在线 5:58:08、任务 1:37:14。 */
+function heroSampleData() {
+  return {
+    period: 'day',
+    activeMs: 10_096_000,
+    onlineMs: 21_488_000,
+    taskMs: 5_834_000,
+    taskCount: 4,
+    cycles: {
+      day: { activeMs: 10_096_000, onlineMs: 21_488_000, taskMs: 5_834_000, taskCount: 4 },
+      week: { activeMs: 21_061_000, onlineMs: 25_000_000, taskMs: 9_000_000, taskCount: 9 },
+      month: { activeMs: 51_240_000, onlineMs: 60_000_000, taskMs: 20_000_000, taskCount: 20 },
+    },
+    workspaces: [],
+    trend: [],
+    subagentTasks: [],
+    backfill: { status: 'done', notices: [] },
+    durationFormat: 'hms',
+  }
+}
+
+test('客户端：首屏状态只认三个合法值，非法持久化值回落普通概览', async () => {
+  const { normalizeFocus } = await loadClientFunctions()
+  assert.equal(typeof normalizeFocus, 'function')
+  assert.equal(normalizeFocus('hero'), 'hero')
+  assert.equal(normalizeFocus('trend'), 'trend')
+  assert.equal(normalizeFocus('heatmap'), 'heatmap', '#14/#15 共用同一份状态')
+  for (const value of ['', 'Hero', 'other', null, undefined, 0, {}, []]) {
+    assert.equal(normalizeFocus(value), null, `非法值 ${JSON.stringify(value)} 归一为 null`)
+  }
+})
+
+test('客户端：首屏状态从本地设置读取、写回与删除，存储异常不冒泡', async () => {
+  const { readStoredFocus, writeStoredFocus, focusTransitionMs, FOCUS_KEY } = await loadClientFunctions()
+  assert.equal(FOCUS_KEY, 'chrono-scope.focus')
+
+  const calls = []
+  const fake = {
+    getItem: (key) => { calls.push(['get', key]); return 'hero' },
+    setItem: (key, value) => calls.push(['set', key, value]),
+    removeItem: (key) => calls.push(['remove', key]),
+  }
+  assert.equal(readStoredFocus(fake), 'hero')
+  assert.deepEqual(calls, [['get', 'chrono-scope.focus']], '读取使用同一个存储键')
+
+  assert.equal(readStoredFocus({ getItem: () => 'bogus' }), null, '非法旧值回落普通概览')
+  assert.equal(readStoredFocus({ getItem: () => null }), null)
+  assert.equal(readStoredFocus({ getItem: () => { throw new Error('denied') } }), null, '隐私模式读取失败不崩溃')
+  assert.equal(readStoredFocus(null), null)
+
+  writeStoredFocus(fake, 'trend')
+  assert.deepEqual(calls.at(-1), ['set', 'chrono-scope.focus', 'trend'])
+  writeStoredFocus(fake, null)
+  assert.deepEqual(calls.at(-1), ['remove', 'chrono-scope.focus'], '缩回时删除持久化值')
+  writeStoredFocus(fake, undefined)
+  assert.deepEqual(calls.at(-1), ['remove', 'chrono-scope.focus'])
+  assert.doesNotThrow(() => writeStoredFocus({
+    setItem() { throw new Error('quota') },
+    removeItem() { throw new Error('quota') },
+  }, 'hero'), '写入失败不影响页面')
+
+  assert.equal(focusTransitionMs(false), 240)
+  assert.equal(focusTransitionMs(true), 0, 'prefers-reduced-motion 下直接到位')
+})
+
+test('客户端：概览首屏卡片右上角有无边框纯图标按钮，主数字用统一格式', async () => {
+  const { renderHeroCard } = await loadClientFunctions()
+  const labels = {
+    todayActive: '今日活跃时长', actualOccupied: '实际占用', focusSet: '设为首屏',
+    focusUnset: '退出首屏', todayOnline: '今日在线时长', todayTask: '今日任务时长',
+  }
+  const t = (key) => labels[key] ?? key
+  const calls = []
+  const card = renderHeroCard({
+    data: heroSampleData(), t, format: 'hms', focus: null, onToggleFocus: (value) => calls.push(value),
+  })
+  assert.equal(allOf(card, byClass('cs-hero')).length, 1, '新增独立的首屏卡片')
+  const text = textOf(card)
+  assert.match(text, /今日活跃时长/)
+  assert.match(text, /实际占用/)
+  assert.match(text, /2:48:16/, '主数字与设置页示例值同源')
+  const button = allOf(card, byClass('cs-zoom-btn'))[0]
+  assert.ok(button, '卡片最右上角有缩放按钮')
+  assert.equal(button.type, 'button')
+  assert.equal(button.props['aria-label'], '设为首屏')
+  assert.equal(button.props['aria-pressed'], false)
+  assert.ok(allOf(button, (node) => node.type === 'svg').length === 1, '纯图标按钮内联 SVG')
+  button.props.onClick()
+  assert.deepEqual(calls, ['hero'], '点击请求放大首屏')
+
+  const zoomed = renderHeroCard({
+    data: heroSampleData(), t, format: 'hms', focus: 'hero', onToggleFocus: () => {},
+  })
+  const zoomedButton = allOf(zoomed, byClass('cs-zoom-btn'))[0]
+  assert.equal(zoomedButton.props['aria-label'], '退出首屏')
+  assert.equal(zoomedButton.props['aria-pressed'], true)
+})
+
+test('客户端：首屏放大页重新排版为大数字、多项统计与占比进度条', async () => {
+  const { renderHeroFocusPage } = await loadClientFunctions()
+  const labels = {
+    todayActive: '今日活跃时长', actualOccupied: '实际占用', focusSummary: '首屏概览',
+    focusSet: '设为首屏', focusUnset: '退出首屏', todayOnline: '今日在线时长',
+    onlineLabel: '在线时长', todayTask: '任务时长', activeShare: '活跃占比',
+    taskCountShort: '任务次数', focusTodayActive: '今日活跃', focusWeekActive: '本周活跃',
+    focusMonthActive: '本月活跃',
+  }
+  const t = (key) => labels[key] ?? key
+  const calls = []
+  const page = renderHeroFocusPage({
+    data: heroSampleData(), t, format: 'hms', onToggleFocus: (value) => calls.push(value),
+  })
+  assert.equal(allOf(page, byClass('cs-hero-focus')).length, 1, '放大态是独立首屏页')
+  assert.equal(textOf(allOf(page, byClass('cs-hero-num'))[0]).trim(), '2:48:16', '大数字沿用统一格式')
+  const panelText = textOf(allOf(page, byClass('cs-focus-panel'))[0])
+  for (const expected of ['在线时长', '任务时长', '活跃占比', '任务次数', '今日活跃', '本周活跃', '本月活跃']) {
+    assert.match(panelText, new RegExp(expected), `放大页包含「${expected}」`)
+  }
+  assert.match(panelText, /5:58:08/, '在线时长')
+  assert.match(panelText, /1:37:14/, '任务时长')
+  assert.match(panelText, /47%/, '活跃占比 = 2:48:16 / 5:58:08')
+  assert.match(panelText, /5:51:01/, '本周活跃')
+  assert.match(panelText, /14:14:00/, '本月活跃')
+  const bar = allOf(page, byClass('cs-focus-bar'))[0]
+  const fill = allOf(bar, (node) => node.type === 'i')[0]
+  assert.equal(fill.props.style.width, '47%', '进度条宽度即活跃占比')
+  const button = allOf(page, byClass('cs-zoom-btn'))[0]
+  assert.equal(button.props['aria-label'], '退出首屏')
+  button.props.onClick()
+  assert.deepEqual(calls, ['hero'], '再次点击缩回普通概览')
+
+  const noOnline = renderHeroFocusPage({
+    data: { ...heroSampleData(), cycles: { ...heroSampleData().cycles, day: { ...heroSampleData().cycles.day, onlineMs: 0 } } },
+    t, format: 'hms', onToggleFocus: () => {},
+  })
+  const zeroFill = allOf(allOf(noOnline, byClass('cs-focus-bar'))[0], (node) => node.type === 'i')[0]
+  assert.equal(zeroFill.props.style.width, '0%', '在线为 0 时占比显示 0%')
+
+  const reduced = await loadClientFunctions({ matchMedia: () => ({ matches: true }) })
+  const reducedPage = reduced.renderHeroFocusPage({ data: heroSampleData(), t, format: 'hms', onToggleFocus: () => {} })
+  assert.equal(reducedPage.props.style['--cs-focus-ms'], '0ms', '减少动效偏好下直接到位')
+})
+
+test('客户端：概览在首屏状态只渲染放大页，普通状态同时有首屏卡片与周期卡', async () => {
+  const { renderOverviewView } = await loadClientFunctions()
+  const t = (key) => ({
+    overviewTitle: '周期概览', actualOccupied: '实际占用', cycleToday: '今日', cycleWeek: '本周', cycleMonth: '本月',
+    taskCountUnit: '次任务', activeLabel: '活跃', taskLabel: '任务', selectedPeriod: '当前',
+    compositionTitle: '任务时长构成', compositionInfo: '按会话累计', compositionHint: '按会话累计',
+    noTaskComposition: '暂无任务', accumulated: '累计工时', workspaceRanking: '工作区任务排行',
+    sumFoot: '明细按会话逐条累加', unassigned: '未归属', colShare: '任务占比',
+    trendDay: '今日逐小时', trendWeek: '本周每日', trendMonth: '本月每日', trendInfo: '活跃与任务独立统计',
+    emptyDashboard: '暂无记录', recentSessions: '最近会话', recentSessionsHint: '按最近活动排序',
+    recentSessionsEmpty: '暂无会话', unknownSession: '未命名会话',
+    justNow: '刚刚', minutesAgo: '{n} 分钟前', hoursAgo: '{n} 小时前', daysAgo: '{n} 天前',
+    todayActive: '今日活跃时长', focusSet: '设为首屏', focusUnset: '退出首屏',
+    focusSummary: '首屏概览', todayOnline: '今日在线时长', todayTask: '今日任务时长',
+    onlineLabel: '在线时长', activeShare: '活跃占比', taskCountShort: '任务次数',
+    focusTodayActive: '今日活跃', focusWeekActive: '本周活跃', focusMonthActive: '本月活跃',
+  })[key] ?? key
+  const data = sampleDashboardData()
+  const hoverTip = { tip: null, show() {}, hide() {} }
+  const common = {
+    data, t, isZh: true, period: 'day', onSelectPeriod() {}, durationFormat: 'hms',
+    hoverTip, nowMs: Date.now(), onOpenWorkspace() {}, onToggleFocus() {},
+  }
+
+  const normal = renderOverviewView({ ...common, focus: null })
+  assert.equal(allOf(normal, byClass('cs-hero')).length, 1, '普通概览含首屏卡片')
+  assert.equal(allOf(normal, byClass('cs-cycle')).length, 3, '普通概览保留日/周/月周期卡')
+  assert.ok(allOf(normal, byClass('cs-trend-card')).length >= 1)
+  assert.ok(allOf(normal, byClass('cs-composition')).length >= 1)
+
+  const focused = renderOverviewView({ ...common, focus: 'hero' })
+  assert.equal(allOf(focused, byClass('cs-hero-focus')).length, 1, '首屏态只留放大页')
+  assert.equal(allOf(focused, byClass('cs-cycle')).length, 0, '首屏态不渲染周期卡')
+  assert.equal(allOf(focused, byClass('cs-trend-card')).length, 0, '首屏态不渲染趋势卡')
+  assert.equal(allOf(focused, byClass('cs-composition')).length, 0, '首屏态不渲染构成卡')
+  assert.match(textOf(focused), /3:00:00/, '放大页主数字来自今日活跃')
+
+  const futureFocus = renderOverviewView({ ...common, focus: 'trend' })
+  assert.equal(allOf(futureFocus, byClass('cs-cycle')).length, 3, '尚未实现的 trend 首屏不崩溃，回落普通概览')
+})
+
+test('客户端：首屏缩放按钮与进度条样式无边框，并尊重减少动效', async () => {
+  const css = await loadClientCss()
+  const zoom = declarationsFor(css, '.cs-zoom-btn')
+  assert.match(zoom, /position:\s*absolute/, '按钮固定在卡片右上角')
+  assert.match(zoom, /background:\s*transparent/, '无填充')
+  assert.match(zoom, /border:\s*0/, '无边框')
+  assert.match(declarationsFor(css, '.cs-zoom-btn:hover'), /scale\(1\.15\)/, '悬浮放大')
+  assert.match(declarationsFor(css, '.cs-zoom-btn svg'), /stroke:\s*var\(--cs-ink-2\)/, '图标用次级文字色')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-hero-num'), /font-size:\s*clamp\(56px,\s*8vw,\s*104px\)/, '首屏大数字')
+  assert.match(declarationsFor(css, '.cs-focus-bar'), /background:\s*var\(--cs-tone-faint\)/, '进度条轨道')
+  assert.match(declarationsFor(css, '.cs-focus-bar i'), /background:\s*var\(--cs-signal\)/, '进度条填充')
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-hero-focus/, '减少动效下首屏直接到位')
 })
