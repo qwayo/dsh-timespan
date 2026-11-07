@@ -105,6 +105,14 @@ async function loadClientFunctions(windowExtras = {}) {
       renderDailyHeatmap: typeof renderDailyHeatmap === 'function' ? renderDailyHeatmap : undefined,
       useDailySeries: typeof useDailySeries === 'function' ? useDailySeries : undefined,
       HEAT_DEFAULT_RANGE: typeof HEAT_DEFAULT_RANGE === 'string' ? HEAT_DEFAULT_RANGE : undefined,
+      HEAT_RANGE_OPTIONS: typeof HEAT_RANGE_OPTIONS !== 'undefined' ? HEAT_RANGE_OPTIONS : undefined,
+      HEAT_MONTH_ABBR: typeof HEAT_MONTH_ABBR !== 'undefined' ? HEAT_MONTH_ABBR : undefined,
+      resolveHeatRange: typeof resolveHeatRange === 'function' ? resolveHeatRange : undefined,
+      heatRangeLabel: typeof heatRangeLabel === 'function' ? heatRangeLabel : undefined,
+      heatLayoutFor: typeof heatLayoutFor === 'function' ? heatLayoutFor : undefined,
+      buildMonthGrid: typeof buildMonthGrid === 'function' ? buildMonthGrid : undefined,
+      buildYearMatrix: typeof buildYearMatrix === 'function' ? buildYearMatrix : undefined,
+      renderHeatRangePicker: typeof renderHeatRangePicker === 'function' ? renderHeatRangePicker : undefined,
       renderTrendCard: typeof renderTrendCard === 'function' ? renderTrendCard : undefined,
       trendFocusStats: typeof trendFocusStats === 'function' ? trendFocusStats : undefined,
       renderTrendFocusPage: typeof renderTrendFocusPage === 'function' ? renderTrendFocusPage : undefined,
@@ -1875,7 +1883,7 @@ test('客户端：热力图卡片含月份刻度、星期标签与浮层，且�
 test('客户端：热力图月份绝对定位、星期与网格共用七行对齐', async () => {
   const css = await loadClientCss()
   const card = declarationsFor(css, '.cs-heatmap-card')
-  assert.match(card, /--cs-heat-cell:\s*13px/)
+  assert.match(card, /--cs-heat-cell:\s*clamp\(/, '周网格格子尺寸按可用宽度自适应')
   assert.match(card, /--cs-heat-gap:\s*3px/)
   assert.match(declarationsFor(css, '.heat-months'), /position:\s*relative/)
   assert.match(declarationsFor(css, '.heat-months span'), /position:\s*absolute/)
@@ -2009,4 +2017,340 @@ test('客户端：条状图首屏按可用高度铺开、悬停分组放大并�
     /brightness\(1\.12\)/,
     '悬停分组提亮')
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-trend-focus/, '减少动效下取消首屏动画')
+})
+
+/** 构造指定日期的日序列单元，用于范围口径与相邻月份污染测试。 */
+function heatDay(dateKey, activeMs, hasObservations = true) {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const at = new Date(year, month - 1, day)
+  return {
+    dateKey,
+    from: at.getTime(),
+    to: new Date(year, month - 1, day + 1).getTime(),
+    onlineMs: hasObservations ? activeMs * 2 : 0,
+    activeMs: hasObservations ? activeMs : 0,
+    taskMs: hasObservations ? Math.floor(activeMs / 2) : 0,
+    hasObservations,
+  }
+}
+
+test('客户端：热力图范围选项覆盖 3m/6m/全年与 12 个英文月份', async () => {
+  const { HEAT_RANGE_OPTIONS } = await loadClientFunctions()
+  assert.ok(Array.isArray(HEAT_RANGE_OPTIONS), '范围选项是数组')
+  assert.equal(HEAT_RANGE_OPTIONS.length, 15, '3 个跨度 + 12 个月份')
+  assert.deepEqual(
+    Array.from(HEAT_RANGE_OPTIONS, (option) => option.value),
+    ['3m', '6m', 'year', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    '顺序固定为 3m、6m、year、Jan…Dec，月份值是数字 1–12')
+  assert.deepEqual(
+    Array.from(HEAT_RANGE_OPTIONS.slice(3), (option) => option.label),
+    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    '月份选项一律英文缩写')
+  assert.equal(HEAT_RANGE_OPTIONS[0].label, '3m')
+  assert.equal(HEAT_RANGE_OPTIONS[1].label, '6m')
+  assert.equal(HEAT_RANGE_OPTIONS[2].label, 'year')
+})
+
+test('客户端：热力图范围解析为本地日历边界，无效值回落 3m', async () => {
+  const { resolveHeatRange } = await loadClientFunctions()
+  const now = new Date(2026, 10, 7, 12, 34, 56).getTime()
+  const three = resolveHeatRange('3m', now)
+  assert.deepEqual({ ...three }, {
+    value: '3m',
+    from: new Date(2026, 7, 7, 0, 0, 0, 0).getTime(),
+    to: new Date(2026, 10, 8, 0, 0, 0, 0).getTime(),
+  }, '3m 从三个月前的本地零点到今天结束')
+  const six = resolveHeatRange('6m', now)
+  assert.deepEqual({ ...six }, {
+    value: '6m',
+    from: new Date(2026, 4, 7, 0, 0, 0, 0).getTime(),
+    to: new Date(2026, 10, 8, 0, 0, 0, 0).getTime(),
+  }, '6m 从六个月前的本地零点到今天结束')
+  assert.deepEqual({ ...resolveHeatRange('year', now) }, {
+    value: 'year',
+    from: new Date(2026, 0, 1, 0, 0, 0, 0).getTime(),
+    to: new Date(2027, 0, 1, 0, 0, 0, 0).getTime(),
+  }, '全年为本地当年 1 月 1 日到次年 1 月 1 日')
+  assert.deepEqual({ ...resolveHeatRange(1, now) }, {
+    value: 1,
+    month: 0,
+    from: new Date(2026, 0, 1, 0, 0, 0, 0).getTime(),
+    to: new Date(2026, 1, 1, 0, 0, 0, 0).getTime(),
+  }, '1 月范围只覆盖本月，规范值输出数字')
+  assert.deepEqual({ ...resolveHeatRange('1', now) }, { ...resolveHeatRange(1, now) }, '旧字符串月份仍兼容并输出数字')
+  assert.deepEqual({ ...resolveHeatRange(12, now) }, {
+    value: 12,
+    month: 11,
+    from: new Date(2026, 11, 1, 0, 0, 0, 0).getTime(),
+    to: new Date(2027, 0, 1, 0, 0, 0, 0).getTime(),
+  }, '12 月范围跨到次年 1 月 1 日')
+  for (const invalid of ['0', '13', 'abc', '', null, undefined, 'yearish']) {
+    const result = resolveHeatRange(invalid, now)
+    assert.equal(result.value, '3m', `无效值 ${String(invalid)} 规范化为 3m`)
+    assert.equal(result.from, three.from, `无效值 ${String(invalid)} 沿用 3m 起点`)
+    assert.equal(result.to, three.to, `无效值 ${String(invalid)} 沿用 3m 终点`)
+  }
+})
+
+test('客户端：热力图范围标签与布局类型只认 3m/6m/year/1-12', async () => {
+  const { heatRangeLabel, heatLayoutFor } = await loadClientFunctions()
+  assert.equal(heatRangeLabel('3m'), '3m')
+  assert.equal(heatRangeLabel('6m'), '6m')
+  assert.equal(heatRangeLabel('year'), 'year')
+  assert.equal(heatRangeLabel(1), 'Jan')
+  assert.equal(heatRangeLabel(7), 'Jul')
+  assert.equal(heatRangeLabel(12), 'Dec')
+  assert.equal(heatRangeLabel('7'), 'Jul', '旧字符串月份仍兼容')
+  assert.equal(heatRangeLabel('bogus'), '3m', '无效值回落 3m')
+  assert.equal(heatRangeLabel(0), '3m')
+  assert.equal(heatLayoutFor('year'), 'year')
+  assert.equal(heatLayoutFor(1), 'month')
+  assert.equal(heatLayoutFor('1'), 'month', '旧字符串月份仍兼容')
+  assert.equal(heatLayoutFor(12), 'month')
+  assert.equal(heatLayoutFor('3m'), 'weeks')
+  assert.equal(heatLayoutFor('6m'), 'weeks')
+  assert.equal(heatLayoutFor('bogus'), 'weeks', '无效值按 3m 的周网格渲染')
+})
+
+test('客户端：单月网格从周一开始、前后补齐为 null 且只含本月日期', async () => {
+  const { buildMonthGrid } = await loadClientFunctions()
+  const augustRange = { from: new Date(2026, 7, 1).getTime(), to: new Date(2026, 8, 1).getTime() }
+  // 2026-08-01 是周六：第一周应有 5 个前补格。
+  const days = [
+    ...buildHeatDays(augustRange.from, augustRange.to),
+    heatDay('2026-07-31', 99 * 3_600_000),
+    heatDay('2026-09-01', 99 * 3_600_000),
+  ]
+  const grid = buildMonthGrid(days, augustRange)
+  assert.equal(grid.weekdayLabels.join(','), 'Mon,Tue,Wed,Thu,Fri,Sat,Sun', '星期刻度固定周一到周日')
+  assert.equal(grid.daysInMonth, 31)
+  assert.equal(grid.weeks.length, 6, '8 月对齐到完整的 6 周')
+  assert.ok(grid.weeks.every((week) => week.length === 7), '每周恰好 7 格')
+  assert.deepEqual(Array.from(grid.weeks[0].slice(0, 5)), [null, null, null, null, null], '月初前补齐为 null')
+  assert.equal(grid.weeks[0][5].dateKey, '2026-08-01', '8 月 1 日落在第一周周六')
+  assert.equal(grid.weeks[0][5].inRange, true)
+  const keys = grid.weeks.flat().filter(Boolean).map((cell) => cell.dateKey)
+  assert.equal(keys.length, 31, '单月只保留 31 个日期格')
+  assert.ok(keys.every((key) => key.startsWith('2026-08-')), '相邻月份日期不进入单月网格')
+  assert.ok(!keys.includes('2026-07-31'), '前补格里的 7 月 31 日不显示')
+  assert.ok(!keys.includes('2026-09-01'), '后补格里的 9 月 1 日不显示')
+  assert.equal(grid.weeks[5].filter(Boolean).length, 1, '最后一周只有 31 日一天')
+  const juneRange = { from: new Date(2026, 5, 1).getTime(), to: new Date(2026, 6, 1).getTime() }
+  const june = buildMonthGrid([], juneRange)
+  assert.equal(june.weeks[0][0].dateKey, '2026-06-01', '6 月 1 日是周一，无前补格')
+  assert.equal(june.weeks[0][0].day.hasObservations, false, '缺失日期补成无观测格')
+})
+
+test('客户端：全年矩阵为 12 月 × 31 格，月度条只统计有观测的日期', async () => {
+  const { buildYearMatrix, HEAT_MONTH_ABBR } = await loadClientFunctions()
+  const days = [
+    heatDay('2026-01-01', 3_600_000),
+    { ...heatDay('2026-01-02', 99 * 3_600_000), hasObservations: false, activeMs: 99 * 3_600_000 },
+    heatDay('2026-02-28', 1_800_000),
+    heatDay('2025-12-31', 77 * 3_600_000),
+  ]
+  const matrix = buildYearMatrix(days, 2026)
+  assert.equal(matrix.year, 2026)
+  assert.equal(matrix.months.length, 12)
+  assert.deepEqual(Array.from(matrix.months, (month) => month.abbr), Array.from(HEAT_MONTH_ABBR), '左侧月份刻度为 Jan…Dec')
+  assert.deepEqual(Array.from(matrix.months, (month) => month.month), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+  assert.ok(matrix.months.every((month) => month.days.length === 31), '每月一行 31 格')
+  assert.equal(matrix.months[1].days[27].dateKey, '2026-02-28')
+  assert.equal(matrix.months[1].days[28], null, '2 月 29 日超出当月天数')
+  assert.equal(matrix.months[1].days[29], null)
+  assert.equal(matrix.months[1].days[30], null)
+  assert.equal(matrix.months[0].days[0].day.activeMs, 3_600_000, '1 月 1 日取到真实日数据')
+  assert.equal(matrix.months[1].days[0].day.hasObservations, false, '缺失日期补成无观测格')
+  assert.equal(matrix.bars.length, 12, '下方 12 个月度条')
+  assert.deepEqual(Array.from(matrix.bars, (bar) => bar.month), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+  assert.equal(matrix.bars[0].activeMs, 3_600_000, '无观测日期不计入月度条，跨年日期也不混入')
+  assert.equal(matrix.bars[1].activeMs, 1_800_000)
+  assert.equal(matrix.bars[2].activeMs, 0)
+})
+
+test('客户端：全年视图渲染 12 行月份矩阵与 12 个月度条', async () => {
+  const { renderDailyHeatmap } = await loadClientFunctions()
+  const labels = {
+    heatmapTitle: '每日时长', heatmapInfo: '每格代表一天', yearHeatTitle: '全年每日时长',
+    heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
+    monthBars: '月度活跃', periodDay: '日', onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务',
+    noRecord: '无记录', heatDayTitle: '{month}月{day}日',
+    heatSummary: '范围活跃 {active} · 活跃天数 {activeDays}/{observedDays}',
+    heatmapLoading: '正在加载每日时长…', heatmapEmpty: '暂无每日记录',
+  }
+  const t = (key) => labels[key] ?? key
+  const range = { from: new Date(2026, 0, 1).getTime(), to: new Date(2027, 0, 1).getTime() }
+  // 稀疏序列也能撑起完整全年矩阵；月度条高度只取决于真实观测。
+  const series = { range, days: [heatDay('2026-01-01', 3_600_000), heatDay('2026-02-28', 1_800_000)] }
+  const shown = []
+  const hoverTip = { tip: null, show(tip) { shown.push(tip) }, hide() { shown.push(null) } }
+  const tree = renderDailyHeatmap({
+    series, status: 'ready', t, format: 'hms',
+    nowMs: new Date(2026, 10, 7, 12).getTime(), hoverTip, rangeValue: 'year',
+  })
+  const card = allOf(tree, byClass('cs-heatmap-card'))[0]
+  assert.equal(card.props['data-range'], 'year')
+  assert.equal(card.props['data-layout'], 'year')
+  assert.match(textOf(card), /全年每日时长/, '全年视图使用全年标题')
+  assert.equal(allOf(tree, byClass('heat-year-row')).length, 12, '12 行月份矩阵')
+  const labelsInGrid = allOf(tree, byClass('heat-year-label')).map((node) => textOf(node))
+  assert.deepEqual(labelsInGrid, ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
+  const yearGrid = allOf(tree, byClass('heat-year-grid'))[0]
+  const yearCells = findAll(yearGrid, (node) => hasClass(node, 'heat-cell'))
+  assert.equal(yearCells.length, 12 * 31, '12 × 31 的矩阵')
+  const dated = yearCells.filter((cell) => cell.props['data-date'] !== undefined)
+  assert.equal(dated.length, 365, '2026 年有 365 个真实日期格')
+  assert.equal(yearCells.filter((cell) => hasClass(cell, 'is-pad')).length, 7, '2 月与其它小月共 7 个补齐格')
+  const bars = allOf(tree, byClass('heat-month-bar'))
+  assert.equal(bars.length, 12, '下方 12 个月度条')
+  assert.match(String(bars[0].props['aria-label']), /Jan/)
+  assert.match(String(bars[0].props['aria-label']), /活跃/)
+  assert.match(String(bars[0].props['aria-label']), /\d+:\d{2}:\d{2}/, '月度条浮层含时长')
+  assert.equal(bars[0].props.style.height, '100%', '最高月份铺满柱高')
+  assert.equal(bars[1].props.style.height, '50%', '其余月份按当月活跃比例缩放')
+  assert.equal(bars[2].props.style.height, '0%', '无观测月份不撑高')
+  assert.equal(allOf(tree, byClass('heat-month-grid')).length, 0, '全年不渲染单月日历')
+  const jan1 = dated.find((cell) => cell.props['data-date'] === '2026-01-01')
+  jan1.props.onMouseEnter(fakeEvent())
+  assert.equal(shown[shown.length - 1].kind, 'heat', '全年格子仍可浮出单日明细')
+})
+
+test('客户端：单月视图为 7 列日历且汇总只统计本月', async () => {
+  const { renderDailyHeatmap } = await loadClientFunctions()
+  const labels = {
+    heatmapTitle: '每日时长', heatmapInfo: '每格代表一天', monthHeatTitle: '{month}每日时长',
+    heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
+    heatRangeMonth: '{month}', periodDay: '日', onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务',
+    noRecord: '无记录', heatDayTitle: '{month}月{day}日',
+    heatSummary: '范围活跃 {active} · 活跃天数 {activeDays}/{observedDays}',
+    heatmapLoading: '正在加载每日时长…', heatmapEmpty: '暂无每日记录',
+  }
+  const t = (key) => labels[key] ?? key
+  const range = { from: new Date(2026, 7, 1).getTime(), to: new Date(2026, 8, 1).getTime() }
+  const days = [
+    ...buildHeatDays(range.from, range.to),
+    heatDay('2026-07-31', 100 * 3_600_000),
+    heatDay('2026-09-01', 100 * 3_600_000),
+  ]
+  const hoverTip = { tip: null, show() {}, hide() {} }
+  const tree = renderDailyHeatmap({
+    series: { range, days }, status: 'ready', t, format: 'hms',
+    nowMs: new Date(2026, 7, 15, 12).getTime(), hoverTip, rangeValue: '8',
+  })
+  const card = allOf(tree, byClass('cs-heatmap-card'))[0]
+  assert.equal(card.props['data-range'], 8, '月份范围规范化为数字')
+  assert.equal(card.props['data-layout'], 'month')
+  assert.match(textOf(card), /Aug每日时长/, '单月视图标题带英文月份缩写')
+  assert.equal(allOf(tree, byClass('heat-year-grid')).length, 0, '单月不渲染全年矩阵')
+  const weekdays = allOf(tree, byClass('heat-month-weekdays'))[0]
+  assert.ok(weekdays, '单月顶部有星期刻度')
+  assert.deepEqual(textOf(weekdays).trim().split(/\s+/), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+  const monthGrid = allOf(tree, byClass('heat-month-grid'))[0]
+  const cells = findAll(monthGrid, (node) => hasClass(node, 'heat-cell'))
+  assert.equal(cells.length, 42, '6 周 × 7 列')
+  const realCells = cells.filter((cell) => !hasClass(cell, 'is-pad'))
+  assert.equal(realCells.length, 31, '只渲染 8 月的 31 天')
+  assert.ok(realCells.every((cell) => String(cell.props['data-date']).startsWith('2026-08-')))
+  assert.deepEqual(cells.slice(0, 5).map((cell) => hasClass(cell, 'is-pad')), [true, true, true, true, true])
+  const summary = allOf(tree, byClass('heat-summary'))[0]
+  assert.ok(summary, '底部有范围汇总')
+  assert.match(textOf(summary), /范围活跃 21:00:00/, '汇总只累加本月有观测的 21 天，不含相邻月份')
+  assert.match(textOf(summary), /活跃天数 21\/21/)
+  assert.doesNotMatch(textOf(summary), /100:00:00/, '相邻月份的大数值不混入本月汇总')
+})
+
+test('客户端：范围选择器一次渲染 15 项并回传选中值', async () => {
+  const { renderDailyHeatmap } = await loadClientFunctions()
+  const labels = {
+    heatmapTitle: '每日时长', heatmapInfo: '每格代表一天',
+    heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
+    heatRangeMonth: '{month}', periodDay: '日', onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务',
+    noRecord: '无记录', heatDayTitle: '{month}月{day}日',
+    heatSummary: '范围活跃 {active} · 活跃天数 {activeDays}/{observedDays}',
+    heatmapLoading: '正在加载每日时长…', heatmapEmpty: '暂无每日记录',
+  }
+  const t = (key) => labels[key] ?? key
+  const range = { from: new Date(2026, 7, 1).getTime(), to: new Date(2026, 8, 1).getTime() }
+  const series = { range, days: buildHeatDays(range.from, range.to) }
+  const picked = []
+  const tree = renderDailyHeatmap({
+    series, status: 'ready', t, format: 'hms', nowMs: new Date(2026, 7, 15).getTime(),
+    hoverTip: { tip: null, show() {}, hide() {} },
+    rangeValue: '3m', onSelectRange: (value) => picked.push(value),
+  })
+  const picker = allOf(tree, byClass('heat-range-picker'))[0]
+  assert.ok(picker, '卡片头部有范围选择器')
+  assert.equal(picker.type, 'details', '用原生 details 承载展开态')
+  const trigger = allOf(tree, byClass('heat-range-trigger'))[0]
+  assert.equal(trigger.type, 'summary')
+  assert.equal(textOf(trigger), '3m', '收起态显示当前范围缩写')
+  assert.match(String(trigger.props['aria-label']), /统计范围/)
+  const menu = allOf(tree, byClass('heat-range-menu'))[0]
+  assert.equal(menu.props.role, 'listbox')
+  const options = allOf(menu, byClass('heat-range-option'))
+  assert.equal(options.length, 15, '一次渲染全部 15 项，不做滚动裁切')
+  assert.ok(options.every((option) => option.props.role === 'option'))
+  assert.equal(options.filter((option) => option.props['aria-selected'] === true).length, 1)
+  assert.equal(options.find((option) => option.props['data-value'] === '3m').props['aria-selected'], true)
+  assert.equal(textOf(options.find((option) => option.props['data-value'] === '3m')), '近3个月')
+  assert.equal(textOf(options.find((option) => option.props['data-value'] === 7)), 'Jul')
+  assert.equal(textOf(options.find((option) => option.props['data-value'] === 12)), 'Dec')
+  options.find((option) => option.props['data-value'] === 7).props.onClick()
+  assert.deepEqual(picked, [7], '点击月份回传数字范围值')
+})
+
+test('客户端：范围选择器绝对定位且全年/单月网格按列数自适应', async () => {
+  const css = await loadClientCss()
+  const menu = declarationsFor(css, '.heat-range-menu')
+  assert.match(menu, /position:\s*absolute/, '菜单浮在卡片之上')
+  assert.match(menu, /right:\s*0/)
+  assert.match(menu, /bottom:\s*calc\(100%\s*\+\s*4px\)/, '菜单向上弹出，避免被页面底部裁切')
+  assert.match(menu, /top:\s*auto/)
+  assert.match(menu, /z-index:\s*60/)
+  assert.match(menu, /display:\s*grid/)
+  assert.match(menu, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, '两列网格一次展示 15 项')
+  assert.match(menu, /max-height:\s*none/, '不限制高度，15 项一次可见')
+  assert.match(menu, /overflow:\s*visible/, '菜单不被裁切')
+  assert.match(declarationsFor(css, '.heat-range-picker'), /position:\s*relative/)
+  assert.match(declarationsFor(css, '.cs-heatmap-card'), /overflow:\s*visible/)
+  const card = declarationsFor(css, '.cs-heatmap-card')
+  assert.match(card, /--cs-heat-cell:\s*clamp\(/, '周网格格子尺寸随可用宽度自适应')
+  const yearGrid = declarationsFor(css, '.heat-year-grid')
+  assert.match(yearGrid, /grid-template-columns:\s*48px\s+repeat\(31,\s*minmax\(0,\s*1fr\)\)/, '全年矩阵 31 列，左侧留出月份刻度')
+  assert.match(declarationsFor(css, '.heat-year .heat-cell'), /aspect-ratio:\s*1/, '全年格子随列宽保持正方形')
+  const monthGrid = declarationsFor(css, '.heat-month-grid')
+  assert.match(monthGrid, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/, '单月日历 7 列')
+  assert.match(declarationsFor(css, '.heat-month .heat-cell'), /aspect-ratio:\s*1/, '单月格子随列宽保持正方形')
+  assert.match(declarationsFor(css, '.heat-month-bars'), /grid-template-columns:\s*repeat\(12,\s*minmax\(0,\s*1fr\)\)/, '12 个月度条铺满宽度')
+})
+
+test('客户端：概览把范围值与切换回调透传给每日热力图', async () => {
+  const { renderOverviewView } = await loadClientFunctions()
+  const labels = {
+    heatmapTitle: '每日时长', heatmapInfo: '每格代表一天', yearHeatTitle: '全年每日时长',
+    heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
+    heatRangeMonth: '{month}', monthBars: '月度活跃', periodDay: '日', onlineLabel: '在线时长',
+    activeLabel: '活跃', taskLabel: '任务', noRecord: '无记录', heatDayTitle: '{month}月{day}日',
+    heatSummary: '范围活跃 {active} · 活跃天数 {activeDays}/{observedDays}',
+    heatmapLoading: '正在加载每日时长…', heatmapEmpty: '暂无每日记录',
+  }
+  const t = (key) => labels[key] ?? key
+  const range = { from: new Date(2026, 0, 1).getTime(), to: new Date(2027, 0, 1).getTime() }
+  const series = { range, days: buildHeatDays(range.from, range.to) }
+  const picked = []
+  const overview = renderOverviewView({
+    data: sampleDashboardData(), t, isZh: true, period: 'day', onSelectPeriod() {},
+    durationFormat: 'hms', hoverTip: { tip: null, show() {}, hide() {} },
+    nowMs: new Date(2026, 10, 7).getTime(), onOpenWorkspace() {},
+    heatSeries: series, heatStatus: 'ready', heatRangeValue: 'year',
+    onSelectHeatRange: (value) => picked.push(value),
+  })
+  const card = allOf(overview, byClass('cs-heatmap-card'))[0]
+  assert.ok(card, '概览嵌入每日热力图')
+  assert.equal(card.props['data-range'], 'year')
+  assert.equal(card.props['data-layout'], 'year')
+  const option = allOf(card, (node) => node.props?.['data-value'] === 11)[0]
+  assert.ok(option, '概览里的选择器有 11 月选项')
+  option.props.onClick()
+  assert.deepEqual(picked, [11], '切换范围回调从概览透传到页面状态')
 })
