@@ -39,6 +39,16 @@ window.__ModuleLoader__.load({
     const HEAT_MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     /** 星期刻度固定周一到周日，与热力图的七行一一对应。 */
     const HEAT_WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    /**
+     * 热力图范围菜单：最近 3 个月、近半年、全年，再按 Jan…Dec 选单月。
+     * 月份值用数字 1–12，标签固定英文缩写；跨度值保持字符串。
+     */
+    const HEAT_RANGE_OPTIONS = [
+      { value: '3m', label: '3m' },
+      { value: '6m', label: '6m' },
+      { value: 'year', label: 'year' },
+      ...HEAT_MONTH_ABBR.map((abbr, index) => ({ value: index + 1, label: abbr })),
+    ]
     /** 回填进行时加快轮询，让进度与完成后的数字尽快出现，无需刷新页面。 */
     const BACKFILL_REFRESH_MS = 2_000
     /** 四个同级视图；tab 顺序即键盘左右方向键的顺序。 */
@@ -138,6 +148,14 @@ window.__ModuleLoader__.load({
       heatmapLoading: '正在加载每日时长…',
       heatmapEmpty: '暂无每日记录',
       heatmapError: '暂时无法读取每日时长',
+      heatRangeLabel: '统计范围',
+      heatRange3m: '近3个月',
+      heatRange6m: '近半年',
+      heatRangeYear: '全年',
+      heatRangeMonth: '{month}',
+      yearHeatTitle: '全年每日时长',
+      monthHeatTitle: '{month}每日时长',
+      monthBars: '月度活跃',
       compositionInfo: '按会话累计的任务构成；缺少构成记录的历史任务计入未拆分。并发会话时长会分别相加。',
       periodHint: '选择周期查看明细',
       compositionTitle: '任务时长构成',
@@ -354,6 +372,14 @@ window.__ModuleLoader__.load({
       heatmapLoading: 'Loading daily time…',
       heatmapEmpty: 'No daily records yet',
       heatmapError: 'Unable to read daily time',
+      heatRangeLabel: 'Range',
+      heatRange3m: '3 months',
+      heatRange6m: '6 months',
+      heatRangeYear: 'Year',
+      heatRangeMonth: '{month}',
+      yearHeatTitle: 'Daily time · year',
+      monthHeatTitle: 'Daily time · {month}',
+      monthBars: 'Monthly active',
       compositionInfo: 'Task time summed across sessions. Historical tasks without a breakdown are listed as not broken down.',
       periodHint: 'Select a period for details',
       compositionTitle: 'Task time breakdown',
@@ -587,6 +613,210 @@ window.__ModuleLoader__.load({
         from: subtractCalendarMonths(todayStart, 3),
         to: new Date(at.getFullYear(), at.getMonth(), at.getDate() + 1).getTime(),
       }
+    }
+
+    /**
+     * 范围值规范化：3m / 6m / year 保持字符串，单月统一成数字 1–12。
+     * 兼容 #11 之后可能残留的字符串月份；其它值（0、13、空串、脏存储）回落 3m。
+     */
+    function normalizeHeatRangeValue(value) {
+      if (value === '3m' || value === '6m' || value === 'year') return value
+      if (typeof value !== 'string' && typeof value !== 'number') return HEAT_DEFAULT_RANGE
+      const numeric = Number(value)
+      return Number.isInteger(numeric) && numeric >= 1 && numeric <= 12 ? numeric : HEAT_DEFAULT_RANGE
+    }
+
+    /**
+     * 把范围值解析成 Host 可直接查询的本地日历区间。
+     * 3m/6m 从今天往前 N 个日历月的零点到今天 24:00；全年与单月按本地自然月取整。
+     */
+    function resolveHeatRange(value, nowMs) {
+      const normalized = normalizeHeatRangeValue(value)
+      const numeric = Number(nowMs)
+      const at = new Date(Number.isFinite(numeric) ? numeric : Date.now())
+      const year = at.getFullYear()
+      const todayStart = new Date(year, at.getMonth(), at.getDate()).getTime()
+      const tomorrow = new Date(year, at.getMonth(), at.getDate() + 1).getTime()
+      if (normalized === '3m' || normalized === '6m') {
+        return {
+          value: normalized,
+          from: subtractCalendarMonths(todayStart, normalized === '3m' ? 3 : 6),
+          to: tomorrow,
+        }
+      }
+      if (normalized === 'year') {
+        return {
+          value: normalized,
+          from: new Date(year, 0, 1).getTime(),
+          to: new Date(year + 1, 0, 1).getTime(),
+        }
+      }
+      const month = normalized - 1
+      return {
+        value: normalized,
+        month,
+        from: new Date(year, month, 1).getTime(),
+        to: new Date(year, month + 1, 1).getTime(),
+      }
+    }
+
+    /** 范围缩写：3m/6m/year，或 Jan…Dec；无效值按 3m 显示。 */
+    function heatRangeLabel(value) {
+      const normalized = normalizeHeatRangeValue(value)
+      if (normalized === '3m' || normalized === '6m' || normalized === 'year') return normalized
+      return HEAT_MONTH_ABBR[normalized - 1]
+    }
+
+    /** 布局类型：全年矩阵、单月日历或 3m/6m 的周网格。 */
+    function heatLayoutFor(value) {
+      const normalized = normalizeHeatRangeValue(value)
+      if (normalized === 'year') return 'year'
+      if (typeof normalized === 'number') return 'month'
+      return 'weeks'
+    }
+
+    /** 缺失日期的空日对象，与 Host 的日桶结构一致；保证格子仍可聚焦并显示「无记录」。 */
+    function emptyHeatDay(dateKey, at) {
+      return {
+        dateKey,
+        from: at.getTime(),
+        to: new Date(at.getFullYear(), at.getMonth(), at.getDate() + 1).getTime(),
+        onlineMs: 0,
+        activeMs: 0,
+        taskMs: 0,
+        hasObservations: false,
+      }
+    }
+
+    function heatDayMap(days) {
+      const byKey = new Map()
+      if (!Array.isArray(days)) return byKey
+      for (const day of days) {
+        if (day && typeof day.dateKey === 'string') byKey.set(day.dateKey, day)
+      }
+      return byKey
+    }
+
+    /**
+     * 单月 7 列日历：周一开头，前后补齐为 null，只允许 range 所在月份进入格子。
+     * 即使调用方传入相邻月份的 days，也只会按 dateKey 匹配本月日期。
+     */
+    function buildMonthGrid(days, range) {
+      const from = Number(range?.from)
+      const to = Number(range?.to)
+      const result = {
+        weeks: [],
+        weekdayLabels: HEAT_WEEKDAY_LABELS.slice(),
+        daysInMonth: 0,
+        year: null,
+        month: null,
+      }
+      if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) return result
+      const anchor = new Date(from)
+      const year = anchor.getFullYear()
+      const month = anchor.getMonth()
+      const daysInMonth = new Date(year, month + 1, 0).getDate()
+      const byKey = heatDayMap(days)
+      const lead = (new Date(year, month, 1).getDay() + 6) % 7
+      const weeks = []
+      let week = new Array(lead).fill(null)
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const at = new Date(year, month, day)
+        const dateKey = localDateKey(at)
+        week.push({ dateKey, day: byKey.get(dateKey) ?? emptyHeatDay(dateKey, at), inRange: true })
+        if (week.length === 7) {
+          weeks.push(week)
+          week = []
+        }
+      }
+      if (week.length > 0) {
+        while (week.length < 7) week.push(null)
+        weeks.push(week)
+      }
+      result.weeks = weeks
+      result.daysInMonth = daysInMonth
+      result.year = year
+      result.month = month
+      return result
+    }
+
+    /**
+     * 全年 12 月 × 31 天矩阵：每月一行、超出当月天数的格子为 null；
+     * 月度条只累加该月 hasObservations 为 true 的日期，缺失日期不参与。
+     */
+    function buildYearMatrix(days, year) {
+      const numeric = Number(year)
+      const targetYear = Number.isFinite(numeric) && numeric > 0
+        ? Math.trunc(numeric)
+        : new Date().getFullYear()
+      const byKey = heatDayMap(days)
+      const months = HEAT_MONTH_ABBR.map((abbr, month) => {
+        const daysInMonth = new Date(targetYear, month + 1, 0).getDate()
+        const cells = []
+        for (let day = 1; day <= 31; day += 1) {
+          if (day > daysInMonth) {
+            cells.push(null)
+            continue
+          }
+          const at = new Date(targetYear, month, day)
+          const dateKey = localDateKey(at)
+          cells.push({ dateKey, day: byKey.get(dateKey) ?? emptyHeatDay(dateKey, at), inRange: true })
+        }
+        return { month, abbr, days: cells }
+      })
+      const bars = months.map((entry) => ({
+        month: entry.month,
+        abbr: entry.abbr,
+        activeMs: entry.days.reduce((total, cell) => (
+          cell !== null && cell.day.hasObservations === true
+            ? total + finite(cell.day.activeMs)
+            : total
+        ), 0),
+      }))
+      return { year: targetYear, months, bars }
+    }
+
+    /** 菜单里的选项文案：跨度用本地化名称，月份一律英文缩写；缺翻译时回落缩写。 */
+    function heatRangeOptionLabel(option, t) {
+      const key = option.value === '3m'
+        ? 'heatRange3m'
+        : option.value === '6m'
+          ? 'heatRange6m'
+          : option.value === 'year'
+            ? 'heatRangeYear'
+            : null
+      if (key === null) return option.label
+      const label = typeof t === 'function' ? t(key) : ''
+      return typeof label === 'string' && label !== '' && label !== key ? label : option.label
+    }
+
+    /**
+     * 原生 details/summary 范围选择器：不依赖 hooks，组件测试可直接渲染。
+     * 菜单始终渲染全部 15 项，用 CSS 绝对定位向上弹出，一次可见不被裁切。
+     */
+    function renderHeatRangePicker({ value, t, onSelectRange } = {}) {
+      const normalized = normalizeHeatRangeValue(value)
+      const currentLabel = heatRangeLabel(normalized)
+      const rangeLabel = t('heatRangeLabel')
+      return h('details', { className: 'heat-range-picker' },
+        h('summary', {
+          className: 'heat-range-trigger',
+          'aria-label': `${rangeLabel} · ${currentLabel}`,
+        },
+          h('span', { className: 'heat-range-trigger-label' }, currentLabel)),
+        h('div', { className: 'heat-range-menu', role: 'listbox', 'aria-label': rangeLabel },
+          HEAT_RANGE_OPTIONS.map((option) => {
+            const selected = option.value === normalized
+            return h('button', {
+              key: `heat-range-${option.value}`,
+              type: 'button',
+              role: 'option',
+              'aria-selected': selected,
+              'data-value': option.value,
+              className: `heat-range-option${selected ? ' is-active' : ''}`,
+              onClick: () => onSelectRange?.(option.value),
+            }, heatRangeOptionLabel(option, t))
+          })))
     }
 
     /** 热力等级：0 表示无活跃，其余按峰值比例向上取整并钳制在 1–5。 */
@@ -1511,7 +1741,8 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         if (!enabled) return undefined
         let active = true
-        setState((previous) => ({ ...previous, status: 'loading' }))
+        // 范围切换时清空旧序列：新布局不能先套旧数据，否则月份/全年矩阵会短暂错位。
+        setState({ status: 'loading', data: null })
         const load = async () => {
           try {
             const value = await callHost(ctx, 'queryDailySeries', { from, to })
@@ -2985,17 +3216,40 @@ window.__ModuleLoader__.load({
 
     /**
      * 每日时长热力图：每格一天，颜色只表示当天活跃时长深浅。
-     * 月份刻度按当月 1 日所在列绝对定位，星期标签与七行对齐；悬停/聚焦浮出三项时长。
-     * 无观测格仍可聚焦，只显示「无记录」；卡片不含深浅图例与下方单日明细。
+     * 3m/6m 是周一开头的周网格，单月是 7 列日历，全年是 12 月 × 31 天矩阵加月度条；
+     * 三种布局共用同一套格子浮层，无观测格只显示「无记录」。
      */
     function renderDailyHeatmap(props) {
-      const { series, status, t, format = 'hms', nowMs, hoverTip } = props
+      const {
+        series, status, t, format = 'hms', nowMs, hoverTip,
+        rangeValue = HEAT_DEFAULT_RANGE, onSelectRange,
+      } = props
+      // 组件测试可能只传 series（范围在 series.range 里）；显式传了 rangeValue 才以它为准。
+      const hasRangeValue = props.rangeValue !== undefined && props.rangeValue !== null
+      const layout = heatLayoutFor(rangeValue)
+      const resolved = resolveHeatRange(rangeValue, nowMs)
+      const normalizedValue = resolved.value
+      const anchor = new Date(resolved.from)
+      const year = anchor.getFullYear()
+      const month = anchor.getMonth()
+      const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`
+      const yearPrefix = `${year}-`
+      const titleKey = layout === 'year' ? 'yearHeatTitle' : layout === 'month' ? 'monthHeatTitle' : 'heatmapTitle'
+      const fallbackTitle = t('heatmapTitle')
+      const rawTitle = t(titleKey)
+      const titleText = rawTitle === titleKey || rawTitle === ''
+        ? fallbackTitle
+        : layout === 'month'
+          ? rawTitle.replace('{month}', HEAT_MONTH_ABBR[month])
+          : rawTitle
       const hasSeries = series !== null && series !== undefined && Array.isArray(series.days)
       const phase = status ?? (hasSeries ? 'ready' : 'loading')
       const head = h('div', { className: 'cs-card-head' },
         h('div', { className: 'cs-card-heading' },
-          h('h2', null, t('heatmapTitle')),
-          renderInfo(t('heatmapInfo'))))
+          h('h2', null, titleText),
+          renderInfo(t('heatmapInfo'))),
+        h('div', { className: 'heat-card-actions' },
+          renderHeatRangePicker({ value: normalizedValue, t, onSelectRange })))
       let body
       if (!hasSeries) {
         const emptyKey = phase === 'loading' ? 'heatmapLoading' : phase === 'error' ? 'heatmapError' : 'heatmapEmpty'
@@ -3003,72 +3257,136 @@ window.__ModuleLoader__.load({
       } else if (series.days.length === 0) {
         body = h('div', { className: 'cs-empty' }, t('heatmapEmpty'))
       } else {
-        const range = series.range ?? defaultHeatRange(nowMs)
-        const grid = buildHeatGrid(series.days, range)
-        const summary = summarizeHeatDays(series.days)
+        // 单月/全年只统计本范围内的日期；相邻月份即使混进序列也不进入汇总与分母。
+        const scopedDays = layout === 'month'
+          ? series.days.filter((day) => typeof day?.dateKey === 'string' && day.dateKey.startsWith(monthPrefix))
+          : layout === 'year'
+            ? series.days.filter((day) => typeof day?.dateKey === 'string' && day.dateKey.startsWith(yearPrefix))
+            : series.days
+        const summary = summarizeHeatDays(scopedDays)
         let maxActive = 0
-        for (const day of series.days) {
+        for (const day of scopedDays) {
           if (day?.hasObservations === true) maxActive = Math.max(maxActive, finite(day.activeMs))
         }
 
-        const cells = []
-        for (const week of grid.weeks) {
-          for (const cell of week) {
-            if (cell === null) {
-              cells.push(h('span', {
-                key: `pad-${cells.length}`,
-                className: 'heat-cell is-pad',
-                'aria-hidden': true,
-              }))
-              continue
-            }
-            const day = cell.day
-            const empty = day.hasObservations !== true
-            const level = empty ? 0 : heatLevel(day.activeMs, maxActive)
-            const tip = buildHeatTip(day, t, format)
-            const ariaLabel = empty
-              ? `${tip.title} · ${t('noRecord')}`
-              : `${tip.title} · ${t('activeLabel')} ${formatDuration(day.activeMs, format)}`
-            cells.push(h('span', {
-              key: cell.dateKey,
-              className: `heat-cell l${level}${empty ? ' is-empty' : ''}`,
-              tabIndex: 0,
-              role: 'button',
-              'aria-label': ariaLabel,
-              'data-date': cell.dateKey,
-              onMouseEnter: (event) => hoverTip?.show(tip, event),
-              onFocus: (event) => hoverTip?.show(tip, event),
-              onMouseLeave: () => hoverTip?.hide(),
-              onBlur: () => hoverTip?.hide(),
-              onKeyDown: (event) => { if (isActivationKey(event)) hoverTip?.show(tip, event) },
-            }))
-          }
+        const renderPad = (key) => h('span', {
+          key,
+          className: 'heat-cell is-pad',
+          'aria-hidden': true,
+        })
+        const renderCell = (cell, key) => {
+          const day = cell.day
+          const empty = day.hasObservations !== true
+          const level = empty ? 0 : heatLevel(day.activeMs, maxActive)
+          const tip = buildHeatTip(day, t, format)
+          const ariaLabel = empty
+            ? `${tip.title} · ${t('noRecord')}`
+            : `${tip.title} · ${t('activeLabel')} ${formatDuration(day.activeMs, format)}`
+          return h('span', {
+            key,
+            className: `heat-cell l${level}${empty ? ' is-empty' : ''}`,
+            tabIndex: 0,
+            role: 'button',
+            'aria-label': ariaLabel,
+            'data-date': cell.dateKey,
+            onMouseEnter: (event) => hoverTip?.show(tip, event),
+            onFocus: (event) => hoverTip?.show(tip, event),
+            onMouseLeave: () => hoverTip?.hide(),
+            onBlur: () => hoverTip?.hide(),
+            onKeyDown: (event) => { if (isActivationKey(event)) hoverTip?.show(tip, event) },
+          })
         }
-
-        const monthRow = h('div', { className: 'heat-months' }, grid.months.map((month) =>
-          h('span', {
-            key: `${month.abbr}-${month.column}`,
-            'data-column': month.column,
-            style: { left: `calc(${month.column} * (var(--cs-heat-cell) + var(--cs-heat-gap)))` },
-          }, month.abbr)))
-        const weekdayRow = h('div', { className: 'heat-weekdays' },
-          h('span', { className: 'heat-weekdays-spacer', 'aria-hidden': true }),
-          h('div', { className: 'heat-weekday-list' }, HEAT_WEEKDAY_LABELS.map((label) =>
-            h('span', { key: label }, label))))
         const summaryText = t('heatSummary')
           .replace('{active}', formatDuration(summary.activeMs, format))
           .replace('{activeDays}', String(summary.activeDays))
           .replace('{observedDays}', String(summary.observedDays))
-        body = [
-          h('div', { className: 'heatmap-body' },
-            weekdayRow,
-            h('div', { className: 'heat-plot' },
-              monthRow,
-              h('div', { className: 'heat-weekgrid' }, cells))),
-          h('div', { className: 'heat-summary' }, summaryText),
-        ]
+        const summaryNode = h('div', { className: 'heat-summary' }, summaryText)
+
+        if (layout === 'year') {
+          const matrix = buildYearMatrix(scopedDays, year)
+          const maxBar = Math.max(0, ...matrix.bars.map((bar) => bar.activeMs))
+          const rows = matrix.months.map((entry) => h('div', {
+            key: `year-${entry.month}`,
+            className: 'heat-year-row',
+          },
+            h('span', { className: 'heat-year-label' }, entry.abbr),
+            entry.days.map((cell, index) => (
+              cell === null
+                ? renderPad(`pad-${entry.month}-${index}`)
+                : renderCell(cell, `${entry.abbr}-${index}`)
+            ))))
+          const bars = h('div', {
+            className: 'heat-month-bars',
+            role: 'group',
+            'aria-label': t('monthBars'),
+          }, matrix.bars.map((bar) => {
+            const ratio = maxBar > 0 ? bar.activeMs / maxBar : 0
+            const height = bar.activeMs > 0 ? Math.max(4, Math.round(ratio * 100)) : 0
+            return h('div', {
+              key: `bar-${bar.month}`,
+              className: 'heat-month-bar',
+              style: { height: `${height}%` },
+              'data-month': bar.abbr,
+              'data-active-ms': bar.activeMs,
+              'aria-label': `${bar.abbr} · ${t('activeLabel')} ${formatDuration(bar.activeMs, format)}`,
+            })
+          }))
+          body = [
+            h('div', { className: 'heat-year' },
+              h('div', { className: 'heat-year-grid' }, rows),
+              bars),
+            summaryNode,
+          ]
+        } else if (layout === 'month') {
+          const grid = buildMonthGrid(scopedDays, resolved)
+          const cells = grid.weeks.flat().map((cell, index) => (
+            cell === null ? renderPad(`pad-${index}`) : renderCell(cell, cell.dateKey)
+          ))
+          body = [
+            h('div', { className: 'heat-month' },
+              h('div', { className: 'heat-month-weekdays' }, HEAT_WEEKDAY_LABELS.map((label) =>
+                h('span', { key: label }, label))),
+              h('div', { className: 'heat-month-grid' }, cells)),
+            summaryNode,
+          ]
+        } else {
+          const range = hasRangeValue ? resolved : (series.range ?? resolved)
+          const grid = buildHeatGrid(scopedDays, range)
+          const cells = []
+          for (const week of grid.weeks) {
+            for (const cell of week) {
+              if (cell === null) {
+                cells.push(renderPad(`pad-${cells.length}`))
+                continue
+              }
+              cells.push(renderCell(cell, cell.dateKey))
+            }
+          }
+          const monthRow = h('div', { className: 'heat-months' }, grid.months.map((entry) =>
+            h('span', {
+              key: `${entry.abbr}-${entry.column}`,
+              'data-column': entry.column,
+              style: { left: `calc(${entry.column} * (var(--cs-heat-cell) + var(--cs-heat-gap)))` },
+            }, entry.abbr)))
+          const weekdayRow = h('div', { className: 'heat-weekdays' },
+            h('span', { className: 'heat-weekdays-spacer', 'aria-hidden': true }),
+            h('div', { className: 'heat-weekday-list' }, HEAT_WEEKDAY_LABELS.map((label) =>
+              h('span', { key: label }, label))))
+          body = [
+            h('div', { className: 'heatmap-body' },
+              weekdayRow,
+              h('div', { className: 'heat-plot' },
+                monthRow,
+                h('div', { className: 'heat-weekgrid' }, cells))),
+            summaryNode,
+          ]
+        }
       }
-      return h('section', { className: 'cs-card cs-heatmap-card', 'data-range': HEAT_DEFAULT_RANGE }, head, body)
+      return h('section', {
+        className: 'cs-card cs-heatmap-card',
+        'data-range': normalizedValue,
+        'data-layout': layout,
+      }, head, body)
     }
 
     /** 概览：首屏大数字、周期卡、趋势卡、每日热力图、任务构成、工作区排行与最近会话。 */
@@ -3076,6 +3394,7 @@ window.__ModuleLoader__.load({
       const {
         data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip, nowMs, onOpenWorkspace,
         focus = null, onToggleFocus, heatSeries, heatStatus,
+        heatRangeValue = HEAT_DEFAULT_RANGE, onSelectHeatRange,
       } = props
       // 首屏态占据整个内容区：只保留重新排版后的独立页，其余概览卡片不渲染。
       if (focus === 'hero') {
@@ -3099,7 +3418,10 @@ window.__ModuleLoader__.load({
           renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat),
           renderWorkspaceRanking(data, t, durationFormat)),
         renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
-        renderDailyHeatmap({ series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip }),
+        renderDailyHeatmap({
+          series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
+          rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange,
+        }),
         renderRecentSessions(data, t, nowMs, onOpenWorkspace, durationFormat),
       ]
     }
@@ -3369,6 +3691,8 @@ window.__ModuleLoader__.load({
         })
         // 首屏放大态持久化在浏览器本地设置：退出页面再进入仍保持，非法旧值回落普通概览。
         const [focus, setFocus] = React.useState(() => readStoredFocus())
+        // 热力图范围只影响概览取数：3m/6m/year 或数字月份 1–12。
+        const [heatRangeValue, setHeatRangeValue] = React.useState(HEAT_DEFAULT_RANGE)
         const [switchingView, setSwitchingView] = React.useState(false)
         const switchingTimerRef = React.useRef(null)
         const viewsRef = React.useRef(null)
@@ -3672,8 +3996,8 @@ window.__ModuleLoader__.load({
           })
         }
         const nowMs = Date.now()
-        // 默认最近 3 个本地日历月；跨午夜时 from/to 自然前移，页面无需额外状态。
-        const heatRange = defaultHeatRange(nowMs)
+        // 范围由页面状态解析成本地日历区间；跨午夜时 from/to 自然前移，页面无需额外状态。
+        const heatRange = resolveHeatRange(heatRangeValue, nowMs)
         const heatState = useDailySeries(ctx, heatRange, PAGE_REFRESH_MS, refreshNonce, view === 'overview')
         if (state.status === 'loading' && data === null) {
           return h('div', { className: pageClassName },
@@ -3738,6 +4062,7 @@ window.__ModuleLoader__.load({
             onOpenWorkspace: openWorkspaceInDetails,
             focus, onToggleFocus: toggleFocus,
             heatSeries: heatState.data, heatStatus: heatState.status,
+            heatRangeValue, onSelectHeatRange: setHeatRangeValue,
           })
         }
 
@@ -4677,8 +5002,45 @@ window.__ModuleLoader__.load({
         .cs-trend-focus .cs-bar-group .cs-bar-pair { transition: none !important; }
       }
 
-      /* 票 11：每日时长热力图。列是周、行是周一到周日；月份刻度按列绝对定位。 */
-      .cs-heatmap-card { --cs-heat-cell: 13px; --cs-heat-gap: 3px; display: flex; flex-direction: column; gap: 12px; }
+      /* 票 11/#13：每日时长热力图。3m/6m 是周网格，单月是 7 列日历，全年是 12 × 31 矩阵。 */
+      .cs-heatmap-card {
+        --cs-heat-cell: clamp(10px, 1.2vw, 18px); --cs-heat-gap: 3px;
+        position: relative; overflow: visible;
+        display: flex; flex-direction: column; gap: 12px;
+      }
+      .heat-card-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+      /* 范围菜单：原生 details，向上弹出并一次铺开全部 15 项，不做滚动裁切。 */
+      .heat-range-picker { position: relative; flex: 0 0 auto; }
+      .heat-range-trigger {
+        list-style: none; display: inline-flex; align-items: center; gap: 6px;
+        padding: 5px 9px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px;
+        background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary);
+        font: inherit; font-size: 11px; line-height: 16px; cursor: pointer; user-select: none;
+      }
+      .heat-range-trigger::-webkit-details-marker { display: none; }
+      .heat-range-trigger::marker { content: ''; }
+      .heat-range-trigger::after { content: '▾'; font-size: 9px; color: var(--dsw-alias-label-secondary); }
+      .heat-range-picker[open] .heat-range-trigger { border-color: var(--dsw-alias-brand-primary); }
+      .heat-range-menu {
+        position: absolute; right: 0; bottom: calc(100% + 4px); top: auto; z-index: 60;
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px;
+        min-width: 224px; padding: 6px; max-height: none; overflow: visible;
+        border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px;
+        background: var(--dsw-alias-bg-layer-1);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
+      }
+      .heat-range-option {
+        appearance: none; border: 0; border-radius: 6px; padding: 6px 8px;
+        background: transparent; color: var(--dsw-alias-label-primary);
+        font: inherit; font-size: 11px; line-height: 16px; text-align: left;
+        white-space: nowrap; cursor: pointer;
+      }
+      .heat-range-option:nth-child(-n+3) { grid-column: 1 / -1; }
+      .heat-range-option:hover { background: var(--cs-surface-2); }
+      .heat-range-option.is-active {
+        background: color-mix(in srgb, var(--cs-signal-soft) 42%, transparent);
+        font-weight: 620;
+      }
       .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
       .heat-weekdays { display: flex; flex-direction: column; flex: 0 0 auto; }
       .heat-weekdays-spacer { display: block; height: 14px; margin-bottom: 6px; }
@@ -4712,7 +5074,58 @@ window.__ModuleLoader__.load({
       .heat-cell[role="button"]:hover { filter: brightness(1.08); }
       .heat-cell:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
       .heat-summary { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
-      @media (max-width: 600px) { .cs-heatmap-card { --cs-heat-cell: 11px; --cs-heat-gap: 2px; } }
+
+      /* 全年：左侧月份刻度与 31 列格子共用同一张网格，保证逐行严格对齐。 */
+      .heat-year { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+      .heat-year-grid {
+        display: grid; grid-template-columns: 48px repeat(31, minmax(0, 1fr));
+        column-gap: 3px; row-gap: 2px; align-items: center; min-width: 0;
+      }
+      .heat-year-row { display: contents; }
+      .heat-year-label {
+        font-size: 10px; line-height: 12px; text-align: right; padding-right: 6px;
+        color: var(--dsw-alias-label-secondary); white-space: nowrap;
+      }
+      .heat-year .heat-cell {
+        width: auto; height: auto; min-width: 0; aspect-ratio: 1;
+        border-radius: 2px;
+      }
+      .heat-month-bars {
+        display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px;
+        align-items: end; height: 104px; padding-bottom: 18px; min-width: 0;
+      }
+      .heat-month-bar {
+        position: relative; width: 100%; min-height: 2px; align-self: end;
+        border-radius: 3px 3px 0 0; background: var(--cs-heat-3);
+        transition: height 200ms var(--cs-ease);
+      }
+      .heat-month-bar::after {
+        content: attr(data-month); position: absolute; top: calc(100% + 4px); left: 50%;
+        transform: translateX(-50%); font-size: 10px; line-height: 12px;
+        color: var(--dsw-alias-label-secondary); white-space: nowrap;
+      }
+
+      /* 单月：7 列日历，星期刻度与格子共用同一列宽，保证严格对齐。 */
+      .heat-month { display: flex; flex-direction: column; gap: 4px; width: min(100%, 460px); min-width: 0; }
+      .heat-month-weekdays {
+        display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;
+        font-size: 10px; line-height: 12px; text-align: center;
+        color: var(--dsw-alias-label-secondary);
+      }
+      .heat-month-grid {
+        display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;
+        min-width: 0;
+      }
+      .heat-month .heat-cell {
+        width: auto; height: auto; min-width: 0; aspect-ratio: 1;
+        border-radius: 3px;
+      }
+      @media (max-width: 600px) {
+        .cs-heatmap-card { --cs-heat-cell: clamp(9px, 3vw, 13px); --cs-heat-gap: 2px; }
+        .heat-year-grid { grid-template-columns: 32px repeat(31, minmax(0, 1fr)); column-gap: 2px; }
+        .heat-year-label { font-size: 9px; padding-right: 4px; }
+        .heat-month-bars { height: 84px; }
+      }
     `
 
     /** 设置页独立挂载在 settings.section，样式自成一套，不依赖仪表盘根节点。 */
