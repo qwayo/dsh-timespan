@@ -4,7 +4,7 @@
  * 四件事：在侧边栏注册常驻入口并显示今日活跃时长；在 frame-wide overlay 上
  * 挂载 presence 心跳（每 15 秒上报页面可见性、窗口聚焦、前台会话与最近操作）；
  * 在 main 的 chrono-scope 键下渲染日/周/月仪表盘（含导出与二次确认清空）；
- * 在 settings.section 下渲染三项设置。页面只负责渲染与交互，
+ * 在 settings.section 下渲染统计与侧栏显示设置。页面只负责渲染与交互，
  * 周期边界、跨午夜裁剪、并发并集、会话求和、设置归一化与文件序列化全部由
  * Host 领域服务计算；Client 不缓存业务状态，刷新后所有数字都重新从 Host 读取。
  *
@@ -64,7 +64,8 @@ window.__ModuleLoader__.load({
       error: '暂时无法读取时长统计，正在自动重试',
       sinceBoot: '活跃按页面可见、窗口聚焦与键鼠操作判定',
       localOnly: '数据仅保存在本机',
-      navTooltip: 'ChronoScope · 今日活跃时长',
+      navTooltip: 'ChronoScope · 今日在线、活跃与任务时长',
+      sidebarRingTitle: '今日时长构成',
       periodDay: '日',
       periodWeek: '周',
       periodMonth: '月',
@@ -172,6 +173,10 @@ window.__ModuleLoader__.load({
       settingsSubagentHint: '关闭后父会话下不再列出子代理任务；总计口径不受影响。',
       settingsSubagentOn: '显示',
       settingsSubagentOff: '隐藏',
+      settingsSidebarNameLabel: '侧栏显示名称',
+      settingsSidebarNameHint: '关闭后侧栏入口只保留时长、状态点与今日构成环，仍保持单行紧凑。',
+      settingsSidebarNameOn: '显示名称',
+      settingsSidebarNameOff: '隐藏名称',
       settingsSave: '保存设置',
       settingsSaving: '正在保存…',
       settingsSaved: '已保存，统计已按新设置更新',
@@ -191,7 +196,7 @@ window.__ModuleLoader__.load({
       exportError: '导出失败，请重试',
       clearData: '清空全部数据',
       clearStepTitle: '确认清空？',
-      clearStepHint: '这会删除本机全部 ChronoScope 在线、活跃与任务记录，且无法撤销；会话日志不受影响，三项设置会保留。',
+      clearStepHint: '这会删除本机全部 ChronoScope 在线、活跃与任务记录，且无法撤销；会话日志不受影响，设置会保留。',
       clearConfirm: '确认清空',
       clearCancel: '取消',
       clearing: '正在清空…',
@@ -231,7 +236,8 @@ window.__ModuleLoader__.load({
       error: 'Unable to read time statistics. Retrying automatically.',
       sinceBoot: 'Active time follows page visibility, window focus and input',
       localOnly: 'Data stays on this device',
-      navTooltip: 'ChronoScope · active today',
+      navTooltip: 'ChronoScope · online, active and task time today',
+      sidebarRingTitle: 'Time breakdown today',
       periodDay: 'Day',
       periodWeek: 'Week',
       periodMonth: 'Month',
@@ -339,6 +345,10 @@ window.__ModuleLoader__.load({
       settingsSubagentHint: 'Hides subagent tasks under parent sessions when off; totals are unaffected.',
       settingsSubagentOn: 'Shown',
       settingsSubagentOff: 'Hidden',
+      settingsSidebarNameLabel: 'Show sidebar name',
+      settingsSidebarNameHint: 'When off, the sidebar entry keeps the duration, status dot and today ring, staying on one compact line.',
+      settingsSidebarNameOn: 'Show name',
+      settingsSidebarNameOff: 'Hide name',
       settingsSave: 'Save settings',
       settingsSaving: 'Saving…',
       settingsSaved: 'Saved; statistics now use the new settings',
@@ -358,7 +368,7 @@ window.__ModuleLoader__.load({
       exportError: 'Export failed; please retry',
       clearData: 'Clear all data',
       clearStepTitle: 'Clear everything?',
-      clearStepHint: 'This deletes all local ChronoScope online, active and task records and cannot be undone. Session logs are untouched and the three settings are kept.',
+      clearStepHint: 'This deletes all local ChronoScope online, active and task records and cannot be undone. Session logs are untouched and settings are kept.',
       clearConfirm: 'Confirm clear',
       clearCancel: 'Cancel',
       clearing: 'Clearing…',
@@ -446,6 +456,45 @@ window.__ModuleLoader__.load({
       return window.matchMedia('(prefers-color-scheme: dark)').matches === true
     }
 
+    /**
+     * 配色 / 外观切换后广播「主题变了」。侧栏入口落在仪表盘 .cs-page 作用域
+     * 之外，靠这条事件重读同一份浏览器本地偏好；事件不携带值，不形成第二份状态。
+     */
+    const themeListeners = new Set()
+    function subscribeThemeChanged(listener) {
+      themeListeners.add(listener)
+      return () => themeListeners.delete(listener)
+    }
+    function notifyThemeChanged() {
+      for (const listener of [...themeListeners]) {
+        try {
+          listener()
+        } catch {
+          // 单个已卸载入口的监听器不该阻断其它入口刷新。
+        }
+      }
+    }
+
+    /** 侧栏入口在宿主侧栏里，读取与仪表盘同一份浏览器本地主题偏好。 */
+    function readStoredTheme() {
+      let palette = 'blue'
+      let appearance = 'light'
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          palette = normalizePalette(window.localStorage.getItem('chrono-scope.palette'))
+          appearance = normalizeAppearance(window.localStorage.getItem('chrono-scope.appearance'))
+        }
+      } catch {
+        // 隐私模式或禁用存储时回落默认主题，入口仍可渲染。
+      }
+      return { palette, appearance }
+    }
+
+    /** 入口根节点的 cs-palette-* / cs-appearance-* 类；system 按当前系统偏好解析。 */
+    function sidebarThemeClass(palette, appearance, prefersDark) {
+      return `cs-palette-${normalizePalette(palette)} cs-appearance-${resolveAppearance(appearance, prefersDark)}`
+    }
+
     async function callHost(ctx, method, payload) {
       const connection = ctx && typeof ctx.get === 'function' ? ctx.get('connection') : undefined
       if (connection === undefined || connection === null || !connection.rpc || typeof connection.rpc.call !== 'function') {
@@ -501,6 +550,17 @@ window.__ModuleLoader__.load({
         idleThresholdMinutes: Number.isFinite(minutes) ? String(Math.min(15, Math.max(1, Math.round(minutes)))) : '5',
         weekStartsOn: week === 7 ? '7' : '1',
         showSubagents: value?.showSubagents !== false,
+        sidebarShowName: value?.sidebarShowName !== false,
+      }
+    }
+
+    /** 设置页保存载荷：只提交可编辑字段，布尔值按 Host 契约收敛。 */
+    function settingsPayload(draft) {
+      return {
+        idleThresholdMinutes: Number(draft.idleThresholdMinutes),
+        weekStartsOn: Number(draft.weekStartsOn),
+        showSubagents: draft.showSubagents === true,
+        sidebarShowName: draft.sidebarShowName !== false,
       }
     }
 
@@ -729,47 +789,173 @@ window.__ModuleLoader__.load({
       ])
     }
 
-    /** 侧边栏常驻入口：图标 + 今日活跃时长；收起态只保留图标。 */
+    /**
+     * 今日三项时长的迷你构成环：按在线、活跃、任务三项之和归一化。
+     * 颜色全部来自入口自己的插件主题变量，不使用任务构成色。
+     */
+    function sidebarRingSegments(stats) {
+      const values = [
+        { key: 'online', color: '--cs-signal-soft', ms: Math.max(0, finite(stats?.onlineMs)) },
+        { key: 'active', color: '--cs-live', ms: Math.max(0, finite(stats?.activeMs)) },
+        { key: 'task', color: '--cs-task', ms: Math.max(0, finite(stats?.taskMs)) },
+      ]
+      const total = values.reduce((sum, item) => sum + item.ms, 0)
+      let cursor = 0
+      return values.map((item) => {
+        const share = total > 0 ? item.ms / total : 0
+        const from = cursor
+        cursor += share
+        return { ...item, share, from, to: cursor }
+      })
+    }
+
+    function roundRingPercent(value) {
+      return Math.round(value * 1000) / 1000
+    }
+
+    /** 把三段毫秒值拼成 conic-gradient；全零时只画一圈轨道。 */
+    function sidebarRingGradient(segments) {
+      const total = segments.reduce((sum, segment) => sum + segment.ms, 0)
+      if (total <= 0) return 'conic-gradient(var(--cs-ring-track) 0% 100%)'
+      const stops = segments.map((segment) =>
+        `var(${segment.color}) ${roundRingPercent(segment.from * 100)}% ${roundRingPercent(segment.to * 100)}%`)
+      return `conic-gradient(${stops.join(', ')})`
+    }
+
+    /** 活跃时长随心跳实时增长；其余两项仍来自同一份 Host 快照。 */
+    function sidebarLiveElapsed(stats) {
+      return stats?.activeRunning ? Math.max(0, Date.now() - finite(stats.receivedAt)) : 0
+    }
+
+    function sidebarDisplayMs(stats) {
+      return finite(stats?.activeMs) + sidebarLiveElapsed(stats)
+    }
+
+    /** 悬停 / 聚焦浮层：三项具体数值。 */
+    function buildSidebarTip(stats, t) {
+      return {
+        kind: 'sidebar',
+        key: 'today',
+        title: t('sidebarRingTitle'),
+        rows: [
+          { key: 'online', label: t('onlineLabel'), value: formatDuration(finite(stats?.onlineMs)) },
+          { key: 'active', label: t('activeLabel'), value: formatDuration(sidebarDisplayMs(stats)) },
+          { key: 'task', label: t('taskLabel'), value: formatDuration(finite(stats?.taskMs)) },
+        ],
+      }
+    }
+
+    /**
+     * 侧栏入口的纯渲染层：主题、名称显隐与三项数值都可从外部注入，
+     * 便于在隔离上下文断言结构；真实组件只负责轮询与订阅。
+     */
+    function renderSidebarEntry({ stats, theme, showName = true, t, hover, size }) {
+      const wide = typeof size !== 'number' || size !== 18
+      const themeClass = sidebarThemeClass(theme?.palette, theme?.appearance, theme?.systemDark === true)
+      const segments = sidebarRingSegments(stats)
+      const tip = buildSidebarTip(stats, t)
+      const activeMs = sidebarDisplayMs(stats)
+      const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(activeMs)
+      const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(finite(stats?.onlineMs))} · ${t('activeLabel')} ${formatDuration(activeMs)} · ${t('taskLabel')} ${formatDuration(finite(stats?.taskMs))}`
+      const handlers = {
+        onMouseEnter: (event) => hover?.show?.(tip, event),
+        onFocus: (event) => hover?.show?.(tip, event),
+        onMouseLeave: () => hover?.hide?.(),
+        onBlur: () => hover?.hide?.(),
+        onKeyDown: (event) => {
+          if (event?.key === 'Escape') hover?.hide?.()
+        },
+      }
+      return h('span', {
+        className: `chronoscope-nav-entry ${themeClass}`,
+        tabIndex: 0,
+        'aria-label': summary,
+        ...handlers,
+      },
+      h('style', null, CHRONOSCOPE_SIDEBAR_CSS),
+      h('span', {
+        className: 'chronoscope-nav-ring',
+        style: { background: sidebarRingGradient(segments) },
+        'aria-hidden': true,
+      }),
+      wide
+        ? h('span', {
+            className: `chronoscope-nav-time${stats?.activeRunning ? ' is-live' : ''}`,
+          }, value)
+        : null,
+      wide && showName
+        ? h('span', { className: 'chronoscope-nav-name' }, t('title'))
+        : null,
+      wide
+        ? h('span', {
+            className: `chronoscope-nav-dot${stats?.activeRunning ? ' is-live' : ''}`,
+            role: 'img',
+            'aria-label': stats?.activeRunning ? t('live') : t('idle'),
+          })
+        : null,
+      hover?.tip ? h(HoverTip, { tip: hover.tip, id: 'chronoscope-sidebar-tip' }) : null)
+    }
+
+    /** 侧边栏常驻入口：今日构成环 + 活跃时长 + 可隐藏名称 + 状态点。 */
     function createSidebarEntry(ctx, t) {
       return function ChronoScopeSidebarEntry(props) {
         const stats = useTodayStats(ctx, SIDEBAR_REFRESH_MS)
-        const liveElapsed = stats.activeRunning ? Math.max(0, Date.now() - stats.receivedAt) : 0
-        const displayMs = stats.receivedAt > 0 ? stats.activeMs + liveElapsed : 0
-        const value = stats.status === 'loading' ? '–:––:––' : formatDuration(displayMs)
-        const wide = typeof props?.size !== 'number' || props.size !== 18
-        return h(
-          'span',
-          {
-            className: 'chronoscope-nav-entry',
-            style: {
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              minWidth: 0,
-            },
-            title: t('navTooltip'),
-          },
-          h(ChronoIcon, { size: props?.size, active: props?.active }),
-          wide
-            ? h(
-                'span',
-                {
-                  className: `chronoscope-nav-time${stats.activeRunning ? ' is-live' : ''}`,
-                  style: {
-                    color: stats.activeRunning ? 'var(--dsw-alias-state-success-primary)' : 'var(--dsw-alias-label-secondary)',
-                    fontFamily: 'ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace',
-                    fontSize: '11px',
-                    lineHeight: '16px',
-                    fontVariantNumeric: 'tabular-nums',
-                    letterSpacing: '-0.02em',
-                    whiteSpace: 'nowrap',
-                  },
-                  'aria-hidden': true,
-                },
-                value,
-              )
-            : null,
-        )
+        const [theme, setTheme] = React.useState(readStoredTheme)
+        const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
+        const [showName, setShowName] = React.useState(true)
+        const hover = useHoverTip()
+
+        // 仪表盘切换配色/外观、系统深浅变化时，入口重读同一份 localStorage。
+        React.useEffect(() => {
+          const sync = () => setTheme(readStoredTheme())
+          const unsubscribe = subscribeThemeChanged(sync)
+          let media = null
+          const onSystemChange = () => {
+            setSystemDark(systemPrefersDark())
+            sync()
+          }
+          if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+            media = window.matchMedia('(prefers-color-scheme: dark)')
+            if (typeof media.addEventListener === 'function') media.addEventListener('change', onSystemChange)
+            else if (typeof media.addListener === 'function') media.addListener(onSystemChange)
+          }
+          return () => {
+            unsubscribe()
+            if (media === null) return
+            if (typeof media.removeEventListener === 'function') media.removeEventListener('change', onSystemChange)
+            else if (typeof media.removeListener === 'function') media.removeListener(onSystemChange)
+          }
+        }, [])
+
+        // 名称显隐是 Host 设置；设置页保存后按同一事件重读，不缓存第二份业务状态。
+        React.useEffect(() => {
+          let active = true
+          const load = () => {
+            callHost(ctx, 'getSettings', {})
+              .then((value) => {
+                if (!active) return
+                setShowName(value?.sidebarShowName !== false)
+              })
+              .catch(() => {
+                // 读不到设置时保留默认显示，不拿默认值覆盖 Host。
+              })
+          }
+          load()
+          const unsubscribe = subscribeSettingsChanged(load)
+          return () => {
+            active = false
+            unsubscribe()
+          }
+        }, [ctx])
+
+        return renderSidebarEntry({
+          stats,
+          theme: { ...theme, systemDark },
+          showName,
+          t,
+          hover,
+          size: props?.size,
+        })
       }
     }
 
@@ -1904,11 +2090,7 @@ window.__ModuleLoader__.load({
           setPhase('saving')
           setMessage('')
           try {
-            const saved = await callHost(ctx, 'setSettings', {
-              idleThresholdMinutes: Number(draft.idleThresholdMinutes),
-              weekStartsOn: Number(draft.weekStartsOn),
-              showSubagents: draft.showSubagents === true,
-            })
+            const saved = await callHost(ctx, 'setSettings', settingsPayload(draft))
             setDraft(settingsDraft(saved))
             setMessage(t('settingsSaved'))
             setPhase('saved')
@@ -1964,7 +2146,17 @@ window.__ModuleLoader__.load({
                     disabled: busy,
                     onChange: (event) => patch('showSubagents', event?.target?.checked === true),
                   }),
-                  h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn'))))),
+                  h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn')))),
+              settingsRow(t, 'settingsSidebarNameLabel', 'settingsSidebarNameHint',
+                h('label', { className: 'cs-settings-switch' },
+                  h('input', {
+                    type: 'checkbox',
+                    'aria-label': t('settingsSidebarNameLabel'),
+                    checked: draft?.sidebarShowName !== false,
+                    disabled: busy,
+                    onChange: (event) => patch('sidebarShowName', event?.target?.checked === true),
+                  }),
+                  h('span', null, draft?.sidebarShowName === false ? t('settingsSidebarNameOff') : t('settingsSidebarNameOn'))))),
             h('section', { className: 'cs-settings-group' },
               h('h3', null, t('settingsSectionNotices')),
               noticeState.status === 'error'
@@ -2015,7 +2207,10 @@ window.__ModuleLoader__.load({
         React.useEffect(() => {
           if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined
           const media = window.matchMedia('(prefers-color-scheme: dark)')
-          const onChange = (event) => setSystemDark(event?.matches === true)
+          const onChange = (event) => {
+            setSystemDark(event?.matches === true)
+            notifyThemeChanged()
+          }
           if (typeof media.addEventListener === 'function') media.addEventListener('change', onChange)
           else if (typeof media.addListener === 'function') media.addListener(onChange)
           return () => {
@@ -2031,12 +2226,14 @@ window.__ModuleLoader__.load({
           setAppearance(next)
           try { window.localStorage.setItem('chrono-scope.appearance', next); setPaletteSaveError(false) }
           catch { setPaletteSaveError(true) }
+          notifyThemeChanged()
         }
         const changePalette = (value) => {
           const normalized = normalizePalette(value)
           setPalette(normalized)
           try { window.localStorage.setItem('chrono-scope.palette', normalized); setPaletteSaveError(false) }
           catch { setPaletteSaveError(true) }
+          notifyThemeChanged()
         }
         const [expanded, setExpanded] = React.useState(() => {
           try {
@@ -2387,6 +2584,81 @@ window.__ModuleLoader__.load({
       .cs-select-menu.is-grid .cs-opt { justify-content: center; text-align: center; padding: 6px 8px; }
       .cs-select-menu.is-grid .cs-opt.is-span-2 { grid-column: 1 / -1; justify-content: space-between; text-align: left; }
       .cs-select-menu.is-grid .cs-opt.is-on:not(.is-span-2) { justify-content: center; gap: 6px; }
+    `
+
+    /**
+     * 侧栏入口的独立主题作用域。入口落在宿主侧栏，拿不到 .cs-page 的变量，
+     * 因此在这里按 cs-palette-* / cs-appearance-* 重新声明三档蓝并派生
+     * --cs-live / --cs-task；不使用宿主的 success 绿。
+     */
+    const CHRONOSCOPE_SIDEBAR_CSS = `
+      .chronoscope-nav-entry {
+        --cs-signal-deep: #133463;
+        --cs-signal: #1F4E94;
+        --cs-signal-soft: #79B3F9;
+        --cs-live: var(--cs-signal);
+        --cs-task: color-mix(in srgb, var(--cs-signal) 55%, var(--cs-signal-soft));
+        --cs-ring-track: color-mix(in srgb, currentColor 16%, transparent);
+        --cs-entry-muted: color-mix(in srgb, currentColor 62%, transparent);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        max-width: 100%;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        line-height: 16px;
+        font-variant-numeric: tabular-nums;
+        border-radius: 6px;
+        outline: none;
+      }
+      .chronoscope-nav-entry.cs-palette-blue {
+        --cs-signal-deep: #133463; --cs-signal: #1F4E94; --cs-signal-soft: #79B3F9;
+      }
+      .chronoscope-nav-entry.cs-palette-stone {
+        --cs-signal-deep: #2b3033; --cs-signal: #4a5155; --cs-signal-soft: #aeb6b9;
+      }
+      .chronoscope-nav-entry.cs-palette-clay {
+        --cs-signal-deep: #6b3b26; --cs-signal: #a35a37; --cs-signal-soft: #e2ac86;
+      }
+      .chronoscope-nav-entry.cs-appearance-dark {
+        --cs-signal-deep: #a9cffa; --cs-signal: #79B3F9; --cs-signal-soft: #3f6ba8;
+      }
+      .chronoscope-nav-entry.cs-appearance-dark.cs-palette-stone {
+        --cs-signal-deep: #d9dee0; --cs-signal: #aeb6b9; --cs-signal-soft: #6c7477;
+      }
+      .chronoscope-nav-entry.cs-appearance-dark.cs-palette-clay {
+        --cs-signal-deep: #f0c0a4; --cs-signal: #e2ac86; --cs-signal-soft: #8a5a40;
+      }
+      .chronoscope-nav-ring {
+        width: 14px; height: 14px; border-radius: 50%; flex: 0 0 14px;
+        background: conic-gradient(var(--cs-ring-track) 0% 100%);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3.5px));
+        mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3.5px));
+      }
+      .chronoscope-nav-time {
+        font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 11px; line-height: 16px; color: var(--cs-entry-muted);
+        letter-spacing: -0.02em; white-space: nowrap; flex: 0 0 auto;
+      }
+      .chronoscope-nav-time.is-live { color: var(--cs-live); }
+      .chronoscope-nav-name {
+        font-size: 11px; line-height: 16px; color: var(--cs-entry-muted);
+        min-width: 0; max-width: 132px; flex: 0 1 auto;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .chronoscope-nav-dot {
+        width: 6px; height: 6px; border-radius: 50%; flex: 0 0 6px;
+        background: var(--cs-entry-muted);
+      }
+      .chronoscope-nav-dot.is-live {
+        background: var(--cs-live);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--cs-live) 18%, transparent);
+      }
+      .chronoscope-nav-entry:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
+      @media (prefers-reduced-motion: reduce) {
+        .chronoscope-nav-entry, .chronoscope-nav-entry * { transition-duration: 0s; animation-duration: 0s; }
+      }
     `
 
     const CHRONOSCOPE_CSS = `
@@ -3000,6 +3272,11 @@ window.__ModuleLoader__.load({
       return CHRONOSCOPE_CSS
     }
 
+    /** 测试出口：侧栏入口的独立主题作用域样式串。 */
+    function chronoscopeSidebarCss() {
+      return CHRONOSCOPE_SIDEBAR_CSS
+    }
+
     return {
       inject: ['connection', 'slots', 'locale'],
       apply(ctx) {
@@ -3042,7 +3319,7 @@ window.__ModuleLoader__.load({
           ),
         )
 
-        // 设置页挂在 DSH 的 settings.section 上：三项设置只经 Host 公共操作
+        // 设置页挂在 DSH 的 settings.section 上：设置只经 Host 公共操作
         // getSettings / setSettings 读写，页面不落任何业务状态副本。
         ctx.slots.inject('settings.section', () =>
           ctx.slots.register(
