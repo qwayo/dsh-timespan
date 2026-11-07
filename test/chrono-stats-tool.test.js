@@ -181,7 +181,34 @@ test('按周期汇总：chrono_stats 活跃、任务、次数与范围跟仪表�
   assert.match(text, /活跃时长/u)
   assert.match(text, /任务时长/u)
   assert.match(text, /任务次数/u)
-  assert.match(text, /30分00秒/u, '在线时长按可读格式呈现')
+  assert.match(text, /0:30:00/u, '在线时长按共享 hms 格式呈现（小时不补零）')
+})
+
+test('数字格式：chrono_stats 文本跟随 Host 设置，与页面使用同一份格式定义', async () => {
+  const t0 = localTime(2026, 11, 5, 9, 0)
+  const { clock, service } = await startedService(t0)
+  await addTurn(service, 'session-1', 1, t0, t0 + 30 * MINUTE, {
+    workspaceId: 'workspace-1',
+    workspaceTitle: '工作区一',
+    sessionTitle: '会话一',
+  })
+  clock.nowMs = t0 + 40 * MINUTE
+
+  const definition = createDefinition(service)
+  const cases = [
+    ['hms', /任务时长 0:30:00/u],
+    ['short', /任务时长 30m 0s/u],
+    ['zh', /任务时长 30 分 0 秒/u],
+    ['sec', /任务时长 1800 秒/u],
+    ['padded', /任务时长 00:30:00/u],
+  ]
+  for (const [format, expected] of cases) {
+    await service.setSettings({ durationFormat: format })
+    const value = await definition.execute({ period: 'day' })
+    assert.equal(value.ok, true)
+    assert.equal(value.durationFormat, format, '工具响应如实带回当前格式')
+    assert.match(renderText(definition, value), expected, `${format} 格式与页面数字一致`)
+  }
 })
 
 test('分组：workspace/session 每行数字与仪表盘明细一致，summary 仍是并集总计', async () => {

@@ -54,6 +54,12 @@ async function loadClientFunctions(windowExtras = {}) {
       normalizeAppearance: typeof normalizeAppearance === 'function' ? normalizeAppearance : undefined,
       cycleAppearance: typeof cycleAppearance === 'function' ? cycleAppearance : undefined,
       resolveAppearance: typeof resolveAppearance === 'function' ? resolveAppearance : undefined,
+      formatDuration: typeof formatDuration === 'function' ? formatDuration : undefined,
+      normalizeDurationFormat: typeof normalizeDurationFormat === 'function' ? normalizeDurationFormat : undefined,
+      settingsDraft: typeof settingsDraft === 'function' ? settingsDraft : undefined,
+      renderDurationFormatSection: typeof renderDurationFormatSection === 'function' ? renderDurationFormatSection : undefined,
+      subscribeDurationFormatPreview: typeof subscribeDurationFormatPreview === 'function' ? subscribeDurationFormatPreview : undefined,
+      notifyDurationFormatPreview: typeof notifyDurationFormatPreview === 'function' ? notifyDurationFormatPreview : undefined,
       chronoscopeCss: typeof chronoscopeCss === 'function' ? chronoscopeCss : undefined,
       chronoscopeSidebarCss: typeof chronoscopeSidebarCss === 'function' ? chronoscopeSidebarCss : undefined,
       sidebarRingSegments: typeof sidebarRingSegments === 'function' ? sidebarRingSegments : undefined,
@@ -973,8 +979,9 @@ test('客户端：侧栏名称开关进入设置草稿、保存载荷与设置�
     idleThresholdMinutes: 9,
     weekStartsOn: 7,
     showSubagents: false,
+    durationFormat: 'hms',
     sidebarShowName: false,
-  }), '保存时提交 sidebarShowName')
+  }), '保存时提交 sidebarShowName 与数字格式')
 
   const labels = {
     settingsSectionDisplay: '明细展示',
@@ -1020,4 +1027,121 @@ test('客户端：设置页通知记录可回看已读事件并显示累计条�
   assert.match(text, /已读/)
   assert.match(text, /待确认/)
   assert.equal(textOf(renderBackfillNotices(normalizeBackfill({ status: 'done' }), t)), '暂无通知记录')
+})
+
+test('客户端：统一 formatDuration 输出五档，非法值与负数安全回落', async () => {
+  const { formatDuration, normalizeDurationFormat } = await loadClientFunctions()
+  const ms = 2 * 3_600_000 + 48 * 60_000 + 16_000
+  assert.equal(formatDuration(ms), '2:48:16', '缺省保持 hms 兼容旧调用')
+  assert.equal(formatDuration(ms, 'hms'), '2:48:16')
+  assert.equal(formatDuration(ms, 'short'), '2h 48m')
+  assert.equal(formatDuration(ms, 'zh'), '2 小时 48 分')
+  assert.equal(formatDuration(ms, 'sec'), '10096 秒')
+  assert.equal(formatDuration(ms, 'padded'), '02:48:16')
+  assert.equal(formatDuration(48 * 60_000 + 16_000, 'short'), '48m 16s')
+  assert.equal(formatDuration(48 * 60_000 + 16_000, 'zh'), '48 分 16 秒')
+  assert.equal(formatDuration(0, 'hms'), '0:00:00')
+  assert.equal(formatDuration(0, 'short'), '0m 0s')
+  assert.equal(formatDuration(0, 'zh'), '0 分 0 秒')
+  assert.equal(formatDuration(0, 'sec'), '0 秒')
+  assert.equal(formatDuration(0, 'padded'), '00:00:00')
+  assert.equal(formatDuration(25 * 3_600_000 + 61_000, 'hms'), '25:01:01')
+  assert.equal(formatDuration(1_999, 'hms'), '0:00:01', '毫秒向下取整')
+  assert.equal(formatDuration(-5_000, 'sec'), '0 秒')
+  assert.equal(formatDuration(Number.NaN, 'padded'), '00:00:00')
+  assert.equal(formatDuration(ms, 'unknown'), '2:48:16', '非法格式回落 hms')
+  assert.equal(normalizeDurationFormat('zh'), 'zh')
+  assert.equal(normalizeDurationFormat('bogus'), 'hms')
+})
+
+test('客户端：设置草稿包含数字格式，五档卡片与预览行可用，预览事件广播并支持退订', async () => {
+  const {
+    settingsDraft,
+    renderDurationFormatSection,
+    subscribeDurationFormatPreview,
+    notifyDurationFormatPreview,
+  } = await loadClientFunctions()
+  const draft = settingsDraft({
+    idleThresholdMinutes: 5,
+    weekStartsOn: 1,
+    showSubagents: true,
+    durationFormat: 'zh',
+  })
+  assert.equal(draft.idleThresholdMinutes, '5')
+  assert.equal(draft.weekStartsOn, '1')
+  assert.equal(draft.showSubagents, true)
+  assert.equal(draft.durationFormat, 'zh')
+  assert.equal(settingsDraft(null).durationFormat, 'hms')
+  assert.equal(settingsDraft({ durationFormat: 'invalid' }).durationFormat, 'hms')
+
+  const labels = {
+    settingsSectionFormat: '数字格式',
+    settingsFormatHint: '选择后整页立即预览；点「保存设置」才写入 Host。',
+    formatHintHms: '时:分:秒',
+    formatHintShort: '紧凑单位',
+    formatHintZh: '中文单位',
+    formatHintSec: '纯秒',
+    formatHintPadded: '补零时钟',
+    formatPreviewLabel: '预览 · 2:48:16 显示为',
+  }
+  const t = (key) => labels[key] ?? key
+  const picked = []
+  const section = renderDurationFormatSection(t, 'zh', { onSelect: (value) => picked.push(value) })
+  const optionButtons = allOf(section, byClass('cs-format-opt'))
+  assert.equal(optionButtons.length, 5, '五档格式始终同时可见')
+  const checked = optionButtons.filter((button) => button.props['aria-checked'] === true)
+  assert.equal(checked.length, 1, '只有一个格式处于选中态')
+  assert.match(textOf(checked[0]), /2 小时 48 分/, '中文单位卡片给出真实样例')
+  assert.match(textOf(allOf(section, byClass('cs-format-preview'))[0]), /预览 · 2:48:16 显示为\s*2 小时 48 分/, '预览行跟随当前草稿')
+  optionButtons[0].props.onClick()
+  assert.deepEqual(picked, ['hms'], '点击卡片把对应格式交给选择回调')
+
+  const received = []
+  const unsubscribe = subscribeDurationFormatPreview((value) => received.push(value))
+  notifyDurationFormatPreview('short')
+  notifyDurationFormatPreview('bogus')
+  assert.deepEqual(received, ['short', 'hms'], '预览事件携带归一化后的格式')
+  unsubscribe()
+  notifyDurationFormatPreview('sec')
+  assert.deepEqual(received, ['short', 'hms'], '退订后不再收到预览')
+})
+
+test('客户端：图表、排行与明细的渲染调用点使用传入格式', async () => {
+  const { renderTrendChart, buildTrendTip, renderWorkspaceRanking, renderWorkspaceRow } = await loadClientFunctions()
+  const labels = { activeLabel: '活跃', taskLabel: '任务', shareLabel: '占比', durationLabel: '时长' }
+  const t = (key) => labels[key] ?? key
+  const bucket = {
+    key: 'h0',
+    from: new Date(2026, 10, 7, 0).getTime(),
+    to: new Date(2026, 10, 7, 1).getTime(),
+    activeMs: 3_600_000,
+    taskMs: 1_800_000,
+  }
+  const trend = [bucket]
+
+  const chart = renderTrendChart(trend, 'day', t, false, null, {}, 'zh')
+  const groups = allOf(chart, byClass('cs-bar-group'))
+  assert.match(groups[0].props['aria-label'], /活跃 1 小时 0 分 · 任务 30 分 0 秒/, 'aria-label 使用当前格式')
+  const axisText = textOf(allOf(chart, byClass('cs-y-axis'))[0])
+  assert.match(axisText, /1 小时 0 分/, 'y 轴使用当前格式')
+
+  const tip = buildTrendTip(bucket, 'day', t, false, 'sec')
+  assert.equal(tip.rows[0].value, '3600 秒')
+  assert.equal(tip.rows[1].value, '1800 秒')
+
+  const row = {
+    key: 'w1',
+    workspaceTitle: '工作区一',
+    activeMs: 3_600_000,
+    taskMs: 1_800_000,
+    share: 0.5,
+    lastActivityAt: 0,
+    sessions: [],
+  }
+  const rankingText = textOf(renderWorkspaceRanking({ workspaces: [{ ...row, taskMs: 3_600_000 }] }, t, 'sec'))
+  assert.match(rankingText, /3600 秒/, '排行使用当前格式')
+
+  const workspaceText = textOf(renderWorkspaceRow(row, false, () => {}, t, 0, {}, 'short'))
+  assert.match(workspaceText, /1h 0m/)
+  assert.match(workspaceText, /30m 0s/)
 })

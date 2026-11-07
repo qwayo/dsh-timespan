@@ -26,6 +26,10 @@ window.__ModuleLoader__.load({
     const PALETTES = ['blue', 'stone', 'clay']
     /** 外观三态按用户确认的顺序循环：浅色 → 深色 → 跟随系统。 */
     const APPEARANCE_ORDER = ['light', 'dark', 'system']
+    /** 数字格式五档；顺序与原型 FORMATS 一致，也是设置页卡片的展示顺序。 */
+    const DURATION_FORMAT_ORDER = ['hms', 'short', 'zh', 'sec', 'padded']
+    /** 设置页卡片与预览行统一用原型里的 2:48:16 作为示例值。 */
+    const DURATION_FORMAT_SAMPLE_MS = 2 * 3_600_000 + 48 * 60_000 + 16_000
     const PRESENCE_HEARTBEAT_MS = 15_000
     const SIDEBAR_REFRESH_MS = 5_000
     const PAGE_REFRESH_MS = 10_000
@@ -185,6 +189,14 @@ window.__ModuleLoader__.load({
       settingsSaveError: '设置保存失败，请重试',
       settingsSectionGeneral: '统计口径',
       settingsSectionDisplay: '明细展示',
+      settingsSectionFormat: '数字格式',
+      settingsFormatHint: '选择后整页立即预览；点「保存设置」才写入 Host，刷新后仍使用已保存的格式。',
+      formatHintHms: '时:分:秒',
+      formatHintShort: '紧凑单位',
+      formatHintZh: '中文单位',
+      formatHintSec: '纯秒',
+      formatHintPadded: '补零时钟',
+      formatPreviewLabel: '预览 · 2:48:16 显示为',
       settingsSectionNotices: '通知记录',
       dataTitle: '数据管理',
       dataHint: '导出包含原始区间、任务与设置；清空只删除 ChronoScope 统计记录，不影响会话日志。',
@@ -357,6 +369,14 @@ window.__ModuleLoader__.load({
       settingsSaveError: 'Could not save settings; please retry',
       settingsSectionGeneral: 'Counting rules',
       settingsSectionDisplay: 'Detail display',
+      settingsSectionFormat: 'Number format',
+      settingsFormatHint: 'The whole page previews immediately; only “Save settings” writes to the Host, and the saved format survives refresh.',
+      formatHintHms: 'Hours:minutes:seconds',
+      formatHintShort: 'Compact units',
+      formatHintZh: 'Chinese units',
+      formatHintSec: 'Total seconds',
+      formatHintPadded: 'Padded clock',
+      formatPreviewLabel: 'Preview · 2:48:16 shows as',
       settingsSectionNotices: 'Notifications',
       dataTitle: 'Data',
       dataHint: 'Exports include raw intervals, tasks and settings; clearing removes only ChronoScope records, not session logs.',
@@ -419,12 +439,40 @@ window.__ModuleLoader__.load({
       return 'appearanceLight'
     }
 
-    function formatDuration(ms) {
-      const totalSeconds = Math.max(0, Math.floor(Number(ms) / 1000) || 0)
+    function formatDuration(ms, format = 'hms') {
+      const preset = normalizeDurationFormat(format)
+      const numeric = Number(ms)
+      const totalSeconds = Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric / 1000) : 0
       const hours = Math.floor(totalSeconds / 3600)
       const minutes = Math.floor((totalSeconds % 3600) / 60)
       const seconds = totalSeconds % 60
-      return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+      const pad2 = (value) => String(value).padStart(2, '0')
+      switch (preset) {
+        case 'short':
+          return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m ${seconds}s`
+        case 'zh':
+          return hours > 0 ? `${hours} 小时 ${minutes} 分` : `${minutes} 分 ${seconds} 秒`
+        case 'sec':
+          return `${totalSeconds} 秒`
+        case 'padded':
+          return `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`
+        case 'hms':
+        default:
+          return `${hours}:${pad2(minutes)}:${pad2(seconds)}`
+      }
+    }
+
+    /** 数字格式只认五种预设；旧响应、脏草稿与非法值一律回落 hms。 */
+    function normalizeDurationFormat(value) {
+      return typeof value === 'string' && DURATION_FORMAT_ORDER.includes(value) ? value : 'hms'
+    }
+
+    function durationFormatHintKey(format) {
+      if (format === 'short') return 'formatHintShort'
+      if (format === 'zh') return 'formatHintZh'
+      if (format === 'sec') return 'formatHintSec'
+      if (format === 'padded') return 'formatHintPadded'
+      return 'formatHintHms'
     }
 
     /** 配色只认 blue / stone / clay；旧 localStorage 里的 mono/green/warm 等值回落到默认蓝。 */
@@ -525,6 +573,27 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * 数字格式即时预览事件：设置页选择卡片时只广播草稿值，不写 Host。
+     * 页面与侧栏订阅后立即用同一格式重渲染；保存时 notifySettingsChanged
+     * 让它们清掉预览、重新向 Host 取权威设置。
+     */
+    const durationFormatPreviewListeners = new Set()
+    function subscribeDurationFormatPreview(listener) {
+      durationFormatPreviewListeners.add(listener)
+      return () => durationFormatPreviewListeners.delete(listener)
+    }
+    function notifyDurationFormatPreview(value) {
+      const format = normalizeDurationFormat(value)
+      for (const listener of [...durationFormatPreviewListeners]) {
+        try {
+          listener(format)
+        } catch {
+          // 同 settings 变更：单个监听器失败不影响其它页面即时预览。
+        }
+      }
+    }
+
     /** 下载 Host 已序列化的文件；Client 不解析内容、不重新编码业务数据。 */
     function downloadExport(file) {
       if (typeof document === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
@@ -550,6 +619,7 @@ window.__ModuleLoader__.load({
         idleThresholdMinutes: Number.isFinite(minutes) ? String(Math.min(15, Math.max(1, Math.round(minutes)))) : '5',
         weekStartsOn: week === 7 ? '7' : '1',
         showSubagents: value?.showSubagents !== false,
+        durationFormat: normalizeDurationFormat(value?.durationFormat),
         sidebarShowName: value?.sidebarShowName !== false,
       }
     }
@@ -560,12 +630,13 @@ window.__ModuleLoader__.load({
         idleThresholdMinutes: Number(draft.idleThresholdMinutes),
         weekStartsOn: Number(draft.weekStartsOn),
         showSubagents: draft.showSubagents === true,
+        durationFormat: normalizeDurationFormat(draft.durationFormat),
         sidebarShowName: draft.sidebarShowName !== false,
       }
     }
 
     /** 读取 Host 的今日统计；侧边栏与页面各按自己的节奏轮询，Client 不缓存业务状态。 */
-    function useTodayStats(ctx, refreshMs) {
+    function useTodayStats(ctx, refreshMs, refreshNonce = 0) {
       const [state, setState] = React.useState({
         status: 'loading',
         onlineMs: 0,
@@ -577,6 +648,7 @@ window.__ModuleLoader__.load({
         receivedAt: 0,
         running: false,
         activeRunning: false,
+        durationFormat: 'hms',
       })
 
       React.useEffect(() => {
@@ -596,6 +668,7 @@ window.__ModuleLoader__.load({
               receivedAt: Date.now(),
               running: value?.running === true,
               activeRunning: value?.activeRunning === true,
+              durationFormat: normalizeDurationFormat(value?.durationFormat),
             })
           } catch {
             if (!active) return
@@ -614,6 +687,7 @@ window.__ModuleLoader__.load({
                 receivedAt: Date.now(),
                 running: false,
                 activeRunning: false,
+                durationFormat: 'hms',
               }
             })
           }
@@ -624,7 +698,7 @@ window.__ModuleLoader__.load({
           active = false
           clearInterval(timer)
         }
-      }, [ctx, refreshMs])
+      }, [ctx, refreshMs, refreshNonce])
 
       return state
     }
@@ -832,15 +906,15 @@ window.__ModuleLoader__.load({
     }
 
     /** 悬停 / 聚焦浮层：三项具体数值。 */
-    function buildSidebarTip(stats, t) {
+    function buildSidebarTip(stats, t, format = 'hms') {
       return {
         kind: 'sidebar',
         key: 'today',
         title: t('sidebarRingTitle'),
         rows: [
-          { key: 'online', label: t('onlineLabel'), value: formatDuration(finite(stats?.onlineMs)) },
-          { key: 'active', label: t('activeLabel'), value: formatDuration(sidebarDisplayMs(stats)) },
-          { key: 'task', label: t('taskLabel'), value: formatDuration(finite(stats?.taskMs)) },
+          { key: 'online', label: t('onlineLabel'), value: formatDuration(finite(stats?.onlineMs), format) },
+          { key: 'active', label: t('activeLabel'), value: formatDuration(sidebarDisplayMs(stats), format) },
+          { key: 'task', label: t('taskLabel'), value: formatDuration(finite(stats?.taskMs), format) },
         ],
       }
     }
@@ -849,14 +923,14 @@ window.__ModuleLoader__.load({
      * 侧栏入口的纯渲染层：主题、名称显隐与三项数值都可从外部注入，
      * 便于在隔离上下文断言结构；真实组件只负责轮询与订阅。
      */
-    function renderSidebarEntry({ stats, theme, showName = true, t, hover, size }) {
+    function renderSidebarEntry({ stats, theme, showName = true, t, hover, size, format = 'hms' }) {
       const wide = typeof size !== 'number' || size !== 18
       const themeClass = sidebarThemeClass(theme?.palette, theme?.appearance, theme?.systemDark === true)
       const segments = sidebarRingSegments(stats)
-      const tip = buildSidebarTip(stats, t)
+      const tip = buildSidebarTip(stats, t, format)
       const activeMs = sidebarDisplayMs(stats)
-      const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(activeMs)
-      const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(finite(stats?.onlineMs))} · ${t('activeLabel')} ${formatDuration(activeMs)} · ${t('taskLabel')} ${formatDuration(finite(stats?.taskMs))}`
+      const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(activeMs, format)
+      const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(finite(stats?.onlineMs), format)} · ${t('activeLabel')} ${formatDuration(activeMs, format)} · ${t('taskLabel')} ${formatDuration(finite(stats?.taskMs), format)}`
       const handlers = {
         onMouseEnter: (event) => hover?.show?.(tip, event),
         onFocus: (event) => hover?.show?.(tip, event),
@@ -899,11 +973,20 @@ window.__ModuleLoader__.load({
     /** 侧边栏常驻入口：今日构成环 + 活跃时长 + 可隐藏名称 + 状态点。 */
     function createSidebarEntry(ctx, t) {
       return function ChronoScopeSidebarEntry(props) {
-        const stats = useTodayStats(ctx, SIDEBAR_REFRESH_MS)
+        const [previewFormat, setPreviewFormat] = React.useState(null)
+        const [refreshNonce, setRefreshNonce] = React.useState(0)
+        const stats = useTodayStats(ctx, SIDEBAR_REFRESH_MS, refreshNonce)
         const [theme, setTheme] = React.useState(readStoredTheme)
         const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
         const [showName, setShowName] = React.useState(true)
         const hover = useHoverTip()
+
+        // 设置页选择格式时侧栏也立即预览；保存或取消后回到 Host 的已保存值。
+        React.useEffect(() => subscribeDurationFormatPreview((value) => setPreviewFormat(value)), [])
+        React.useEffect(() => subscribeSettingsChanged(() => {
+          setPreviewFormat(null)
+          setRefreshNonce((value) => value + 1)
+        }), [])
 
         // 仪表盘切换配色/外观、系统深浅变化时，入口重读同一份 localStorage。
         React.useEffect(() => {
@@ -955,6 +1038,7 @@ window.__ModuleLoader__.load({
           t,
           hover,
           size: props?.size,
+          format: normalizeDurationFormat(previewFormat ?? stats.durationFormat),
         })
       }
     }
@@ -1129,6 +1213,8 @@ window.__ModuleLoader__.load({
         subagentTasks: normalizeSubagentTasks(value?.subagentTasks),
         trend: normalizeTrend(value?.trend),
         backfill: normalizeBackfill(value?.backfill),
+        // Host 设置里的当前数字格式；页面据此渲染，不在 Client 另存副本。
+        durationFormat: normalizeDurationFormat(value?.durationFormat),
       }
     }
 
@@ -1316,26 +1402,26 @@ window.__ModuleLoader__.load({
       return { tip, show, hide }
     }
 
-    function buildTrendTip(bucket, period, t, isZh) {
+    function buildTrendTip(bucket, period, t, isZh, format = 'hms') {
       return {
         kind: 'bucket',
         key: bucket.key,
         title: bucketLabel(bucket, period, isZh),
         rows: [
-          { key: 'active', label: t('activeLabel'), value: formatDuration(bucket.activeMs) },
-          { key: 'task', label: t('taskLabel'), value: formatDuration(bucket.taskMs) },
+          { key: 'active', label: t('activeLabel'), value: formatDuration(bucket.activeMs, format) },
+          { key: 'task', label: t('taskLabel'), value: formatDuration(bucket.taskMs, format) },
         ],
       }
     }
 
-    function buildCompositionTip(item, total, t) {
+    function buildCompositionTip(item, total, t, format = 'hms') {
       return {
         kind: 'composition',
         key: item.key,
         title: item.label,
         rows: [
           { key: 'share', label: t('shareLabel'), value: formatPercent(total > 0 ? item.ms / total : 0) },
-          { key: 'duration', label: t('durationLabel'), value: formatDuration(item.ms) },
+          { key: 'duration', label: t('durationLabel'), value: formatDuration(item.ms, format) },
         ],
       }
     }
@@ -1363,7 +1449,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 原生 SVG 双系列柱状图；每个时段分组带透明命中区，悬浮或聚焦时整体放大并浮出数值。 */
-    function renderTrendChart(trend, period, t, isZh, hover, actions = {}) {
+    function renderTrendChart(trend, period, t, isZh, hover, actions = {}, format = 'hms') {
       const width = 1000
       const height = 140
       const baseline = height - 3
@@ -1377,7 +1463,7 @@ window.__ModuleLoader__.load({
       trend.forEach((bucket, index) => {
         const left = index * slot + (slot - barWidth * 2 - gap) / 2
         const label = bucketLabel(bucket, period, isZh)
-        const tip = buildTrendTip(bucket, period, t, isZh)
+        const tip = buildTrendTip(bucket, period, t, isZh, format)
         const hot = hover?.kind === 'bucket' && hover.key === bucket.key
         const bars = []
         if (bucket.activeMs > 0) {
@@ -1411,7 +1497,7 @@ window.__ModuleLoader__.load({
           className: `cs-bar-group${hot ? ' is-hot' : ''}`,
           tabIndex: 0,
           role: 'button',
-          'aria-label': `${label} · ${t('activeLabel')} ${formatDuration(bucket.activeMs)} · ${t('taskLabel')} ${formatDuration(bucket.taskMs)}`,
+          'aria-label': `${label} · ${t('activeLabel')} ${formatDuration(bucket.activeMs, format)} · ${t('taskLabel')} ${formatDuration(bucket.taskMs, format)}`,
           onKeyDown: (event) => {
             if (moveFocusByKey(event, '.cs-bar-group')) return
             if (isActivationKey(event) && actions.onHover) {
@@ -1454,7 +1540,7 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'cs-chart' },
         h('div', { className: 'cs-plot' },
         h('div', { className: 'cs-y-axis', 'aria-hidden': true }, [1, 0.5, 0].map((ratio) =>
-          h('span', { key: ratio, style: { top: `${((baseline - usable * ratio) / height) * 100}%` } }, formatDuration(peak * ratio)))),
+          h('span', { key: ratio, style: { top: `${((baseline - usable * ratio) / height) * 100}%` } }, formatDuration(peak * ratio, format)))),
         h('svg', {
           viewBox: `0 0 ${width} ${height}`,
           preserveAspectRatio: 'none',
@@ -1485,19 +1571,19 @@ window.__ModuleLoader__.load({
     }
 
     /** 概览提示：说明起算点；周/月视图额外给出按日历日折算的日均值。 */
-    function overviewHint(data, t) {
+    function overviewHint(data, t, format = 'hms') {
       const parts = [t('periodHint')]
       if (data?.period !== 'day' && data?.range) {
-        parts.push(`${t('dailyAverageActive')} ${formatDuration(averageMsPerDay(data, 'activeMs'))}`)
-        parts.push(`${t('dailyAverageTask')} ${formatDuration(averageMsPerDay(data, 'taskMs'))}`)
+        parts.push(`${t('dailyAverageActive')} ${formatDuration(averageMsPerDay(data, 'activeMs'), format)}`)
+        parts.push(`${t('dailyAverageTask')} ${formatDuration(averageMsPerDay(data, 'taskMs'), format)}`)
       }
       parts.push(t('recordSinceBoot'))
       return parts.join(' · ')
     }
 
     /** 概览口径全部收进 ⓘ：周期提示、实际占用、活跃判定与在线包含挂机。 */
-    function overviewInfoMessages(data, t) {
-      return [overviewHint(data, t), t('unionFoot'), t('sinceBoot'), t('onlineFoot')].filter(Boolean)
+    function overviewInfoMessages(data, t, format = 'hms') {
+      return [overviewHint(data, t, format), t('unionFoot'), t('sinceBoot'), t('onlineFoot')].filter(Boolean)
     }
 
     /** 页脚只留数据摘要；本机存储与近似记录说明收进 ⓘ。 */
@@ -1505,7 +1591,7 @@ window.__ModuleLoader__.load({
       return [t('localOnly'), hasApproximate === true ? t('approximateHint') : null].filter(Boolean)
     }
 
-    function renderCycleCard(t, period, cycle, isCurrent, onSelect) {
+    function renderCycleCard(t, period, cycle, isCurrent, onSelect, format = 'hms') {
       const titleKey = period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth'
       return h('button', { key: period, type: 'button', className: `cs-cycle${isCurrent ? ' is-current' : ''}`, 'aria-pressed': isCurrent, onClick: onSelect },
         h('div', { className: 'cs-cycle-head' },
@@ -1514,10 +1600,10 @@ window.__ModuleLoader__.load({
           h('span', { className: 'cs-cycle-count' }, `${cycle.taskCount} ${t('taskCountUnit')}`)),
         h('div', { className: 'cs-cycle-metric' },
           h('span', { className: 'cs-metric-label' }, t('activeLabel')),
-          h('span', { className: 'cs-metric-value' }, formatDuration(cycle.activeMs))),
+          h('span', { className: 'cs-metric-value' }, formatDuration(cycle.activeMs, format))),
         h('div', { className: 'cs-cycle-metric is-secondary' },
           h('span', { className: 'cs-metric-label' }, t('taskLabel')),
-          h('span', { className: 'cs-metric-value' }, formatDuration(cycle.taskMs))))
+          h('span', { className: 'cs-metric-value' }, formatDuration(cycle.taskMs, format))))
     }
 
     /** 口径信息可悬浮、聚焦或点击查看；Escape 关闭，文字留在无障碍名称中。 */
@@ -1556,7 +1642,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 按会话累计任务构成；扇区与右侧列表共享悬停/聚焦状态，历史缺失拆分计入未拆分。 */
-    function renderComposition(data, t, hover, actions = {}) {
+    function renderComposition(data, t, hover, actions = {}, format = 'hms') {
       const parts = [
         { key: 'model', label: t('breakdownModel'), ms: 0 },
         { key: 'tool', label: t('breakdownTool'), ms: 0 },
@@ -1585,7 +1671,7 @@ window.__ModuleLoader__.load({
       const circumference = 2 * Math.PI * radius
       const segments = visibleParts.map((item) => {
         const fraction = item.ms / total
-        const tip = buildCompositionTip(item, total, t)
+        const tip = buildCompositionTip(item, total, t, format)
         const props = {
           key: item.key,
           className: `cs-donut-seg is-${item.key}${hotKey === item.key ? ' is-hot' : ''}`,
@@ -1595,7 +1681,7 @@ window.__ModuleLoader__.load({
           strokeDashoffset: -offset * circumference,
           tabIndex: 0,
           role: 'button',
-          'aria-label': `${item.label} · ${t('shareLabel')} ${formatPercent(fraction)} · ${t('durationLabel')} ${formatDuration(item.ms)}`,
+          'aria-label': `${item.label} · ${t('shareLabel')} ${formatPercent(fraction)} · ${t('durationLabel')} ${formatDuration(item.ms, format)}`,
           onKeyDown: (event) => {
             if (moveFocusByKey(event, '.cs-donut-seg')) return
             if (isActivationKey(event) && actions.onHover) {
@@ -1626,20 +1712,20 @@ window.__ModuleLoader__.load({
               h('div', {
                 className: `cs-donut${hotKey ? ' has-hot' : ''}`,
                 role: 'group',
-                'aria-label': `${t('compositionTitle')} · ${t('accumulated')} ${formatDuration(total)}`,
+                'aria-label': `${t('compositionTitle')} · ${t('accumulated')} ${formatDuration(total, format)}`,
               },
                 h('svg', { viewBox: '0 0 100 100' },
                   h('circle', { cx: 50, cy: 50, r: radius, fill: 'none', stroke: 'var(--dsw-alias-bg-layer-2)', strokeWidth: 11 }),
                   h('g', { transform: 'rotate(-90 50 50)' }, ...segments)),
-                h('div', { className: 'cs-donut-center' }, h('strong', null, formatDuration(total)), h('span', null, t('accumulated')))),
+                h('div', { className: 'cs-donut-center' }, h('strong', null, formatDuration(total, format)), h('span', null, t('accumulated')))),
               h('div', { className: 'cs-composition-list' }, visibleParts.map((item) => {
-                const tip = buildCompositionTip(item, total, t)
+                const tip = buildCompositionTip(item, total, t, format)
                 const props = {
                   key: item.key,
                   className: `cs-composition-row${hotKey === item.key ? ' is-hot' : ''}`,
                   tabIndex: 0,
                   role: 'button',
-                  'aria-label': `${item.label} · ${t('shareLabel')} ${formatPercent(item.ms / total)} · ${t('durationLabel')} ${formatDuration(item.ms)}`,
+                  'aria-label': `${item.label} · ${t('shareLabel')} ${formatPercent(item.ms / total)} · ${t('durationLabel')} ${formatDuration(item.ms, format)}`,
                   onKeyDown: (event) => {
                     if (moveFocusByKey(event, '.cs-composition-row')) return
                     if (isActivationKey(event) && actions.onHover) {
@@ -1660,12 +1746,12 @@ window.__ModuleLoader__.load({
                   h('span', { className: `cs-series-swatch is-${item.key}`, 'aria-hidden': true }),
                   h('span', { className: 'cs-composition-label' }, item.label),
                   h('span', { className: 'cs-composition-percent' }, formatPercent(item.ms / total)),
-                  h('span', { className: 'cs-composition-time' }, formatDuration(item.ms)))
+                  h('span', { className: 'cs-composition-time' }, formatDuration(item.ms, format)))
               }))))
     }
 
     /** 排名与占比沿用 Host 的工作区累计工时，不把并发任务相加当作实际占用。 */
-    function renderWorkspaceRanking(data, t) {
+    function renderWorkspaceRanking(data, t, format = 'hms') {
       const rows = [...data.workspaces].filter((row) => row.taskMs > 0).sort((a, b) => b.taskMs - a.taskMs).slice(0, 5)
       return h('section', { className: 'cs-card cs-ranking' },
         h('div', { className: 'cs-card-head' }, h('div', { className: 'cs-card-heading' },
@@ -1673,41 +1759,45 @@ window.__ModuleLoader__.load({
           renderInfo([t('sumFoot'), t('accumulated')].join('；')))),
         rows.length === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-ranking-list' }, rows.map((row, index) =>
-              h('div', { className: 'cs-ranking-row', key: row.key, title: `${row.workspaceTitle ?? t('unassigned')} · ${t('taskLabel')} ${formatDuration(row.taskMs)} · ${t('colShare')} ${formatPercent(row.share)}` },
+              h('div', { className: 'cs-ranking-row', key: row.key, title: `${row.workspaceTitle ?? t('unassigned')} · ${t('taskLabel')} ${formatDuration(row.taskMs, format)} · ${t('colShare')} ${formatPercent(row.share)}` },
                 h('span', { className: 'cs-rank-index' }, String(index + 1).padStart(2, '0')),
                 h('span', { className: 'cs-ranking-name', title: row.workspaceTitle ?? t('unassigned') }, row.workspaceTitle ?? t('unassigned')),
                 h('span', { className: 'cs-ranking-bar', 'aria-hidden': true },
                   h('i', { style: { width: formatPercent(row.share) } })),
-                h('span', { className: 'cs-ranking-time' }, formatDuration(row.taskMs)),
+                h('span', { className: 'cs-ranking-time' }, formatDuration(row.taskMs, format)),
                 h('span', { className: 'cs-ranking-share' }, formatPercent(row.share))))))
     }
 
     /** 恢复票 03 的任务构成展示：四部分之和等于任务时长，历史任务显示「未拆分」。 */
-    function renderSessionBreakdown(session, t) {
+    function renderSessionBreakdown(session, t, format = 'hms') {
       const values = [session.modelMs, session.toolMs, session.waitMs, session.otherMs]
       const labels = ['breakdownModel', 'breakdownTool', 'breakdownWait', 'breakdownOther']
       let remaining = Math.max(0, session.taskMs)
       const parts = values.map((value, index) => {
         const amount = Math.min(remaining, Math.max(0, value))
         remaining -= amount
-        return amount > 0 ? `${t(labels[index])} ${formatDuration(amount)}` : null
+        return amount > 0 ? `${t(labels[index])} ${formatDuration(amount, format)}` : null
       }).filter(Boolean)
-      if (remaining > 0) parts.push(`${t('notBroken')} ${formatDuration(remaining)}`)
+      if (remaining > 0) parts.push(`${t('notBroken')} ${formatDuration(remaining, format)}`)
       return h('span', { className: 'cs-session-breakdown' }, parts.join(' · ') || t('notBroken'))
     }
 
-    function renderSessionRow(session, t, nowMs, subagentRows) {
+    function renderSessionRow(session, t, nowMs, subagentRows, format = 'hms') {
       const subagents = subagentRows.length
+      const subagentDuration = formatDuration(
+        subagentRows.reduce((sum, row) => sum + row.durationMs, 0),
+        format,
+      )
       const sessionTitle = session.sessionTitle ?? t('unknownSession')
       return h('div', { className: 'cs-session', key: session.sessionId },
         h('span', { className: 'cs-session-title', title: sessionTitle }, sessionTitle),
         session.taskRunning ? h('span', { className: 'cs-chip is-live' }, t('runningTag')) : null,
         session.approximate ? h('span', { className: 'cs-chip', title: t('approximateHint') }, t('approximateTag')) : null,
-        h('span', { className: 'cs-session-stat', 'data-label': t('activeLabel') }, `${t('activeLabel')} ${formatDuration(session.activeMs)}`),
-        h('span', { className: 'cs-session-stat', 'data-label': t('taskLabel') }, `${t('taskLabel')} ${formatDuration(session.taskMs)}`),
+        h('span', { className: 'cs-session-stat', 'data-label': t('activeLabel') }, `${t('activeLabel')} ${formatDuration(session.activeMs, format)}`),
+        h('span', { className: 'cs-session-stat', 'data-label': t('taskLabel') }, `${t('taskLabel')} ${formatDuration(session.taskMs, format)}`),
         h('span', { className: 'cs-session-stat' }, `${session.taskCount} ${t('taskCountUnit')}`),
         h('span', { className: 'cs-session-last' }, formatRelativeTime(session.lastActivityAt, t, nowMs)),
-        session.taskCount > 0 ? renderSessionBreakdown(session, t) : null,
+        session.taskCount > 0 ? renderSessionBreakdown(session, t, format) : null,
         // 子代理任务只在父会话明细里露出，不参与上面的任务时长与次数。
         subagents > 0
           ? h('span', {
@@ -1715,11 +1805,11 @@ window.__ModuleLoader__.load({
             title: subagentRows.map((row) => row.sessionTitle ?? row.sessionId).join('、'),
           }, `${t('subagentDetail')} · ${t('subagentDetailHint')
             .replace('{count}', String(subagents))
-            .replace('{duration}', formatDuration(subagentRows.reduce((sum, row) => sum + row.durationMs, 0)))}`)
+            .replace('{duration}', subagentDuration)}`)
           : null)
     }
 
-    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent) {
+    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms') {
       const workspaceTitle = row.workspaceTitle ?? t('unassigned')
       return h('div', { className: 'cs-group', key: row.key },
         h('div', {
@@ -1739,8 +1829,8 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-cell cs-name' },
             h('span', { className: 'cs-name-text', title: workspaceTitle }, workspaceTitle),
             h('span', { className: 'cs-name-sub' }, `${row.sessions.length} ${t('sessionsUnit')}`)),
-          h('div', { className: 'cs-cell cs-active cs-num', 'data-label': t('colActive') }, formatDuration(row.activeMs)),
-          h('div', { className: 'cs-cell cs-task cs-num', 'data-label': t('colTask') }, formatDuration(row.taskMs)),
+          h('div', { className: 'cs-cell cs-active cs-num', 'data-label': t('colActive') }, formatDuration(row.activeMs, format)),
+          h('div', { className: 'cs-cell cs-task cs-num', 'data-label': t('colTask') }, formatDuration(row.taskMs, format)),
           h('div', { className: 'cs-cell cs-share', 'data-label': t('colShare') },
             h('span', { className: 'cs-share-text' }, formatPercent(row.share)),
             h('span', { className: 'cs-share-track' },
@@ -1752,7 +1842,7 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'cs-sessions' }, row.sessions.length === 0
               ? h('div', { className: 'cs-empty is-small' }, t('emptyWorkspace'))
               : row.sessions.map((session) =>
-                renderSessionRow(session, t, nowMs, subagentByParent[session.sessionId] ?? [])))
+                renderSessionRow(session, t, nowMs, subagentByParent[session.sessionId] ?? [], format)))
           : null)
     }
 
@@ -2033,6 +2123,39 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 数字格式选择区：五张卡片同时给出样例，底部预览行按当前草稿实时变化。
+     * 抽成纯函数便于组成测试直接断言五档输出与选中态，不依赖设置页的数据加载。
+     */
+    function renderDurationFormatSection(t, draftFormat, options = {}) {
+      const current = normalizeDurationFormat(draftFormat)
+      const disabled = options.disabled === true
+      return h('section', { className: 'cs-settings-group' },
+        h('h3', null, t('settingsSectionFormat')),
+        h('p', { className: 'cs-settings-row-hint' }, t('settingsFormatHint')),
+        h('div', {
+          className: 'cs-format-grid',
+          role: 'radiogroup',
+          'aria-label': t('settingsSectionFormat'),
+        }, DURATION_FORMAT_ORDER.map((format) => {
+          const selected = current === format
+          return h('button', {
+            key: format,
+            type: 'button',
+            role: 'radio',
+            'aria-checked': selected,
+            className: `cs-format-opt${selected ? ' is-on' : ''}`,
+            disabled,
+            onClick: () => options.onSelect?.(format),
+          },
+          h('b', null, formatDuration(DURATION_FORMAT_SAMPLE_MS, format)),
+          h('span', null, t(durationFormatHintKey(format))))
+        })),
+        h('div', { className: 'cs-format-preview' },
+          h('span', null, t('formatPreviewLabel')),
+          h('b', null, formatDuration(DURATION_FORMAT_SAMPLE_MS, current))))
+    }
+
+    /**
      * settings.section 设置页。表单草稿只是瞬时 UI 状态：初始值从 Host 读取，
      * 保存后以 Host 返回值为准，不写 localStorage、不缓存任何业务状态。
      */
@@ -2083,6 +2206,13 @@ window.__ModuleLoader__.load({
 
         const patch = (key, value) =>
           setDraft((previous) => ({ ...(previous ?? settingsDraft(null)), [key]: value }))
+
+        // 选择格式只动草稿并广播即时预览；真正写 Host 仍要等「保存设置」。
+        const selectDurationFormat = (value) => {
+          const format = normalizeDurationFormat(value)
+          patch('durationFormat', format)
+          notifyDurationFormatPreview(format)
+        }
 
         const onSave = async () => {
           // 只有成功读到 Host 设置后才允许写入，避免用草稿覆盖未读到的真实值。
@@ -2157,6 +2287,10 @@ window.__ModuleLoader__.load({
                     onChange: (event) => patch('sidebarShowName', event?.target?.checked === true),
                   }),
                   h('span', null, draft?.sidebarShowName === false ? t('settingsSidebarNameOff') : t('settingsSidebarNameOn'))))),
+            renderDurationFormatSection(t, draft?.durationFormat, {
+              disabled: busy,
+              onSelect: selectDurationFormat,
+            }),
             h('section', { className: 'cs-settings-group' },
               h('h3', null, t('settingsSectionNotices')),
               noticeState.status === 'error'
@@ -2245,6 +2379,8 @@ window.__ModuleLoader__.load({
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
         const [pollMs, setPollMs] = React.useState(PAGE_REFRESH_MS)
         const [refreshNonce, setRefreshNonce] = React.useState(0)
+        // 设置页选择格式后的即时预览；保存/取消后清空，回到 Host 的已保存值。
+        const [previewFormat, setPreviewFormat] = React.useState(null)
         const [readBackfillId, setReadBackfillId] = React.useState('')
         const [dismissingBackfill, setDismissingBackfill] = React.useState(false)
         const [dismissError, setDismissError] = React.useState(null)
@@ -2262,6 +2398,7 @@ window.__ModuleLoader__.load({
         }, [])
 
         const data = state.data
+        const durationFormat = normalizeDurationFormat(previewFormat ?? data?.durationFormat)
         const backfill = data?.backfill ?? normalizeBackfill(null)
         // 本地点「知道了」后立即收起当前事件；新事件换代后不能复用旧覆盖值。
         const effectiveBackfill = readBackfillId !== '' && readBackfillId === backfill.eventId
@@ -2287,7 +2424,12 @@ window.__ModuleLoader__.load({
         }, [backfill.status])
 
         // 设置在另一个面板保存、或数据被清空时，立刻重新取数展示新口径/空状态。
-        React.useEffect(() => subscribeSettingsChanged(() => setRefreshNonce((value) => value + 1)), [])
+        React.useEffect(() => subscribeSettingsChanged(() => {
+          setPreviewFormat(null)
+          setRefreshNonce((value) => value + 1)
+        }), [])
+        // 设置页选择数字格式时只广播草稿值：整页立即预览，不写 Host。
+        React.useEffect(() => subscribeDurationFormatPreview((value) => setPreviewFormat(value)), [])
 
         const [clearStep, setClearStep] = React.useState(false)
         const [dataBusy, setDataBusy] = React.useState('')
@@ -2434,17 +2576,17 @@ window.__ModuleLoader__.load({
               h('div', { className: 'cs-overview-heading' },
                 h('span', { className: 'cs-section-title' }, t('overviewTitle')),
                 h('span', { className: 'cs-tag' }, t('actualOccupied')),
-                renderInfo(overviewInfoMessages(data, t).join('；')))),
+                renderInfo(overviewInfoMessages(data, t, durationFormat).join('；')))),
             h('div', { className: 'cs-cycles' },
-              ['day', 'week', 'month'].map((item) => renderCycleCard(t, item, data.cycles[item], item === period, () => setPeriod(item)))),
+              ['day', 'week', 'month'].map((item) => renderCycleCard(t, item, data.cycles[item], item === period, () => setPeriod(item), durationFormat))),
             h('div', { className: 'cs-data-panels', 'aria-busy': switchingPeriod },
             switchingPeriod && (showPeriodWait || state.status === 'error')
               ? h('div', { className: 'cs-period-notice', role: 'status' },
                   `${t(state.status === 'error' ? 'periodLoadFailed' : 'periodLoading')} · ${t(shownPeriod === 'day' ? 'cycleToday' : shownPeriod === 'week' ? 'cycleWeek' : 'cycleMonth')}`)
               : null,
             h('div', { className: 'cs-analysis-grid' },
-              renderComposition(data, t, hoverTip.tip, { onHover: hoverTip.show, onLeave: hoverTip.hide }),
-              renderWorkspaceRanking(data, t)),
+              renderComposition(data, t, hoverTip.tip, { onHover: hoverTip.show, onLeave: hoverTip.hide }, durationFormat),
+              renderWorkspaceRanking(data, t, durationFormat)),
             h('section', { className: 'cs-card cs-trend-card' },
               h('div', { className: 'cs-card-head' },
                 h('div', { className: 'cs-card-heading' },
@@ -2455,7 +2597,7 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel')))),
               isEmpty
                 ? h('div', { className: 'cs-empty' }, t('emptyDashboard'))
-                : renderTrendChart(data.trend, shownPeriod, t, isZh, hoverTip.tip, { onHover: hoverTip.show, onLeave: hoverTip.hide })),
+                : renderTrendChart(data.trend, shownPeriod, t, isZh, hoverTip.tip, { onHover: hoverTip.show, onLeave: hoverTip.hide }, durationFormat)),
             h('section', { className: 'cs-card cs-table-card' },
               h('div', { className: 'cs-card-head' },
                 h('div', { className: 'cs-card-heading' },
@@ -2475,7 +2617,7 @@ window.__ModuleLoader__.load({
                 : h('div', { className: 'cs-table-body' },
                     data.workspaces.map((row) =>
                       renderWorkspaceRow(row, expanded[row.key] === true, () => toggleRow(row.key),
-                        t, nowMs, subagentByParent))))),
+                        t, nowMs, subagentByParent, durationFormat))))),
             h('section', { className: 'cs-card cs-data-card' },
               h('div', { className: 'cs-card-head' },
                 h('div', { className: 'cs-card-heading' },
@@ -2516,7 +2658,7 @@ window.__ModuleLoader__.load({
                   }, dataMessage.text)
                 : null),
             h('footer', { className: 'cs-foot' },
-              h('span', null, `${t('todayActive')} ${formatDuration(data.cycles.day.activeMs)} · ${t('todayOnline')} ${formatDuration(data.cycles.day.onlineMs)}`),
+              h('span', null, `${t('todayActive')} ${formatDuration(data.cycles.day.activeMs, durationFormat)} · ${t('todayOnline')} ${formatDuration(data.cycles.day.onlineMs, durationFormat)}`),
               renderInfo(footerInfoMessages(t, hasApproximate).join('；'))),
             h(HoverTip, { key: 'hover-tip', tip: hoverTip.tip })))
       }
@@ -3247,6 +3389,27 @@ window.__ModuleLoader__.load({
       .cs-settings-unit { font-size: 12px; color: var(--dsw-alias-label-secondary); }
       .cs-settings-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
       .cs-settings-switch input { width: 16px; height: 16px; accent-color: var(--dsw-alias-brand-primary); cursor: pointer; }
+      /* 数字格式：五张卡片始终可见，原生 button 支持 Tab/Enter/Space 操作。 */
+      .cs-format-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding-top: 6px; }
+      .cs-format-opt {
+        padding: 10px 8px; text-align: center; border: 1px solid var(--dsw-alias-border-l1);
+        border-radius: 8px; background: transparent; color: inherit; font: inherit; cursor: pointer;
+        transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+      }
+      .cs-format-opt:hover:not(:disabled) { border-color: var(--dsw-alias-label-secondary); }
+      .cs-format-opt:active:not(:disabled) { transform: scale(.97); }
+      .cs-format-opt:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      .cs-format-opt.is-on { border-color: var(--dsw-alias-brand-primary); background: var(--dsw-alias-bg-layer-2); }
+      .cs-format-opt:disabled { opacity: .55; cursor: default; }
+      .cs-format-opt b { display: block; font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 600; }
+      .cs-format-opt span { display: block; margin-top: 4px; font-size: 11px; color: var(--dsw-alias-label-secondary); }
+      .cs-format-preview {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--dsw-alias-bg-layer-2);
+      }
+      .cs-format-preview span { font-size: 11px; color: var(--dsw-alias-label-secondary); }
+      .cs-format-preview b { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 14px; }
+      @media (max-width: 620px) { .cs-format-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
       .cs-settings-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .cs-settings-status { font-size: 12px; color: var(--dsw-alias-brand-primary); }
       .cs-settings-status.is-error { color: var(--dsw-alias-state-error-primary); }

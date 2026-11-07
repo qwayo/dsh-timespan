@@ -165,10 +165,14 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
     const period = normalizePeriod(payload?.period)
     const view = payload?.view === 'dashboard' ? 'dashboard' : 'summary'
     const stats = service.queryStats({ period, view })
+    const settings = service.getSettings()
     const result = {
       asOf: now,
       period,
       weekStartsOn: stats.weekStartsOn,
+      // 页面与侧栏的初始数字格式：设置是权威副本，随每次取数一起带回，
+      // Client 不另存一份业务状态。刷新后自然回到已保存值。
+      durationFormat: settings.durationFormat,
       view,
       from: stats.from,
       to: stats.to,
@@ -226,7 +230,7 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
   function setSettings(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('setSettings 载荷必须是对象')
     const patch = {}
-    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'sidebarShowName']) {
+    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName']) {
       if (Object.hasOwn(payload, key)) patch[key] = payload[key]
     }
     return service.setSettings(patch)
