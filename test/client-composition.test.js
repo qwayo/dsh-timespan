@@ -73,6 +73,21 @@ async function loadClientFunctions(windowExtras = {}) {
       settingsDraft: typeof settingsDraft === 'function' ? settingsDraft : undefined,
       settingsPayload: typeof settingsPayload === 'function' ? settingsPayload : undefined,
       createSettingsSection: typeof createSettingsSection === 'function' ? createSettingsSection : undefined,
+      normalizeView: typeof normalizeView === 'function' ? normalizeView : undefined,
+      nextTabIndex: typeof nextTabIndex === 'function' ? nextTabIndex : undefined,
+      viewLabels: typeof viewLabels === 'function' ? viewLabels : undefined,
+      TabNav: typeof TabNav === 'function' ? TabNav : undefined,
+      renderOverviewView: typeof renderOverviewView === 'function' ? renderOverviewView : undefined,
+      renderTrendView: typeof renderTrendView === 'function' ? renderTrendView : undefined,
+      renderDetailsView: typeof renderDetailsView === 'function' ? renderDetailsView : undefined,
+      renderSettingsView: typeof renderSettingsView === 'function' ? renderSettingsView : undefined,
+      renderRecentSessions: typeof renderRecentSessions === 'function' ? renderRecentSessions : undefined,
+      flattenRecentSessions: typeof flattenRecentSessions === 'function' ? flattenRecentSessions : undefined,
+      filterWorkspaces: typeof filterWorkspaces === 'function' ? filterWorkspaces : undefined,
+      viewTransitionDelay: typeof viewTransitionDelay === 'function' ? viewTransitionDelay : undefined,
+      VIEW_ENTER_MS: typeof VIEW_ENTER_MS === 'number' ? VIEW_ENTER_MS : undefined,
+      VIEW_EXIT_MS: typeof VIEW_EXIT_MS === 'number' ? VIEW_EXIT_MS : undefined,
+      prefersReducedMotion: typeof prefersReducedMotion === 'function' ? prefersReducedMotion : undefined,
     };\n${anchor}`)
   const React = createTestReact()
   const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) }, ...windowExtras }
@@ -1144,4 +1159,272 @@ test('客户端：图表、排行与明细的渲染调用点使用传入格式',
   const workspaceText = textOf(renderWorkspaceRow(row, false, () => {}, t, 0, {}, 'short'))
   assert.match(workspaceText, /1h 0m/)
   assert.match(workspaceText, /30m 0s/)
+})
+
+test('客户端：视图名归一化只接受四视图，非法值回落概览', async () => {
+  const { normalizeView } = await loadClientFunctions()
+  assert.equal(typeof normalizeView, 'function')
+  for (const value of ['overview', 'trend', 'details', 'settings']) {
+    assert.equal(normalizeView(value), value, `${value} 是合法视图`)
+  }
+  for (const value of ['bogus', '', null, undefined, 'Overview', 0, {}]) {
+    assert.equal(normalizeView(value), 'overview', `${String(value)} 回落到概览`)
+  }
+})
+
+test('客户端：tab 键盘索引支持左右循环与 Home/End', async () => {
+  const { nextTabIndex } = await loadClientFunctions()
+  assert.equal(typeof nextTabIndex, 'function')
+  assert.equal(nextTabIndex(0, 'ArrowRight'), 1)
+  assert.equal(nextTabIndex(1, 'ArrowRight'), 2)
+  assert.equal(nextTabIndex(3, 'ArrowRight'), 0, '右方向键从最后一项循环到第一项')
+  assert.equal(nextTabIndex(0, 'ArrowLeft'), 3, '左方向键从第一项循环到最后一项')
+  assert.equal(nextTabIndex(2, 'ArrowLeft'), 1)
+  assert.equal(nextTabIndex(2, 'Home'), 0)
+  assert.equal(nextTabIndex(1, 'End'), 3)
+  assert.equal(nextTabIndex(2, 'Enter'), 2, '其它按键保持当前项')
+})
+
+test('客户端：分段导航渲染四个 tab、移动滑块与 roving tabindex', async () => {
+  const { TabNav, React } = await loadClientFunctions()
+  assert.equal(typeof TabNav, 'function')
+  const labels = {
+    tabOverview: '概览', tabTrend: '趋势', tabDetails: '明细', tabSettings: '设置',
+    tabsLabel: 'ChronoScope 页面',
+  }
+  const t = (key) => labels[key] ?? key
+  const picked = []
+  const tree = React.render(TabNav, { view: 'trend', t, onChange: (value) => picked.push(value) })
+
+  const nav = findAll(tree, (node) => node.props?.role === 'tablist')[0]
+  assert.ok(nav, '导航以 tablist 呈现')
+  assert.equal(nav.props['aria-label'], 'ChronoScope 页面')
+  const tabs = findAll(tree, (node) => node.props?.role === 'tab')
+  assert.equal(tabs.length, 4, '四个同级 tab')
+  assert.deepEqual(tabs.map((tab) => textOf(tab).trim()), ['概览', '趋势', '明细', '设置'])
+  assert.deepEqual(tabs.map((tab) => tab.props['aria-selected']), [false, true, false, false])
+  assert.deepEqual(tabs.map((tab) => tab.props.tabIndex), [-1, 0, -1, -1], '激活项 0，其余 -1')
+  const thumb = findAll(tree, byClass('cs-tab-thumb'))[0]
+  assert.ok(thumb, '存在移动滑块')
+  assert.match(thumb.props.style.transform, /^translateX\(-?\d+(?:\.\d+)?px\)$/)
+  assert.match(thumb.props.style.width, /^\d+(?:\.\d+)?px$/)
+
+  tabs[1].props.onKeyDown({ key: 'ArrowRight', preventDefault() {} })
+  assert.deepEqual(picked, ['details'], '右方向键切到下一视图')
+  tabs[0].props.onKeyDown({ key: 'End', preventDefault() {} })
+  assert.deepEqual(picked, ['details', 'settings'], 'End 跳到最后一个视图')
+  tabs[0].props.onClick()
+  assert.deepEqual(picked, ['details', 'settings', 'overview'], '点击 tab 切到对应视图')
+})
+
+test('客户端：视图转场退出约为进入的 60%，减少动效直接到位', async () => {
+  const { viewTransitionDelay, VIEW_ENTER_MS, VIEW_EXIT_MS } = await loadClientFunctions()
+  assert.equal(VIEW_ENTER_MS, 300)
+  assert.equal(VIEW_EXIT_MS, 180)
+  assert.equal(VIEW_EXIT_MS / VIEW_ENTER_MS, 0.6, '退出 180ms 是进入 300ms 的 60%')
+  assert.equal(viewTransitionDelay(false), 180)
+  assert.equal(viewTransitionDelay(true), 0, 'prefers-reduced-motion 下直接切换')
+
+  const css = await loadClientCss()
+  assert.match(css, /@keyframes\s+viewIn/)
+  assert.match(css, /@keyframes\s+viewOut/)
+  assert.match(declarationsFor(css, '.cs-view'), /animation:\s*viewIn/)
+  assert.match(declarationsFor(css, '.cs-view.is-leaving'), /animation:\s*viewOut/)
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-view/)
+})
+
+function sampleDashboardData() {
+  const now = new Date(2026, 10, 7, 12, 0, 0).getTime()
+  return {
+    period: 'day',
+    range: { from: now - 3_600_000, to: now },
+    onlineMs: 4 * 3_600_000,
+    activeMs: 3 * 3_600_000,
+    taskMs: 3_600_000,
+    taskCount: 4,
+    taskRunning: false,
+    activeRunning: false,
+    cycles: {
+      day: { activeMs: 3 * 3_600_000, taskMs: 3_600_000, taskCount: 4, onlineMs: 4 * 3_600_000, from: now - 86_400_000, to: now },
+      week: { activeMs: 5 * 3_600_000, taskMs: 2 * 3_600_000, taskCount: 7, onlineMs: 6 * 3_600_000, from: now - 7 * 86_400_000, to: now },
+      month: { activeMs: 12 * 3_600_000, taskMs: 5 * 3_600_000, taskCount: 20, onlineMs: 14 * 3_600_000, from: now - 30 * 86_400_000, to: now },
+    },
+    workspaces: [{
+      key: 'ws-1',
+      workspaceTitle: '工作区一',
+      activeMs: 3 * 3_600_000,
+      taskMs: 3_600_000,
+      taskCount: 4,
+      taskRunning: false,
+      approximate: false,
+      share: 1,
+      lastActivityAt: now - 60_000,
+      sessions: [{
+        sessionId: 's-1',
+        sessionTitle: '会话一',
+        activeMs: 3 * 3_600_000,
+        taskMs: 3_600_000,
+        taskCount: 4,
+        taskRunning: false,
+        approximate: false,
+        hasBreakdown: true,
+        modelMs: 1_800_000,
+        toolMs: 900_000,
+        waitMs: 600_000,
+        otherMs: 300_000,
+        lastActivityAt: now - 60_000,
+      }],
+    }],
+    subagentTasks: [],
+    trend: [
+      { key: 'h10', from: now - 7_200_000, to: now - 3_600_000, future: false, activeMs: 1_800_000, taskMs: 600_000 },
+      { key: 'h11', from: now - 3_600_000, to: now, future: false, activeMs: 3_600_000, taskMs: 1_800_000 },
+    ],
+    backfill: { status: 'done', notices: [] },
+    durationFormat: 'hms',
+  }
+}
+
+test('客户端：概览、趋势、明细三个视图各有真实内容', async () => {
+  const { renderOverviewView, renderTrendView, renderDetailsView } = await loadClientFunctions()
+  const labels = {
+    overviewTitle: '周期概览', actualOccupied: '实际占用', cycleToday: '今日', cycleWeek: '本周', cycleMonth: '本月',
+    taskCountUnit: '次任务', activeLabel: '活跃', taskLabel: '任务', selectedPeriod: '当前',
+    compositionTitle: '任务时长构成', compositionInfo: '按会话累计', compositionHint: '按会话累计',
+    noTaskComposition: '暂无任务', accumulated: '累计工时', workspaceRanking: '工作区任务排行',
+    sumFoot: '明细按会话逐条累加', unassigned: '未归属', colShare: '任务占比',
+    trendDay: '今日逐小时', trendWeek: '本周每日', trendMonth: '本月每日', trendInfo: '活跃与任务独立统计',
+    emptyDashboard: '暂无记录', recentSessions: '最近会话', recentSessionsHint: '按最近活动排序',
+    unknownSession: '未命名会话', justNow: '刚刚', minutesAgo: '{n} 分钟前', hoursAgo: '{n} 小时前', daysAgo: '{n} 天前',
+    trendSummary: '本周期概览', dailyAverageActive: '日均活跃', dailyAverageTask: '日均任务',
+    taskCountShort: '任务次数', peakActive: '峰值活跃', searchPlaceholder: '搜索工作区或会话',
+    workspaceTitle: '工作区明细', workspaceHint: '展开查看会话', colActive: '活跃', colTask: '任务',
+    colLast: '最近活动', sessionsUnit: '个会话', expand: '展开会话', collapse: '收起会话',
+    detailsEmpty: '没有匹配的工作区或会话', emptyWorkspace: '这个工作区还没有会话记录',
+    rangeLabel: '统计范围', trendHint: '活跃与任务时长',
+  }
+  const t = (key) => labels[key] ?? key
+  const data = sampleDashboardData()
+  const hoverTip = { tip: null, show() {}, hide() {} }
+  const now = Date.now()
+
+  const overview = renderOverviewView({
+    data, t, isZh: true, period: 'day', onSelectPeriod() {}, durationFormat: 'hms',
+    hoverTip, nowMs: now, onOpenWorkspace() {},
+  })
+  assert.equal(allOf(overview, byClass('cs-cycle')).length, 3, '概览保留今日/本周/本月周期卡')
+  assert.ok(allOf(overview, byClass('cs-trend-card')).length >= 1, '概览含趋势卡')
+  assert.ok(allOf(overview, byClass('cs-composition')).length >= 1, '概览含任务构成')
+  assert.ok(allOf(overview, byClass('cs-ranking')).length >= 1, '概览含工作区排行')
+  const recentRows = allOf(overview, byClass('cs-recent-row'))
+  assert.equal(recentRows.length, 1, '最近会话从工作区扁平化出真实行')
+  assert.match(textOf(recentRows[0]), /会话一/)
+
+  const trend = renderTrendView({
+    data, t, isZh: true, period: 'day', onSelectPeriod() {}, durationFormat: 'hms', hoverTip,
+    nowMs: now,
+  })
+  assert.equal(allOf(trend, byClass('cs-cycle')).length, 3, '趋势同样能切换日/周/月比较')
+  assert.ok(allOf(trend, byClass('cs-trend-card')).length >= 1, '趋势含趋势图卡')
+  const summaryText = textOf(allOf(trend, byClass('cs-trend-summary'))[0])
+  assert.match(summaryText, /日均活跃/)
+  assert.match(summaryText, /日均任务/)
+  assert.match(summaryText, /任务次数/)
+
+  const details = renderDetailsView({
+    data, t, query: '', onQueryChange() {}, durationFormat: 'hms', expanded: {}, onToggleRow() {},
+    nowMs: now, subagentByParent: {},
+  })
+  const search = findAll(details, (node) => node.type === 'input' && node.props?.type === 'search')[0]
+  assert.ok(search, '明细含搜索框')
+  assert.equal(search.props['aria-label'], '搜索工作区或会话')
+  const workspaceRow = allOf(details, byClass('cs-summary'))[0]
+  assert.ok(workspaceRow, '明细含工作区行')
+  assert.match(textOf(workspaceRow), /工作区一/)
+
+  const filtered = renderDetailsView({
+    data, t, query: '不存在的关键词', onQueryChange() {}, durationFormat: 'hms', expanded: {}, onToggleRow() {},
+    nowMs: now, subagentByParent: {},
+  })
+  assert.match(textOf(filtered), /没有匹配的工作区或会话/, '本地过滤无结果时给出空状态')
+})
+
+test('客户端：Dashboard 设置页包含格式、外观、统计、通知、导出与二次确认清空', async () => {
+  const { renderSettingsView, normalizeBackfill, settingsDraft, React } = await loadClientFunctions()
+  assert.equal(typeof renderSettingsView, 'function')
+  const labels = {
+    settingsPageTitle: '仪表盘设置', settingsPageHint: '设置保存在本机',
+    settingsSectionFormat: '数字格式', settingsFormatHint: '选择后立即预览',
+    formatHintHms: '时:分:秒', formatHintShort: '紧凑单位', formatHintZh: '中文单位',
+    formatHintSec: '纯秒', formatHintPadded: '补零时钟', formatPreviewLabel: '预览 · 2:48:16 显示为',
+    settingsSectionAppearance: '外观与配色', appearanceLabel: '外观',
+    appearanceLight: '浅色', appearanceDark: '深色', appearanceSystem: '跟随系统',
+    appearanceToggle: '外观：{mode}，点击切换', paletteLabel: '配色',
+    paletteBlue: '蓝', paletteStone: '石墨', paletteClay: '赤陶',
+    settingsSectionGeneral: '统计口径', settingsIdleLabel: '活跃判定阈值', settingsIdleHint: '空闲多久后不计入',
+    settingsIdleUnit: '分钟', settingsIdleRange: '可选 1–15 分钟', settingsWeekLabel: '每周起始',
+    settingsWeekHint: '决定本周边界', settingsWeekMonday: '周一', settingsWeekSunday: '周日',
+    settingsSectionDisplay: '明细展示', settingsSubagentLabel: '显示子代理明细', settingsSubagentHint: '开关子代理',
+    settingsSubagentOn: '显示', settingsSubagentOff: '隐藏', settingsSidebarNameLabel: '侧栏显示名称',
+    settingsSidebarNameHint: '侧栏名称开关', settingsSidebarNameOn: '显示名称', settingsSidebarNameOff: '隐藏名称',
+    settingsSectionNotices: '通知记录', backfillNoticeCount: '累计回填 {tasks} 条',
+    backfillNoticeRead: '已读', backfillNoticeUnread: '待确认', backfillNoticeKindInitial: '首次回填',
+    backfillNoticeEmpty: '暂无通知记录', backfillNoticeUnavailable: '暂时无法读取通知记录',
+    settingsRecheck: '重新检查回填', settingsRechecking: '正在检查…',
+    dataTitle: '数据管理', dataHint: '导出与清空', exportJson: '导出 JSON', exportCsv: '导出 CSV',
+    exporting: '正在导出…', clearData: '清空全部数据', clearStepTitle: '确认清空？',
+    clearStepHint: '此操作不可撤销', clearConfirm: '确认清空', clearCancel: '取消', clearing: '正在清空…',
+    settingsSave: '保存设置', settingsSaving: '正在保存…', settingsSaved: '已保存',
+    settingsLoadError: '无法读取设置', settingsRetry: '重试', settingsSaveError: '保存失败',
+    backfillNoticeKindRetry: '手动重试', backfillDone: '历史任务回填完成',
+  }
+  const t = (key) => labels[key] ?? key
+  const draft = settingsDraft({ idleThresholdMinutes: 7, weekStartsOn: 7, showSubagents: false, sidebarShowName: false, durationFormat: 'short' })
+  const backfill = normalizeBackfill({
+    status: 'done',
+    notices: [{ eventId: 'n1', kind: 'initial', tasksWritten: 130, completedAt: Date.now(), readAt: Date.now() }],
+  })
+  const calls = []
+  const tree = renderSettingsView({
+    t, draft, phase: 'ready', message: '', noticeState: { status: 'ready', data: backfill },
+    appearance: 'system', palette: 'clay', dataBusy: '', dataMessage: null, clearStep: false,
+    retrying: false, retryError: null,
+    onPatch: () => {}, onSelectFormat: (value) => calls.push(['format', value]),
+    onSave: () => calls.push(['save']), onRetryLoad: () => {}, onExport: (value) => calls.push(['export', value]),
+    onRequestClear: () => calls.push(['clear-request']), onCancelClear: () => {}, onClear: () => {},
+    onRecheckBackfill: () => {}, onCycleAppearance: () => {}, onChangePalette: () => {},
+  })
+  const text = textOf(tree)
+  for (const expected of ['数字格式', '外观与配色', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示名称', '通知记录', '导出 JSON', '导出 CSV', '清空全部数据', '保存设置']) {
+    assert.match(text, new RegExp(expected), `设置页包含「${expected}」`)
+  }
+  assert.equal(allOf(tree, byClass('cs-format-opt')).length, 5, '五张数字格式卡片')
+  const checkboxes = findAll(tree, (node) => node.type === 'input' && node.props?.type === 'checkbox')
+  assert.equal(checkboxes.length, 2, '子代理与侧栏名称两个开关')
+  const selectLabels = findAll(tree, (node) => typeof node.props?.ariaLabel === 'string')
+    .map((node) => node.props.ariaLabel)
+  assert.ok(selectLabels.includes('活跃判定阈值'), '空闲阈值下拉可用')
+  assert.ok(selectLabels.includes('每周起始'), '每周起始下拉可用')
+  assert.ok(selectLabels.includes('配色'), '配色下拉可用')
+  assert.match(text, /累计回填 130 条/, '通知记录可回看')
+  assert.equal(findAll(tree, (node) => node.props?.role === 'alertdialog').length, 0, '清空前不显示确认框')
+  const exportButtons = findAll(tree, (node) => node.type === 'button' && /导出 JSON/.test(textOf(node)))
+  exportButtons[0].props.onClick()
+  assert.deepEqual(calls, [['export', 'json']], '导出按钮直接调用导出')
+  const clearButton = findAll(tree, (node) => node.type === 'button' && /清空全部数据/.test(textOf(node)))[0]
+  clearButton.props.onClick()
+  assert.deepEqual(calls, [['export', 'json'], ['clear-request']], '第一次点清空只进入二次确认')
+
+  const confirming = renderSettingsView({
+    t, draft, phase: 'ready', message: '', noticeState: { status: 'ready', data: backfill },
+    appearance: 'light', palette: 'blue', dataBusy: '', dataMessage: null, clearStep: true,
+    retrying: false, retryError: null,
+    onPatch: () => {}, onSelectFormat: () => {}, onSave: () => {}, onRetryLoad: () => {},
+    onExport: () => {}, onRequestClear: () => {}, onCancelClear: () => {}, onClear: () => {},
+    onRecheckBackfill: () => {}, onCycleAppearance: () => {}, onChangePalette: () => {},
+  })
+  const dialog = findAll(confirming, (node) => node.props?.role === 'alertdialog')[0]
+  assert.ok(dialog, '第二次确认时显示确认框')
+  assert.match(textOf(dialog), /确认清空/)
+  assert.match(textOf(dialog), /取消/)
 })
