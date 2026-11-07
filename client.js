@@ -40,6 +40,10 @@ window.__ModuleLoader__.load({
     /** 视图入场 300ms、退场 180ms（进入的 60%）；减少动效时直接到位。 */
     const VIEW_ENTER_MS = 300
     const VIEW_EXIT_MS = 180
+    /** 首屏放大态：只认三种区块，状态持久化在浏览器本地设置，供 #14/#15 共用。 */
+    const FOCUS_KEY = 'chrono-scope.focus'
+    const FOCUS_VALUES = ['hero', 'trend', 'heatmap']
+    const FOCUS_TRANSITION_MS = 240
 
     const zh = {
       title: 'ChronoScope',
@@ -55,6 +59,13 @@ window.__ModuleLoader__.load({
       taskIdle: '无运行任务',
       taskCountLabel: '任务数',
       actualOccupied: '实际占用',
+      focusSet: '设为首屏',
+      focusUnset: '退出首屏',
+      activeShare: '活跃占比',
+      focusSummary: '首屏概览',
+      focusTodayActive: '今日活跃',
+      focusWeekActive: '本周活跃',
+      focusMonthActive: '本月活跃',
       sessionTasks: '会话任务',
       accumulated: '累计工时',
       noTasks: '今天还没有任务记录',
@@ -254,6 +265,13 @@ window.__ModuleLoader__.load({
       taskIdle: 'No running task',
       taskCountLabel: 'Tasks',
       actualOccupied: 'Actual occupied',
+      focusSet: 'Set as focus view',
+      focusUnset: 'Exit focus view',
+      activeShare: 'Active share',
+      focusSummary: 'Focus overview',
+      focusTodayActive: 'Active today',
+      focusWeekActive: 'Active this week',
+      focusMonthActive: 'Active this month',
       sessionTasks: 'Session tasks',
       accumulated: 'Accumulated',
       noTasks: 'No tasks recorded today',
@@ -2369,6 +2387,52 @@ window.__ModuleLoader__.load({
       return VIEWS.includes(value) ? value : 'overview'
     }
 
+    /** 首屏只认 hero / trend / heatmap；其它（含旧脏值、大小写错误）一律回落普通概览。 */
+    function normalizeFocus(value) {
+      return FOCUS_VALUES.includes(value) ? value : null
+    }
+
+    /** 默认存储：浏览器本地设置；隐私模式下取不到时按无存储处理。 */
+    function defaultFocusStorage() {
+      try {
+        return typeof window !== 'undefined' && window.localStorage ? window.localStorage : null
+      } catch {
+        return null
+      }
+    }
+
+    /** 读取首屏状态；storage 缺省用 window.localStorage，测试可注入假存储。 */
+    function readStoredFocus(storage) {
+      const store = storage === undefined ? defaultFocusStorage() : storage
+      if (store === null || store === undefined || typeof store.getItem !== 'function') return null
+      try {
+        return normalizeFocus(store.getItem(FOCUS_KEY))
+      } catch {
+        return null
+      }
+    }
+
+    /** 写回首屏状态；null / undefined / 非法值删除存储，异常静默忽略。 */
+    function writeStoredFocus(storage, focus) {
+      const store = storage === undefined ? defaultFocusStorage() : storage
+      if (store === null || store === undefined) return
+      try {
+        const next = normalizeFocus(focus)
+        if (next === null) {
+          if (typeof store.removeItem === 'function') store.removeItem(FOCUS_KEY)
+          return
+        }
+        if (typeof store.setItem === 'function') store.setItem(FOCUS_KEY, next)
+      } catch {
+        // 隐私模式或配额不足时只放弃持久化，页面内状态仍然生效。
+      }
+    }
+
+    /** 首屏放大转场：正常 240ms，减少动效偏好下 0（直接到位）。 */
+    function focusTransitionMs(reduced) {
+      return reduced === true ? 0 : FOCUS_TRANSITION_MS
+    }
+
     /** ArrowLeft/Right 循环，Home/End 跳到首尾；其它按键保持当前索引。 */
     function nextTabIndex(currentIndex, key, count = VIEWS.length) {
       const size = Number.isInteger(count) && count > 0 ? count : VIEWS.length
@@ -2529,9 +2593,126 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'cs-stat-box' }, h('span', null, label), h('b', null, value))
     }
 
-    /** 概览：周期卡、趋势卡、任务构成、工作区排行与最近会话。 */
+    /** 四角箭头图标：普通态向外放大，首屏态向内缩回；无填充、无边框。 */
+    function zoomIcon(expanded) {
+      const path = expanded
+        ? 'M2 6h4V2M14 6h-4V2M2 10h4v4M14 10h-4v4'
+        : 'M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4'
+      return h('svg', {
+        viewBox: '0 0 16 16',
+        width: 15,
+        height: 15,
+        fill: 'none',
+        'aria-hidden': true,
+        focusable: 'false',
+      }, h('path', {
+        d: path,
+        stroke: 'currentColor',
+        strokeWidth: 1.6,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+      }))
+    }
+
+    /** 卡片右上角的纯图标按钮：点击把该区块设为首屏，再点缩回普通概览。 */
+    function renderZoomButton(props) {
+      const { t, focus, onToggleFocus, value = 'hero' } = props
+      const active = focus === value
+      return h('button', {
+        type: 'button',
+        className: `cs-zoom-btn${active ? ' is-on' : ''}`,
+        'aria-label': active ? t('focusUnset') : t('focusSet'),
+        'aria-pressed': active,
+        onClick: () => onToggleFocus?.(value),
+      }, zoomIcon(active))
+    }
+
+    /** 今日活跃大数字卡片：普通概览里位于周期卡之前，右上角可放大为首屏。 */
+    function renderHeroCard(props) {
+      const { data, t, format = 'hms', focus = null, onToggleFocus } = props
+      const day = data?.cycles?.day ?? {}
+      const activeMs = finite(day.activeMs ?? data?.activeMs)
+      const onlineMs = finite(day.onlineMs ?? data?.onlineMs)
+      const taskMs = finite(day.taskMs ?? data?.taskMs)
+      return h('section', { className: 'cs-card cs-hero', 'data-focus': 'hero' },
+        h('div', { className: 'cs-card-head' },
+          h('div', { className: 'cs-card-heading' },
+            h('h2', null, t('todayActive')),
+            h('span', { className: 'cs-tag' }, t('actualOccupied'))),
+          renderZoomButton({ t, focus, onToggleFocus })),
+        h('div', { className: 'cs-hero-num' }, formatDuration(activeMs, format)),
+        h('div', { className: 'cs-hero-meta' },
+          h('span', null, `${t('todayOnline')} ${formatDuration(onlineMs, format)}`),
+          h('span', null, `${t('todayTask')} ${formatDuration(taskMs, format)}`)))
+    }
+
+    /** 活跃占比：在线为 0 时按 0% 处理，结果夹在 0–100 之间。 */
+    function activeSharePercent(activeMs, onlineMs) {
+      const online = finite(onlineMs)
+      if (online <= 0) return 0
+      const ratio = finite(activeMs) / online
+      return Math.max(0, Math.min(100, Math.round(ratio * 100)))
+    }
+
+    function renderFocusStat(label, value) {
+      return h('div', { className: 'cs-fs-item' }, h('span', null, label), h('b', null, value))
+    }
+
+    /**
+     * 首屏放大页：不是把卡片拉大，而是重新排版成整页大数字、
+     * 在线/任务/占比/次数与日周月统计，并用进度条表示活跃占比。
+     */
+    function renderHeroFocusPage(props) {
+      const { data, t, format = 'hms', focus = 'hero', onToggleFocus } = props
+      const day = data?.cycles?.day ?? {}
+      const week = data?.cycles?.week ?? {}
+      const month = data?.cycles?.month ?? {}
+      const activeMs = finite(day.activeMs ?? data?.activeMs)
+      const onlineMs = finite(day.onlineMs ?? data?.onlineMs)
+      const taskMs = finite(day.taskMs ?? data?.taskMs)
+      const share = activeSharePercent(activeMs, onlineMs)
+      return h('section', {
+        className: 'cs-card cs-hero cs-hero-focus',
+        'data-focus': 'hero',
+        style: { '--cs-focus-ms': `${focusTransitionMs(prefersReducedMotion())}ms` },
+      },
+        h('div', { className: 'cs-card-head' },
+          h('div', { className: 'cs-card-heading' },
+            h('h2', null, t('todayActive')),
+            h('span', { className: 'cs-tag' }, t('focusSummary')),
+            h('span', { className: 'cs-tag' }, t('actualOccupied'))),
+          renderZoomButton({ t, focus, onToggleFocus })),
+        h('div', { className: 'cs-hero-num' }, formatDuration(activeMs, format)),
+        h('div', { className: 'cs-hero-meta' },
+          h('span', null, `${t('todayOnline')} ${formatDuration(onlineMs, format)}`)),
+        h('div', { className: 'cs-focus-panel' },
+          renderFocusStat(t('onlineLabel'), formatDuration(onlineMs, format)),
+          renderFocusStat(t('todayTask'), formatDuration(taskMs, format)),
+          renderFocusStat(t('activeShare'), `${share}%`),
+          renderFocusStat(t('taskCountShort'), String(finite(day.taskCount ?? data?.taskCount))),
+          renderFocusStat(t('focusTodayActive'), formatDuration(activeMs, format)),
+          renderFocusStat(t('focusWeekActive'), formatDuration(finite(week.activeMs), format)),
+          renderFocusStat(t('focusMonthActive'), formatDuration(finite(month.activeMs), format)),
+          h('div', {
+            className: 'cs-focus-bar',
+            role: 'progressbar',
+            'aria-label': t('activeShare'),
+            'aria-valuemin': 0,
+            'aria-valuemax': 100,
+            'aria-valuenow': share,
+          }, h('i', { style: { width: `${share}%` } }))))
+    }
+
+    /** 概览：首屏大数字、周期卡、趋势卡、任务构成、工作区排行与最近会话。 */
     function renderOverviewView(props) {
-      const { data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip, nowMs, onOpenWorkspace } = props
+      const {
+        data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip, nowMs, onOpenWorkspace,
+        focus = null, onToggleFocus,
+      } = props
+      // 首屏态占据整个内容区：只保留重新排版后的独立页，其余概览卡片不渲染。
+      if (focus === 'hero') {
+        return [renderHeroFocusPage({ data, t, format: durationFormat, focus, onToggleFocus })]
+      }
       const shownPeriod = data?.period ?? period
       return [
         h('div', { className: 'cs-section-head' },
@@ -2539,6 +2720,7 @@ window.__ModuleLoader__.load({
             h('span', { className: 'cs-section-title' }, t('overviewTitle')),
             h('span', { className: 'cs-tag' }, t('actualOccupied')),
             renderInfo(overviewInfoMessages(data, t, durationFormat).join('；')))),
+        renderHeroCard({ data, t, format: durationFormat, focus, onToggleFocus }),
         renderCycles(data, t, period, onSelectPeriod, durationFormat),
         h('div', { className: 'cs-analysis-grid' },
           renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat),
@@ -2811,6 +2993,8 @@ window.__ModuleLoader__.load({
           try { return normalizeView(window.sessionStorage.getItem('chrono-scope.view')) }
           catch { return 'overview' }
         })
+        // 首屏放大态持久化在浏览器本地设置：退出页面再进入仍保持，非法旧值回落普通概览。
+        const [focus, setFocus] = React.useState(() => readStoredFocus())
         const [switchingView, setSwitchingView] = React.useState(false)
         const switchingTimerRef = React.useRef(null)
         const viewsRef = React.useRef(null)
@@ -2964,6 +3148,11 @@ window.__ModuleLoader__.load({
           const node = viewsRef.current
           if (node && typeof node.scrollTop === 'number') node.scrollTop = 0
         }, [view])
+        // 放大/缩回时回到内容区顶部，避免继承普通概览的滚动位置。
+        React.useEffect(() => {
+          const node = viewsRef.current
+          if (node && typeof node.scrollTop === 'number') node.scrollTop = 0
+        }, [focus])
 
         // 打开设置页时读取 Host 权威设置与通知记录；关闭时丢弃未保存草稿。
         const settingsOpen = view === 'settings'
@@ -3100,6 +3289,14 @@ window.__ModuleLoader__.load({
           goToView('details')
         }
         const onToggleRow = (key) => setExpanded((previous) => ({ ...previous, [key]: !previous[key] }))
+        // 同一个首屏值再次点击即缩回；写入失败只放弃持久化，页面内状态照常切换。
+        const toggleFocus = (value) => {
+          setFocus((previous) => {
+            const next = previous === value ? null : value
+            writeStoredFocus(undefined, next)
+            return next
+          })
+        }
         const nowMs = Date.now()
         if (state.status === 'loading' && data === null) {
           return h('div', { className: pageClassName },
@@ -3162,6 +3359,7 @@ window.__ModuleLoader__.load({
           return renderOverviewView({
             data, t, isZh, period, onSelectPeriod: setPeriod, durationFormat, hoverTip, nowMs,
             onOpenWorkspace: openWorkspaceInDetails,
+            focus, onToggleFocus: toggleFocus,
           })
         }
 
@@ -4002,8 +4200,69 @@ window.__ModuleLoader__.load({
         .cs-recent-row { grid-template-columns: minmax(0, 1fr) auto; }
         .cs-recent-workspace { grid-column: 1 / -1; }
       }
+      /* 首屏放大：右上角纯图标按钮；放大态重新排版为整页统计，而不是把卡片简单拉大。 */
+      .cs-hero { position: relative; display: flex; flex-direction: column; gap: 8px; }
+      .cs-hero .cs-card-head { padding-right: 30px; }
+      .cs-hero-num {
+        font-family: var(--cs-mono);
+        font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+        font-size: clamp(34px, 4.8vw, 54px); line-height: 1.06; font-weight: 650;
+        letter-spacing: -0.04em; color: var(--cs-ink);
+      }
+      .cs-hero-meta {
+        display: flex; flex-wrap: wrap; gap: 4px 16px;
+        font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary);
+        font-variant-numeric: tabular-nums;
+      }
+      .cs-zoom-btn {
+        position: absolute; top: 8px; right: 8px; z-index: 2;
+        display: grid; place-items: center; width: 24px; height: 24px; padding: 0;
+        border: 0; border-radius: 0; background: transparent; color: var(--cs-ink-2);
+        cursor: pointer; opacity: .55;
+        transition: opacity var(--cs-dur-tap) var(--cs-ease), transform var(--cs-dur-tap) var(--cs-ease);
+      }
+      .cs-zoom-btn:hover { opacity: 1; transform: scale(1.15); }
+      .cs-zoom-btn:focus-visible { opacity: 1; outline: 2px solid var(--cs-signal); outline-offset: 2px; }
+      .cs-zoom-btn svg {
+        width: 15px; height: 15px; stroke: var(--cs-ink-2); fill: none;
+        stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+      }
+      .cs-hero-focus {
+        min-height: calc(100vh - 260px); padding: 26px 30px; gap: 6px;
+        justify-content: flex-start;
+        animation: cs-focus-in var(--cs-focus-ms, 240ms) var(--cs-ease) both;
+      }
+      .cs-hero-focus .cs-hero-num { font-size: clamp(56px, 8vw, 104px); margin-top: 18px; }
+      @keyframes cs-focus-in {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: none; }
+      }
+      .cs-focus-panel { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+      .cs-fs-item {
+        flex: 1 1 150px; min-width: 130px; display: flex; flex-direction: column; gap: 6px;
+        padding: 12px 14px; border: 1px solid var(--cs-line); border-radius: var(--cs-radius-sm);
+        background: var(--cs-surface-2);
+      }
+      .cs-fs-item span { font-size: 11px; line-height: 16px; color: var(--cs-ink-3); }
+      .cs-fs-item b {
+        font-family: var(--cs-mono); font-variant-numeric: tabular-nums;
+        font-size: 18px; line-height: 24px; font-weight: 620; color: var(--cs-ink);
+      }
+      .cs-focus-bar {
+        flex: 1 1 100%; height: 8px; margin-top: 8px; border-radius: 20px;
+        overflow: hidden; background: var(--cs-tone-faint);
+      }
+      .cs-focus-bar i {
+        display: block; height: 100%; border-radius: 20px;
+        background: var(--cs-signal); transition: width var(--cs-focus-ms, 240ms) var(--cs-ease);
+      }
+      @media (max-width: 600px) {
+        .cs-hero-focus { min-height: calc(100vh - 320px); padding: 18px 16px; }
+        .cs-fs-item { flex-basis: 120px; min-width: 108px; }
+      }
       @media (prefers-reduced-motion: reduce) {
-        .cs-view, .cs-view.is-leaving, .cs-curtain, .cs-tab-thumb { animation: none !important; transition: none !important; }
+        .cs-view, .cs-view.is-leaving, .cs-curtain, .cs-tab-thumb,
+        .cs-hero-focus, .cs-zoom-btn, .cs-focus-bar i { animation: none !important; transition: none !important; }
       }
     `
 
