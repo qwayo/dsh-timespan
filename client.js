@@ -128,13 +128,22 @@ window.__ModuleLoader__.load({
       backfillIdle: '历史任务回填尚未开始，统计可能不完整',
       backfillUnavailable: '无法读取历史回填状态，请重新加载插件或重启 DSH',
       backfillRunning: '正在回填历史任务',
-      backfillProgress: '已扫描 {done}/{total} 个会话，补入 {tasks} 条任务',
+      backfillProgress: '已扫描 {done}/{total} 个会话，累计回填 {tasks} 条任务',
       backfillDone: '历史任务回填完成',
-      backfillDoneHint: '已补入 {tasks} 条历史任务，仪表盘数据已更新',
+      backfillDoneHint: '已累计回填 {tasks} 条历史任务，仪表盘数据已更新',
       backfillFailed: '历史任务回填失败',
       backfillRetry: '重试',
       backfillRetrying: '正在重新回填…',
       backfillDismiss: '知道了',
+      backfillNoticeCount: '累计回填 {tasks} 条',
+      backfillNoticeRead: '已读',
+      backfillNoticeUnread: '待确认',
+      backfillNoticeKindInitial: '首次回填',
+      backfillNoticeKindVersion: '版本升级重扫',
+      backfillNoticeKindRetry: '手动重试',
+      backfillNoticeKindClear: '清空后重新回填',
+      backfillNoticeEmpty: '暂无通知记录',
+      backfillNoticeUnavailable: '暂时无法读取通知记录',
       subagentDetail: '含子代理任务',
       subagentDetailHint: '{count} 条 · {duration}（不计入总计）',
       settingsNav: 'ChronoScope',
@@ -160,6 +169,7 @@ window.__ModuleLoader__.load({
       settingsSaveError: '设置保存失败，请重试',
       settingsSectionGeneral: '统计口径',
       settingsSectionDisplay: '明细展示',
+      settingsSectionNotices: '通知记录',
       dataTitle: '数据管理',
       dataHint: '导出包含原始区间、任务与设置；清空只删除 ChronoScope 统计记录，不影响会话日志。',
       exportJson: '导出 JSON',
@@ -284,13 +294,22 @@ window.__ModuleLoader__.load({
       backfillIdle: 'Historical backfill has not started; statistics may be incomplete',
       backfillUnavailable: 'Cannot read historical backfill status. Reload the plugin or restart DSH.',
       backfillRunning: 'Backfilling historical tasks',
-      backfillProgress: 'Scanned {done}/{total} sessions, added {tasks} tasks',
+      backfillProgress: 'Scanned {done}/{total} sessions; cumulative total {tasks} tasks',
       backfillDone: 'Historical backfill complete',
-      backfillDoneHint: 'Added {tasks} historical tasks; dashboard is up to date',
+      backfillDoneHint: 'Cumulative total: {tasks} historical tasks backfilled; dashboard is up to date',
       backfillFailed: 'Historical backfill failed',
       backfillRetry: 'Retry',
       backfillRetrying: 'Restarting backfill…',
       backfillDismiss: 'Got it',
+      backfillNoticeCount: 'Cumulative total: {tasks} tasks',
+      backfillNoticeRead: 'Read',
+      backfillNoticeUnread: 'Unread',
+      backfillNoticeKindInitial: 'Initial backfill',
+      backfillNoticeKindVersion: 'Version rescan',
+      backfillNoticeKindRetry: 'Manual retry',
+      backfillNoticeKindClear: 'Backfill after clearing data',
+      backfillNoticeEmpty: 'No notifications yet',
+      backfillNoticeUnavailable: 'Notification records are temporarily unavailable',
       subagentDetail: 'Includes subagent tasks',
       subagentDetailHint: '{count} · {duration} (excluded from totals)',
       settingsNav: 'ChronoScope',
@@ -316,6 +335,7 @@ window.__ModuleLoader__.load({
       settingsSaveError: 'Could not save settings; please retry',
       settingsSectionGeneral: 'Counting rules',
       settingsSectionDisplay: 'Detail display',
+      settingsSectionNotices: 'Notifications',
       dataTitle: 'Data',
       dataHint: 'Exports include raw intervals, tasks and settings; clearing removes only ChronoScope records, not session logs.',
       exportJson: 'Export JSON',
@@ -781,6 +801,7 @@ window.__ModuleLoader__.load({
     }
 
     const BACKFILL_STATUSES = new Set(['idle', 'running', 'done', 'failed'])
+    const BACKFILL_EVENT_KINDS = new Set(['initial', 'version', 'retry', 'clear'])
 
     function normalizeBackfill(value) {
       const status = BACKFILL_STATUSES.has(value?.status) ? value.status : 'unavailable'
@@ -792,7 +813,39 @@ window.__ModuleLoader__.load({
         tasksWritten: finite(value?.tasksWritten),
         error: typeof value?.error === 'string' && value.error ? value.error : null,
         updatedAt: finite(value?.updatedAt),
+        // 回填完成事件是「已读」判定的锚：旧响应缺字段时保持空串，页面不崩。
+        eventId: typeof value?.eventId === 'string' ? value.eventId : '',
+        eventKind: BACKFILL_EVENT_KINDS.has(value?.eventKind) ? value.eventKind : '',
+        eventAt: finite(value?.eventAt),
+        eventSeq: finite(value?.eventSeq),
+        readEventId: typeof value?.readEventId === 'string' ? value.readEventId : '',
+        readAt: finite(value?.readAt),
+        clearedAt: finite(value?.clearedAt),
+        notices: normalizeBackfillNotices(value?.notices),
       }
+    }
+
+    /** 通知记录：已读后仍可回看的完成事件；脏记录直接丢弃。 */
+    function normalizeBackfillNotices(value) {
+      if (!Array.isArray(value)) return []
+      return value
+        .filter((row) => row !== null && typeof row === 'object' && typeof row.eventId === 'string' && row.eventId.length > 0)
+        .map((row) => ({
+          eventId: row.eventId,
+          kind: BACKFILL_EVENT_KINDS.has(row.kind) ? row.kind : '',
+          version: finite(row.version),
+          total: finite(row.total),
+          tasksWritten: finite(row.tasksWritten),
+          completedAt: finite(row.completedAt),
+          readAt: finite(row.readAt),
+        }))
+    }
+
+    /** 横幅只在「完成事件尚未被已读」时出现；旧响应没有事件 id 时没有可读锚点。 */
+    function isBackfillUnread(backfill) {
+      return backfill?.status === 'done' &&
+        typeof backfill.eventId === 'string' && backfill.eventId.length > 0 &&
+        backfill.eventId !== backfill.readEventId
     }
 
     function normalizeSubagentTasks(value) {
@@ -1436,14 +1489,21 @@ window.__ModuleLoader__.load({
         return h('div', { className: 'cs-backfill cs-backfill-waiting', role: 'status' }, t('backfillIdle'))
       }
       if (backfill.status === 'done') {
-        if (handlers.dismissed) return null
+        if (handlers.dismissed === true || !isBackfillUnread(backfill)) return null
         return h('div', { className: 'cs-backfill is-done' },
           h('span', { className: 'cs-backfill-icon' }, '✓'),
           h('span', { className: 'cs-backfill-label' }, t('backfillDone')),
           h('span', { className: 'cs-backfill-hint' },
             t('backfillDoneHint').replace('{tasks}', String(backfill.tasksWritten))),
-          h('button', { type: 'button', className: 'cs-backfill-dismiss', onClick: handlers.onDismiss },
-            t('backfillDismiss')))
+          h('button', {
+            type: 'button',
+            className: 'cs-backfill-dismiss',
+            disabled: handlers.dismissing === true,
+            onClick: handlers.onDismiss,
+          }, t('backfillDismiss')),
+          handlers.dismissError
+            ? h('span', { className: 'cs-backfill-hint' }, handlers.dismissError)
+            : null)
       }
       if (backfill.status === 'failed') {
         return h('div', { className: 'cs-backfill is-failed' },
@@ -1479,6 +1539,46 @@ window.__ModuleLoader__.load({
           'aria-valuemin': 0,
           'aria-valuemax': 100,
         }, h('i', { style: { width: `${percent}%` } })))
+    }
+
+    /**
+     * 设置页通知记录。复用 queryStats/getBackfillStatus 的同一份 backfill
+     * 数据：完成事件、累计回填条数、事件类型、时间与已读状态都可回看，
+     * 不因为点了「知道了」而丢失。
+     */
+    function renderBackfillNotices(backfill, t) {
+      const notices = Array.isArray(backfill?.notices) ? backfill.notices : []
+      if (notices.length === 0) return h('p', { className: 'cs-notice-empty' }, t('backfillNoticeEmpty'))
+      const kindKeys = {
+        initial: 'backfillNoticeKindInitial',
+        version: 'backfillNoticeKindVersion',
+        retry: 'backfillNoticeKindRetry',
+        clear: 'backfillNoticeKindClear',
+      }
+      return h('div', { className: 'cs-notice-list', role: 'list' },
+        notices.slice().reverse().map((notice) => {
+          const parts = [
+            t('backfillNoticeCount').replace('{tasks}', String(notice.tasksWritten)),
+            notice.kind && kindKeys[notice.kind] ? t(kindKeys[notice.kind]) : null,
+            formatNoticeTime(notice.completedAt),
+          ].filter((part) => part !== null && part !== '')
+          return h('div', { className: 'cs-notice-item', role: 'listitem', key: notice.eventId },
+            h('span', { className: 'cs-notice-dot', 'aria-hidden': true }),
+            h('div', { className: 'cs-notice-body' },
+              h('div', { className: 'cs-notice-title' }, t('backfillDone')),
+              h('p', { className: 'cs-notice-desc' }, parts.join(' · '))),
+            h('span', { className: `cs-notice-tag${notice.readAt > 0 ? ' is-read' : ' is-unread'}` },
+              t(notice.readAt > 0 ? 'backfillNoticeRead' : 'backfillNoticeUnread')))
+        }))
+    }
+
+    /** 通知记录时间按 Host 本地时区显示为 YYYY-MM-DD HH:mm。 */
+    function formatNoticeTime(value) {
+      const time = Number(value)
+      if (!Number.isFinite(time) || time <= 0) return '—'
+      const date = new Date(time)
+      const pad = (part) => String(part).padStart(2, '0')
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
     }
 
     /**
@@ -1667,6 +1767,7 @@ window.__ModuleLoader__.load({
         const [phase, setPhase] = React.useState('loading')
         const [message, setMessage] = React.useState('')
         const [loadNonce, setLoadNonce] = React.useState(0)
+        const [noticeState, setNoticeState] = React.useState({ status: 'loading', data: null })
 
         React.useEffect(() => {
           let active = true
@@ -1684,6 +1785,22 @@ window.__ModuleLoader__.load({
               setDraft(null)
               setMessage(t('settingsLoadError'))
               setPhase('load-error')
+            })
+          return () => { active = false }
+        }, [ctx, loadNonce])
+
+        // 通知记录与设置分开加载：旧 Host 没有这个读方法时，设置表单仍可使用。
+        React.useEffect(() => {
+          let active = true
+          setNoticeState((previous) => ({ ...previous, status: 'loading' }))
+          callHost(ctx, 'getBackfillStatus', {})
+            .then((value) => {
+              if (!active) return
+              setNoticeState({ status: 'ready', data: normalizeBackfill(value) })
+            })
+            .catch(() => {
+              if (!active) return
+              setNoticeState({ status: 'error', data: null })
             })
           return () => { active = false }
         }, [ctx, loadNonce])
@@ -1758,6 +1875,13 @@ window.__ModuleLoader__.load({
                     onChange: (event) => patch('showSubagents', event?.target?.checked === true),
                   }),
                   h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn'))))),
+            h('section', { className: 'cs-settings-group' },
+              h('h3', null, t('settingsSectionNotices')),
+              noticeState.status === 'error'
+                ? h('p', { className: 'cs-notice-empty' }, t('backfillNoticeUnavailable'))
+                : noticeState.data === null
+                  ? h('p', { className: 'cs-notice-empty' }, t('loading'))
+                  : renderBackfillNotices(noticeState.data, t)),
             h('div', { className: 'cs-settings-footer' },
               h('button', {
                 type: 'button', className: 'cs-btn', disabled: busy, onClick: onSave,
@@ -1820,7 +1944,9 @@ window.__ModuleLoader__.load({
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
         const [pollMs, setPollMs] = React.useState(PAGE_REFRESH_MS)
         const [refreshNonce, setRefreshNonce] = React.useState(0)
-        const [dismissedBackfill, setDismissedBackfill] = React.useState(false)
+        const [readBackfillId, setReadBackfillId] = React.useState('')
+        const [dismissingBackfill, setDismissingBackfill] = React.useState(false)
+        const [dismissError, setDismissError] = React.useState(null)
         const [retrying, setRetrying] = React.useState(false)
         const [retryError, setRetryError] = React.useState(null)
         const state = useDashboard(ctx, period, pollMs, refreshNonce)
@@ -1836,6 +1962,10 @@ window.__ModuleLoader__.load({
 
         const data = state.data
         const backfill = data?.backfill ?? normalizeBackfill(null)
+        // 本地点「知道了」后立即收起当前事件；新事件换代后不能复用旧覆盖值。
+        const effectiveBackfill = readBackfillId !== '' && readBackfillId === backfill.eventId
+          ? { ...backfill, readEventId: readBackfillId }
+          : backfill
         const [showPeriodWait, setShowPeriodWait] = React.useState(false)
         const switchingPeriod = data !== null && data.period !== period
         React.useEffect(() => {
@@ -1903,12 +2033,27 @@ window.__ModuleLoader__.load({
           setRetryError(null)
           try {
             await callHost(ctx, 'retryBackfill', {})
-            setDismissedBackfill(false)
             setRefreshNonce((value) => value + 1)
           } catch (error) {
             setRetryError(String(error?.message ?? error))
           } finally {
             setRetrying(false)
+          }
+        }
+
+        // 「知道了」写入 Host 的已读锚点：组件重挂载、切视图与刷新后由同一份
+        // 状态决定不再显示；只写 meta，不在页面里用 localStorage 记已读。
+        const onDismissBackfill = async () => {
+          if (dismissingBackfill || backfill.eventId === '') return
+          setDismissingBackfill(true)
+          setDismissError(null)
+          try {
+            await callHost(ctx, 'markBackfillRead', { eventId: backfill.eventId })
+            setReadBackfillId(backfill.eventId)
+          } catch (error) {
+            setDismissError(String(error?.message ?? error))
+          } finally {
+            setDismissingBackfill(false)
           }
         }
         const nowMs = Date.now()
@@ -1980,9 +2125,10 @@ window.__ModuleLoader__.load({
             state.status === 'error'
               ? h('div', { className: 'cs-alert' }, h('strong', null, t('errorTitle')), ` · ${t('retryHint')}`)
               : null,
-            renderBackfillBanner(backfill, {
-              dismissed: dismissedBackfill,
-              onDismiss: () => setDismissedBackfill(true),
+            renderBackfillBanner(effectiveBackfill, {
+              dismissing: dismissingBackfill,
+              dismissError,
+              onDismiss: onDismissBackfill,
               retrying,
               retryError,
               onRetry: onRetryBackfill,
@@ -2677,6 +2823,17 @@ window.__ModuleLoader__.load({
       .cs-settings-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .cs-settings-status { font-size: 12px; color: var(--dsw-alias-state-success-primary); }
       .cs-settings-status.is-error { color: var(--dsw-alias-state-error-primary); }
+      /* 通知记录：已读后仍可回看；样式只做最小列表，不改变设置页版式。 */
+      .cs-notice-list { display: flex; flex-direction: column; }
+      .cs-notice-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+      .cs-notice-item:last-child { border-bottom: 0; }
+      .cs-notice-dot { width: 7px; height: 7px; margin-top: 7px; border-radius: 50%; background: var(--dsw-alias-brand-primary); flex: none; }
+      .cs-notice-body { min-width: 0; flex: 1 1 auto; }
+      .cs-notice-title { font-size: 13px; font-weight: 600; }
+      .cs-notice-desc { margin: 2px 0 0; font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
+      .cs-notice-tag { flex: none; font-size: 11px; line-height: 18px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l1); color: var(--dsw-alias-label-secondary); }
+      .cs-notice-tag.is-unread { color: var(--dsw-alias-brand-primary); border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 35%, var(--dsw-alias-border-l1)); }
+      .cs-notice-empty { margin: 0; padding: 10px 0; font-size: 12px; color: var(--dsw-alias-label-secondary); }
       @media (max-width: 620px) { .cs-settings-row { grid-template-columns: 1fr; gap: 6px; } }
       @media (prefers-reduced-motion: reduce) {
         .cs-settings *, .cs-settings *::before, .cs-settings *::after { transition-duration: 0s; animation-duration: 0s; }

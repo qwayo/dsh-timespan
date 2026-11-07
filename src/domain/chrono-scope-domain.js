@@ -1194,13 +1194,17 @@ export function createChronoScopeDomain({ domain, clock }) {
       })
 
       const meta = readMeta()
+      const previousBackfill = normalizeBackfillStatus(meta.backfill)
       await domain.global.set({
         ...meta,
         settings: currentSettings(),
         // installTime 是插件启用时间，不属于统计数据，清空后保持原值。
         currentBootId: bootId,
         lastHeartbeat: at,
+        // 清空结束当前完成事件，但不抹掉通知记录；clearedAt 让下一次真正
+        // 发生的回填（手动重试或版本升级）被识别为「清空后重新回填」。
         backfill: normalizeBackfillStatus({
+          ...previousBackfill,
           status: 'done',
           version: BACKFILL_VERSION,
           scanned: 0,
@@ -1208,6 +1212,12 @@ export function createChronoScopeDomain({ domain, clock }) {
           tasksWritten: 0,
           error: null,
           updatedAt: at,
+          eventId: '',
+          eventKind: '',
+          eventAt: 0,
+          readEventId: '',
+          readAt: 0,
+          clearedAt: at,
         }),
       })
       return { clearedAt: at, intervalsRemoved, tasksRemoved }
@@ -1580,6 +1590,15 @@ export function createChronoScopeDomain({ domain, clock }) {
     if (typeof loadSessions !== 'function') {
       return setBackfillStatus({ status: 'failed', error: '回填缺少会话读取器' }, generation)
     }
+    // 本次完成事件的原因：清空后的再次回填优先于手动重试，因为用户先清空
+    // 再重试时，记成「清空后重新回填」更贴近真实变化；版本升级次之。
+    const eventKind = existing.clearedAt > 0
+      ? 'clear'
+      : options.force === true
+        ? 'retry'
+        : existing.status === 'done' && existing.version !== BACKFILL_VERSION
+          ? 'version'
+          : 'initial'
     const yieldFn = typeof options.yield === 'function' ? options.yield : () => Promise.resolve()
     let scanned = 0
     let total = 0
@@ -1621,6 +1640,22 @@ export function createChronoScopeDomain({ domain, clock }) {
         // 会话之间让出事件循环，让实时 session/event 与 presence 心跳有机会执行。
         await yieldFn()
       }
+      // 每完成一次真实的回填扫描就生成一代新事件：eventId 一旦写入 meta 就
+      // 稳定不变，同一事件多次查询不会漂移；旧 readEventId 自然不等于新 id，
+      // 因此版本升级、清空后的再次回填、手动重试都会重新提示一次。
+      const completedAt = now()
+      const current = getBackfillStatus()
+      const eventSeq = Math.max(current.eventSeq, current.notices.length) + 1
+      const eventId = `backfill_${eventSeq}_v${BACKFILL_VERSION}`
+      const notice = {
+        eventId,
+        kind: eventKind,
+        version: BACKFILL_VERSION,
+        total,
+        tasksWritten,
+        completedAt,
+        readAt: 0,
+      }
       return await setBackfillStatus({
         status: 'done',
         version: BACKFILL_VERSION,
@@ -1628,6 +1663,12 @@ export function createChronoScopeDomain({ domain, clock }) {
         total,
         tasksWritten,
         error: null,
+        eventId,
+        eventKind,
+        eventAt: completedAt,
+        eventSeq,
+        clearedAt: 0,
+        notices: [...current.notices, notice],
       }, generation)
     } catch (error) {
       if (generation !== dataGeneration) return getBackfillStatus()
@@ -1679,6 +1720,27 @@ export function createChronoScopeDomain({ domain, clock }) {
     })
   }
 
+  /**
+   * 写入回填完成事件的已读锚点。只接受当前事件，未知/旧事件保持原状，
+   * 避免页面持有旧 eventId 与新一代事件竞态时误把新事件标成已读。
+   * 已读是幂等的：同一事件重复标记不会改写第一次的已读时间。
+   */
+  async function markBackfillRead(eventId) {
+    return withWriteLock(async () => {
+      const meta = readMeta()
+      const status = normalizeBackfillStatus(meta.backfill)
+      if (typeof eventId !== 'string' || eventId.length === 0) return status
+      if (status.eventId === '' || status.eventId !== eventId) return status
+      if (status.readEventId === eventId) return status
+      const at = now()
+      const notices = status.notices.map((notice) =>
+        notice.eventId === eventId ? { ...notice, readAt: at } : notice)
+      const next = normalizeBackfillStatus({ ...status, readEventId: eventId, readAt: at, notices })
+      await domain.global.set({ ...meta, backfill: next })
+      return next
+    })
+  }
+
   // 对外暴露的是加锁包装；backfill 自身不整体持锁，内部按事件分段申请，
   // 否则一次长回填会把实时记录堵在写队列后面。
   return {
@@ -1694,6 +1756,7 @@ export function createChronoScopeDomain({ domain, clock }) {
     close: () => withWriteLock(close),
     backfill,
     getBackfillStatus,
+    markBackfillRead,
   }
 }
 
