@@ -1149,12 +1149,13 @@ window.__ModuleLoader__.load({
 
     function renderSessionRow(session, t, nowMs, subagentRows) {
       const subagents = subagentRows.length
+      const sessionTitle = session.sessionTitle ?? t('unknownSession')
       return h('div', { className: 'cs-session', key: session.sessionId },
-        h('span', { className: 'cs-session-title' }, session.sessionTitle ?? t('unknownSession')),
+        h('span', { className: 'cs-session-title', title: sessionTitle }, sessionTitle),
         session.taskRunning ? h('span', { className: 'cs-chip is-live' }, t('runningTag')) : null,
         session.approximate ? h('span', { className: 'cs-chip', title: t('approximateHint') }, t('approximateTag')) : null,
-        h('span', { className: 'cs-session-stat' }, `${t('activeLabel')} ${formatDuration(session.activeMs)}`),
-        h('span', { className: 'cs-session-stat' }, `${t('taskLabel')} ${formatDuration(session.taskMs)}`),
+        h('span', { className: 'cs-session-stat', 'data-label': t('activeLabel') }, `${t('activeLabel')} ${formatDuration(session.activeMs)}`),
+        h('span', { className: 'cs-session-stat', 'data-label': t('taskLabel') }, `${t('taskLabel')} ${formatDuration(session.taskMs)}`),
         h('span', { className: 'cs-session-stat' }, `${session.taskCount} ${t('taskCountUnit')}`),
         h('span', { className: 'cs-session-last' }, formatRelativeTime(session.lastActivityAt, t, nowMs)),
         session.taskCount > 0 ? renderSessionBreakdown(session, t) : null,
@@ -1170,13 +1171,14 @@ window.__ModuleLoader__.load({
     }
 
     function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent) {
+      const workspaceTitle = row.workspaceTitle ?? t('unassigned')
       return h('div', { className: 'cs-group', key: row.key },
         h('div', {
           className: 'cs-row cs-summary',
           role: 'button',
           tabIndex: 0,
           'aria-expanded': isOpen,
-          'aria-label': `${row.workspaceTitle ?? t('unassigned')} · ${t(isOpen ? 'collapse' : 'expand')}`,
+          'aria-label': `${workspaceTitle} · ${t(isOpen ? 'collapse' : 'expand')}`,
           onClick: onToggle,
           onKeyDown: (event) => {
             if (event.key === 'Enter' || event.key === ' ') {
@@ -1186,7 +1188,7 @@ window.__ModuleLoader__.load({
           },
         },
           h('div', { className: 'cs-cell cs-name' },
-            h('span', { className: 'cs-name-text' }, row.workspaceTitle ?? t('unassigned')),
+            h('span', { className: 'cs-name-text', title: workspaceTitle }, workspaceTitle),
             h('span', { className: 'cs-name-sub' }, `${row.sessions.length} ${t('sessionsUnit')}`)),
           h('div', { className: 'cs-cell cs-active cs-num', 'data-label': t('colActive') }, formatDuration(row.activeMs)),
           h('div', { className: 'cs-cell cs-task cs-num', 'data-label': t('colTask') }, formatDuration(row.taskMs)),
@@ -2095,6 +2097,43 @@ window.__ModuleLoader__.load({
       .cs-clear-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
       .cs-data-status { margin-top: 8px; font-size: 12px; color: var(--dsw-alias-state-success-primary); }
       .cs-data-status.is-error { color: var(--dsw-alias-state-error-primary); }
+
+      /* 票 04：明细右侧留白、相对时间固定槽位，以及 390px 下的行内信息分层。 */
+      .cs-table-card { padding-right: 24px; }
+      .cs-table-head { padding-right: 24px; }
+      .cs-summary { padding-right: 18px; }
+      .cs-last { text-align: right; padding-right: 10px; }
+      .cs-sessions { padding-right: 24px; }
+      .cs-name-text { display: block; min-width: 0; max-width: 100%; }
+      .cs-session-title { flex: 0 1 auto; min-width: 0; max-width: min(100%, 340px); }
+      .cs-session-stat { display: inline-flex; align-items: baseline; gap: 4px; }
+      @media (max-width: 600px) {
+        .cs-table-card { padding: 12px; }
+        .cs-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 10px; }
+        .cs-name { flex: 1 1 calc(100% - 46px); order: 0; min-width: 0; }
+        .cs-toggle { order: 1; width: 32px; height: 32px; margin: -4px -4px -4px 0; }
+        .cs-active { order: 2; }
+        .cs-task { order: 3; }
+        .cs-share { order: 4; flex: 1 1 96px; flex-direction: row; align-items: center; gap: 8px; }
+        .cs-last { order: 5; margin-left: auto; padding-right: 2px; text-align: right; }
+        .cs-summary .cs-active, .cs-summary .cs-task {
+          display: inline-flex; align-items: baseline; gap: 3px;
+          padding: 1px 6px; border-radius: 4px; background: var(--dsw-alias-bg-layer-2);
+        }
+        .cs-summary .cs-active::before, .cs-summary .cs-task::before {
+          display: inline; content: attr(data-label) ' '; margin-right: 2px;
+          color: var(--dsw-alias-label-secondary); font-family: inherit; font-size: 11px; font-weight: 400;
+        }
+        .cs-summary .cs-share::before, .cs-summary .cs-last::before { display: none; }
+        .cs-sessions { padding: 4px 12px 8px; }
+        .cs-session { gap: 6px 10px; padding: 10px 0; }
+        .cs-session-title { flex: 1 1 100%; max-width: 100%; }
+        .cs-session-stat {
+          display: inline-flex; align-items: baseline; gap: 4px;
+          padding: 1px 6px; border-radius: 4px; background: var(--dsw-alias-bg-layer-2);
+        }
+        .cs-session-last { margin-left: auto; padding-right: 2px; }
+      }
     `
 
     /** 设置页独立挂载在 settings.section，样式自成一套，不依赖仪表盘根节点。 */
