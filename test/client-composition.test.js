@@ -39,7 +39,22 @@ async function loadClientFunctions() {
   const anchor = '    const CHRONOSCOPE_CSS = `'
   assert.ok(source.includes(anchor), '客户端测试入口不存在')
   source = source.replace(anchor,
-    `    window.__testFunctions = { renderComposition, renderSessionBreakdown, renderSessionRow, renderWorkspaceRow, normalizeBackfill, normalizeDashboard, approximateNoticeVisible, renderApproximateNotice, localDayCount, averageMsPerDay, overviewHint, clampTipPosition, renderHoverTip, buildTrendTip, buildCompositionTip, renderTrendChart, HoverTip, useHoverTip, renderBackfillBanner, renderBackfillNotices, isBackfillUnread, Select, isSelectOutside, createSelectOutsideHandler };\n${anchor}`)
+    `    window.__testFunctions = {
+      renderComposition, renderSessionBreakdown, renderSessionRow, renderWorkspaceRow,
+      normalizeBackfill, normalizeDashboard, approximateNoticeVisible, renderApproximateNotice,
+      localDayCount, averageMsPerDay, overviewHint, clampTipPosition, renderHoverTip,
+      buildTrendTip, buildCompositionTip, renderTrendChart, HoverTip, useHoverTip,
+      renderBackfillBanner, renderBackfillNotices, isBackfillUnread,
+      Select, isSelectOutside, createSelectOutsideHandler,
+      renderWorkspaceRanking, Info, renderInfo,
+      overviewInfoMessages: typeof overviewInfoMessages === 'function' ? overviewInfoMessages : undefined,
+      footerInfoMessages: typeof footerInfoMessages === 'function' ? footerInfoMessages : undefined,
+      normalizePalette: typeof normalizePalette === 'function' ? normalizePalette : undefined,
+      normalizeAppearance: typeof normalizeAppearance === 'function' ? normalizeAppearance : undefined,
+      cycleAppearance: typeof cycleAppearance === 'function' ? cycleAppearance : undefined,
+      resolveAppearance: typeof resolveAppearance === 'function' ? resolveAppearance : undefined,
+      chronoscopeCss: typeof chronoscopeCss === 'function' ? chronoscopeCss : undefined,
+    };\n${anchor}`)
   const React = createTestReact()
   const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) } }
   vm.runInNewContext(source, { window, crypto: { randomUUID: () => 'test-client' } })
@@ -75,6 +90,18 @@ function textOf(node) {
   if (Array.isArray(node)) return node.map(textOf).join(' ')
   if (typeof node !== 'object') return String(node)
   return textOf(node.children)
+}
+
+function findNodes(node, predicate, found = []) {
+  if (node == null || node === false) return found
+  if (Array.isArray(node)) {
+    for (const child of node) findNodes(child, predicate, found)
+    return found
+  }
+  if (typeof node !== 'object') return found
+  if (predicate(node)) found.push(node)
+  findNodes(node.children, predicate, found)
+  return found
 }
 
 function findAll(node, predicate) {
@@ -486,6 +513,146 @@ test('客户端：概览提示标明起算点，周/月按本地日历日显示�
   const dayText = overviewHint({ ...data, period: 'day' }, (key) => labels[key] ?? key)
   assert.doesNotMatch(dayText, /日均/, '日视图不需要再折算日均')
   assert.match(dayText, /从插件启用时开始记录/)
+})
+
+test('客户端：配色归一化为 blue/stone/clay，旧值回落到默认蓝', async () => {
+  const { normalizePalette } = await loadClientFunctions()
+  assert.equal(typeof normalizePalette, 'function')
+  assert.equal(normalizePalette('blue'), 'blue')
+  assert.equal(normalizePalette('stone'), 'stone')
+  assert.equal(normalizePalette('clay'), 'clay')
+  for (const legacy of ['mono', 'green', 'warm', '', null, undefined, 'unknown']) {
+    assert.equal(normalizePalette(legacy), 'blue', `旧配色 ${String(legacy)} 必须落回默认蓝`)
+  }
+})
+
+test('客户端：视觉基座导出三档蓝 token、三套配色与蓝派生色阶', async () => {
+  const { chronoscopeCss } = await loadClientFunctions()
+  assert.equal(typeof chronoscopeCss, 'function')
+  const css = chronoscopeCss()
+  assert.match(css, /--cs-signal-deep\s*:\s*#133463/i)
+  assert.match(css, /--cs-signal\s*:\s*#1F4E94/i)
+  assert.match(css, /--cs-signal-soft\s*:\s*#79B3F9/i)
+  assert.match(css, /--cs-accent\s*:\s*var\(--cs-signal/)
+  assert.match(css, /--cs-live\s*:\s*var\(--cs-signal\)/)
+  assert.match(css, /--cs-task\s*:\s*color-mix\(/)
+  assert.match(css, /--cs-tone-faint\s*:/)
+  assert.match(css, /--cs-tone-soft\s*:/)
+  assert.match(css, /--cs-tone-other\s*:/)
+  for (let step = 0; step <= 5; step += 1) assert.match(css, new RegExp(`--cs-heat-${step}\\s*:`))
+  assert.match(css, /\.cs-page\.cs-palette-stone\s*\{/)
+  assert.match(css, /\.cs-page\.cs-palette-clay\s*\{/)
+  assert.match(css, /\.cs-page\.cs-palette-blue\s*\{/)
+  assert.match(css, /\.cs-page\.cs-appearance-dark\s*\{/)
+  assert.match(css, /\.cs-info:hover \.cs-info-tip/)
+  assert.match(css, /\.cs-info:focus-within \.cs-info-tip/)
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
+  assert.match(css, /--cs-dur-tap\s*:\s*160ms/)
+  assert.doesNotMatch(css, /#315878|#285642|#78947c|#96543f|#7492a8|#73797b/i, '旧的灰绿配色值不得残留')
+})
+
+test('客户端：外观三态按浅色→深色→跟随系统循环，非法值回落浅色', async () => {
+  const { normalizeAppearance, cycleAppearance, resolveAppearance } = await loadClientFunctions()
+  assert.equal(typeof normalizeAppearance, 'function')
+  assert.equal(typeof cycleAppearance, 'function')
+  assert.equal(typeof resolveAppearance, 'function')
+  assert.equal(normalizeAppearance('light'), 'light')
+  assert.equal(normalizeAppearance('dark'), 'dark')
+  assert.equal(normalizeAppearance('system'), 'system')
+  assert.equal(normalizeAppearance('auto'), 'light')
+  assert.equal(normalizeAppearance(null), 'light')
+  assert.equal(cycleAppearance('light'), 'dark')
+  assert.equal(cycleAppearance('dark'), 'system')
+  assert.equal(cycleAppearance('system'), 'light')
+  assert.equal(cycleAppearance('legacy-value'), 'dark', '非法值先归一到浅色再循环')
+  assert.equal(resolveAppearance('light', true), 'light')
+  assert.equal(resolveAppearance('dark', false), 'dark')
+  assert.equal(resolveAppearance('system', true), 'dark')
+  assert.equal(resolveAppearance('system', false), 'light')
+  assert.equal(resolveAppearance('unknown', true), 'light')
+})
+
+test('客户端：图表的数据状态使用三档蓝 token，不用灰或绿', async () => {
+  const { renderTrendChart } = await loadClientFunctions()
+  const from = new Date(2026, 10, 7, 0).getTime()
+  const tree = renderTrendChart([
+    { key: 'a', from, to: from + 3_600_000, activeMs: 3_600_000, taskMs: 1_800_000 },
+  ], 'day', (key) => key, true)
+  const fills = findNodes(tree, (node) => node.type === 'rect' && String(node.props.className ?? '').split(/\s+/).includes('cs-bar')).map((node) => node.props.fill)
+  assert.ok(fills.includes('var(--cs-live)'), '活跃柱使用 --cs-live')
+  assert.ok(fills.includes('var(--cs-task)'), '任务柱使用 --cs-task')
+  assert.ok(fills.every((fill) => typeof fill === 'string' && fill.startsWith('var(--cs-')), '图表只使用设计 token 着色')
+})
+
+test('客户端：ⓘ 按钮以完整说明作为 aria 名称，浮层含同一说明', async () => {
+  const { Info, React } = await loadClientFunctions()
+  const message = '实际占用：多会话重叠时段只计一次；在线时长包含挂机时间。'
+  let tree = React.render(Info, { message })
+  const buttonOf = (current) => findAll(current, (node) => node.type === 'button')[0]
+  let button = buttonOf(tree)
+  assert.equal(findByClass(tree, 'cs-info').type, 'span')
+  assert.equal(button.type, 'button')
+  assert.equal(button.props.type, 'button')
+  assert.equal(button.props['aria-label'], message, 'aria 名称必须是完整说明')
+  assert.equal(button.props['aria-expanded'], false)
+  const tip = findByClass(tree, 'cs-info-tip')
+  assert.equal(tip.props.role, 'tooltip')
+  assert.equal(textOf(tip), message)
+  assert.equal(typeof button.props.onKeyDown, 'function', '键盘可操作')
+  assert.equal(typeof button.props.onFocus, 'function', '键盘聚焦可显示说明')
+
+  button.props.onFocus()
+  tree = React.render(Info, { message })
+  button = buttonOf(tree)
+  assert.equal(button.props['aria-expanded'], true, '键盘聚焦显示说明')
+  assert.match(findByClass(tree, 'cs-info').props.className, /is-open/)
+
+  button.props.onKeyDown({ key: 'Escape' })
+  tree = React.render(Info, { message })
+  assert.match(findByClass(tree, 'cs-info').props.className, /is-dismissed/, 'Escape 关闭说明')
+})
+
+test('客户端：散落小字收进 ⓘ 消息，信息不丢失', async () => {
+  const { overviewInfoMessages, footerInfoMessages } = await loadClientFunctions()
+  const labels = {
+    periodHint: '选择周期查看明细', dailyAverageActive: '日均活跃', dailyAverageTask: '日均任务',
+    recordSinceBoot: '在线/活跃从插件启用时开始记录；历史只回填任务时长',
+    unionFoot: '实际占用：多会话重叠时段只计一次',
+    sinceBoot: '活跃按页面可见、窗口聚焦与键鼠操作判定',
+    onlineFoot: '在线时长包含挂机时间',
+    localOnly: '数据仅保存在本机',
+    approximateHint: '记录按最后心跳/最后事件时间近似收口，时长可能偏短',
+  }
+  const t = (key) => labels[key] ?? key
+  const data = { period: 'day', range: { from: Date.now(), to: Date.now() }, activeMs: 0, taskMs: 0 }
+  const overview = overviewInfoMessages(data, t).join('；')
+  assert.match(overview, /选择周期查看明细/)
+  assert.match(overview, /从插件启用时开始记录/)
+  assert.match(overview, /活跃按页面可见/)
+  assert.match(overview, /在线时长包含挂机时间/)
+  assert.match(overview, /实际占用/)
+  const footer = footerInfoMessages(t, true).join('；')
+  assert.match(footer, /数据仅保存在本机/)
+  assert.match(footer, /按最后心跳/)
+  assert.doesNotMatch(footer, /undefined/)
+})
+
+test('客户端：任务构成与排行的口径说明也收进 ⓘ', async () => {
+  const { renderComposition, renderWorkspaceRanking, Info } = await loadClientFunctions()
+  const labels = {
+    compositionTitle: '任务时长构成', compositionInfo: '按会话累计的任务构成',
+    compositionHint: '按会话累计', noTaskComposition: '暂无任务', accumulated: '累计工时',
+    workspaceRanking: '工作区任务排行', sumFoot: '累计工时：明细按会话逐条累加',
+    unassigned: '未归属', taskLabel: '任务', colShare: '任务占比',
+  }
+  const t = (key) => labels[key] ?? key
+  const messagesOf = (tree) => findNodes(tree, (node) => node.type === Info).map((node) => node.props.message)
+  const composition = messagesOf(renderComposition({ workspaces: [] }, t)).join('；')
+  assert.match(composition, /按会话累计的任务构成/)
+  assert.match(composition, /按会话累计/)
+  const ranking = messagesOf(renderWorkspaceRanking({ workspaces: [] }, t)).join('；')
+  assert.match(ranking, /明细按会话逐条累加/)
+  assert.match(ranking, /累计工时/)
 })
 
 test('客户端：明细标题保留完整文本并以省略方式呈现', async () => {
