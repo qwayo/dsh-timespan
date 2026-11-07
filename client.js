@@ -72,6 +72,8 @@ window.__ModuleLoader__.load({
       periodHint: '选择周期查看明细',
       compositionTitle: '任务时长构成',
       compositionHint: '按会话累计',
+      shareLabel: '占比',
+      durationLabel: '时长',
       workspaceRanking: '工作区任务排行',
       noTaskComposition: '当前周期暂无任务时长',
       unknownBreakdown: '未拆分',
@@ -226,6 +228,8 @@ window.__ModuleLoader__.load({
       periodHint: 'Select a period for details',
       compositionTitle: 'Task time breakdown',
       compositionHint: 'Summed across sessions',
+      shareLabel: 'Share',
+      durationLabel: 'Duration',
       workspaceRanking: 'Workspace task ranking',
       noTaskComposition: 'No task time in this period',
       unknownBreakdown: 'Not broken down',
@@ -928,8 +932,137 @@ window.__ModuleLoader__.load({
       return indices
     }
 
-    /** 原生 SVG 双系列柱状图；标签由 HTML 层渲染，避免横向缩放把文字拉伸。 */
-    function renderTrendChart(trend, period, t, isZh) {
+    /** 统一浮层定位：优先放在锚点上方，空间不足翻到下方，左右按视口夹取。 */
+    function clampTipPosition(anchor, size, viewport, options = {}) {
+      const gap = finite(options.gap) || 10
+      const margin = finite(options.margin) || 8
+      const width = Math.max(0, finite(size?.width))
+      const height = Math.max(0, finite(size?.height))
+      const viewportWidth = Math.max(0, finite(viewport?.width))
+      const viewportHeight = Math.max(0, finite(viewport?.height))
+      const anchorLeft = finite(anchor?.left)
+      const anchorTop = finite(anchor?.top)
+      const anchorWidth = Math.max(0, finite(anchor?.width))
+      const anchorHeight = Math.max(0, finite(anchor?.height))
+      const maxLeft = Math.max(margin, viewportWidth - width - margin)
+      const maxTop = Math.max(margin, viewportHeight - height - margin)
+      const left = Math.max(margin, Math.min(anchorLeft + anchorWidth / 2 - width / 2, maxLeft))
+      const above = anchorTop - height - gap
+      if (above >= margin) return { left: Math.round(left), top: Math.round(above), placement: 'top' }
+      const top = Math.max(margin, Math.min(anchorTop + anchorHeight + gap, maxTop))
+      return { left: Math.round(left), top: Math.round(top), placement: 'bottom' }
+    }
+
+    /** 纯渲染层：浮层内容与位置都可从外部注入，供图表与后续热力图复用。 */
+    function renderHoverTip(tip, position, extraProps = {}) {
+      if (!tip) return null
+      const style = position
+        ? { left: `${position.left}px`, top: `${position.top}px` }
+        : { left: '0px', top: '0px', visibility: 'hidden' }
+      return h('div', {
+        ...extraProps,
+        className: 'cs-hover-tip',
+        role: 'tooltip',
+        style,
+        'data-placement': position?.placement ?? 'top',
+      },
+        h('strong', { className: 'cs-hover-tip-title' }, tip.title),
+        (tip.rows || []).map((row) => h('div', { className: 'cs-hover-tip-row', key: row.key ?? row.label },
+          h('span', { className: 'cs-hover-tip-label' }, row.label),
+          h('span', { className: 'cs-hover-tip-value' }, row.value))))
+    }
+
+    /** 挂载后量一次浮层尺寸再定位，避免贴边溢出；减少动效由 CSS 媒体查询处理。 */
+    function HoverTip({ tip, id = 'chrono-scope-hover-tip' }) {
+      const ref = React.useRef(null)
+      const [position, setPosition] = React.useState(null)
+      React.useEffect(() => {
+        if (!tip) {
+          setPosition(null)
+          return
+        }
+        const node = ref.current
+        if (!node) return
+        setPosition(clampTipPosition(tip.anchor, {
+          width: typeof node.offsetWidth === 'number' ? node.offsetWidth : 0,
+          height: typeof node.offsetHeight === 'number' ? node.offsetHeight : 0,
+        }, {
+          width: typeof window !== 'undefined' ? window.innerWidth : 0,
+          height: typeof window !== 'undefined' ? window.innerHeight : 0,
+        }))
+      }, [tip])
+      if (!tip) return null
+      return renderHoverTip(tip, position, { id, ref })
+    }
+
+    /** 图表共用的悬停状态：内容由调用方构建，锚点取自事件目标。 */
+    function useHoverTip() {
+      const [tip, setTip] = React.useState(null)
+      const show = (content, event) => {
+        const node = event?.currentTarget
+        if (!node || typeof node.getBoundingClientRect !== 'function') return
+        const rect = node.getBoundingClientRect()
+        setTip({
+          ...content,
+          anchor: {
+            left: finite(rect.left), top: finite(rect.top),
+            right: finite(rect.right), bottom: finite(rect.bottom),
+            width: finite(rect.width), height: finite(rect.height),
+          },
+        })
+      }
+      const hide = () => setTip(null)
+      return { tip, show, hide }
+    }
+
+    function buildTrendTip(bucket, period, t, isZh) {
+      return {
+        kind: 'bucket',
+        key: bucket.key,
+        title: bucketLabel(bucket, period, isZh),
+        rows: [
+          { key: 'active', label: t('activeLabel'), value: formatDuration(bucket.activeMs) },
+          { key: 'task', label: t('taskLabel'), value: formatDuration(bucket.taskMs) },
+        ],
+      }
+    }
+
+    function buildCompositionTip(item, total, t) {
+      return {
+        kind: 'composition',
+        key: item.key,
+        title: item.label,
+        rows: [
+          { key: 'share', label: t('shareLabel'), value: formatPercent(total > 0 ? item.ms / total : 0) },
+          { key: 'duration', label: t('durationLabel'), value: formatDuration(item.ms) },
+        ],
+      }
+    }
+
+    /** 方向键/Home/End 在同类可聚焦元素之间移动；返回 true 表示已处理。 */
+    function moveFocusByKey(event, selector) {
+      const key = event?.key
+      if (key !== 'ArrowRight' && key !== 'ArrowLeft' && key !== 'Home' && key !== 'End') return false
+      if (typeof event.preventDefault === 'function') event.preventDefault()
+      const current = event.currentTarget
+      const groups = current?.parentElement?.querySelectorAll?.(selector)
+      if (!groups || groups.length === 0) return true
+      const index = Array.prototype.indexOf.call(groups, current)
+      let next = index
+      if (key === 'Home') next = 0
+      else if (key === 'End') next = groups.length - 1
+      else next = (index + (key === 'ArrowRight' ? 1 : -1) + groups.length) % groups.length
+      const target = groups[next]
+      if (target && typeof target.focus === 'function') target.focus()
+      return true
+    }
+
+    function isActivationKey(event) {
+      return event?.key === 'Enter' || event?.key === ' ' || event?.key === 'Spacebar'
+    }
+
+    /** 原生 SVG 双系列柱状图；每个时段分组带透明命中区，悬浮或聚焦时整体放大并浮出数值。 */
+    function renderTrendChart(trend, period, t, isZh, hover, actions = {}) {
       const width = 1000
       const height = 140
       const baseline = height - 3
@@ -939,34 +1072,68 @@ window.__ModuleLoader__.load({
       const slot = width / Math.max(1, count)
       const barWidth = Math.max(1.5, Math.min(slot * 0.32, 16))
       const gap = Math.max(1, slot * 0.05)
-      const bars = []
+      const groups = []
       trend.forEach((bucket, index) => {
         const left = index * slot + (slot - barWidth * 2 - gap) / 2
         const label = bucketLabel(bucket, period, isZh)
+        const tip = buildTrendTip(bucket, period, t, isZh)
+        const hot = hover?.kind === 'bucket' && hover.key === bucket.key
+        const bars = []
         if (bucket.activeMs > 0) {
           const barHeight = Math.max(1.5, (bucket.activeMs / peak) * usable)
           bars.push(h('rect', {
             key: `active-${bucket.key}`,
+            className: 'cs-bar',
             x: left,
             y: baseline - barHeight,
             width: barWidth,
             height: barHeight,
             rx: 1.5,
             fill: 'var(--dsw-alias-brand-primary)',
-          }, h('title', null, `${label} · ${t('activeLabel')} ${formatDuration(bucket.activeMs)}`)))
+          }))
         }
         if (bucket.taskMs > 0) {
           const barHeight = Math.max(1.5, (bucket.taskMs / peak) * usable)
           bars.push(h('rect', {
             key: `task-${bucket.key}`,
+            className: 'cs-bar',
             x: left + barWidth + gap,
             y: baseline - barHeight,
             width: barWidth,
             height: barHeight,
             rx: 1.5,
             fill: 'var(--dsw-alias-state-success-primary)',
-          }, h('title', null, `${label} · ${t('taskLabel')} ${formatDuration(bucket.taskMs)}`)))
+          }))
         }
+        const groupProps = {
+          key: bucket.key,
+          className: `cs-bar-group${hot ? ' is-hot' : ''}`,
+          tabIndex: 0,
+          role: 'button',
+          'aria-label': `${label} · ${t('activeLabel')} ${formatDuration(bucket.activeMs)} · ${t('taskLabel')} ${formatDuration(bucket.taskMs)}`,
+          onKeyDown: (event) => {
+            if (moveFocusByKey(event, '.cs-bar-group')) return
+            if (isActivationKey(event) && actions.onHover) {
+              if (typeof event.preventDefault === 'function') event.preventDefault()
+              actions.onHover(tip, event)
+            }
+          },
+        }
+        if (actions.onHover) {
+          groupProps.onMouseEnter = (event) => actions.onHover(tip, event)
+          groupProps.onFocus = (event) => actions.onHover(tip, event)
+        }
+        if (actions.onLeave) {
+          groupProps.onMouseLeave = () => actions.onLeave()
+          groupProps.onBlur = () => actions.onLeave()
+        }
+        groups.push(h('g', groupProps,
+          h('rect', {
+            key: `hit-${bucket.key}`, className: 'cs-bar-hit',
+            x: index * slot, y: 0, width: slot, height,
+            fill: 'transparent', 'aria-hidden': true,
+          }),
+          h('g', { key: `pair-${bucket.key}`, className: 'cs-bar-pair' }, ...bars)))
       })
       const grid = [0.25, 0.5, 0.75, 1].map((ratio) => h('line', {
         key: `grid-${ratio}`,
@@ -990,7 +1157,7 @@ window.__ModuleLoader__.load({
         h('svg', {
           viewBox: `0 0 ${width} ${height}`,
           preserveAspectRatio: 'none',
-          role: 'img',
+          role: 'group',
           'aria-label': t('trendHint'),
         },
           ...grid,
@@ -998,7 +1165,7 @@ window.__ModuleLoader__.load({
             x1: 0, x2: width, y1: baseline, y2: baseline,
             stroke: 'var(--dsw-alias-border-l1)', strokeWidth: 1, vectorEffect: 'non-scaling-stroke',
           }),
-          ...bars)),
+          ...groups)),
         h('div', { className: 'cs-axis' }, ...axis))
     }
 
@@ -1062,8 +1229,8 @@ window.__ModuleLoader__.load({
       return h(Info, { message })
     }
 
-    /** 按会话累计任务构成；历史任务或缺失拆分的数据保留为「未拆分」。 */
-    function renderComposition(data, t) {
+    /** 按会话累计任务构成；扇区与右侧列表共享悬停/聚焦状态，历史缺失拆分计入未拆分。 */
+    function renderComposition(data, t, hover, actions = {}) {
       const parts = [
         { key: 'model', label: t('breakdownModel'), ms: 0 },
         { key: 'tool', label: t('breakdownTool'), ms: 0 },
@@ -1085,35 +1252,88 @@ window.__ModuleLoader__.load({
         }
       }
       const total = parts.reduce((sum, item) => sum + item.ms, 0)
+      const visibleParts = parts.filter((item) => item.ms > 0)
+      const hotKey = hover?.kind === 'composition' ? hover.key : null
       let offset = 0
       const radius = 42
       const circumference = 2 * Math.PI * radius
-      const segments = parts.filter((item) => item.ms > 0).map((item) => {
+      const segments = visibleParts.map((item) => {
         const fraction = item.ms / total
-        const segment = h('circle', { key: item.key, cx: 50, cy: 50, r: radius,
+        const tip = buildCompositionTip(item, total, t)
+        const props = {
+          key: item.key,
+          className: `cs-donut-seg is-${item.key}${hotKey === item.key ? ' is-hot' : ''}`,
+          cx: 50, cy: 50, r: radius,
           fill: 'none', stroke: `var(--cs-series-${item.key})`, strokeWidth: 11,
           strokeDasharray: `${fraction * circumference} ${circumference}`,
-          strokeDashoffset: -offset * circumference })
+          strokeDashoffset: -offset * circumference,
+          tabIndex: 0,
+          role: 'button',
+          'aria-label': `${item.label} · ${t('shareLabel')} ${formatPercent(fraction)} · ${t('durationLabel')} ${formatDuration(item.ms)}`,
+          onKeyDown: (event) => {
+            if (moveFocusByKey(event, '.cs-donut-seg')) return
+            if (isActivationKey(event) && actions.onHover) {
+              if (typeof event.preventDefault === 'function') event.preventDefault()
+              actions.onHover(tip, event)
+            }
+          },
+        }
+        if (actions.onHover) {
+          props.onMouseEnter = (event) => actions.onHover(tip, event)
+          props.onFocus = (event) => actions.onHover(tip, event)
+        }
+        if (actions.onLeave) {
+          props.onMouseLeave = () => actions.onLeave()
+          props.onBlur = () => actions.onLeave()
+        }
         offset += fraction
-        return segment
+        return h('circle', props)
       })
-      return h('section', { className: 'cs-card cs-composition' },
+      return h('section', { className: `cs-card cs-composition${hotKey ? ' has-hot' : ''}` },
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' }, h('h2', null, t('compositionTitle')), renderInfo(t('compositionInfo'))),
           h('span', { className: 'cs-card-hint' }, t('compositionHint'))),
         total === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-composition-body' },
-              h('div', { className: 'cs-donut', role: 'img', 'aria-label': `${t('compositionTitle')} · ${t('accumulated')} ${formatDuration(total)}` },
+              h('div', {
+                className: `cs-donut${hotKey ? ' has-hot' : ''}`,
+                role: 'group',
+                'aria-label': `${t('compositionTitle')} · ${t('accumulated')} ${formatDuration(total)}`,
+              },
                 h('svg', { viewBox: '0 0 100 100' },
                   h('circle', { cx: 50, cy: 50, r: radius, fill: 'none', stroke: 'var(--dsw-alias-bg-layer-2)', strokeWidth: 11 }),
                   h('g', { transform: 'rotate(-90 50 50)' }, ...segments)),
                 h('div', { className: 'cs-donut-center' }, h('strong', null, formatDuration(total)), h('span', null, t('accumulated')))),
-              h('div', { className: 'cs-composition-list' }, parts.filter((item) => item.ms > 0).map((item) =>
-                h('div', { className: 'cs-composition-row', key: item.key, title: `${item.label} · ${formatDuration(item.ms)} · ${formatPercent(item.ms / total)}` },
+              h('div', { className: 'cs-composition-list' }, visibleParts.map((item) => {
+                const tip = buildCompositionTip(item, total, t)
+                const props = {
+                  key: item.key,
+                  className: `cs-composition-row${hotKey === item.key ? ' is-hot' : ''}`,
+                  tabIndex: 0,
+                  role: 'button',
+                  'aria-label': `${item.label} · ${t('shareLabel')} ${formatPercent(item.ms / total)} · ${t('durationLabel')} ${formatDuration(item.ms)}`,
+                  onKeyDown: (event) => {
+                    if (moveFocusByKey(event, '.cs-composition-row')) return
+                    if (isActivationKey(event) && actions.onHover) {
+                      if (typeof event.preventDefault === 'function') event.preventDefault()
+                      actions.onHover(tip, event)
+                    }
+                  },
+                }
+                if (actions.onHover) {
+                  props.onMouseEnter = (event) => actions.onHover(tip, event)
+                  props.onFocus = (event) => actions.onHover(tip, event)
+                }
+                if (actions.onLeave) {
+                  props.onMouseLeave = () => actions.onLeave()
+                  props.onBlur = () => actions.onLeave()
+                }
+                return h('div', props,
                   h('span', { className: `cs-series-swatch is-${item.key}`, 'aria-hidden': true }),
                   h('span', { className: 'cs-composition-label' }, item.label),
                   h('span', { className: 'cs-composition-percent' }, formatPercent(item.ms / total)),
-                  h('span', { className: 'cs-composition-time' }, formatDuration(item.ms)))))))
+                  h('span', { className: 'cs-composition-time' }, formatDuration(item.ms)))
+              }))))
     }
 
     /** 排名与占比沿用 Host 的工作区累计工时，不把并发任务相加当作实际占用。 */
@@ -1604,6 +1824,8 @@ window.__ModuleLoader__.load({
         const [retrying, setRetrying] = React.useState(false)
         const [retryError, setRetryError] = React.useState(null)
         const state = useDashboard(ctx, period, pollMs, refreshNonce)
+        const hoverTip = useHoverTip()
+        React.useEffect(() => { hoverTip.hide() }, [period])
         const [, setTick] = React.useState(0)
 
         // 相对时间（最近活动）每秒重算；数字本身仍来自同一份 Host 快照。
@@ -1778,7 +2000,7 @@ window.__ModuleLoader__.load({
                   `${t(state.status === 'error' ? 'periodLoadFailed' : 'periodLoading')} · ${t(shownPeriod === 'day' ? 'cycleToday' : shownPeriod === 'week' ? 'cycleWeek' : 'cycleMonth')}`)
               : null,
             h('div', { className: 'cs-analysis-grid' },
-              renderComposition(data, t),
+              renderComposition(data, t, hoverTip.tip, { onHover: hoverTip.show, onLeave: hoverTip.hide }),
               renderWorkspaceRanking(data, t)),
             h('section', { className: 'cs-card cs-trend-card' },
               h('div', { className: 'cs-card-head' },
@@ -1790,7 +2012,7 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel')))),
               isEmpty
                 ? h('div', { className: 'cs-empty' }, t('emptyDashboard'))
-                : renderTrendChart(data.trend, shownPeriod, t, isZh)),
+                : renderTrendChart(data.trend, shownPeriod, t, isZh, hoverTip.tip, { onHover: hoverTip.show, onLeave: hoverTip.hide })),
             h('section', { className: 'cs-card cs-table-card' },
               h('div', { className: 'cs-card-head' },
                 h('div', { className: 'cs-card-heading' },
@@ -1855,7 +2077,8 @@ window.__ModuleLoader__.load({
                 `${t('todayActive')} ${formatDuration(data.cycles.day.activeMs)} · ${t('todayOnline')} ${formatDuration(data.cycles.day.onlineMs)}`,
                 t('localOnly'),
                 hasApproximate ? t('approximateHint') : null,
-              ].filter(Boolean).join(' · '))))
+              ].filter(Boolean).join(' · ')),
+            h(HoverTip, { key: 'hover-tip', tip: hoverTip.tip })))
       }
     }
 
@@ -2321,9 +2544,41 @@ window.__ModuleLoader__.load({
       .cs-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
       .cs-card:hover { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, var(--dsw-alias-border-l1)); }
       .cs-ranking-row { border-radius: 6px; transition: background-color 160ms ease; }
-      .cs-ranking-row:hover, .cs-composition-row:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent); }
-      .cs-chart rect { transition: opacity 120ms ease; }
-      .cs-chart rect:hover { opacity: .65; }
+      .cs-composition-row { cursor: pointer; border-radius: 6px; transition: background-color 160ms ease, opacity 160ms ease; }
+      .cs-ranking-row:hover, .cs-composition-row:hover, .cs-composition-row.is-hot { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent); }
+      .cs-composition.has-hot .cs-composition-row:not(.is-hot) { opacity: .45; }
+
+      /* 柱图：每个时段一条透明命中区，悬浮或键盘聚焦时两根柱整体放大。 */
+      .cs-bar-group { cursor: pointer; outline: none; }
+      .cs-bar-group .cs-bar-pair { transform-box: fill-box; transform-origin: center bottom; transition: transform 160ms ease, filter 160ms ease; }
+      .cs-bar-group.is-hot .cs-bar-pair { transform: scale(1.18, 1.04); filter: brightness(1.12); }
+      .cs-bar-group:focus-visible .cs-bar-pair { filter: brightness(1.18); }
+      .cs-bar-hit { fill: transparent; pointer-events: all; }
+      .cs-bar-group:focus-visible .cs-bar-hit { fill: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent); }
+
+      /* 圆环：扇区与右侧列表共享同一高亮状态。 */
+      .cs-donut-seg { cursor: pointer; outline: none; transition: stroke-width 160ms ease, opacity 160ms ease, filter 160ms ease; }
+      .cs-donut-seg.is-hot, .cs-donut-seg:focus-visible { stroke-width: 15; filter: brightness(1.1); }
+      .cs-donut.has-hot .cs-donut-seg:not(.is-hot) { opacity: .38; }
+
+      /* 统一悬停浮层：固定定位后由 JS 按视口夹取，后续热力图可直接复用。 */
+      .cs-hover-tip {
+        position: fixed; left: 0; top: 0; z-index: 90;
+        min-width: 132px; max-width: 264px; padding: 8px 10px; border-radius: 8px;
+        background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, .24); pointer-events: none;
+        font-size: 11px; line-height: 1.7; font-variant-numeric: tabular-nums;
+        animation: cs-tip-in 160ms ease both;
+      }
+      .cs-hover-tip-title { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 650; }
+      .cs-hover-tip-row { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; white-space: nowrap; }
+      .cs-hover-tip-label { color: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 72%, transparent); }
+      .cs-hover-tip-value { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-weight: 600; }
+      @keyframes cs-tip-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-hover-tip { animation: none; transition: none; }
+        .cs-bar-group .cs-bar-pair, .cs-donut-seg, .cs-composition-row { transition: none; }
+      }
       .cs-foot { font-size: 12px; line-height: 1.6; }
       @media (max-width: 520px) { .cs-composition-body { flex-direction: column; align-items: center; } .cs-composition-list { width: 100%; } .cs-card-heading .cs-info-tip { left: -80px; width: 190px; max-width: calc(100vw - 100px); } }
 
