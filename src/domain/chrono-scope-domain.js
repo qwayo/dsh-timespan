@@ -1082,12 +1082,13 @@ export function createChronoScopeDomain({ domain, clock }) {
       const format = options?.format
       if (!isExportFormat(format)) throw new Error(`不支持的导出格式：${String(format)}`)
       const exportedAt = now()
+      const settings = currentSettings()
       const intervalRows = [...intervals.entries()].map(([, record]) => ({ ...record }))
       const taskRows = [...tasks.entries()].map(([, record]) => ({ ...record }))
       const days = format === 'csv' ? collectDayRows(exportedAt) : null
       const content = format === 'json'
-        ? buildJsonExport({ exportedAt, settings: currentSettings(), intervals: intervalRows, tasks: taskRows })
-        : buildCsvExport({ dayRows: days.rows })
+        ? buildJsonExport({ exportedAt, settings, intervals: intervalRows, tasks: taskRows })
+        : buildCsvExport({ dayRows: days.rows, durationFormat: settings.durationFormat })
       return {
         format,
         filename: exportFilename(format, exportedAt),

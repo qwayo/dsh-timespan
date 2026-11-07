@@ -7,6 +7,7 @@
  * 归属。Client 只负责把返回的 content 交给 Blob 下载，不持有任何业务规则。
  */
 
+import { formatDurationByPreset } from './duration-format.js'
 import { localDayBounds, pad2 } from './periods.js'
 
 export const EXPORT_FORMATS = new Set(['json', 'csv'])
@@ -67,12 +68,12 @@ export function buildJsonExport({ exportedAt, settings, intervals, tasks }) {
 }
 
 /**
- * @param {{ dayRows: object[] }} input
+ * @param {{ dayRows: object[], durationFormat?: string }} input
  * dayRows: { dateKey, onlineMs, activeUnionMs, taskUnionMs, workspaces: object[] }
  * workspace: { workspaceId, workspaceTitle, sessionCount, taskCount, activeMs,
  *              taskMs, modelMs, toolMs, waitMs, otherMs }
  */
-export function buildCsvExport({ dayRows }) {
+export function buildCsvExport({ dayRows, durationFormat = 'hms' }) {
   const lines = [CSV_COLUMNS.join(',')]
   for (const day of dayRows) {
     const groups = day.workspaces.length > 0 ? day.workspaces : [emptyWorkspaceRow()]
@@ -85,9 +86,9 @@ export function buildCsvExport({ dayRows }) {
           group.sessionCount,
           group.taskCount,
           group.activeMs,
-          humanDuration(group.activeMs),
+          formatDurationByPreset(group.activeMs, durationFormat),
           group.taskMs,
-          humanDuration(group.taskMs),
+          formatDurationByPreset(group.taskMs, durationFormat),
           group.modelMs,
           group.toolMs,
           group.waitMs,
@@ -95,7 +96,7 @@ export function buildCsvExport({ dayRows }) {
           day.activeUnionMs,
           day.taskUnionMs,
           day.onlineMs,
-          humanDuration(day.onlineMs),
+          formatDurationByPreset(day.onlineMs, durationFormat),
         ]
           .map(csvCell)
           .join(','),
@@ -121,12 +122,9 @@ function emptyWorkspaceRow() {
   }
 }
 
-/** HH:MM:SS，超过 24 小时继续累加小时数，不做天数折算。 */
-export function humanDuration(ms) {
-  const seconds = Math.max(0, Math.floor(Number(ms) / 1000 || 0))
-  return `${pad2(Math.floor(seconds / 3600))}:${pad2(Math.floor((seconds % 3600) / 60))}:${pad2(seconds % 60)}`
-}
-
+/**
+ * 可读时长沿用共享的五档格式定义；默认 hms（小时不补零），超过 24 小时继续累加小时数。
+ */
 function csvCell(value) {
   const text = value === null || value === undefined ? '' : String(value)
   return /[",\r\n]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text

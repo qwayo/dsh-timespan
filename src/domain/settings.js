@@ -7,6 +7,7 @@
  * 共用同一套规则，重启后读到的值一定与写入时一致。
  */
 
+import { DEFAULT_DURATION_FORMAT, normalizeDurationFormat } from './duration-format.js'
 import { MONDAY_WEEK_START, normalizeWeekStart } from './periods.js'
 
 /** 空闲阈值允许范围（分钟）。UI 与 Host 都按这个范围收敛。 */
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   idleThresholdMinutes: 5,
   weekStartsOn: MONDAY_WEEK_START,
   showSubagents: true,
+  durationFormat: DEFAULT_DURATION_FORMAT,
 })
 
 /** 兼容既有导出名：领域服务旧构造参数以毫秒表达同一默认值。 */
@@ -55,6 +57,7 @@ export function normalizeSettings(value) {
     idleThresholdMinutes: normalizeIdleMinutes(source.idleThresholdMinutes),
     weekStartsOn: normalizeWeekStart(source.weekStartsOn),
     showSubagents: normalizeShowSubagents(source.showSubagents),
+    durationFormat: normalizeDurationFormat(source.durationFormat),
   }
 }
 
@@ -71,6 +74,7 @@ export function mergeSettings(current, patch) {
       : base.idleThresholdMinutes,
     weekStartsOn: Object.hasOwn(incoming, 'weekStartsOn') ? incoming.weekStartsOn : base.weekStartsOn,
     showSubagents: Object.hasOwn(incoming, 'showSubagents') ? incoming.showSubagents : base.showSubagents,
+    durationFormat: Object.hasOwn(incoming, 'durationFormat') ? incoming.durationFormat : base.durationFormat,
   })
 }
 
