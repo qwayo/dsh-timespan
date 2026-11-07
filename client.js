@@ -103,7 +103,7 @@ window.__ModuleLoader__.load({
       sinceBoot: '活跃按页面可见、窗口聚焦与键鼠操作判定',
       localOnly: '数据仅保存在本机',
       navTooltip: 'ChronoScope · 今日在线、活跃与任务时长',
-      sidebarRingTitle: '今日时长构成',
+      sidebarRingTitle: '今日在线、活跃与任务时长',
       periodDay: '日',
       periodWeek: '周',
       periodMonth: '月',
@@ -333,7 +333,7 @@ window.__ModuleLoader__.load({
       sinceBoot: 'Active time follows page visibility, window focus and input',
       localOnly: 'Data stays on this device',
       navTooltip: 'ChronoScope · online, active and task time today',
-      sidebarRingTitle: 'Time breakdown today',
+      sidebarRingTitle: 'Today online, active and task time',
       periodDay: 'Day',
       periodWeek: 'Week',
       periodMonth: 'Month',
@@ -803,32 +803,26 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 原生 details/summary 范围选择器：不依赖 hooks，组件测试可直接渲染。
-     * 菜单始终渲染全部 15 项，用 CSS 绝对定位向上弹出，一次可见不被裁切。
+     * 热力图范围选择器：复用页面统一的自定义下拉，向上弹出两列网格。
+     * 前三个跨度选项横跨两列，12 个月份按 2 列排布；交互由 Select 统一处理。
      */
     function renderHeatRangePicker({ value, t, onSelectRange } = {}) {
       const normalized = normalizeHeatRangeValue(value)
-      const currentLabel = heatRangeLabel(normalized)
-      const rangeLabel = t('heatRangeLabel')
-      return h('details', { className: 'heat-range-picker' },
-        h('summary', {
-          className: 'heat-range-trigger',
-          'aria-label': `${rangeLabel} · ${currentLabel}`,
-        },
-          h('span', { className: 'heat-range-trigger-label' }, currentLabel)),
-        h('div', { className: 'heat-range-menu', role: 'listbox', 'aria-label': rangeLabel },
-          HEAT_RANGE_OPTIONS.map((option) => {
-            const selected = option.value === normalized
-            return h('button', {
-              key: `heat-range-${option.value}`,
-              type: 'button',
-              role: 'option',
-              'aria-selected': selected,
-              'data-value': option.value,
-              className: `heat-range-option${selected ? ' is-active' : ''}`,
-              onClick: () => onSelectRange?.(option.value),
-            }, heatRangeOptionLabel(option, t))
-          })))
+      const options = HEAT_RANGE_OPTIONS.map((option, index) => ({
+        value: option.value,
+        label: heatRangeOptionLabel(option, t),
+        span: index < 3 ? 2 : 1,
+        key: `heat-range-${option.value}`,
+      }))
+      return h(Select, {
+        value: normalized,
+        options,
+        placement: 'top',
+        menuVariant: 'grid',
+        className: 'heat-range-select',
+        ariaLabel: t('heatRangeLabel'),
+        onChange: (next) => onSelectRange?.(next),
+      })
     }
 
     /** 热力等级：0 表示无活跃，其余按峰值比例向上取整并钳制在 1–5。 */
@@ -918,37 +912,43 @@ window.__ModuleLoader__.load({
       return result
     }
 
+    /** Host summary 只有在六项汇总都是有限数字时才可直接复用，坏数据继续走客户端求和。 */
+    function isHeatHostSummary(value) {
+      return value !== null && typeof value === 'object'
+        && Number.isFinite(value.onlineMs)
+        && Number.isFinite(value.activeMs)
+        && Number.isFinite(value.taskMs)
+        && Number.isFinite(value.activeDays)
+        && Number.isFinite(value.observedDays)
+        && Number.isFinite(value.dailyAverageActiveMs)
+    }
+
     /** 范围汇总：只对 hasObservations 的日期求和，无观测日期不进入分母。 */
-    function summarizeHeatDays(days) {
-      const list = Array.isArray(days) ? days : []
-      let onlineMs = 0
-      let activeMs = 0
-      let taskMs = 0
-      let activeDays = 0
-      let observedDays = 0
-      for (const day of list) {
-        if (day?.hasObservations !== true) continue
-        observedDays += 1
-        onlineMs += finite(day.onlineMs)
-        activeMs += finite(day.activeMs)
-        taskMs += finite(day.taskMs)
-        if (finite(day.activeMs) > 0) activeDays += 1
-      }
-      return {
-        onlineMs,
-        activeMs,
-        taskMs,
-        activeDays,
-        observedDays,
-        dailyAverageActiveMs: observedDays > 0 ? Math.round(activeMs / observedDays) : 0,
-      }
+    function summarizeHeatDays(days, hostSummary) {
+      const { onlineMs, activeMs, taskMs, activeDays, observedDays, dailyAverageActiveMs } = summarizeHeatFocus(days, hostSummary)
+      return { onlineMs, activeMs, taskMs, activeDays, observedDays, dailyAverageActiveMs }
     }
 
     /**
      * 热力图首屏的范围统计：只对 hasObservations 的日期求和；
      * 峰值日取 activeMs 最大的观测日，无观测时返回 null，避免把补零格当成真实记录。
+     * 传入有效的 Host summary 时直接复用其六项汇总与峰值，避免客户端重复遍历整段查询。
      */
-    function summarizeHeatFocus(days) {
+    function summarizeHeatFocus(days, hostSummary) {
+      if (isHeatHostSummary(hostSummary)) {
+        const { onlineMs, activeMs, taskMs, activeDays, observedDays, dailyAverageActiveMs } = hostSummary
+        return {
+          onlineMs,
+          activeMs,
+          taskMs,
+          activeDays,
+          observedDays,
+          dailyAverageActiveMs,
+          peakDay: hostSummary.peak !== null && typeof hostSummary.peak === 'object' && typeof hostSummary.peak.dateKey === 'string'
+            ? { dateKey: hostSummary.peak.dateKey, activeMs: finite(hostSummary.peak.activeMs) }
+            : null,
+        }
+      }
       const list = Array.isArray(days) ? days : []
       let onlineMs = 0
       let activeMs = 0
@@ -1427,13 +1427,14 @@ window.__ModuleLoader__.load({
      * 侧栏入口的纯渲染层：主题、名称显隐与三项数值都可从外部注入，
      * 便于在隔离上下文断言结构；真实组件只负责轮询与订阅。
      */
-    function renderSidebarEntry({ stats, theme, showName = true, t, hover, size, format = 'hms' }) {
+    function renderSidebarEntry({ stats, theme, showName = true, workspaceTitle, t, hover, size, format = 'hms' }) {
       const wide = typeof size !== 'number' || size !== 18
       const themeClass = sidebarThemeClass(theme?.palette, theme?.appearance, theme?.systemDark === true)
       const segments = sidebarRingSegments(stats)
       const tip = buildSidebarTip(stats, t, format)
       const activeMs = sidebarDisplayMs(stats)
       const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(activeMs, format)
+      const displayName = typeof workspaceTitle === 'string' && workspaceTitle.trim() !== '' ? workspaceTitle : t('title')
       const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(finite(stats?.onlineMs), format)} · ${t('activeLabel')} ${formatDuration(activeMs, format)} · ${t('taskLabel')} ${formatDuration(finite(stats?.taskMs), format)}`
       const handlers = {
         onMouseEnter: (event) => hover?.show?.(tip, event),
@@ -1462,7 +1463,7 @@ window.__ModuleLoader__.load({
           }, value)
         : null,
       wide && showName
-        ? h('span', { className: 'chronoscope-nav-name' }, t('title'))
+        ? h('span', { className: 'chronoscope-nav-name' }, displayName)
         : null,
       wide
         ? h('span', {
@@ -1484,6 +1485,12 @@ window.__ModuleLoader__.load({
         const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
         const [showName, setShowName] = React.useState(true)
         const hover = useHoverTip()
+        // 侧栏名称跟随当前前台会话所属工作区；没有会话或工作区时回落插件名。
+        const currentSessionId = useStandardValue(props?.useSessions, (state) => sessionOf(state)?.id ?? null, null)
+        const workspaceTitle = useStandardValue(props?.useWorkspaces, (state) => {
+          const workspace = workspaceOf(state, currentSessionId)
+          return workspace?.title ?? workspace?.path ?? null
+        }, null)
 
         // 设置页选择格式时侧栏也立即预览；保存或取消后回到 Host 的已保存值。
         React.useEffect(() => subscribeDurationFormatPreview((value) => setPreviewFormat(value)), [])
@@ -1539,6 +1546,7 @@ window.__ModuleLoader__.load({
           stats,
           theme: { ...theme, systemDark },
           showName,
+          workspaceTitle,
           t,
           hover,
           size: props?.size,
@@ -3076,7 +3084,7 @@ window.__ModuleLoader__.load({
       return { bucket: best, label: bucketLabel(best, period, isZh) }
     }
 
-    /** 条状图首屏统计：峰值活跃、最活跃时段、活跃占比与任务总时长。 */
+    /** 条状图首屏统计：峰值活跃、最活跃时段、活跃占比与任务时长。 */
     function trendFocusStats(data, period, isZh, format = 'hms') {
       const peak = trendPeak(data?.trend, period, isZh)
       return {
@@ -3322,7 +3330,11 @@ window.__ModuleLoader__.load({
         : layout === 'year'
           ? allDays.filter((day) => typeof day?.dateKey === 'string' && day.dateKey.startsWith(yearPrefix))
           : allDays
-      const focusSummary = focusPage ? summarizeHeatFocus(scopedDays) : null
+      // Host summary 对应整个查询范围；只有未发生单月/全年过滤时才可整段复用。
+      const hostSummary = scopedDays.length === allDays.length && series?.summary !== null && typeof series?.summary === 'object'
+        ? series.summary
+        : null
+      const focusSummary = focusPage ? summarizeHeatFocus(scopedDays, hostSummary) : null
       const zoomable = typeof onToggleFocus === 'function'
       const phase = status ?? (hasSeries ? 'ready' : 'loading')
       const head = h('div', { className: 'cs-card-head' },
@@ -3339,7 +3351,7 @@ window.__ModuleLoader__.load({
       } else if (allDays.length === 0) {
         body = h('div', { className: 'cs-empty' }, t('heatmapEmpty'))
       } else {
-        const summary = summarizeHeatDays(scopedDays)
+        const summary = summarizeHeatDays(scopedDays, hostSummary)
         let maxActive = 0
         for (const day of scopedDays) {
           if (day?.hasObservations === true) maxActive = Math.max(maxActive, finite(day.activeMs))
@@ -3529,17 +3541,17 @@ window.__ModuleLoader__.load({
             h('span', { className: 'cs-section-title' }, t('overviewTitle')),
             h('span', { className: 'cs-tag' }, t('actualOccupied')),
             renderInfo(overviewInfoMessages(data, t, durationFormat).join('；')))),
-        renderHeroCard({ data, t, format: durationFormat, focus, onToggleFocus }),
-        renderCycles(data, t, period, onSelectPeriod, durationFormat),
-        h('div', { className: 'cs-analysis-grid' },
+        h('div', { className: 'cs-overview-grid' },
+          renderHeroCard({ data, t, format: durationFormat, focus, onToggleFocus }),
+          renderCycles(data, t, period, onSelectPeriod, durationFormat),
+          renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
           renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat),
-          renderWorkspaceRanking(data, t, durationFormat)),
-        renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
-        renderDailyHeatmap({
-          series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
-          rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange, focus, onToggleFocus,
-        }),
-        renderRecentSessions(data, t, nowMs, onOpenWorkspace, durationFormat),
+          renderWorkspaceRanking(data, t, durationFormat),
+          renderRecentSessions(data, t, nowMs, onOpenWorkspace, durationFormat),
+          renderDailyHeatmap({
+            series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
+            rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange, focus, onToggleFocus,
+          })),
       ]
     }
 
@@ -4806,6 +4818,34 @@ window.__ModuleLoader__.load({
         --cs-series-other: color-mix(in srgb, var(--cs-signal) 32%, var(--cs-surface));
         --cs-series-unknown: color-mix(in srgb, var(--cs-signal) 17%, var(--cs-surface));
       }
+      /* 普通概览按原型三行 Bento：hero 与周期卡并排，趋势横跨前两列，构成在右，底部三卡并列。 */
+      .cs-overview-grid {
+        display: grid; grid-template-columns: 1.05fr 1fr 1fr;
+        grid-template-rows: auto auto auto; gap: 12px; align-content: start;
+      }
+      .cs-hero { grid-column: 1; grid-row: 1; }
+      .cs-cycles { grid-column: 2 / 4; grid-row: 1; }
+      .cs-trend-card { grid-column: 1 / 3; grid-row: 2; }
+      .cs-composition { grid-column: 3; grid-row: 2; }
+      .cs-ranking { grid-column: 1; grid-row: 3; }
+      .cs-recent { grid-column: 2; grid-row: 3; }
+      .cs-heatmap-card { grid-column: 3; grid-row: 3; }
+      @media (max-width: 900px) {
+        .cs-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .cs-hero { grid-column: 1; grid-row: 1; }
+        .cs-cycles { grid-column: 2; grid-row: 1; }
+        .cs-trend-card { grid-column: 1 / -1; grid-row: 2; }
+        .cs-composition { grid-column: 1; grid-row: 3; }
+        .cs-ranking { grid-column: 2; grid-row: 3; }
+        .cs-recent { grid-column: 1; grid-row: 4; }
+        .cs-heatmap-card { grid-column: 2; grid-row: 4; }
+      }
+      @media (max-width: 600px) {
+        .cs-overview-grid { grid-template-columns: 1fr; }
+        .cs-hero, .cs-cycles, .cs-trend-card, .cs-composition, .cs-ranking, .cs-recent, .cs-heatmap-card {
+          grid-column: 1; grid-row: auto;
+        }
+      }
       .cs-analysis-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
       .cs-composition, .cs-ranking { min-height: 250px; display: flex; flex-direction: column; gap: 20px; }
       .cs-composition-body { display: flex; align-items: center; gap: 22px; flex: 1; }
@@ -5126,38 +5166,6 @@ window.__ModuleLoader__.load({
         display: flex; flex-direction: column; gap: 12px;
       }
       .heat-card-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
-      /* 范围菜单：原生 details，向上弹出并一次铺开全部 15 项，不做滚动裁切。 */
-      .heat-range-picker { position: relative; flex: 0 0 auto; }
-      .heat-range-trigger {
-        list-style: none; display: inline-flex; align-items: center; gap: 6px;
-        padding: 5px 9px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px;
-        background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary);
-        font: inherit; font-size: 11px; line-height: 16px; cursor: pointer; user-select: none;
-      }
-      .heat-range-trigger::-webkit-details-marker { display: none; }
-      .heat-range-trigger::marker { content: ''; }
-      .heat-range-trigger::after { content: '▾'; font-size: 9px; color: var(--dsw-alias-label-secondary); }
-      .heat-range-picker[open] .heat-range-trigger { border-color: var(--dsw-alias-brand-primary); }
-      .heat-range-menu {
-        position: absolute; right: 0; bottom: calc(100% + 4px); top: auto; z-index: 60;
-        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px;
-        min-width: 224px; padding: 6px; max-height: none; overflow: visible;
-        border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px;
-        background: var(--dsw-alias-bg-layer-1);
-        box-shadow: 0 12px 30px rgba(0, 0, 0, .18);
-      }
-      .heat-range-option {
-        appearance: none; border: 0; border-radius: 6px; padding: 6px 8px;
-        background: transparent; color: var(--dsw-alias-label-primary);
-        font: inherit; font-size: 11px; line-height: 16px; text-align: left;
-        white-space: nowrap; cursor: pointer;
-      }
-      .heat-range-option:nth-child(-n+3) { grid-column: 1 / -1; }
-      .heat-range-option:hover { background: var(--cs-surface-2); }
-      .heat-range-option.is-active {
-        background: color-mix(in srgb, var(--cs-signal-soft) 42%, transparent);
-        font-weight: 620;
-      }
       .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
       .heat-weekdays { display: flex; flex-direction: column; flex: 0 0 auto; }
       .heat-weekdays-spacer { display: block; height: 14px; margin-bottom: 6px; }
@@ -5187,8 +5195,16 @@ window.__ModuleLoader__.load({
         box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-border-l1) 70%, transparent);
       }
       .heat-cell.is-pad { background: transparent; box-shadow: none; }
-      .heat-cell[role="button"] { cursor: pointer; }
-      .heat-cell[role="button"]:hover { filter: brightness(1.08); }
+      .heat-cell[role="button"] {
+        position: relative; cursor: pointer;
+        transition: transform 120ms ease, filter 120ms ease;
+      }
+      .heat-cell[role="button"]:hover {
+        transform: scale(1.35); filter: brightness(1.12); z-index: 3;
+      }
+      .heat-cell[role="button"]:focus-visible {
+        transform: scale(1.35); filter: brightness(1.12); z-index: 3;
+      }
       .heat-cell:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
       .heat-summary { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
 

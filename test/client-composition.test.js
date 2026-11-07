@@ -951,7 +951,7 @@ test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬�
     taskLabel: '任务',
     live: '活跃中',
     idle: '空闲',
-    sidebarRingTitle: '今日时长构成',
+    sidebarRingTitle: '今日在线、活跃与任务时长',
   }
   const t = (key) => labels[key] ?? key
   const shown = []
@@ -990,7 +990,7 @@ test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬�
 
   tree.props.onMouseEnter(fakeEvent())
   assert.equal(shown.length, 1, '悬停触发浮层')
-  assert.equal(shown[0].tip.title, '今日时长构成')
+  assert.equal(shown[0].tip.title, '今日在线、活跃与任务时长')
   assert.equal(
     JSON.stringify(shown[0].tip.rows.map((row) => [row.label, row.value])),
     JSON.stringify([['在线时长', '4:00:00'], ['活跃', '3:00:00'], ['任务', '1:00:00']]),
@@ -1010,6 +1010,35 @@ test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬�
   })
   assert.equal(textOf(findByClass(named, 'chronoscope-nav-name')), 'ChronoScope', '显示名称时使用插件名称')
   assert.doesNotMatch(findByClass(named, 'chronoscope-nav-dot').props.className, /is-live/, '空闲状态点不点亮')
+})
+
+test('客户端：侧栏名称优先显示当前工作区，空值回落插件名，隐藏时两者都不渲染', async () => {
+  const { renderSidebarEntry } = await loadClientFunctions()
+  const t = (key) => ({
+    title: 'ChronoScope',
+    onlineLabel: '在线',
+    activeLabel: '活跃',
+    taskLabel: '任务',
+    sidebarRingTitle: '今日在线、活跃与任务时长',
+  })[key] ?? key
+  const base = {
+    stats: { status: 'ready', onlineMs: 3_600_000, activeMs: 1_800_000, taskMs: 600_000 },
+    theme: { palette: 'blue', appearance: 'light' },
+    t,
+    hover: { show() {}, hide() {} },
+  }
+  const named = renderSidebarEntry({ ...base, workspaceTitle: '项目甲' })
+  assert.equal(textOf(findByClass(named, 'chronoscope-nav-name')), '项目甲', '有工作区时显示工作区名')
+
+  const fallback = renderSidebarEntry({ ...base, workspaceTitle: '   ' })
+  assert.equal(textOf(findByClass(fallback, 'chronoscope-nav-name')), 'ChronoScope', '空白工作区名回落插件名')
+  const missing = renderSidebarEntry(base)
+  assert.equal(textOf(findByClass(missing, 'chronoscope-nav-name')), 'ChronoScope', '没有工作区名时回落插件名')
+
+  const hiddenWorkspace = renderSidebarEntry({ ...base, workspaceTitle: '项目甲', showName: false })
+  assert.equal(findByClass(hiddenWorkspace, 'chronoscope-nav-name'), undefined, '隐藏名称时工作区名不渲染')
+  const hiddenFallback = renderSidebarEntry({ ...base, showName: false })
+  assert.equal(findByClass(hiddenFallback, 'chronoscope-nav-name'), undefined, '隐藏名称时插件名也不渲染')
 })
 
 test('客户端：侧栏名称开关进入设置草稿、保存载荷与设置页控件', async () => {
@@ -1667,6 +1696,67 @@ test('客户端：概览在首屏状态只渲染放大页，普通状态同时�
   assert.equal(allOf(heatmapFocus, byClass('cs-composition')).length, 0, '热力图首屏不渲染构成卡')
 })
 
+test('客户端：普通概览用三行 Bento 网格包住七个区块，首屏页不受影响', async () => {
+  const { renderOverviewView } = await loadClientFunctions()
+  const t = (key) => key
+  const data = sampleDashboardData()
+  const common = {
+    data, t, isZh: true, period: 'day', onSelectPeriod() {}, durationFormat: 'hms',
+    hoverTip: { tip: null, show() {}, hide() {} }, nowMs: Date.now(), onOpenWorkspace() {},
+    onToggleFocus() {},
+  }
+  const expected = ['cs-hero', 'cs-cycles', 'cs-trend-card', 'cs-composition', 'cs-ranking', 'cs-recent', 'cs-heatmap-card']
+  const overview = renderOverviewView({ ...common, focus: null })
+  const grid = allOf(overview, byClass('cs-overview-grid'))[0]
+  assert.ok(grid, '普通概览有一个总网格容器')
+  assert.equal(grid.children.length, 7, '七个区块都是网格的直接子项')
+  assert.deepEqual(
+    grid.children.map((child) => expected.find((name) => hasClass(child, name))),
+    expected,
+    '区块按 hero、周期卡、趋势、构成、排行、最近会话、热力图的顺序进入网格',
+  )
+  for (const name of expected) {
+    assert.equal(allOf(grid, byClass(name)).length, 1, `${name} 位于概览网格内`)
+  }
+
+  for (const focus of ['hero', 'trend', 'heatmap']) {
+    const page = renderOverviewView({ ...common, focus })
+    assert.equal(allOf(page, byClass('cs-overview-grid')).length, 0, `${focus} 首屏不渲染普通概览网格`)
+  }
+})
+
+test('客户端：概览 Bento 网格声明三列三行，窄屏回落两列与单列', async () => {
+  const css = await loadClientCss()
+  const grid = declarationsFor(css, '.cs-overview-grid')
+  assert.match(grid, /grid-template-columns:\s*1\.05fr\s+1fr\s+1fr/, '桌面三列，hero 列略宽')
+  assert.match(grid, /grid-template-rows:\s*auto\s+auto\s+auto/, '三行 Bento 布局')
+
+  const placements = [
+    ['.cs-hero', 1, '1'],
+    ['.cs-cycles', 1, '2 / 4'],
+    ['.cs-trend-card', 2, '1 / 3'],
+    ['.cs-composition', 2, '3'],
+    ['.cs-ranking', 3, '1'],
+    ['.cs-recent', 3, '2'],
+    ['.cs-heatmap-card', 3, '3'],
+  ]
+  for (const [selector, row, column] of placements) {
+    const declarations = declarationsFor(css, selector)
+    assert.match(declarations, new RegExp(`grid-row:\\s*${row}`), `${selector} 位于第 ${row} 行`)
+    assert.match(declarations, new RegExp(`grid-column:\\s*${column.replace('/', '\\/')}`), `${selector} 位于第 ${column} 列`)
+  }
+
+  const twoColumns = mediaBlocks(css, 900)
+  assert.match(twoColumns, /\.cs-overview-grid[^{]*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, '900px 以下两列')
+  assert.match(twoColumns, /\.cs-trend-card[^{]*\{[^}]*grid-column:\s*1\s*\/\s*-1/, '趋势卡在窄屏横跨两列')
+
+  const oneColumn = mediaBlocks(css, 600)
+  assert.match(oneColumn, /\.cs-overview-grid[^{]*\{[^}]*grid-template-columns:\s*1fr/, '600px 以下单列')
+  for (const selector of ['.cs-hero', '.cs-cycles', '.cs-trend-card', '.cs-composition', '.cs-ranking', '.cs-recent', '.cs-heatmap-card']) {
+    assert.match(oneColumn, new RegExp(`${selector.replace('.', '\\.')}[^{]*\\{[^}]*grid-column:\\s*1`), `${selector} 在单列下占满一行`)
+  }
+})
+
 test('客户端：首屏缩放按钮与进度条样式无边框，并尊重减少动效', async () => {
   const css = await loadClientCss()
   const zoom = declarationsFor(css, '.cs-zoom-btn')
@@ -1844,8 +1934,101 @@ test('客户端：热力图首屏范围统计给出六项数值并只计算有�
     '日均活跃按观测日四舍五入')
 })
 
+test('客户端：热力图汇总优先复用 Host summary 且对外字段不变', async () => {
+  const { summarizeHeatDays, summarizeHeatFocus } = await loadClientFunctions()
+  const days = [
+    { dateKey: '2026-11-01', onlineMs: 3_600_000, activeMs: 1_800_000, taskMs: 600_000, hasObservations: true },
+    { dateKey: '2026-11-02', onlineMs: 9_000_000, activeMs: 9_000_000, taskMs: 9_000_000, hasObservations: true },
+  ]
+  const hostSummary = {
+    onlineMs: 72 * 3_600_000,
+    activeMs: 48 * 3_600_000,
+    taskMs: 12 * 3_600_000,
+    activeDays: 7,
+    observedDays: 9,
+    dailyAverageActiveMs: 5 * 3_600_000,
+    peak: { dateKey: '2026-11-02', activeMs: 48 * 3_600_000 },
+  }
+  const { peakDay, ...focusRanges } = summarizeHeatFocus(days, hostSummary)
+  assert.deepEqual({ ...focusRanges }, {
+    onlineMs: hostSummary.onlineMs,
+    activeMs: hostSummary.activeMs,
+    taskMs: hostSummary.taskMs,
+    activeDays: hostSummary.activeDays,
+    observedDays: hostSummary.observedDays,
+    dailyAverageActiveMs: hostSummary.dailyAverageActiveMs,
+  }, '传入 Host summary 时不再用 days 重算')
+  assert.deepEqual({ ...peakDay }, { ...hostSummary.peak }, '峰值映射为 peakDay')
+
+  const summary = summarizeHeatDays(days, hostSummary)
+  assert.deepEqual({ ...summary }, {
+    onlineMs: hostSummary.onlineMs,
+    activeMs: hostSummary.activeMs,
+    taskMs: hostSummary.taskMs,
+    activeDays: hostSummary.activeDays,
+    observedDays: hostSummary.observedDays,
+    dailyAverageActiveMs: hostSummary.dailyAverageActiveMs,
+  }, '普通汇总复用同一份 Host summary 且不新增字段')
+})
+
+test('客户端：热力图全范围复用 Host summary，过滤范围仍按 scopedDays 计算', async () => {
+  const { renderDailyHeatmap, renderHeatmapFocusPage } = await loadClientFunctions()
+  const labels = {
+    heatmapTitle: '每日时长', heatmapInfo: '每格代表一天', heatmapFocusTitle: '热力图首屏',
+    heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
+    heatRangeMonth: '{month}', periodDay: '日', onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务',
+    noRecord: '无记录', heatDayTitle: '{month}月{day}日',
+    heatSummary: '范围活跃 {active} · 活跃天数 {activeDays}/{observedDays}',
+    rangeOnline: '范围在线', rangeActive: '范围活跃', rangeTask: '范围任务',
+    peakDay: '最活跃日', activeDaysLabel: '活跃天数', dailyAverageActive: '日均活跃',
+    heatmapLoading: '正在加载每日时长…', heatmapEmpty: '暂无每日记录',
+  }
+  const t = (key) => labels[key] ?? key
+  const days = [
+    heatDay('2026-01-01', 3_600_000),
+    heatDay('2026-02-01', 2 * 3_600_000),
+    heatDay('2026-03-01', 9 * 3_600_000),
+  ]
+  const range = { from: new Date(2026, 2, 16).getTime(), to: new Date(2026, 2, 16).getTime() }
+  const series = {
+    range,
+    days,
+    summary: {
+      onlineMs: 72 * 3_600_000,
+      activeMs: 24 * 3_600_000,
+      taskMs: 12 * 3_600_000,
+      activeDays: 7,
+      observedDays: 9,
+      dailyAverageActiveMs: 3_600_000,
+      peak: { dateKey: '2026-02-01', activeMs: 24 * 3_600_000 },
+    },
+  }
+  const common = {
+    series, status: 'ready', t, format: 'hms',
+    nowMs: new Date(2026, 2, 16, 12).getTime(),
+    hoverTip: { tip: null, show() {}, hide() {} },
+    rangeValue: '6m', onSelectRange() {},
+  }
+  const full = renderDailyHeatmap(common)
+  const fullSummary = textOf(findByClass(full, 'heat-summary'))
+  assert.match(fullSummary, /范围活跃 24:00:00/, '整段查询直接使用 Host 的 activeMs')
+  assert.match(fullSummary, /活跃天数 7\/9/, '整段查询直接使用 Host 的 activeDays/observedDays')
+
+  const focus = renderHeatmapFocusPage(common)
+  const panel = textOf(findByClass(focus, 'heat-focus-panel'))
+  assert.match(panel, /范围活跃 24:00:00/, '首屏范围活跃复用 Host summary')
+  assert.match(panel, /7\/9/, '首屏活跃天数复用 Host summary')
+  assert.match(panel, /2月1日 · 24:00:00/, 'Host 峰值映射为 peakDay 并显示对应日期')
+
+  const filtered = renderDailyHeatmap({ ...common, rangeValue: 2 })
+  const filteredSummary = textOf(findByClass(filtered, 'heat-summary'))
+  assert.match(filteredSummary, /范围活跃 2:00:00/, '单月过滤后按 scopedDays 客户端求和')
+  assert.match(filteredSummary, /活跃天数 1\/1/)
+  assert.doesNotMatch(filteredSummary, /24:00:00/, '过滤范围不复用整段 Host summary')
+})
+
 test('客户端：热力图首屏独立页给出六项范围统计、12 个月度条与退出按钮', async () => {
-  const { renderHeatmapFocusPage } = await loadClientFunctions()
+  const { renderHeatmapFocusPage, Select } = await loadClientFunctions()
   const labels = {
     heatmapTitle: '每日时长', heatmapFocusTitle: '热力图首屏', heatmapInfo: '每格代表一天',
     heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
@@ -1900,7 +2083,9 @@ test('客户端：热力图首屏独立页给出六项范围统计、12 个月�
   assert.match(panelText, /2:00:00/, '日均活跃为 6h / 3 天')
   assert.equal(allOf(page, byClass('heat-summary')).length, 0, '首屏不重复普通范围汇总')
   assert.equal(allOf(page, byClass('heat-month-bar')).length, 12, '正文下方保留 12 个月度条')
-  assert.equal(allOf(page, byClass('heat-range-option')).length, 15, '范围选择器一次展示全部 15 项')
+  const picker = allOf(page, (node) => node.type === Select)[0]
+  assert.ok(picker, '首屏复用统一自定义下拉')
+  assert.equal(picker.props.options.length, 15, '范围选择器一次展示全部 15 项')
   const zoom = allOf(page, byClass('cs-zoom-btn'))[0]
   assert.ok(zoom, '首屏页有缩放按钮')
   assert.equal(zoom.props['aria-label'], '退出首屏')
@@ -2134,6 +2319,19 @@ test('客户端：条状图首屏按可用高度铺开、悬停分组放大并�
     /brightness\(1\.12\)/,
     '悬停分组提亮')
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-trend-focus/, '减少动效下取消首屏动画')
+})
+
+test('客户端：热力图格子悬停与键盘聚焦时放大提亮', async () => {
+  const css = await loadClientCss()
+  const base = declarationsFor(css, '.heat-cell[role="button"]')
+  assert.match(base, /position:\s*relative/)
+  assert.match(base, /transition:\s*transform\s+120ms\s+ease,\s*filter\s+120ms\s+ease/)
+  for (const selector of ['.heat-cell[role="button"]:hover', '.heat-cell[role="button"]:focus-visible']) {
+    const declarations = declarationsFor(css, selector)
+    assert.match(declarations, /transform:\s*scale\(1\.35\)/, `${selector} 放大到 1.35 倍`)
+    assert.match(declarations, /filter:\s*brightness\(1\.12\)/, `${selector} 提亮`)
+    assert.match(declarations, /z-index:\s*3/, `${selector} 提升层级不被相邻格遮挡`)
+  }
 })
 
 /** 构造指定日期的日序列单元，用于范围口径与相邻月份污染测试。 */
@@ -2376,8 +2574,8 @@ test('客户端：单月视图为 7 列日历且汇总只统计本月', async ()
   assert.doesNotMatch(textOf(summary), /100:00:00/, '相邻月份的大数值不混入本月汇总')
 })
 
-test('客户端：范围选择器一次渲染 15 项并回传选中值', async () => {
-  const { renderDailyHeatmap } = await loadClientFunctions()
+test('客户端：热力图范围复用统一自定义下拉并一次展示 15 项', async () => {
+  const { renderDailyHeatmap, Select, React } = await loadClientFunctions()
   const labels = {
     heatmapTitle: '每日时长', heatmapInfo: '每格代表一天',
     heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
@@ -2395,40 +2593,40 @@ test('客户端：范围选择器一次渲染 15 项并回传选中值', async (
     hoverTip: { tip: null, show() {}, hide() {} },
     rangeValue: '3m', onSelectRange: (value) => picked.push(value),
   })
-  const picker = allOf(tree, byClass('heat-range-picker'))[0]
-  assert.ok(picker, '卡片头部有范围选择器')
-  assert.equal(picker.type, 'details', '用原生 details 承载展开态')
-  const trigger = allOf(tree, byClass('heat-range-trigger'))[0]
-  assert.equal(trigger.type, 'summary')
-  assert.equal(textOf(trigger), '3m', '收起态显示当前范围缩写')
-  assert.match(String(trigger.props['aria-label']), /统计范围/)
-  const menu = allOf(tree, byClass('heat-range-menu'))[0]
-  assert.equal(menu.props.role, 'listbox')
-  const options = allOf(menu, byClass('heat-range-option'))
+  const picker = allOf(tree, (node) => node.type === Select)[0]
+  assert.ok(picker, '卡片头部复用统一下拉组件')
+  assert.equal(picker.props.value, '3m')
+  assert.equal(picker.props.placement, 'top')
+  assert.equal(picker.props.menuVariant, 'grid')
+  assert.equal(picker.props.className, 'heat-range-select')
+  assert.equal(picker.props.ariaLabel, '统计范围')
+  assert.equal(allOf(tree, (node) => node.type === 'details').length, 0, '不再渲染原生 details')
+
+  const rendered = React.render(Select, picker.props)
+  assert.equal(allOf(rendered, byClass('cs-select')).length, 1, '渲染统一自定义下拉')
+  assert.equal(findByClass(rendered, 'cs-select-btn').props['aria-expanded'], false, '收起态 aria-expanded=false')
+  const options = allOf(rendered, byClass('cs-opt'))
   assert.equal(options.length, 15, '一次渲染全部 15 项，不做滚动裁切')
-  assert.ok(options.every((option) => option.props.role === 'option'))
-  assert.equal(options.filter((option) => option.props['aria-selected'] === true).length, 1)
-  assert.equal(options.find((option) => option.props['data-value'] === '3m').props['aria-selected'], true)
-  assert.equal(textOf(options.find((option) => option.props['data-value'] === '3m')), '近3个月')
-  assert.equal(textOf(options.find((option) => option.props['data-value'] === 7)), 'Jul')
-  assert.equal(textOf(options.find((option) => option.props['data-value'] === 12)), 'Dec')
-  options.find((option) => option.props['data-value'] === 7).props.onClick()
+  assert.equal(options.filter((option) => hasClass(option, 'is-span-2')).length, 3, '前三个跨度选项横跨两列')
+  assert.match(textOf(options.find((option) => textOf(option).includes('近3个月'))), /近3个月/)
+  assert.equal(textOf(options.find((option) => textOf(option).trim() === 'Jul')).trim(), 'Jul')
+  assert.equal(textOf(options.find((option) => textOf(option).trim() === 'Dec')).trim(), 'Dec')
+  options.find((option) => textOf(option).trim() === 'Jul').props.onClick()
   assert.deepEqual(picked, [7], '点击月份回传数字范围值')
 })
 
-test('客户端：范围选择器绝对定位且全年/单月网格按列数自适应', async () => {
-  const css = await loadClientCss()
-  const menu = declarationsFor(css, '.heat-range-menu')
-  assert.match(menu, /position:\s*absolute/, '菜单浮在卡片之上')
-  assert.match(menu, /right:\s*0/)
-  assert.match(menu, /bottom:\s*calc\(100%\s*\+\s*4px\)/, '菜单向上弹出，避免被页面底部裁切')
-  assert.match(menu, /top:\s*auto/)
-  assert.match(menu, /z-index:\s*60/)
+test('客户端：热力图范围复用统一下拉的向上两列菜单与自适应网格', async () => {
+  const { chronoscopeCss } = await loadClientFunctions()
+  const css = chronoscopeCss()
+  const menu = declarationsFor(css, '.cs-select-menu.is-grid')
   assert.match(menu, /display:\s*grid/)
   assert.match(menu, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, '两列网格一次展示 15 项')
   assert.match(menu, /max-height:\s*none/, '不限制高度，15 项一次可见')
   assert.match(menu, /overflow:\s*visible/, '菜单不被裁切')
-  assert.match(declarationsFor(css, '.heat-range-picker'), /position:\s*relative/)
+  const upward = declarationsFor(css, '.cs-select.is-top .cs-select-menu')
+  assert.match(upward, /bottom:\s*calc\(100%\s*\+\s*6px\)/, '菜单向上弹出，避免被页面底部裁切')
+  assert.match(upward, /top:\s*auto/)
+  assert.match(declarationsFor(css, '.cs-select'), /position:\s*relative/)
   assert.match(declarationsFor(css, '.cs-heatmap-card'), /overflow:\s*visible/)
   const card = declarationsFor(css, '.cs-heatmap-card')
   assert.match(card, /--cs-heat-cell:\s*clamp\(/, '周网格格子尺寸随可用宽度自适应')
@@ -2471,7 +2669,7 @@ test('客户端：热力图首屏三种布局自适应且右侧统计与月度�
 })
 
 test('客户端：概览把范围值与切换回调透传给每日热力图', async () => {
-  const { renderOverviewView } = await loadClientFunctions()
+  const { renderOverviewView, Select } = await loadClientFunctions()
   const labels = {
     heatmapTitle: '每日时长', heatmapInfo: '每格代表一天', yearHeatTitle: '全年每日时长',
     heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
@@ -2495,8 +2693,9 @@ test('客户端：概览把范围值与切换回调透传给每日热力图', as
   assert.ok(card, '概览嵌入每日热力图')
   assert.equal(card.props['data-range'], 'year')
   assert.equal(card.props['data-layout'], 'year')
-  const option = allOf(card, (node) => node.props?.['data-value'] === 11)[0]
-  assert.ok(option, '概览里的选择器有 11 月选项')
-  option.props.onClick()
+  const picker = allOf(card, (node) => node.type === Select)[0]
+  assert.ok(picker, '概览里的热力图复用统一选择器')
+  assert.ok(picker.props.options.some((option) => option.value === 11), '概览里的选择器有 11 月选项')
+  picker.props.onChange(11)
   assert.deepEqual(picked, [11], '切换范围回调从概览透传到页面状态')
 })
