@@ -7,6 +7,12 @@
  * 在 settings.section 下渲染三项设置。页面只负责渲染与交互，
  * 周期边界、跨午夜裁剪、并发并集、会话求和、设置归一化与文件序列化全部由
  * Host 领域服务计算；Client 不缓存业务状态，刷新后所有数字都重新从 Host 读取。
+ *
+ * 视觉基座：页面容器用 cs-palette-* 与 cs-appearance-* 切换 CSS 变量；
+ * 三档蓝 --cs-signal-deep/--cs-signal/--cs-signal-soft 派生 --cs-live、--cs-task、
+ * --cs-tone-* 与 --cs-heat-*，灰色只用于表面、边框、轨道与次级文字。
+ * 外观 helper（normalizePalette/normalizeAppearance/cycleAppearance/resolveAppearance）
+ * 与 Info 组件供后续票据复用。
  */
 
 window.__ModuleLoader__.load({
@@ -16,6 +22,10 @@ window.__ModuleLoader__.load({
     const h = React.createElement
 
     const NS = 'chrono-scope'
+    /** 三套配色；blue 为默认。旧值（mono/green/warm）一律回落到 blue。 */
+    const PALETTES = ['blue', 'stone', 'clay']
+    /** 外观三态按用户确认的顺序循环：浅色 → 深色 → 跟随系统。 */
+    const APPEARANCE_ORDER = ['light', 'dark', 'system']
     const PRESENCE_HEARTBEAT_MS = 15_000
     const SIDEBAR_REFRESH_MS = 5_000
     const PAGE_REFRESH_MS = 10_000
@@ -63,6 +73,8 @@ window.__ModuleLoader__.load({
       appearanceLabel: '外观',
       appearanceLight: '浅色',
       appearanceDark: '深色',
+      appearanceSystem: '跟随系统',
+      appearanceToggle: '外观：{mode}，点击切换',
       currentPeriod: '当前周期',
       selectedPeriod: '当前',
       periodLoading: '正在更新，暂时显示',
@@ -81,10 +93,9 @@ window.__ModuleLoader__.load({
       dailyAverageActive: '日均活跃',
       dailyAverageTask: '日均任务',
       recordSinceBoot: '在线/活跃从插件启用时开始记录；历史只回填任务时长',
-      paletteMono: '黑白灰',
-      paletteBlue: '雾蓝',
-      paletteGreen: '森林绿',
-      paletteWarm: '暖陶',
+      paletteBlue: '蓝',
+      paletteStone: '石墨',
+      paletteClay: '赤陶',
       paletteSaveError: '外观设置未能保存，刷新后可能恢复默认',
       cycleToday: '今日',
       cycleWeek: '本周',
@@ -217,6 +228,8 @@ window.__ModuleLoader__.load({
       appearanceLabel: 'Appearance',
       appearanceLight: 'Light',
       appearanceDark: 'Dark',
+      appearanceSystem: 'System',
+      appearanceToggle: 'Appearance: {mode}; click to cycle',
       currentPeriod: 'Current period',
       selectedPeriod: 'Current',
       periodLoading: 'Updating; still showing',
@@ -235,10 +248,9 @@ window.__ModuleLoader__.load({
       dailyAverageActive: 'Daily active',
       dailyAverageTask: 'Daily task',
       recordSinceBoot: 'Online/active time is recorded from plugin enablement; history only backfills task time',
-      paletteMono: 'Monochrome',
-      paletteBlue: 'Mist blue',
-      paletteGreen: 'Forest',
-      paletteWarm: 'Terracotta',
+      paletteBlue: 'Blue',
+      paletteStone: 'Graphite',
+      paletteClay: 'Terracotta',
       paletteSaveError: 'Appearance preference could not be saved',
       cycleToday: 'Today',
       cycleWeek: 'This week',
@@ -352,12 +364,62 @@ window.__ModuleLoader__.load({
       h('circle', { cx: 12, cy: 12, r: 1.8, fill: 'currentColor' }))
     }
 
+    const APPEARANCE_ICONS = {
+      light: () => h('svg', { viewBox: '0 0 16 16', width: 15, height: 15, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', 'aria-hidden': true },
+        h('circle', { cx: 8, cy: 8, r: 3 }),
+        h('path', { d: 'M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3.1 3.1l1.1 1.1M11.8 11.8l1.1 1.1M12.9 3.1l-1.1 1.1M4.2 11.8l-1.1 1.1' })),
+      dark: () => h('svg', { viewBox: '0 0 16 16', width: 15, height: 15, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinejoin: 'round', 'aria-hidden': true },
+        h('path', { d: 'M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8 5.7 5.7 0 1 0 13.2 9.6Z' })),
+      system: () => h('svg', { viewBox: '0 0 16 16', width: 15, height: 15, fill: 'none', stroke: 'currentColor', strokeWidth: 1.3, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
+        h('rect', { x: 1.6, y: 2.4, width: 12.8, height: 9, rx: 1.2 }),
+        h('path', { d: 'M6 14h4M8 11.4V14' })),
+    }
+
+    function AppearanceIcon({ mode }) {
+      return APPEARANCE_ICONS[normalizeAppearance(mode)]()
+    }
+
+    function appearanceLabelKey(mode) {
+      if (mode === 'dark') return 'appearanceDark'
+      if (mode === 'system') return 'appearanceSystem'
+      return 'appearanceLight'
+    }
+
     function formatDuration(ms) {
       const totalSeconds = Math.max(0, Math.floor(Number(ms) / 1000) || 0)
       const hours = Math.floor(totalSeconds / 3600)
       const minutes = Math.floor((totalSeconds % 3600) / 60)
       const seconds = totalSeconds % 60
       return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    }
+
+    /** 配色只认 blue / stone / clay；旧 localStorage 里的 mono/green/warm 等值回落到默认蓝。 */
+    function normalizePalette(value) {
+      return PALETTES.includes(value) ? value : 'blue'
+    }
+
+    /** 外观只认 light / dark / system；旧值或非法值按浅色处理，不让旧存储破坏页面。 */
+    function normalizeAppearance(value) {
+      return APPEARANCE_ORDER.includes(value) ? value : 'light'
+    }
+
+    /** 点击循环：浅色 → 深色 → 跟随系统 → 浅色。非法值先归一到浅色。 */
+    function cycleAppearance(value) {
+      const current = normalizeAppearance(value)
+      return APPEARANCE_ORDER[(APPEARANCE_ORDER.indexOf(current) + 1) % APPEARANCE_ORDER.length]
+    }
+
+    /** 把三态解析成实际渲染的明暗：system 时跟随系统配色。 */
+    function resolveAppearance(value, prefersDark) {
+      const mode = normalizeAppearance(value)
+      if (mode === 'system') return prefersDark === true ? 'dark' : 'light'
+      return mode
+    }
+
+    /** 读取系统深色偏好；无 matchMedia 的测试环境按浅色处理。 */
+    function systemPrefersDark() {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+      return window.matchMedia('(prefers-color-scheme: dark)').matches === true
     }
 
     async function callHost(ctx, method, payload) {
@@ -952,7 +1014,7 @@ window.__ModuleLoader__.load({
             width: barWidth,
             height: barHeight,
             rx: 1.5,
-            fill: 'var(--dsw-alias-brand-primary)',
+            fill: 'var(--cs-live)',
           }, h('title', null, `${label} · ${t('activeLabel')} ${formatDuration(bucket.activeMs)}`)))
         }
         if (bucket.taskMs > 0) {
@@ -964,7 +1026,7 @@ window.__ModuleLoader__.load({
             width: barWidth,
             height: barHeight,
             rx: 1.5,
-            fill: 'var(--dsw-alias-state-success-primary)',
+            fill: 'var(--cs-task)',
           }, h('title', null, `${label} · ${t('taskLabel')} ${formatDuration(bucket.taskMs)}`)))
         }
       })
@@ -1027,6 +1089,16 @@ window.__ModuleLoader__.load({
       return parts.join(' · ')
     }
 
+    /** 概览口径全部收进 ⓘ：周期提示、实际占用、活跃判定与在线包含挂机。 */
+    function overviewInfoMessages(data, t) {
+      return [overviewHint(data, t), t('unionFoot'), t('sinceBoot'), t('onlineFoot')].filter(Boolean)
+    }
+
+    /** 页脚只留数据摘要；本机存储与近似记录说明收进 ⓘ。 */
+    function footerInfoMessages(t, hasApproximate) {
+      return [t('localOnly'), hasApproximate === true ? t('approximateHint') : null].filter(Boolean)
+    }
+
     function renderCycleCard(t, period, cycle, isCurrent, onSelect) {
       const titleKey = period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth'
       return h('button', { key: period, type: 'button', className: `cs-cycle${isCurrent ? ' is-current' : ''}`, 'aria-pressed': isCurrent, onClick: onSelect },
@@ -1042,15 +1114,22 @@ window.__ModuleLoader__.load({
           h('span', { className: 'cs-metric-value' }, formatDuration(cycle.taskMs))))
     }
 
-    /** 口径信息可悬浮、聚焦或点击查看；文字留在无障碍名称中。 */
+    /** 口径信息可悬浮、聚焦或点击查看；Escape 关闭，文字留在无障碍名称中。 */
     function Info({ message }) {
       const [open, setOpen] = React.useState(false)
-      return h('span', { className: `cs-info${open ? ' is-open' : ''}` },
+      const [dismissed, setDismissed] = React.useState(false)
+      return h('span', { className: `cs-info${open ? ' is-open' : ''}${dismissed ? ' is-dismissed' : ''}` },
         h('button', {
           type: 'button', 'aria-label': message, 'aria-expanded': open,
-          onClick: () => setOpen((value) => !value),
-          onBlur: () => setOpen(false),
-          onKeyDown: (event) => { if (event.key === 'Escape') setOpen(false) },
+          onClick: () => { setDismissed(false); setOpen((value) => !value) },
+          onFocus: () => setDismissed(false),
+          onBlur: () => { setOpen(false); setDismissed(false) },
+          onMouseLeave: () => setDismissed(false),
+          onKeyDown: (event) => {
+            if (event.key !== 'Escape') return
+            setOpen(false)
+            setDismissed(true)
+          },
         },
           h('svg', { viewBox: '0 0 20 20', width: 16, height: 16, fill: 'none', 'aria-hidden': true },
             h('circle', { cx: 10, cy: 10, r: 7.5, stroke: 'currentColor', strokeWidth: 1.4 }),
@@ -1099,8 +1178,10 @@ window.__ModuleLoader__.load({
       })
       return h('section', { className: 'cs-card cs-composition' },
         h('div', { className: 'cs-card-head' },
-          h('div', { className: 'cs-card-heading' }, h('h2', null, t('compositionTitle')), renderInfo(t('compositionInfo'))),
-          h('span', { className: 'cs-card-hint' }, t('compositionHint'))),
+          h('div', { className: 'cs-card-heading' },
+            h('h2', null, t('compositionTitle')),
+            renderInfo([t('compositionInfo'), t('compositionHint')].join('；'))),
+          h('span', { className: 'cs-tag' }, t('accumulated'))),
         total === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-composition-body' },
               h('div', { className: 'cs-donut', role: 'img', 'aria-label': `${t('compositionTitle')} · ${t('accumulated')} ${formatDuration(total)}` },
@@ -1121,7 +1202,8 @@ window.__ModuleLoader__.load({
       const rows = [...data.workspaces].filter((row) => row.taskMs > 0).sort((a, b) => b.taskMs - a.taskMs).slice(0, 5)
       return h('section', { className: 'cs-card cs-ranking' },
         h('div', { className: 'cs-card-head' }, h('div', { className: 'cs-card-heading' },
-          h('h2', null, t('workspaceRanking')), renderInfo(t('sumFoot'))), h('span', { className: 'cs-card-hint' }, t('accumulated'))),
+          h('h2', null, t('workspaceRanking')),
+          renderInfo([t('sumFoot'), t('accumulated')].join('；')))),
         rows.length === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-ranking-list' }, rows.map((row, index) =>
               h('div', { className: 'cs-ranking-row', key: row.key, title: `${row.workspaceTitle ?? t('unassigned')} · ${t('taskLabel')} ${formatDuration(row.taskMs)} · ${t('colShare')} ${formatPercent(row.share)}` },
@@ -1388,24 +1470,38 @@ window.__ModuleLoader__.load({
           catch { return 'day' }
         })
         const [palette, setPalette] = React.useState(() => {
-          try {
-            const saved = window.localStorage.getItem('chrono-scope.palette')
-            return ['mono', 'blue', 'green', 'warm'].includes(saved) ? saved : 'mono'
-          } catch { return 'mono' }
+          try { return normalizePalette(window.localStorage.getItem('chrono-scope.palette')) }
+          catch { return 'blue' }
         })
         const [appearance, setAppearance] = React.useState(() => {
-          try { return window.localStorage.getItem('chrono-scope.appearance') === 'dark' ? 'dark' : 'light' }
+          try { return normalizeAppearance(window.localStorage.getItem('chrono-scope.appearance')) }
           catch { return 'light' }
         })
+        const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
         const [paletteSaveError, setPaletteSaveError] = React.useState(false)
-        const changeAppearance = (event) => {
-          const value = event.target.value
-          setAppearance(value)
-          try { window.localStorage.setItem('chrono-scope.appearance', value); setPaletteSaveError(false) }
+        // system 外观随系统配色变化；light/dark 不受影响。
+        React.useEffect(() => {
+          if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined
+          const media = window.matchMedia('(prefers-color-scheme: dark)')
+          const onChange = (event) => setSystemDark(event?.matches === true)
+          if (typeof media.addEventListener === 'function') media.addEventListener('change', onChange)
+          else if (typeof media.addListener === 'function') media.addListener(onChange)
+          return () => {
+            if (typeof media.removeEventListener === 'function') media.removeEventListener('change', onChange)
+            else if (typeof media.removeListener === 'function') media.removeListener(onChange)
+          }
+        }, [])
+        const resolvedAppearance = resolveAppearance(appearance, systemDark)
+        const pageClassName = `cs-page cs-palette-${palette} cs-appearance-${resolvedAppearance}`
+        const appearanceToggleLabel = t('appearanceToggle').replace('{mode}', t(appearanceLabelKey(appearance)))
+        const cycleAppearanceMode = () => {
+          const next = cycleAppearance(appearance)
+          setAppearance(next)
+          try { window.localStorage.setItem('chrono-scope.appearance', next); setPaletteSaveError(false) }
           catch { setPaletteSaveError(true) }
         }
         const changePalette = (event) => {
-          const value = event.target.value
+          const value = normalizePalette(event?.target?.value)
           setPalette(value)
           try { window.localStorage.setItem('chrono-scope.palette', value); setPaletteSaveError(false) }
           catch { setPaletteSaveError(true) }
@@ -1511,7 +1607,7 @@ window.__ModuleLoader__.load({
         }
         const nowMs = Date.now()
         if (state.status === 'loading' && data === null) {
-          return h('div', { className: `cs-page cs-palette-${palette} cs-appearance-${appearance}` },
+          return h('div', { className: pageClassName },
             h('style', null, CHRONOSCOPE_CSS),
             h('div', { className: 'cs-shell' },
               h('div', { className: 'cs-loading' },
@@ -1520,7 +1616,7 @@ window.__ModuleLoader__.load({
                 h('span', null, t('loading')))))
         }
         if (state.status === 'error' && data === null) {
-          return h('div', { className: `cs-page cs-palette-${palette} cs-appearance-${appearance}` },
+          return h('div', { className: pageClassName },
             h('style', null, CHRONOSCOPE_CSS),
             h('div', { className: 'cs-shell' },
               h('div', { className: 'cs-loading is-error' },
@@ -1534,7 +1630,7 @@ window.__ModuleLoader__.load({
         const trendTitleKey = shownPeriod === 'day' ? 'trendDay' : shownPeriod === 'week' ? 'trendWeek' : 'trendMonth'
         const toggleRow = (key) => setExpanded((previous) => ({ ...previous, [key]: !previous[key] }))
 
-        return h('div', { className: `cs-page cs-palette-${palette} cs-appearance-${appearance}` },
+        return h('div', { className: pageClassName },
           h('style', null, CHRONOSCOPE_CSS),
           h('div', { className: 'cs-shell' },
             h('header', { className: 'cs-topbar' },
@@ -1544,16 +1640,18 @@ window.__ModuleLoader__.load({
                   h('h1', null, t('title')),
                   h('span', { className: 'cs-sub' }, t('subtitle')))),
               h('div', { className: 'cs-topbar-right' },
-                h('label', { className: 'cs-palette-label' }, t('appearanceLabel'),
-                  h('select', { value: appearance, onChange: changeAppearance, 'aria-label': t('appearanceLabel') },
-                    h('option', { value: 'light' }, t('appearanceLight')),
-                    h('option', { value: 'dark' }, t('appearanceDark')))),
+                h('button', {
+                  type: 'button',
+                  className: 'cs-icon-toggle',
+                  title: appearanceToggleLabel,
+                  'aria-label': appearanceToggleLabel,
+                  onClick: cycleAppearanceMode,
+                }, h(AppearanceIcon, { mode: appearance })),
                 h('label', { className: 'cs-palette-label' }, t('paletteLabel'),
                   h('select', { value: palette, onChange: changePalette, 'aria-label': t('paletteLabel') },
-                    h('option', { value: 'mono' }, t('paletteMono')),
                     h('option', { value: 'blue' }, t('paletteBlue')),
-                    h('option', { value: 'green' }, t('paletteGreen')),
-                    h('option', { value: 'warm' }, t('paletteWarm')))),
+                    h('option', { value: 'stone' }, t('paletteStone')),
+                    h('option', { value: 'clay' }, t('paletteClay')))),
                 h('span', { className: `cs-live${data.activeRunning ? ' is-live' : ''}` },
                   h('span', { className: 'cs-dot' }), t(data.activeRunning ? 'live' : 'idle')),
                 h('span', { className: `cs-live${data.taskRunning ? ' is-live' : ''}` },
@@ -1576,8 +1674,8 @@ window.__ModuleLoader__.load({
             h('div', { className: 'cs-section-head' },
               h('div', { className: 'cs-overview-heading' },
                 h('span', { className: 'cs-section-title' }, t('overviewTitle')),
-                h('span', { className: 'cs-card-hint' }, overviewHint(data, t))),
-              renderInfo(t('unionFoot'))),
+                h('span', { className: 'cs-tag' }, t('actualOccupied')),
+                renderInfo(overviewInfoMessages(data, t).join('；')))),
             h('div', { className: 'cs-cycles' },
               ['day', 'week', 'month'].map((item) => renderCycleCard(t, item, data.cycles[item], item === period, () => setPeriod(item)))),
             h('div', { className: 'cs-data-panels', 'aria-busy': switchingPeriod },
@@ -1659,11 +1757,8 @@ window.__ModuleLoader__.load({
                   }, dataMessage.text)
                 : null),
             h('footer', { className: 'cs-foot' },
-              [
-                `${t('todayActive')} ${formatDuration(data.cycles.day.activeMs)} · ${t('todayOnline')} ${formatDuration(data.cycles.day.onlineMs)}`,
-                t('localOnly'),
-                hasApproximate ? t('approximateHint') : null,
-              ].filter(Boolean).join(' · '))))
+              h('span', null, `${t('todayActive')} ${formatDuration(data.cycles.day.activeMs)} · ${t('todayOnline')} ${formatDuration(data.cycles.day.onlineMs)}`),
+              renderInfo(footerInfoMessages(t, hasApproximate).join('；')))))
       }
     }
 
@@ -1796,8 +1891,8 @@ window.__ModuleLoader__.load({
       .cs-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .cs-legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-      .cs-swatch.is-active { background: var(--dsw-alias-brand-primary); }
-      .cs-swatch.is-task { background: var(--dsw-alias-state-success-primary); }
+      .cs-swatch.is-active { background: var(--cs-live); }
+      .cs-swatch.is-task { background: var(--cs-task); }
       .cs-session-breakdown { flex: 1 1 100%; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; }
       .cs-session-subagents { flex: 1 1 100%; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; }
       .cs-session-subagents::before { content: '↳ '; }
@@ -1845,7 +1940,7 @@ window.__ModuleLoader__.load({
       .cs-chip.is-live { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent); color: var(--dsw-alias-state-success-primary); }
       .cs-empty { padding: 22px 12px; text-align: center; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
       .cs-empty.is-small { padding: 10px; }
-      .cs-foot { color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
+      .cs-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
       .cs-loading { min-height: 340px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 1px dashed var(--dsw-alias-border-l1); border-radius: 14px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
       .cs-loading strong { color: var(--dsw-alias-label-primary); font-size: 14px; font-weight: 600; }
       .cs-loading.is-error strong { color: var(--dsw-alias-state-error-primary); }
@@ -1884,24 +1979,63 @@ window.__ModuleLoader__.load({
         .cs-foot { line-height: 18px; }
       }
 
-      /* 配色与布局只作用于插件页面，不覆盖宿主界面。 */
+      /* 视觉基座：三档蓝是焦点信息与全部数据状态的唯一来源；灰只做表面、边框、轨道与次级文字。 */
       .cs-page {
-        --dsw-alias-bg-base: #f3f3f2;
-        --dsw-alias-bg-layer-1: #ffffff;
-        --dsw-alias-bg-layer-2: #ececeb;
-        --dsw-alias-label-primary: #181a1c;
-        --dsw-alias-label-secondary: #606568;
-        --dsw-alias-border-l1: #dedfdd;
-        --dsw-alias-brand-primary: #292d30;
-        --dsw-alias-state-success-primary: #73797b;
-        --dsw-alias-state-idle-primary: #8a8e90;
-        --dsw-alias-state-error-primary: #ad3e3e;
+        --cs-bg: #f3f3f2;
+        --cs-surface: #ffffff;
+        --cs-surface-2: #ececeb;
+        --cs-ink: #181a1c;
+        --cs-ink-2: #606568;
+        --cs-ink-3: #6f7476;
+        --cs-line: #dedfdd;
+        --cs-focus: #292d30;
+        /* 用户指定的焦点信息三档蓝，由深到浅；浅色外观下深是其强调色。 */
+        --cs-signal-deep: #133463;
+        --cs-signal: #1F4E94;
+        --cs-signal-soft: #79B3F9;
+        --cs-accent: var(--cs-signal-deep);
+        --cs-on-accent: #ffffff;
+        --cs-live: var(--cs-signal);
+        --cs-task: color-mix(in srgb, var(--cs-signal) 60%, var(--cs-surface));
+        --cs-tone-faint: color-mix(in srgb, var(--cs-signal-soft) 18%, var(--cs-surface));
+        --cs-tone-soft: color-mix(in srgb, var(--cs-signal-soft) 38%, var(--cs-surface));
+        --cs-tone-other: color-mix(in srgb, var(--cs-signal) 42%, var(--cs-surface));
+        --cs-heat-0: var(--cs-tone-faint);
+        --cs-heat-1: var(--cs-tone-soft);
+        --cs-heat-2: var(--cs-signal-soft);
+        --cs-heat-3: color-mix(in srgb, var(--cs-signal-soft) 72%, var(--cs-signal));
+        --cs-heat-4: var(--cs-signal);
+        --cs-heat-5: var(--cs-signal-deep);
+        --cs-error: #ad3e3e;
+        --cs-sp-1: 4px; --cs-sp-2: 8px; --cs-sp-3: 12px; --cs-sp-4: 20px; --cs-sp-5: 32px;
+        --cs-radius: 10px; --cs-radius-sm: 6px;
+        --cs-num-lg: 46px; --cs-num-md: 20px; --cs-num-sm: 14px;
+        --cs-dur-tap: 160ms; --cs-dur-exit: 180ms; --cs-dur-view: 300ms; --cs-dur-enter: 420ms;
+        --cs-ease: cubic-bezier(.22,.7,.24,1);
+        --cs-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        --cs-mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", monospace;
+        --dsw-alias-bg-base: var(--cs-bg);
+        --dsw-alias-bg-layer-1: var(--cs-surface);
+        --dsw-alias-bg-layer-2: var(--cs-surface-2);
+        --dsw-alias-label-primary: var(--cs-ink);
+        --dsw-alias-label-secondary: var(--cs-ink-2);
+        --dsw-alias-border-l1: var(--cs-line);
+        --dsw-alias-brand-primary: var(--cs-accent);
+        --dsw-alias-state-success-primary: var(--cs-live);
+        --dsw-alias-state-idle-primary: var(--cs-ink-3);
+        --dsw-alias-state-error-primary: var(--cs-error);
         color-scheme: light;
         padding: 28px 32px 36px;
       }
-      .cs-palette-blue { --dsw-alias-brand-primary: #315878; --dsw-alias-state-success-primary: #7492a8; --dsw-alias-bg-base: #f0f4f6; }
-      .cs-palette-green { --dsw-alias-brand-primary: #285642; --dsw-alias-state-success-primary: #78947c; --dsw-alias-bg-base: #f1f5f0; }
-      .cs-palette-warm { --dsw-alias-brand-primary: #96543f; --dsw-alias-state-success-primary: #c8957d; --dsw-alias-bg-base: #f7f2ee; }
+      .cs-page.cs-palette-blue {
+        --cs-signal-deep: #133463; --cs-signal: #1F4E94; --cs-signal-soft: #79B3F9;
+      }
+      .cs-page.cs-palette-stone {
+        --cs-signal-deep: #2b3033; --cs-signal: #4a5155; --cs-signal-soft: #aeb6b9;
+      }
+      .cs-page.cs-palette-clay {
+        --cs-signal-deep: #6b3b26; --cs-signal: #a35a37; --cs-signal-soft: #e2ac86;
+      }
       .cs-shell { max-width: 1440px; gap: 18px; }
       .cs-topbar { min-height: 54px; margin-bottom: 4px; }
       .cs-mark { width: 42px; height: 42px; border-radius: 13px; background: var(--dsw-alias-brand-primary); color: white; border: 0; }
@@ -1909,6 +2043,16 @@ window.__ModuleLoader__.load({
       .cs-sub { font-size: 12px; }
       .cs-palette-label { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
       .cs-palette-label select { font: inherit; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-1); border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; min-height: 34px; padding: 0 28px 0 10px; cursor: pointer; }
+      .cs-icon-toggle {
+        appearance: none; display: inline-flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; padding: 0; border-radius: 8px; cursor: pointer;
+        color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-bg-layer-1);
+        border: 1px solid var(--dsw-alias-border-l1);
+        transition: color var(--cs-dur-tap) var(--cs-ease), border-color var(--cs-dur-tap) var(--cs-ease), background-color var(--cs-dur-tap) var(--cs-ease);
+      }
+      .cs-icon-toggle:hover { color: var(--dsw-alias-label-primary); border-color: color-mix(in srgb, var(--cs-accent) 45%, var(--dsw-alias-border-l1)); }
+      .cs-icon-toggle:focus-visible { outline: 2px solid var(--cs-accent); outline-offset: 2px; }
+      .cs-icon-toggle svg { display: block; }
       .cs-segmented { background: var(--dsw-alias-bg-layer-1); }
       .cs-segment { padding: 7px 16px; }
       .cs-segment.is-active { background: var(--dsw-alias-brand-primary); color: #fff; box-shadow: none; }
@@ -1944,25 +2088,32 @@ window.__ModuleLoader__.load({
       .cs-summary-item strong { color: var(--dsw-alias-label-primary); font-size: 14px; font-variant-numeric: tabular-nums; }
       .cs-card, .cs-cycle, .cs-segment, .cs-palette-label select { transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
       .cs-page { --cs-on-accent: #fff; }
-      .cs-appearance-dark {
+      /* 深色外观：三档蓝按视觉深到浅翻转为浅/中/深，低值热力格仍可见。 */
+      .cs-page.cs-appearance-dark {
         color-scheme: dark;
-        --dsw-alias-bg-base: #151718;
-        --dsw-alias-bg-layer-1: #202324;
-        --dsw-alias-bg-layer-2: #303435;
-        --dsw-alias-label-primary: #f1f2f1;
-        --dsw-alias-label-secondary: #b1b6b5;
-        --dsw-alias-border-l1: #414647;
-        --dsw-alias-brand-primary: #e4e7e5;
-        --dsw-alias-state-success-primary: #969d9a;
-        --dsw-alias-state-idle-primary: #a8aeac;
-        --dsw-alias-state-error-primary: #f09691;
+        --cs-bg: #151718;
+        --cs-surface: #202324;
+        --cs-surface-2: #303435;
+        --cs-ink: #f1f2f1;
+        --cs-ink-2: #b1b6b5;
+        --cs-ink-3: #8a9090;
+        --cs-line: #414647;
+        --cs-focus: #e4e7e5;
+        --cs-signal-deep: #a9cffa;
+        --cs-signal: #79B3F9;
+        --cs-signal-soft: #3f6ba8;
+        --cs-accent: var(--cs-signal);
         --cs-on-accent: #171a19;
+        --cs-error: #f09691;
       }
-      .cs-appearance-dark.cs-palette-blue { --dsw-alias-bg-base: #151c21; --dsw-alias-brand-primary: #a9cbe0; --dsw-alias-state-success-primary: #6f8ca0; }
-      .cs-appearance-dark.cs-palette-green { --dsw-alias-bg-base: #151d19; --dsw-alias-brand-primary: #afcfb4; --dsw-alias-state-success-primary: #779681; }
-      .cs-appearance-dark.cs-palette-warm { --dsw-alias-bg-base: #201a18; --dsw-alias-brand-primary: #e5b5a0; --dsw-alias-state-success-primary: #ac806e; }
+      .cs-page.cs-appearance-dark.cs-palette-stone {
+        --cs-signal-deep: #d9dee0; --cs-signal: #aeb6b9; --cs-signal-soft: #6c7477;
+      }
+      .cs-page.cs-appearance-dark.cs-palette-clay {
+        --cs-signal-deep: #f0c0a4; --cs-signal: #e2ac86; --cs-signal-soft: #8a5a40;
+      }
       .cs-mark, .cs-segment.is-active, .cs-cycle.is-current { color: var(--cs-on-accent); }
-      .cs-appearance-dark .cs-cycle.is-current .cs-cycle-count, .cs-appearance-dark .cs-cycle.is-current .cs-metric-label, .cs-appearance-dark .cs-cycle.is-current .cs-cycle-metric.is-secondary .cs-metric-value { color: #38413d; }
+      .cs-appearance-dark .cs-cycle.is-current .cs-cycle-count, .cs-appearance-dark .cs-cycle.is-current .cs-metric-label, .cs-appearance-dark .cs-cycle.is-current .cs-cycle-metric.is-secondary .cs-metric-value { color: color-mix(in srgb, var(--cs-on-accent) 72%, var(--cs-surface)); }
       .cs-appearance-dark .cs-segment.is-active { color: var(--cs-on-accent); }
       @media (max-width: 900px) { .cs-insights { grid-template-columns: 1fr; } }
       @media (prefers-reduced-motion: reduce) { .cs-page.cs-page *, .cs-page.cs-page *::before, .cs-page.cs-page *::after { transition-duration: 0s; animation-duration: 0s; } }
@@ -2010,13 +2161,13 @@ window.__ModuleLoader__.load({
       @media (max-width: 860px) { .cs-summary { padding: 10px 12px; } .cs-toggle { margin: -5px -5px -5px 0; } }
       @media (max-width: 600px) { .cs-cycle { min-height: 108px; } .cs-summary { padding: 12px 10px; } .cs-sessions { padding-left: 12px; } }
 
-      /* 构成圆环与工作区排行均来自当前周期的真实会话累计数据。 */
+      /* 构成圆环与工作区排行均来自当前周期的真实会话累计数据；色阶全部由三档蓝派生。 */
       .cs-page {
-        --cs-series-model: var(--dsw-alias-brand-primary);
-        --cs-series-tool: color-mix(in srgb, var(--dsw-alias-brand-primary) 72%, var(--dsw-alias-bg-layer-1));
-        --cs-series-wait: color-mix(in srgb, var(--dsw-alias-brand-primary) 50%, var(--dsw-alias-bg-layer-1));
-        --cs-series-other: color-mix(in srgb, var(--dsw-alias-brand-primary) 32%, var(--dsw-alias-bg-layer-1));
-        --cs-series-unknown: color-mix(in srgb, var(--dsw-alias-brand-primary) 17%, var(--dsw-alias-bg-layer-1));
+        --cs-series-model: var(--cs-signal-deep);
+        --cs-series-tool: color-mix(in srgb, var(--cs-signal) 72%, var(--cs-surface));
+        --cs-series-wait: color-mix(in srgb, var(--cs-signal) 50%, var(--cs-surface));
+        --cs-series-other: color-mix(in srgb, var(--cs-signal) 32%, var(--cs-surface));
+        --cs-series-unknown: color-mix(in srgb, var(--cs-signal) 17%, var(--cs-surface));
       }
       .cs-analysis-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
       .cs-composition, .cs-ranking { min-height: 250px; display: flex; flex-direction: column; gap: 20px; }
@@ -2058,9 +2209,11 @@ window.__ModuleLoader__.load({
       .cs-info button { appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
       .cs-info button:hover, .cs-info.is-open button, .cs-info button:focus-visible { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); }
       .cs-info button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
-      .cs-info-tip { display: none; position: absolute; z-index: 10; top: calc(100% + 5px); left: 0; width: max-content; max-width: min(260px, 65vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 5px 18px #0002; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: normal; }
-      .cs-info:hover .cs-info-tip, .cs-info:focus-within .cs-info-tip, .cs-info.is-open .cs-info-tip { display: block; }
+      .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: absolute; z-index: 10; top: calc(100% + 5px); left: 0; width: max-content; max-width: min(260px, 65vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 5px 18px #0002; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: normal; transition: opacity var(--cs-dur-tap) var(--cs-ease), transform var(--cs-dur-tap) var(--cs-ease), visibility var(--cs-dur-tap) var(--cs-ease); }
+      .cs-info:hover .cs-info-tip, .cs-info:focus-within .cs-info-tip, .cs-info.is-open .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); }
+      .cs-info.is-dismissed .cs-info-tip { visibility: hidden; opacity: 0; }
       .cs-section-head > .cs-info .cs-info-tip { left: auto; right: 0; }
+      .cs-overview-heading > .cs-info .cs-info-tip, .cs-foot > .cs-info .cs-info-tip { left: auto; right: 0; }
       .cs-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
       .cs-card:hover { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, var(--dsw-alias-border-l1)); }
       .cs-ranking-row { border-radius: 6px; transition: background-color 160ms ease; }
@@ -2124,10 +2277,15 @@ window.__ModuleLoader__.load({
       .cs-settings-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
       .cs-settings-switch input { width: 16px; height: 16px; accent-color: var(--dsw-alias-brand-primary); cursor: pointer; }
       .cs-settings-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-      .cs-settings-status { font-size: 12px; color: var(--dsw-alias-state-success-primary); }
+      .cs-settings-status { font-size: 12px; color: var(--dsw-alias-brand-primary); }
       .cs-settings-status.is-error { color: var(--dsw-alias-state-error-primary); }
       @media (max-width: 620px) { .cs-settings-row { grid-template-columns: 1fr; gap: 6px; } }
     `
+
+    /** 测试出口：主页面样式串，后续票据复用同一份设计 token。 */
+    function chronoscopeCss() {
+      return CHRONOSCOPE_CSS
+    }
 
     return {
       inject: ['connection', 'slots', 'locale'],
