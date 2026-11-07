@@ -34,7 +34,8 @@ function createTestReact() {
 }
 
 // 通过插件原有装载入口运行实际客户端函数，使用轻量节点记录渲染结果。
-async function loadClientFunctions() {
+// windowExtras 只用于给隔离上下文补 localStorage / matchMedia 等浏览器表面。
+async function loadClientFunctions(windowExtras = {}) {
   let source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
   const anchor = '    const CHRONOSCOPE_CSS = `'
   assert.ok(source.includes(anchor), '客户端测试入口不存在')
@@ -60,9 +61,21 @@ async function loadClientFunctions() {
       subscribeDurationFormatPreview: typeof subscribeDurationFormatPreview === 'function' ? subscribeDurationFormatPreview : undefined,
       notifyDurationFormatPreview: typeof notifyDurationFormatPreview === 'function' ? notifyDurationFormatPreview : undefined,
       chronoscopeCss: typeof chronoscopeCss === 'function' ? chronoscopeCss : undefined,
+      chronoscopeSidebarCss: typeof chronoscopeSidebarCss === 'function' ? chronoscopeSidebarCss : undefined,
+      sidebarRingSegments: typeof sidebarRingSegments === 'function' ? sidebarRingSegments : undefined,
+      sidebarRingGradient: typeof sidebarRingGradient === 'function' ? sidebarRingGradient : undefined,
+      sidebarThemeClass: typeof sidebarThemeClass === 'function' ? sidebarThemeClass : undefined,
+      readStoredTheme: typeof readStoredTheme === 'function' ? readStoredTheme : undefined,
+      subscribeThemeChanged: typeof subscribeThemeChanged === 'function' ? subscribeThemeChanged : undefined,
+      notifyThemeChanged: typeof notifyThemeChanged === 'function' ? notifyThemeChanged : undefined,
+      renderSidebarEntry: typeof renderSidebarEntry === 'function' ? renderSidebarEntry : undefined,
+      buildSidebarTip: typeof buildSidebarTip === 'function' ? buildSidebarTip : undefined,
+      settingsDraft: typeof settingsDraft === 'function' ? settingsDraft : undefined,
+      settingsPayload: typeof settingsPayload === 'function' ? settingsPayload : undefined,
+      createSettingsSection: typeof createSettingsSection === 'function' ? createSettingsSection : undefined,
     };\n${anchor}`)
   const React = createTestReact()
-  const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) } }
+  const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) }, ...windowExtras }
   vm.runInNewContext(source, { window, crypto: { randomUUID: () => 'test-client' } })
   return { ...window.__testFunctions, React }
 }
@@ -811,6 +824,177 @@ test('客户端：回填横幅只在未读事件显示，文案明确为累计�
   assert.equal(legacy.eventId, '')
   assert.equal(legacy.notices.length, 0)
   assert.equal(isBackfillUnread(legacy), false)
+})
+
+test('客户端：侧栏入口使用插件主题 token，不再继承宿主 success 绿', async () => {
+  const { chronoscopeSidebarCss } = await loadClientFunctions()
+  assert.equal(typeof chronoscopeSidebarCss, 'function')
+  const css = chronoscopeSidebarCss()
+  assert.match(css, /\.chronoscope-nav-entry\s*\{/)
+  assert.match(css, /--cs-signal-deep\s*:\s*#133463/i)
+  assert.match(css, /--cs-signal\s*:\s*#1F4E94/i)
+  assert.match(css, /--cs-signal-soft\s*:\s*#79B3F9/i)
+  assert.match(css, /--cs-live\s*:\s*var\(--cs-signal\)/)
+  assert.match(css, /--cs-task\s*:\s*color-mix\(/)
+  assert.match(css, /\.chronoscope-nav-entry\.cs-palette-blue/)
+  assert.match(css, /\.chronoscope-nav-entry\.cs-palette-stone/)
+  assert.match(css, /\.chronoscope-nav-entry\.cs-palette-clay/)
+  assert.match(css, /\.chronoscope-nav-entry\.cs-appearance-dark/)
+  assert.doesNotMatch(css, /--dsw-alias-state-success-primary/, '侧栏入口不得再吃宿主 success 绿')
+  const entry = declarationsFor(css, '.chronoscope-nav-entry')
+  assert.match(entry, /display:\s*inline-flex/)
+  assert.match(entry, /flex-wrap:\s*nowrap/, '入口保持单行')
+  assert.match(entry, /white-space:\s*nowrap/)
+  assert.match(declarationsFor(css, '.chronoscope-nav-name'), /text-overflow:\s*ellipsis/, '长名称省略而不撑破侧栏')
+})
+
+test('客户端：侧栏构成环按今日在线/活跃/任务三项毫秒分段', async () => {
+  const { sidebarRingSegments, sidebarRingGradient } = await loadClientFunctions()
+  const segments = sidebarRingSegments({
+    onlineMs: 4 * 3_600_000,
+    activeMs: 3 * 3_600_000,
+    taskMs: 1 * 3_600_000,
+  })
+  assert.equal(segments.map((segment) => segment.key).join(','), 'online,active,task', '三段口径固定为在线、活跃、任务')
+  assert.equal(segments.map((segment) => segment.ms).join(','), '14400000,10800000,3600000')
+  assert.equal(segments.map((segment) => segment.share).join(','), '0.5,0.375,0.125', '按三项之和归一化')
+  assert.equal(segments.map((segment) => segment.color).join(','), '--cs-signal-soft,--cs-live,--cs-task')
+  const gradient = sidebarRingGradient(segments)
+  assert.match(gradient, /^conic-gradient\(/)
+  assert.match(gradient, /var\(--cs-signal-soft\)\s+0%\s+50%/)
+  assert.match(gradient, /var\(--cs-live\)\s+50%\s+87\.5%/)
+  assert.match(gradient, /var\(--cs-task\)\s+87\.5%\s+100%/)
+  const empty = sidebarRingGradient(sidebarRingSegments({ onlineMs: 0, activeMs: 0, taskMs: 0 }))
+  assert.match(empty, /--cs-ring-track/, '全零时不除零，只画轨道')
+})
+
+test('客户端：侧栏主题跟随 localStorage 的配色与外观，system 解析为实际明暗', async () => {
+  const { sidebarThemeClass, readStoredTheme } = await loadClientFunctions({
+    localStorage: {
+      getItem: (key) => ({
+        'chrono-scope.palette': 'clay',
+        'chrono-scope.appearance': 'system',
+      })[key] ?? null,
+    },
+  })
+  assert.equal(JSON.stringify(readStoredTheme()), JSON.stringify({ palette: 'clay', appearance: 'system' }))
+  assert.equal(sidebarThemeClass('blue', 'light', false), 'cs-palette-blue cs-appearance-light')
+  assert.equal(sidebarThemeClass('blue', 'system', true), 'cs-palette-blue cs-appearance-dark', 'system 在深色系统下解析为 dark')
+  assert.equal(sidebarThemeClass('stone', 'system', false), 'cs-palette-stone cs-appearance-light')
+  assert.equal(sidebarThemeClass('clay', 'dark', false), 'cs-palette-clay cs-appearance-dark')
+  assert.equal(sidebarThemeClass('legacy', 'auto', true), 'cs-palette-blue cs-appearance-light', '旧值回落到蓝与浅色')
+})
+
+test('客户端：配色/外观变更通过主题事件即时通知侧栏入口', async () => {
+  const { subscribeThemeChanged, notifyThemeChanged } = await loadClientFunctions()
+  const calls = []
+  const unsubscribe = subscribeThemeChanged(() => calls.push('changed'))
+  notifyThemeChanged()
+  assert.equal(calls.length, 1)
+  unsubscribe()
+  notifyThemeChanged()
+  assert.equal(calls.length, 1, '退订后不再收到通知')
+})
+
+test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬停/聚焦浮出三项数值', async () => {
+  const { renderSidebarEntry } = await loadClientFunctions()
+  const labels = {
+    title: 'ChronoScope',
+    onlineLabel: '在线时长',
+    activeLabel: '活跃',
+    taskLabel: '任务',
+    live: '活跃中',
+    idle: '空闲',
+    sidebarRingTitle: '今日时长构成',
+  }
+  const t = (key) => labels[key] ?? key
+  const shown = []
+  const hidden = []
+  const hover = {
+    tip: null,
+    show: (tip, event) => shown.push({ tip, event }),
+    hide: () => hidden.push(true),
+  }
+  const stats = {
+    status: 'ready',
+    onlineMs: 4 * 3_600_000,
+    activeMs: 3 * 3_600_000,
+    taskMs: 3_600_000,
+    activeRunning: true,
+    receivedAt: Date.now(),
+  }
+  const tree = renderSidebarEntry({
+    stats,
+    theme: { palette: 'blue', appearance: 'light' },
+    showName: false,
+    t,
+    hover,
+  })
+  assert.ok(hasClass(tree, 'chronoscope-nav-entry'), '入口根节点存在')
+  assert.match(tree.props.className, /cs-palette-blue/)
+  assert.match(tree.props.className, /cs-appearance-light/)
+  assert.equal(tree.props.tabIndex, 0, '入口可被键盘聚焦')
+  assert.ok(findByClass(tree, 'chronoscope-nav-ring'), '迷你构成环存在')
+  assert.equal(findByClass(tree, 'chronoscope-nav-name'), undefined, '隐藏名称后不渲染名称节点')
+  assert.equal(textOf(findByClass(tree, 'chronoscope-nav-time')), '3:00:00', '隐藏名称后时长仍在')
+  const dot = findByClass(tree, 'chronoscope-nav-dot')
+  assert.ok(dot, '隐藏名称后状态点仍在')
+  assert.match(dot.props.className, /is-live/, '活跃状态点按活跃状态着色')
+  assert.equal(dot.props['aria-label'], '活跃中')
+
+  tree.props.onMouseEnter(fakeEvent())
+  assert.equal(shown.length, 1, '悬停触发浮层')
+  assert.equal(shown[0].tip.title, '今日时长构成')
+  assert.equal(
+    JSON.stringify(shown[0].tip.rows.map((row) => [row.label, row.value])),
+    JSON.stringify([['在线时长', '4:00:00'], ['活跃', '3:00:00'], ['任务', '1:00:00']]),
+    '浮层给出三项具体数值',
+  )
+  tree.props.onFocus(fakeEvent())
+  assert.equal(shown.length, 2, '键盘聚焦同样触发浮层')
+  tree.props.onKeyDown({ key: 'Escape' })
+  assert.equal(hidden.length, 1, 'Escape 收起浮层')
+
+  const named = renderSidebarEntry({
+    stats: { ...stats, activeRunning: false },
+    theme: { palette: 'stone', appearance: 'dark' },
+    showName: true,
+    t,
+    hover,
+  })
+  assert.equal(textOf(findByClass(named, 'chronoscope-nav-name')), 'ChronoScope', '显示名称时使用插件名称')
+  assert.doesNotMatch(findByClass(named, 'chronoscope-nav-dot').props.className, /is-live/, '空闲状态点不点亮')
+})
+
+test('客户端：侧栏名称开关进入设置草稿、保存载荷与设置页控件', async () => {
+  const { settingsDraft, settingsPayload, createSettingsSection, React } = await loadClientFunctions()
+  assert.equal(settingsDraft({ sidebarShowName: false }).sidebarShowName, false)
+  assert.equal(settingsDraft({}).sidebarShowName, true, '缺省时显示名称')
+  assert.equal(JSON.stringify(settingsPayload({
+    idleThresholdMinutes: '9',
+    weekStartsOn: '7',
+    showSubagents: false,
+    sidebarShowName: false,
+  })), JSON.stringify({
+    idleThresholdMinutes: 9,
+    weekStartsOn: 7,
+    showSubagents: false,
+    durationFormat: 'hms',
+    sidebarShowName: false,
+  }), '保存时提交 sidebarShowName 与数字格式')
+
+  const labels = {
+    settingsSectionDisplay: '明细展示',
+    settingsSidebarNameLabel: '侧栏显示名称',
+    settingsSidebarNameOn: '显示名称',
+    settingsSidebarNameOff: '隐藏名称',
+  }
+  const t = (key) => labels[key] ?? key
+  const tree = React.render(createSettingsSection({}), { t })
+  const checkbox = findAll(tree, (node) => node.type === 'input' && node.props?.['aria-label'] === '侧栏显示名称')[0]
+  assert.ok(checkbox, '设置页存在侧栏名称开关')
+  assert.equal(checkbox.props.type, 'checkbox')
+  assert.equal(checkbox.props.checked, true, '默认显示名称')
 })
 
 test('客户端：设置页通知记录可回看已读事件并显示累计条数', async () => {

@@ -230,7 +230,7 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
   function setSettings(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('setSettings 载荷必须是对象')
     const patch = {}
-    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat']) {
+    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName']) {
       if (Object.hasOwn(payload, key)) patch[key] = payload[key]
     }
     return service.setSettings(patch)
