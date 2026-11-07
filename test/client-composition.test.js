@@ -102,7 +102,9 @@ async function loadClientFunctions(windowExtras = {}) {
       buildHeatGrid: typeof buildHeatGrid === 'function' ? buildHeatGrid : undefined,
       buildHeatTip: typeof buildHeatTip === 'function' ? buildHeatTip : undefined,
       summarizeHeatDays: typeof summarizeHeatDays === 'function' ? summarizeHeatDays : undefined,
+      summarizeHeatFocus: typeof summarizeHeatFocus === 'function' ? summarizeHeatFocus : undefined,
       renderDailyHeatmap: typeof renderDailyHeatmap === 'function' ? renderDailyHeatmap : undefined,
+      renderHeatmapFocusPage: typeof renderHeatmapFocusPage === 'function' ? renderHeatmapFocusPage : undefined,
       useDailySeries: typeof useDailySeries === 'function' ? useDailySeries : undefined,
       HEAT_DEFAULT_RANGE: typeof HEAT_DEFAULT_RANGE === 'string' ? HEAT_DEFAULT_RANGE : undefined,
       HEAT_RANGE_OPTIONS: typeof HEAT_RANGE_OPTIONS !== 'undefined' ? HEAT_RANGE_OPTIONS : undefined,
@@ -1632,8 +1634,11 @@ test('客户端：概览在首屏状态只渲染放大页，普通状态同时�
   assert.ok(allOf(normal, byClass('cs-trend-card')).length >= 1)
   assert.ok(allOf(normal, byClass('cs-composition')).length >= 1)
   const normalZoomButtons = allOf(normal, byClass('cs-zoom-btn'))
-  assert.equal(normalZoomButtons.length, 2, '首屏卡片与趋势卡各有一个缩放按钮')
+  assert.equal(normalZoomButtons.length, 3, '首屏卡片、趋势卡与热力图卡各有一个缩放按钮')
   assert.ok(normalZoomButtons.every((button) => button.props['aria-label'] === '设为首屏'))
+  const normalHeatmap = allOf(normal, byClass('cs-heatmap-card'))[0]
+  assert.equal(allOf(normalHeatmap, byClass('cs-zoom-btn')).length, 1, '普通概览热力图卡右上角有缩放按钮')
+  assert.equal(allOf(normalHeatmap, byClass('cs-zoom-btn'))[0].props['aria-label'], '设为首屏')
 
   const focused = renderOverviewView({ ...common, focus: 'hero' })
   assert.equal(allOf(focused, byClass('cs-hero-focus')).length, 1, '首屏态只留放大页')
@@ -1654,7 +1659,12 @@ test('客户端：概览在首屏状态只渲染放大页，普通状态同时�
   }
 
   const heatmapFocus = renderOverviewView({ ...common, focus: 'heatmap' })
-  assert.equal(allOf(heatmapFocus, byClass('cs-cycle')).length, 3, '#15 尚未实现的热力图首屏回落普通概览')
+  assert.equal(allOf(heatmapFocus, byClass('cs-heatmap-focus-page')).length, 1, '热力图首屏只留独立页')
+  assert.equal(allOf(heatmapFocus, byClass('cs-heatmap-focus')).length, 1, '热力图卡片进入首屏排版')
+  assert.equal(allOf(heatmapFocus, byClass('cs-hero-focus')).length, 0, '与 hero 首屏互斥')
+  assert.equal(allOf(heatmapFocus, byClass('cs-trend-focus')).length, 0, '与趋势首屏互斥')
+  assert.equal(allOf(heatmapFocus, byClass('cs-cycle')).length, 0, '热力图首屏不渲染周期卡')
+  assert.equal(allOf(heatmapFocus, byClass('cs-composition')).length, 0, '热力图首屏不渲染构成卡')
 })
 
 test('客户端：首屏缩放按钮与进度条样式无边框，并尊重减少动效', async () => {
@@ -1796,6 +1806,113 @@ test('客户端：热力图范围汇总只统计有观测的日期', async () =>
   assert.deepEqual({ ...summarizeHeatDays([]) }, {
     onlineMs: 0, activeMs: 0, taskMs: 0, activeDays: 0, observedDays: 0, dailyAverageActiveMs: 0,
   }, '空序列汇总全为 0')
+})
+
+test('客户端：热力图首屏范围统计给出六项数值并只计算有观测的日期', async () => {
+  const { summarizeHeatFocus } = await loadClientFunctions()
+  const summary = summarizeHeatFocus([
+    { dateKey: '2026-11-01', onlineMs: 4 * 3_600_000, activeMs: 2 * 3_600_000, taskMs: 3_600_000, hasObservations: true },
+    { dateKey: '2026-11-02', onlineMs: 999, activeMs: 999, taskMs: 999, hasObservations: false },
+    { dateKey: '2026-11-03', onlineMs: 2 * 3_600_000, activeMs: 3_600_000, taskMs: 1_800_000, hasObservations: true },
+    { dateKey: '2026-11-04', onlineMs: 6 * 3_600_000, activeMs: 3 * 3_600_000, taskMs: 2 * 3_600_000, hasObservations: true },
+  ])
+  const { peakDay, ...ranges } = summary
+  assert.deepEqual({ ...ranges }, {
+    onlineMs: 12 * 3_600_000,
+    activeMs: 6 * 3_600_000,
+    taskMs: 3.5 * 3_600_000,
+    activeDays: 3,
+    observedDays: 3,
+    dailyAverageActiveMs: 2 * 3_600_000,
+  }, '六项范围数值只累加有观测日期')
+  assert.deepEqual({ ...peakDay }, { dateKey: '2026-11-04', activeMs: 3 * 3_600_000 }, '峰值日取活跃最大的一天')
+  assert.deepEqual({ ...summarizeHeatFocus([]) }, {
+    onlineMs: 0,
+    activeMs: 0,
+    taskMs: 0,
+    activeDays: 0,
+    observedDays: 0,
+    dailyAverageActiveMs: 0,
+    peakDay: null,
+  }, '无观测时全部为 0 且没有峰值日')
+  assert.equal(
+    summarizeHeatFocus([
+      { dateKey: '2026-11-01', activeMs: 1, hasObservations: true },
+      { dateKey: '2026-11-02', activeMs: 2, hasObservations: true },
+    ]).dailyAverageActiveMs,
+    2,
+    '日均活跃按观测日四舍五入')
+})
+
+test('客户端：热力图首屏独立页给出六项范围统计、12 个月度条与退出按钮', async () => {
+  const { renderHeatmapFocusPage } = await loadClientFunctions()
+  const labels = {
+    heatmapTitle: '每日时长', heatmapFocusTitle: '热力图首屏', heatmapInfo: '每格代表一天',
+    heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
+    heatRangeMonth: '{month}', monthBars: '月度活跃', periodDay: '日',
+    onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务', noRecord: '无记录',
+    heatDayTitle: '{month}月{day}日',
+    rangeOnline: '范围在线', rangeActive: '范围活跃', rangeTask: '范围任务',
+    peakDay: '最活跃日', activeDaysLabel: '活跃天数', dailyAverageActive: '日均活跃',
+    focusSet: '设为首屏', focusUnset: '退出首屏', focusSummary: '首屏概览',
+    heatSummary: '范围活跃 {active} · 活跃天数 {activeDays}/{observedDays}',
+    heatmapLoading: '正在加载每日时长…', heatmapEmpty: '暂无每日记录',
+  }
+  const t = (key) => labels[key] ?? key
+  const nowMs = new Date(2026, 10, 7, 12).getTime()
+  const range = { from: new Date(2026, 7, 7).getTime(), to: new Date(2026, 10, 8).getTime() }
+  const day = (dayOfMonth, onlineMs, activeMs, taskMs) => ({
+    dateKey: `2026-11-${String(dayOfMonth).padStart(2, '0')}`,
+    from: new Date(2026, 10, dayOfMonth).getTime(),
+    to: new Date(2026, 10, dayOfMonth + 1).getTime(),
+    onlineMs,
+    activeMs,
+    taskMs,
+    hasObservations: true,
+  })
+  const days = [
+    day(1, 4 * 3_600_000, 2 * 3_600_000, 3_600_000),
+    day(2, 2 * 3_600_000, 3_600_000, 1_800_000),
+    day(3, 6 * 3_600_000, 3 * 3_600_000, 2 * 3_600_000),
+  ]
+  const calls = []
+  const props = {
+    series: { range, days }, status: 'ready', t, format: 'hms', nowMs,
+    hoverTip: { tip: null, show() {}, hide() {} },
+    rangeValue: '3m', onSelectRange() {}, onToggleFocus: (value) => calls.push(value),
+  }
+  const page = renderHeatmapFocusPage(props)
+  assert.equal(page.props['data-focus'], 'heatmap', '首屏语义为 heatmap')
+  assert.equal(allOf(page, byClass('cs-heatmap-focus-page')).length, 1, '独立首屏页外壳')
+  assert.equal(allOf(page, byClass('cs-heatmap-focus')).length, 1, '热力图卡片进入放大态')
+  assert.match(textOf(page), /热力图首屏/, '首屏页使用专属标题')
+  const panel = allOf(page, byClass('heat-focus-panel'))[0]
+  assert.ok(panel, '右侧统计栏存在')
+  const panelText = textOf(panel)
+  for (const expected of ['范围在线', '范围活跃', '范围任务', '最活跃日', '活跃天数', '日均活跃']) {
+    assert.match(panelText, new RegExp(expected), `统计栏包含「${expected}」`)
+  }
+  assert.match(panelText, /12:00:00/, '范围在线为 4h + 2h + 6h')
+  assert.match(panelText, /6:00:00/, '范围活跃为 2h + 1h + 3h')
+  assert.match(panelText, /3:30:00/, '范围任务为 1h + 0.5h + 2h')
+  assert.match(panelText, /11月3日 · 3:00:00/, '最活跃日为 11 月 3 日')
+  assert.match(panelText, /3\/3/, '活跃天数为 3/3')
+  assert.match(panelText, /2:00:00/, '日均活跃为 6h / 3 天')
+  assert.equal(allOf(page, byClass('heat-summary')).length, 0, '首屏不重复普通范围汇总')
+  assert.equal(allOf(page, byClass('heat-month-bar')).length, 12, '正文下方保留 12 个月度条')
+  assert.equal(allOf(page, byClass('heat-range-option')).length, 15, '范围选择器一次展示全部 15 项')
+  const zoom = allOf(page, byClass('cs-zoom-btn'))[0]
+  assert.ok(zoom, '首屏页有缩放按钮')
+  assert.equal(zoom.props['aria-label'], '退出首屏')
+  assert.equal(zoom.props['aria-pressed'], true)
+  zoom.props.onClick()
+  assert.deepEqual(calls, ['heatmap'], '再次点击请求缩回普通概览')
+
+  for (const [value, label] of [['3m', '3m'], [11, '单月'], ['year', '全年']]) {
+    const variant = renderHeatmapFocusPage({ ...props, rangeValue: value })
+    assert.equal(allOf(variant, byClass('heat-month-bar')).length, 12, `${label}放大态同样有 12 个月度条`)
+    assert.equal(allOf(variant, byClass('cs-heatmap-focus')).length, 1, `${label}放大态仍为自适应卡片`)
+  }
 })
 
 test('客户端：热力图卡片含月份刻度、星期标签与浮层，且无图例和单日明细', async () => {
@@ -2322,6 +2439,35 @@ test('客户端：范围选择器绝对定位且全年/单月网格按列数自�
   assert.match(monthGrid, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/, '单月日历 7 列')
   assert.match(declarationsFor(css, '.heat-month .heat-cell'), /aspect-ratio:\s*1/, '单月格子随列宽保持正方形')
   assert.match(declarationsFor(css, '.heat-month-bars'), /grid-template-columns:\s*repeat\(12,\s*minmax\(0,\s*1fr\)\)/, '12 个月度条铺满宽度')
+})
+
+test('客户端：热力图首屏三种布局自适应且右侧统计与月度条铺开', async () => {
+  const css = await loadClientCss()
+  assert.match(declarationsFor(css, '.cs-heatmap-focus-page'), /min-height:\s*calc\(100vh - 260px\)/, '首屏页占满可用高度')
+  const layout = declarationsFor(css, '.heat-focus-layout')
+  assert.match(layout, /display:\s*grid/, '首屏为左右两栏')
+  assert.match(layout, /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+240px/, '左侧自适应、右侧固定统计栏')
+  assert.match(layout, /gap:\s*20px/)
+  assert.match(declarationsFor(css, '.heat-focus-main'), /min-width:\s*0/)
+  const body = declarationsFor(css, '.cs-heatmap-focus .heatmap-body')
+  assert.match(body, /width:\s*100%/, '周网格容器铺满宽度')
+  assert.match(body, /overflow:\s*visible/, '放大态不再横向滚动裁切')
+  const weekgrid = declarationsFor(css, '.cs-heatmap-focus .heat-weekgrid')
+  assert.match(weekgrid, /width:\s*100%/, '3m/6m 周网格随卡片铺满')
+  assert.match(weekgrid, /grid-auto-columns:\s*minmax\(0,\s*1fr\)/, '周网格列宽等比分配')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-weekgrid .heat-cell'), /aspect-ratio:\s*1/, '格子在放大态保持正方形')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-year-grid'), /width:\s*100%/, '全年矩阵随卡片铺满')
+  const month = declarationsFor(css, '.cs-heatmap-focus .heat-month')
+  assert.match(month, /width:\s*100%/, '单月日历随卡片铺满')
+  assert.match(month, /max-width:\s*none/, '单月不再固定最大宽度')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-month-grid'), /width:\s*100%/, '单月 7 列网格铺满')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus'), /--cs-heat-cell:\s*clamp\(10px,\s*1\.6vw,\s*20px\)/, '放大态格子尺寸随视口增长')
+  const panel = declarationsFor(css, '.heat-focus-panel')
+  assert.match(panel, /display:\s*flex/)
+  assert.match(panel, /flex-direction:\s*column/, '右侧六项统计纵向排列')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-month-bars'), /min-height:\s*130px/, '月度条填充下方空白')
+  assert.match(mediaBlocks(css, 900), /\.heat-focus-layout[^{]*\{[^}]*grid-template-columns:\s*1fr/, '窄屏回落单列')
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-heatmap-focus-page/, '减少动效下首屏直接到位')
 })
 
 test('客户端：概览把范围值与切换回调透传给每日热力图', async () => {

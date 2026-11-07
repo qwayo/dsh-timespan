@@ -128,6 +128,12 @@ window.__ModuleLoader__.load({
       peakActive: '峰值活跃',
       peakPeriod: '最活跃时段',
       trendFocusTitle: '条状图首屏',
+      heatmapFocusTitle: '热力图首屏',
+      rangeOnline: '范围在线',
+      rangeActive: '范围活跃',
+      rangeTask: '范围任务',
+      peakDay: '最活跃日',
+      activeDaysLabel: '活跃天数',
       searchPlaceholder: '搜索工作区或会话',
       detailsEmpty: '没有匹配的工作区或会话',
       settingsPageTitle: '仪表盘设置',
@@ -352,6 +358,12 @@ window.__ModuleLoader__.load({
       peakActive: 'Peak active',
       peakPeriod: 'Most active period',
       trendFocusTitle: 'Trend focus view',
+      heatmapFocusTitle: 'Heatmap focus',
+      rangeOnline: 'Online in range',
+      rangeActive: 'Active in range',
+      rangeTask: 'Task in range',
+      peakDay: 'Peak day',
+      activeDaysLabel: 'Active days',
       searchPlaceholder: 'Search workspaces or sessions',
       detailsEmpty: 'No matching workspaces or sessions',
       settingsPageTitle: 'Dashboard settings',
@@ -929,6 +941,41 @@ window.__ModuleLoader__.load({
         activeDays,
         observedDays,
         dailyAverageActiveMs: observedDays > 0 ? Math.round(activeMs / observedDays) : 0,
+      }
+    }
+
+    /**
+     * 热力图首屏的范围统计：只对 hasObservations 的日期求和；
+     * 峰值日取 activeMs 最大的观测日，无观测时返回 null，避免把补零格当成真实记录。
+     */
+    function summarizeHeatFocus(days) {
+      const list = Array.isArray(days) ? days : []
+      let onlineMs = 0
+      let activeMs = 0
+      let taskMs = 0
+      let activeDays = 0
+      let observedDays = 0
+      let peakDay = null
+      for (const day of list) {
+        if (day?.hasObservations !== true) continue
+        observedDays += 1
+        const dayActive = finite(day.activeMs)
+        onlineMs += finite(day.onlineMs)
+        activeMs += dayActive
+        taskMs += finite(day.taskMs)
+        if (dayActive > 0) activeDays += 1
+        if (peakDay === null || dayActive > peakDay.activeMs) {
+          peakDay = { dateKey: day.dateKey, activeMs: dayActive }
+        }
+      }
+      return {
+        onlineMs,
+        activeMs,
+        taskMs,
+        activeDays,
+        observedDays,
+        dailyAverageActiveMs: observedDays > 0 ? Math.round(activeMs / observedDays) : 0,
+        peakDay,
       }
     }
 
@@ -3214,15 +3261,40 @@ window.__ModuleLoader__.load({
           }, h('i', { style: { width: `${share}%` } }))))
     }
 
+    /** 月度条：12 个月共用同一套高度比例；普通全年视图与首屏下方的填充条复用。 */
+    function renderMonthBars(bars, t, format = 'hms', className = 'heat-month-bars') {
+      const list = Array.isArray(bars) ? bars : []
+      const maxBar = Math.max(0, ...list.map((bar) => finite(bar.activeMs)))
+      return h('div', {
+        className,
+        role: 'group',
+        'aria-label': t('monthBars'),
+      }, list.map((bar) => {
+        const activeMs = finite(bar.activeMs)
+        const ratio = maxBar > 0 ? activeMs / maxBar : 0
+        const height = activeMs > 0 ? Math.max(4, Math.round(ratio * 100)) : 0
+        return h('div', {
+          key: `bar-${bar.month}`,
+          className: 'heat-month-bar',
+          style: { height: `${height}%` },
+          'data-month': bar.abbr,
+          'data-active-ms': activeMs,
+          'aria-label': `${bar.abbr} · ${t('activeLabel')} ${formatDuration(activeMs, format)}`,
+        })
+      }))
+    }
+
     /**
      * 每日时长热力图：每格一天，颜色只表示当天活跃时长深浅。
      * 3m/6m 是周一开头的周网格，单月是 7 列日历，全年是 12 月 × 31 天矩阵加月度条；
      * 三种布局共用同一套格子浮层，无观测格只显示「无记录」。
+     * focusPage 为真时重排为首屏：左侧自适应网格 + 右侧六项范围统计 + 下方 12 个月度条。
      */
     function renderDailyHeatmap(props) {
       const {
         series, status, t, format = 'hms', nowMs, hoverTip,
         rangeValue = HEAT_DEFAULT_RANGE, onSelectRange,
+        focus = null, onToggleFocus, focusPage = false,
       } = props
       // 组件测试可能只传 series（范围在 series.range 里）；显式传了 rangeValue 才以它为准。
       const hasRangeValue = props.rangeValue !== undefined && props.rangeValue !== null
@@ -3234,35 +3306,39 @@ window.__ModuleLoader__.load({
       const month = anchor.getMonth()
       const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`
       const yearPrefix = `${year}-`
-      const titleKey = layout === 'year' ? 'yearHeatTitle' : layout === 'month' ? 'monthHeatTitle' : 'heatmapTitle'
+      const titleKey = focusPage ? 'heatmapFocusTitle' : layout === 'year' ? 'yearHeatTitle' : layout === 'month' ? 'monthHeatTitle' : 'heatmapTitle'
       const fallbackTitle = t('heatmapTitle')
       const rawTitle = t(titleKey)
       const titleText = rawTitle === titleKey || rawTitle === ''
         ? fallbackTitle
-        : layout === 'month'
+        : layout === 'month' && !focusPage
           ? rawTitle.replace('{month}', HEAT_MONTH_ABBR[month])
           : rawTitle
       const hasSeries = series !== null && series !== undefined && Array.isArray(series.days)
+      const allDays = hasSeries ? series.days : []
+      // 单月/全年只统计本范围内的日期；相邻月份即使混进序列也不进入汇总与分母。
+      const scopedDays = layout === 'month'
+        ? allDays.filter((day) => typeof day?.dateKey === 'string' && day.dateKey.startsWith(monthPrefix))
+        : layout === 'year'
+          ? allDays.filter((day) => typeof day?.dateKey === 'string' && day.dateKey.startsWith(yearPrefix))
+          : allDays
+      const focusSummary = focusPage ? summarizeHeatFocus(scopedDays) : null
+      const zoomable = typeof onToggleFocus === 'function'
       const phase = status ?? (hasSeries ? 'ready' : 'loading')
       const head = h('div', { className: 'cs-card-head' },
         h('div', { className: 'cs-card-heading' },
           h('h2', null, titleText),
           renderInfo(t('heatmapInfo'))),
         h('div', { className: 'heat-card-actions' },
-          renderHeatRangePicker({ value: normalizedValue, t, onSelectRange })))
+          renderHeatRangePicker({ value: normalizedValue, t, onSelectRange }),
+          zoomable ? renderZoomButton({ t, focus, onToggleFocus, value: 'heatmap' }) : null))
       let body
       if (!hasSeries) {
         const emptyKey = phase === 'loading' ? 'heatmapLoading' : phase === 'error' ? 'heatmapError' : 'heatmapEmpty'
         body = h('div', { className: 'cs-empty' }, t(emptyKey))
-      } else if (series.days.length === 0) {
+      } else if (allDays.length === 0) {
         body = h('div', { className: 'cs-empty' }, t('heatmapEmpty'))
       } else {
-        // 单月/全年只统计本范围内的日期；相邻月份即使混进序列也不进入汇总与分母。
-        const scopedDays = layout === 'month'
-          ? series.days.filter((day) => typeof day?.dateKey === 'string' && day.dateKey.startsWith(monthPrefix))
-          : layout === 'year'
-            ? series.days.filter((day) => typeof day?.dateKey === 'string' && day.dateKey.startsWith(yearPrefix))
-            : series.days
         const summary = summarizeHeatDays(scopedDays)
         let maxActive = 0
         for (const day of scopedDays) {
@@ -3304,7 +3380,6 @@ window.__ModuleLoader__.load({
 
         if (layout === 'year') {
           const matrix = buildYearMatrix(scopedDays, year)
-          const maxBar = Math.max(0, ...matrix.bars.map((bar) => bar.activeMs))
           const rows = matrix.months.map((entry) => h('div', {
             key: `year-${entry.month}`,
             className: 'heat-year-row',
@@ -3315,27 +3390,11 @@ window.__ModuleLoader__.load({
                 ? renderPad(`pad-${entry.month}-${index}`)
                 : renderCell(cell, `${entry.abbr}-${index}`)
             ))))
-          const bars = h('div', {
-            className: 'heat-month-bars',
-            role: 'group',
-            'aria-label': t('monthBars'),
-          }, matrix.bars.map((bar) => {
-            const ratio = maxBar > 0 ? bar.activeMs / maxBar : 0
-            const height = bar.activeMs > 0 ? Math.max(4, Math.round(ratio * 100)) : 0
-            return h('div', {
-              key: `bar-${bar.month}`,
-              className: 'heat-month-bar',
-              style: { height: `${height}%` },
-              'data-month': bar.abbr,
-              'data-active-ms': bar.activeMs,
-              'aria-label': `${bar.abbr} · ${t('activeLabel')} ${formatDuration(bar.activeMs, format)}`,
-            })
-          }))
           body = [
             h('div', { className: 'heat-year' },
               h('div', { className: 'heat-year-grid' }, rows),
-              bars),
-            summaryNode,
+              renderMonthBars(matrix.bars, t, format)),
+            ...(focusPage ? [] : [summaryNode]),
           ]
         } else if (layout === 'month') {
           const grid = buildMonthGrid(scopedDays, resolved)
@@ -3347,7 +3406,7 @@ window.__ModuleLoader__.load({
               h('div', { className: 'heat-month-weekdays' }, HEAT_WEEKDAY_LABELS.map((label) =>
                 h('span', { key: label }, label))),
               h('div', { className: 'heat-month-grid' }, cells)),
-            summaryNode,
+            ...(focusPage ? [] : [summaryNode]),
           ]
         } else {
           const range = hasRangeValue ? resolved : (series.range ?? resolved)
@@ -3362,11 +3421,17 @@ window.__ModuleLoader__.load({
               cells.push(renderCell(cell, cell.dateKey))
             }
           }
-          const monthRow = h('div', { className: 'heat-months' }, grid.months.map((entry) =>
+          // 首屏网格宽度不再固定：月份刻度改用与格子相同的等比列，随卡片一起铺满。
+          const monthRow = h('div', {
+            className: `heat-months${focusPage ? ' is-focus' : ''}`,
+            style: focusPage ? { gridTemplateColumns: `repeat(${grid.weeks.length}, minmax(0, 1fr))` } : undefined,
+          }, grid.months.map((entry) =>
             h('span', {
               key: `${entry.abbr}-${entry.column}`,
               'data-column': entry.column,
-              style: { left: `calc(${entry.column} * (var(--cs-heat-cell) + var(--cs-heat-gap)))` },
+              style: focusPage
+                ? { gridColumnStart: entry.column + 1 }
+                : { left: `calc(${entry.column} * (var(--cs-heat-cell) + var(--cs-heat-gap)))` },
             }, entry.abbr)))
           const weekdayRow = h('div', { className: 'heat-weekdays' },
             h('span', { className: 'heat-weekdays-spacer', 'aria-hidden': true }),
@@ -3378,15 +3443,61 @@ window.__ModuleLoader__.load({
               h('div', { className: 'heat-plot' },
                 monthRow,
                 h('div', { className: 'heat-weekgrid' }, cells))),
-            summaryNode,
+            ...(focusPage ? [] : [summaryNode]),
           ]
         }
       }
+      let content = body
+      if (focusPage) {
+        const main = Array.isArray(body) ? body.slice() : [body]
+        // 3m/单月没有全年矩阵，也补一排 12 个月度条填充下方空白；全年沿用已有月度条。
+        if (layout !== 'year') {
+          const matrix = buildYearMatrix(scopedDays, year)
+          main.push(renderMonthBars(matrix.bars, t, format, 'heat-month-bars heat-focus-month-bars'))
+        }
+        const peakDay = focusSummary.peakDay
+        const peakDaySource = peakDay === null ? null : scopedDays.find((day) => day?.dateKey === peakDay.dateKey)
+        const peakDayText = peakDay === null
+          ? '—'
+          : `${peakDaySource ? buildHeatTip(peakDaySource, t, format).title : peakDay.dateKey} · ${formatDuration(peakDay.activeMs, format)}`
+        const activeDaysText = focusSummary.observedDays > 0
+          ? `${focusSummary.activeDays}/${focusSummary.observedDays}`
+          : String(focusSummary.activeDays)
+        content = h('div', { className: 'heat-focus-layout' },
+          h('div', { className: 'heat-focus-main' }, ...main),
+          h('aside', { className: 'heat-focus-panel' },
+            renderFocusStat(t('rangeOnline'), formatDuration(focusSummary.onlineMs, format)),
+            renderFocusStat(t('rangeActive'), formatDuration(focusSummary.activeMs, format)),
+            renderFocusStat(t('rangeTask'), formatDuration(focusSummary.taskMs, format)),
+            renderFocusStat(t('peakDay'), peakDayText),
+            renderFocusStat(t('activeDaysLabel'), activeDaysText),
+            renderFocusStat(t('dailyAverageActive'), formatDuration(focusSummary.dailyAverageActiveMs, format))))
+      }
       return h('section', {
-        className: 'cs-card cs-heatmap-card',
+        className: `cs-card cs-heatmap-card${focusPage ? ' cs-heatmap-focus' : ''}${zoomable ? ' has-zoom' : ''}`,
+        'data-focus': 'heatmap',
         'data-range': normalizedValue,
         'data-layout': layout,
-      }, head, body)
+      }, head, content)
+    }
+
+    /**
+     * 热力图首屏独立页：外层负责首屏语义与转场，内部卡片按 focusPage 重排为
+     * 左侧自适应网格、右侧六项范围统计与下方 12 个月度条。
+     */
+    function renderHeatmapFocusPage(props) {
+      const {
+        series, status, t, format = 'hms', nowMs, hoverTip,
+        rangeValue = HEAT_DEFAULT_RANGE, onSelectRange, focus = 'heatmap', onToggleFocus,
+      } = props
+      return h('section', {
+        className: 'cs-heatmap-focus-page',
+        'data-focus': 'heatmap',
+        style: { '--cs-focus-ms': `${focusTransitionMs(prefersReducedMotion())}ms` },
+      }, renderDailyHeatmap({
+        series, status, t, format, nowMs, hoverTip, rangeValue, onSelectRange,
+        focus, onToggleFocus, focusPage: true,
+      }))
     }
 
     /** 概览：首屏大数字、周期卡、趋势卡、每日热力图、任务构成、工作区排行与最近会话。 */
@@ -3405,6 +3516,12 @@ window.__ModuleLoader__.load({
           data, t, isZh, period, format: durationFormat, hoverTip, focus, onToggleFocus,
         })]
       }
+      if (focus === 'heatmap') {
+        return [renderHeatmapFocusPage({
+          series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
+          rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange, focus, onToggleFocus,
+        })]
+      }
       const shownPeriod = data?.period ?? period
       return [
         h('div', { className: 'cs-section-head' },
@@ -3420,7 +3537,7 @@ window.__ModuleLoader__.load({
         renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
         renderDailyHeatmap({
           series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
-          rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange,
+          rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange, focus, onToggleFocus,
         }),
         renderRecentSessions(data, t, nowMs, onOpenWorkspace, durationFormat),
       ]
@@ -5125,6 +5242,50 @@ window.__ModuleLoader__.load({
         .heat-year-grid { grid-template-columns: 32px repeat(31, minmax(0, 1fr)); column-gap: 2px; }
         .heat-year-label { font-size: 9px; padding-right: 4px; }
         .heat-month-bars { height: 84px; }
+      }
+
+      /* 票 15：热力图首屏。放大后整页重排：网格随宽度铺满，右侧固定统计栏，月度条填充下方空白。 */
+      .cs-heatmap-focus-page {
+        min-height: calc(100vh - 260px); display: flex; flex-direction: column;
+        animation: cs-focus-in var(--cs-focus-ms, 240ms) var(--cs-ease) both;
+      }
+      .cs-heatmap-focus-page > .cs-heatmap-card { flex: 1 1 auto; min-height: 0; }
+      .cs-heatmap-focus {
+        --cs-heat-cell: clamp(10px, 1.6vw, 20px); --cs-heat-gap: 4px;
+        flex: 1 1 auto; min-height: 0; gap: 14px;
+      }
+      .cs-heatmap-card.has-zoom .cs-card-head { padding-right: 30px; }
+      .heat-focus-layout {
+        display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 20px;
+        align-items: start; min-height: 0; flex: 1 1 auto;
+      }
+      .heat-focus-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+      .cs-heatmap-focus .heatmap-body { width: 100%; overflow: visible; align-items: stretch; }
+      .cs-heatmap-focus .heat-plot { flex: 1 1 auto; width: auto; min-width: 0; }
+      .cs-heatmap-focus .heat-weekgrid {
+        width: 100%; grid-auto-columns: minmax(0, 1fr); grid-template-rows: repeat(7, auto);
+      }
+      .cs-heatmap-focus .heat-weekgrid .heat-cell {
+        width: auto; height: auto; min-width: 0; aspect-ratio: 1;
+      }
+      .cs-heatmap-focus .heat-weekdays { align-self: stretch; }
+      .cs-heatmap-focus .heat-weekday-list { grid-template-rows: repeat(7, minmax(0, 1fr)); flex: 1 1 auto; }
+      .cs-heatmap-focus .heat-months { display: grid; gap: var(--cs-heat-gap); }
+      .cs-heatmap-focus .heat-months span { position: static; }
+      .cs-heatmap-focus .heat-year { flex: 1 1 auto; }
+      .cs-heatmap-focus .heat-year-grid { width: 100%; }
+      .cs-heatmap-focus .heat-month { width: 100%; max-width: none; }
+      .cs-heatmap-focus .heat-month-grid { width: 100%; }
+      .heat-focus-panel { display: flex; flex-direction: column; gap: 2px; }
+      .heat-focus-panel .cs-fs-item { flex: 0 0 auto; }
+      .cs-heatmap-focus .heat-month-bars { height: auto; min-height: 130px; flex: 1 1 auto; }
+      @media (max-width: 900px) {
+        .heat-focus-layout { grid-template-columns: 1fr; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-heatmap-focus-page, .cs-heatmap-focus, .cs-heatmap-focus .heat-month-bar {
+          animation: none !important; transition: none !important;
+        }
       }
     `
 
