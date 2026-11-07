@@ -3,17 +3,71 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import vm from 'node:vm'
 
+// 轻量 React 替身：只记录元素树，并为组件测试提供最小的状态/引用 hook 运行环境。
+function createTestReact() {
+  let cursor = 0
+  const hooks = []
+  return {
+    createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
+    useState(initial) {
+      const index = cursor++
+      if (!(index in hooks)) hooks[index] = typeof initial === 'function' ? initial() : initial
+      return [hooks[index], (next) => {
+        hooks[index] = typeof next === 'function' ? next(hooks[index]) : next
+      }]
+    },
+    useEffect() {
+      cursor += 1
+    },
+    useRef(initial) {
+      const index = cursor++
+      if (!(index in hooks)) hooks[index] = { current: initial }
+      return hooks[index]
+    },
+    render(component, props) {
+      cursor = 0
+      const tree = component(props)
+      cursor = 0
+      return tree
+    },
+  }
+}
+
 // 通过插件原有装载入口运行实际客户端函数，使用轻量节点记录渲染结果。
 async function loadClientFunctions() {
   let source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
   const anchor = '    const CHRONOSCOPE_CSS = `'
   assert.ok(source.includes(anchor), '客户端测试入口不存在')
   source = source.replace(anchor,
-    `    window.__testFunctions = { renderComposition, renderSessionBreakdown, normalizeBackfill, normalizeDashboard, approximateNoticeVisible, renderApproximateNotice, localDayCount, averageMsPerDay, overviewHint };\n${anchor}`)
-  const React = { createElement: (type, props, ...children) => ({ type, props, children }) }
+    `    window.__testFunctions = { renderComposition, renderSessionBreakdown, normalizeBackfill, normalizeDashboard, approximateNoticeVisible, renderApproximateNotice, localDayCount, averageMsPerDay, overviewHint, Select, isSelectOutside, createSelectOutsideHandler };\n${anchor}`)
+  const React = createTestReact()
   const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) } }
   vm.runInNewContext(source, { window, crypto: { randomUUID: () => 'test-client' } })
-  return window.__testFunctions
+  return { ...window.__testFunctions, React }
+}
+
+function walkTree(node, visit) {
+  if (node == null || node === false) return
+  if (Array.isArray(node)) {
+    for (const child of node) walkTree(child, visit)
+    return
+  }
+  if (typeof node !== 'object') return
+  visit(node)
+  walkTree(node.children, visit)
+}
+
+function findAllByClass(node, className) {
+  const matches = []
+  walkTree(node, (item) => {
+    const classes = typeof item.props?.className === 'string' ? item.props.className.split(/\s+/) : []
+    if (classes.includes(className)) matches.push(item)
+  })
+  return matches
+}
+
+function findByClass(node, className) {
+  return findAllByClass(node, className)[0]
 }
 
 function textOf(node) {
@@ -62,6 +116,164 @@ test('客户端：存在近似记录时保留标记并显示说明', async () =>
   assert.match(notice, /近似/)
   assert.match(notice, /按最后心跳或最后事件时间近似收口/)
   assert.equal(renderApproximateNotice((key) => labels[key] ?? key, false), null)
+})
+
+test('客户端：自定义下拉显示选中项并打勾', async () => {
+  const { Select, React } = await loadClientFunctions()
+  const tree = React.render(Select, {
+    value: 'dark',
+    options: [
+      { value: 'light', label: '浅色' },
+      { value: 'dark', label: '深色' },
+    ],
+    ariaLabel: '外观',
+    onChange: () => {},
+  })
+  const trigger = findByClass(tree, 'cs-select-btn')
+  assert.equal(trigger.props['aria-label'], '外观')
+  assert.equal(textOf(findByClass(tree, 'cs-select-val')), '深色')
+  const options = findAllByClass(tree, 'cs-opt')
+  assert.equal(options.length, 2)
+  assert.equal(options[0].props['aria-selected'], false)
+  assert.equal(options[1].props['aria-selected'], true)
+  assert.match(options[1].props.className, /is-on/)
+  assert.match(textOf(options[1]), /✓/)
+})
+
+test('客户端：自定义下拉接受字符串选项并保留字符串值', async () => {
+  const { Select, React } = await loadClientFunctions()
+  const changes = []
+  let tree = React.render(Select, {
+    value: '5',
+    options: ['1', '2', '5'],
+    ariaLabel: '空闲阈值',
+    onChange: (value) => changes.push(value),
+  })
+  assert.equal(textOf(findByClass(tree, 'cs-select-val')), '5')
+  findByClass(tree, 'cs-select-btn').props.onClick()
+  tree = React.render(Select, {
+    value: '5',
+    options: ['1', '2', '5'],
+    ariaLabel: '空闲阈值',
+    onChange: (value) => changes.push(value),
+  })
+  findAllByClass(tree, 'cs-opt')[1].props.onClick()
+  assert.deepEqual(changes, ['2'])
+  assert.equal(typeof changes[0], 'string')
+})
+
+test('客户端：自定义下拉开合由组件状态驱动并回调选中值', async () => {
+  const { Select, React } = await loadClientFunctions()
+  const changes = []
+  const props = {
+    value: 'light',
+    options: [
+      { value: 'light', label: '浅色' },
+      { value: 'dark', label: '深色' },
+    ],
+    ariaLabel: '外观',
+    onChange: (value) => changes.push(value),
+  }
+  let tree = React.render(Select, props)
+  assert.equal(findByClass(tree, 'cs-select-btn').props['aria-expanded'], false)
+  assert.equal(findByClass(tree, 'cs-select-menu').props.hidden, true)
+
+  findByClass(tree, 'cs-select-btn').props.onClick()
+  tree = React.render(Select, props)
+  assert.equal(findByClass(tree, 'cs-select-btn').props['aria-expanded'], true)
+  assert.equal(findByClass(tree, 'cs-select-menu').props.hidden, false)
+
+  findAllByClass(tree, 'cs-opt')[1].props.onClick()
+  tree = React.render(Select, props)
+  assert.deepEqual(changes, ['dark'])
+  assert.equal(findByClass(tree, 'cs-select-btn').props['aria-expanded'], false)
+  assert.equal(findByClass(tree, 'cs-select-menu').props.hidden, true)
+})
+
+test('客户端：自定义下拉支持键盘开合、移动与选择', async () => {
+  const { Select, React } = await loadClientFunctions()
+  const changes = []
+  const props = {
+    value: 'light',
+    options: [
+      { value: 'light', label: '浅色' },
+      { value: 'dark', label: '深色' },
+      { value: 'system', label: '跟随系统' },
+    ],
+    ariaLabel: '外观',
+    onChange: (value) => changes.push(value),
+  }
+  let tree = React.render(Select, props)
+  const trigger = () => findByClass(tree, 'cs-select-btn')
+  const options = () => findAllByClass(tree, 'cs-opt')
+  const press = (key) => {
+    let prevented = false
+    trigger().props.onKeyDown({ key, preventDefault: () => { prevented = true } })
+    tree = React.render(Select, props)
+    assert.equal(prevented, true, `${key} 应阻止浏览器默认行为`)
+  }
+
+  assert.equal(trigger().props.tabIndex, undefined, '触发器是原生按钮，可通过 Tab 聚焦')
+  press(' ')
+  assert.equal(trigger().props['aria-expanded'], true)
+  assert.match(options()[0].props.className, /is-active/)
+
+  press('ArrowDown')
+  assert.match(options()[1].props.className, /is-active/)
+  press('Enter')
+  assert.deepEqual(changes, ['dark'])
+  assert.equal(trigger().props['aria-expanded'], false)
+
+  press('ArrowDown')
+  press('End')
+  assert.match(options()[2].props.className, /is-active/)
+  press('Home')
+  assert.match(options()[0].props.className, /is-active/)
+  press('Escape')
+  assert.equal(trigger().props['aria-expanded'], false)
+})
+
+test('客户端：自定义下拉点击外部关闭', async () => {
+  const { isSelectOutside, createSelectOutsideHandler } = await loadClientFunctions()
+  const inside = { id: 'inside' }
+  const outside = { id: 'outside' }
+  const root = { contains: (target) => target === inside }
+  assert.equal(isSelectOutside(root, inside), false)
+  assert.equal(isSelectOutside(root, outside), true)
+  assert.equal(isSelectOutside(null, outside), true)
+
+  let closed = 0
+  const handler = createSelectOutsideHandler({ current: root }, () => { closed += 1 })
+  handler({ target: inside })
+  assert.equal(closed, 0, '点击组件内部不关闭')
+  handler({ target: outside })
+  assert.equal(closed, 1, '点击组件外部关闭')
+})
+
+test('客户端：范围菜单向上弹出并两列展示全部选项', async () => {
+  const { Select, React } = await loadClientFunctions()
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const options = [
+    { value: '3m', label: '最近 3 个月', span: 2 },
+    { value: '6m', label: '近半年', span: 2 },
+    { value: 'year', label: '全年', span: 2 },
+    ...months.map((label, index) => ({ value: String(index + 1), label })),
+  ]
+  const tree = React.render(Select, {
+    value: '3m',
+    options,
+    menuVariant: 'grid',
+    placement: 'top',
+    ariaLabel: '热力图范围',
+    onChange: () => {},
+  })
+  assert.match(findByClass(tree, 'cs-select').props.className, /is-top/)
+  assert.match(findByClass(tree, 'cs-select-menu').props.className, /is-grid/)
+  const rendered = findAllByClass(tree, 'cs-opt')
+  assert.equal(rendered.length, 15, '15 个范围选项一次全部渲染')
+  assert.match(rendered[0].props.className, /is-span-2/)
+  assert.match(rendered[2].props.className, /is-span-2/)
+  assert.doesNotMatch(rendered[3].props.className, /is-span-2/)
 })
 
 test('客户端：概览提示标明起算点，周/月按本地日历日显示日均', async () => {
