@@ -76,13 +76,29 @@ function csvRows(file) {
   return { header: lines[0].split(','), lines }
 }
 
-test('设置：默认空闲阈值 5 分钟、周起始周一、显示子代理', async () => {
+test('设置：默认空闲阈值 5 分钟、周起始周一、显示子代理与侧栏名称', async () => {
   const { service } = await startedService(localTime(2026, 11, 4, 10, 0))
   assert.deepEqual(service.getSettings(), {
     idleThresholdMinutes: 5,
     weekStartsOn: 1,
     showSubagents: true,
+    sidebarShowName: true,
   })
+})
+
+test('设置：侧栏名称默认显示，可关闭并在局部更新与重启后保留', async () => {
+  const { domain, service } = await startedService(localTime(2026, 11, 4, 10, 0))
+  assert.equal(service.getSettings().sidebarShowName, true, '默认显示侧栏名称')
+
+  const saved = await service.setSettings({ sidebarShowName: 'false' })
+  assert.equal(saved.sidebarShowName, false, '字符串 false 也收敛为关闭')
+
+  const partial = await service.setSettings({ idleThresholdMinutes: 9 })
+  assert.equal(partial.sidebarShowName, false, '局部更新保留侧栏名称开关')
+
+  const restarted = createChronoScopeDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 4, 10, 0) }) })
+  await restarted.start()
+  assert.equal(restarted.getSettings().sidebarShowName, false, '重启后侧栏名称开关仍保留')
 })
 
 test('设置：非法值收敛到合法范围，局部更新不覆盖其他项，保存后重启仍生效', async () => {
@@ -92,15 +108,18 @@ test('设置：非法值收敛到合法范围，局部更新不覆盖其他项�
     idleThresholdMinutes: 99,
     weekStartsOn: 7,
     showSubagents: false,
+    sidebarShowName: false,
   })
   assert.equal(saved.idleThresholdMinutes, 15, '超过 15 分钟收敛到上界')
   assert.equal(saved.weekStartsOn, 7)
   assert.equal(saved.showSubagents, false)
+  assert.equal(saved.sidebarShowName, false)
 
   const partial = await service.setSettings({ idleThresholdMinutes: -3 })
   assert.equal(partial.idleThresholdMinutes, 1, '低于 1 分钟收敛到下界')
   assert.equal(partial.weekStartsOn, 7, '局部更新保留周起始')
   assert.equal(partial.showSubagents, false, '局部更新保留子代理开关')
+  assert.equal(partial.sidebarShowName, false, '局部更新保留侧栏名称开关')
 
   // 重启：用同一个存储域重新构造领域服务，只通过公共操作确认设置仍在。
   const restarted = createChronoScopeDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 4, 10, 0) }) })
@@ -184,6 +203,7 @@ test('导出 JSON：包含原始区间、原始任务与设置，字段未经裁
     idleThresholdMinutes: 9,
     weekStartsOn: 7,
     showSubagents: true,
+    sidebarShowName: true,
   })
   assert.ok(payload.intervals.some((row) => row.type === 'online'), '原始在线区间必须导出')
   assert.ok(payload.intervals.some((row) => row.type === 'active'), '原始活跃区间必须导出')
@@ -386,10 +406,21 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     const defaults = await harness.call('getSettings')
     assert.equal(defaults.idleThresholdMinutes, 5)
     assert.equal(defaults.weekStartsOn, 1)
+    assert.equal(defaults.sidebarShowName, true)
 
-    const saved = await harness.call('setSettings', { idleThresholdMinutes: 11, weekStartsOn: 7, showSubagents: false })
+    const saved = await harness.call('setSettings', {
+      idleThresholdMinutes: 11,
+      weekStartsOn: 7,
+      showSubagents: false,
+      sidebarShowName: false,
+      ignoredField: 'must-not-persist',
+    })
     assert.equal(saved.idleThresholdMinutes, 11)
-    assert.equal((await harness.call('getSettings')).weekStartsOn, 7, '重启前就能读回新设置')
+    assert.equal(saved.sidebarShowName, false, '侧栏名称开关进入 setSettings 白名单')
+    assert.equal(Object.hasOwn(saved, 'ignoredField'), false, '未知字段仍被白名单丢弃')
+    const readBack = await harness.call('getSettings')
+    assert.equal(readBack.weekStartsOn, 7, '重启前就能读回新设置')
+    assert.equal(readBack.sidebarShowName, false, '侧栏名称开关可读回')
 
     let stats = await harness.call('queryStats', { period: 'week', view: 'dashboard' })
     assert.equal(stats.weekStartsOn, 7, '统计响应如实反映生效中的周起始')
@@ -418,7 +449,9 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     assert.equal(after.backfill.status, 'done', '回填状态保持已完成')
     assert.equal(harness.counts().listCalls, listBefore, '清空后读取不会重新扫描会话日志')
     assert.ok(harness.session.persisted === true, '会话日志对象本身未被改动')
-    assert.equal((await harness.call('getSettings')).idleThresholdMinutes, 11, '设置保留')
+    const keptSettings = await harness.call('getSettings')
+    assert.equal(keptSettings.idleThresholdMinutes, 11, '设置保留')
+    assert.equal(keptSettings.sidebarShowName, false, '清空数据不影响侧栏名称开关')
   } finally {
     await harness.close()
   }
