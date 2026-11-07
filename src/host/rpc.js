@@ -4,8 +4,8 @@
  * Client 半通过它做几件事：每 15 秒上报一次 presence 心跳（可见性、窗口
  * 聚焦、前台会话与最近操作），按日/周/月读取统计与仪表盘明细（同一响应
  * 带回回填状态与子代理明细），读取按天三项时长序列，读写三项设置、导出
- * JSON/CSV，以及二次确认后清空全部统计；另有失败时的历史回填重试。这里
- * 沿用 DSH 的 connection.rpc 通道：Host 侧用
+ * JSON/CSV，以及二次确认后清空全部统计；另有失败时的历史回填重试、回填
+ * 通知读取与「已读」锚点写入。这里沿用 DSH 的 connection.rpc 通道：Host 侧用
  * connection.fetch.register 挂一条 /api/chrono-scope 的精确路由，Client 用
  * connection.rpc.call('/api', 'chrono-scope', { method, payload }) 调用。
  *
@@ -69,6 +69,10 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
         return queryStats(payload)
       case 'queryDailySeries':
         return queryDailySeries(payload)
+      case 'getBackfillStatus':
+        return readBackfillStatus()
+      case 'markBackfillRead':
+        return markBackfillRead(payload)
       case 'retryBackfill':
         return retryBackfill()
       case 'getSettings':
@@ -108,6 +112,20 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
     // 返回真实状态；页面随即用 refreshNonce 再取一次数收敛到 running，
     // 这里不伪造一个服务端还没写下的进度值。
     return service.getBackfillStatus()
+  }
+
+  /**
+   * 写入回填完成事件的已读锚点。事件 id 由 Client 从 queryStats 的 backfill
+   * 里带回；Host 只接受当前事件，未知/旧事件在领域服务里保持原状。
+   */
+  function markBackfillRead(payload) {
+    if (payload === null || typeof payload !== 'object' || typeof payload.eventId !== 'string' || payload.eventId.length === 0) {
+      throw new Error('markBackfillRead 载荷缺少 eventId')
+    }
+    if (typeof service.markBackfillRead !== 'function') {
+      throw new Error('历史回填已读状态不可用')
+    }
+    return service.markBackfillRead(payload.eventId)
   }
 
   /** 接受 Client 的事实上报；时间以 Host 时钟为准，客户端只提供 lastInteractionAt。 */

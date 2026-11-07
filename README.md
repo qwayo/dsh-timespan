@@ -114,8 +114,8 @@ chrono-scope/
 | `src/domain/periods.js` | 按 Host 本地时区构造日/周/月边界与趋势桶，处理跨午夜、跨周、跨月。 |
 | `src/domain/settings.js` | 设置默认值和归一化：空闲阈值 1–15 分钟、周起始、显示子代理。 |
 | `src/domain/export.js` | JSON/CSV 文本生成和文件名/MIME 类型，不负责统计。 |
-| `src/domain/backfill.js` | 把已持久化会话的事件流规划成回填任务；跳过 fork 继承前缀。 |
-| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`getSettings`、`setSettings`、`exportData`、`clearData`、回填状态。 |
+| `src/domain/backfill.js` | 把已持久化会话的事件流规划成回填任务；跳过 fork 继承前缀；归一化回填状态、完成事件代次与通知记录。 |
+| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`getSettings`、`setSettings`、`exportData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill`。 |
 | `src/host/tool.js` | 注册只读工具 `chrono_stats`，把参数转为 `queryStats` 查询，不另算一套数字。 |
 | `locale/zh.json`、`locale/en.json` | 插件管理器和设置页读取的标题与描述。 |
 | `icon.svg` | 插件图标。 |

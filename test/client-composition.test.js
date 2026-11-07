@@ -44,6 +44,7 @@ async function loadClientFunctions() {
       normalizeBackfill, normalizeDashboard, approximateNoticeVisible, renderApproximateNotice,
       localDayCount, averageMsPerDay, overviewHint, clampTipPosition, renderHoverTip,
       buildTrendTip, buildCompositionTip, renderTrendChart, HoverTip, useHoverTip,
+      renderBackfillBanner, renderBackfillNotices, isBackfillUnread,
       Select, isSelectOutside, createSelectOutsideHandler,
       renderWorkspaceRanking, Info, renderInfo,
       overviewInfoMessages: typeof overviewInfoMessages === 'function' ? overviewInfoMessages : undefined,
@@ -758,4 +759,76 @@ test('客户端：明细样式补右内边距并在 390px 折叠带标签数值'
 
   assert.match(declarationsFor(css, '.cs-name-text'), /text-overflow:\s*ellipsis/, '工作区名使用省略号')
   assert.match(declarationsFor(css, '.cs-session-title'), /text-overflow:\s*ellipsis/, '会话标题使用省略号')
+})
+
+test('客户端：回填横幅只在未读事件显示，文案明确为累计回填', async () => {
+  const { renderBackfillBanner, normalizeBackfill, isBackfillUnread } = await loadClientFunctions()
+  const labels = {
+    backfillDone: '历史任务回填完成',
+    backfillDoneHint: '已累计回填 {tasks} 条历史任务，仪表盘数据已更新',
+    backfillDismiss: '知道了',
+  }
+  const t = (key) => labels[key] ?? key
+
+  const unread = normalizeBackfill({
+    status: 'done', eventId: 'backfill_1_v1', readEventId: '', tasksWritten: 130,
+  })
+  assert.equal(isBackfillUnread(unread), true)
+  const banner = renderBackfillBanner(unread, { onDismiss: () => {} }, t)
+  assert.ok(banner, '未读完成事件必须显示横幅')
+  assert.match(textOf(banner), /历史任务回填完成/)
+  assert.match(textOf(banner), /已累计回填 130 条历史任务/, '横幅必须说明是累计回填条数')
+  assert.doesNotMatch(textOf(banner), /已补入 130 条历史任务/)
+
+  // 同一事件已读：组件重挂载/刷新后不显示。
+  const read = normalizeBackfill({
+    status: 'done', eventId: 'backfill_1_v1', readEventId: 'backfill_1_v1', tasksWritten: 130,
+  })
+  assert.equal(isBackfillUnread(read), false)
+  assert.equal(renderBackfillBanner(read, { onDismiss: () => {} }, t), null)
+
+  // 新一代事件即使旧事件已读，也要再提示一次。
+  const next = normalizeBackfill({
+    status: 'done', eventId: 'backfill_2_v1', readEventId: 'backfill_1_v1', tasksWritten: 130,
+  })
+  assert.equal(isBackfillUnread(next), true)
+  assert.ok(renderBackfillBanner(next, { onDismiss: () => {} }, t))
+
+  // 旧响应没有事件字段时不能被误判成「有未读事件」。
+  const legacy = normalizeBackfill({ status: 'done', tasksWritten: 5 })
+  assert.equal(legacy.eventId, '')
+  assert.equal(legacy.notices.length, 0)
+  assert.equal(isBackfillUnread(legacy), false)
+})
+
+test('客户端：设置页通知记录可回看已读事件并显示累计条数', async () => {
+  const { normalizeBackfill, renderBackfillNotices } = await loadClientFunctions()
+  const completedAt = new Date(2026, 10, 5, 13, 2).getTime()
+  const labels = {
+    backfillDone: '历史任务回填完成',
+    backfillNoticeCount: '累计回填 {tasks} 条',
+    backfillNoticeRead: '已读',
+    backfillNoticeUnread: '待确认',
+    backfillNoticeKindInitial: '首次回填',
+    backfillNoticeKindRetry: '手动重试',
+    backfillNoticeEmpty: '暂无通知记录',
+  }
+  const t = (key) => labels[key] ?? key
+  const backfill = normalizeBackfill({
+    status: 'done',
+    notices: [
+      { eventId: 'backfill_1_v1', kind: 'initial', version: 1, total: 1, tasksWritten: 130, completedAt, readAt: completedAt + 1000 },
+      { eventId: 'backfill_2_v1', kind: 'retry', version: 1, total: 1, tasksWritten: 131, completedAt: completedAt + 2000, readAt: 0 },
+    ],
+  })
+  const text = textOf(renderBackfillNotices(backfill, t))
+  assert.match(text, /历史任务回填完成/)
+  assert.match(text, /累计回填 130 条/)
+  assert.match(text, /累计回填 131 条/)
+  assert.match(text, /2026-11-05 13:02/)
+  assert.match(text, /首次回填/)
+  assert.match(text, /手动重试/)
+  assert.match(text, /已读/)
+  assert.match(text, /待确认/)
+  assert.equal(textOf(renderBackfillNotices(normalizeBackfill({ status: 'done' }), t)), '暂无通知记录')
 })
