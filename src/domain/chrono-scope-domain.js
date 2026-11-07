@@ -15,6 +15,7 @@ import {
   PERIODS,
   isPeriod,
   localDayBounds,
+  localDayRange,
   normalizeWeekStart,
   periodRange,
   trendBuckets,
@@ -856,6 +857,68 @@ export function createChronoScopeDomain({ domain, clock }) {
   }
 
   /**
+   * 按 Host 本地时区的自然日返回逐日三项时长序列，供热力图使用。
+   *
+   * `from` / `to` 只用来确定首末自然日（含首尾），时刻部分被忽略；每个桶
+   * 都是完整的本地自然日。原始区间在查询时裁剪，不写入任何预聚合数据。
+   * 在线与活跃是时间并集（实际占用），任务沿用 `queryStats` 的顶层任务
+   * 并集口径；子代理任务不进入三项时长总计。`hasObservations` 表示该日
+   * 是否存在可计入三项口径的观测记录，启用前与无数据的日期为 false。
+   */
+  function queryDailySeries({ from, to } = {}) {
+    if (typeof from !== 'number' || !Number.isFinite(from) || typeof to !== 'number' || !Number.isFinite(to)) {
+      throw new Error('queryDailySeries 需要有限数字的 from 与 to')
+    }
+    if (from > to) throw new Error('queryDailySeries 的 from 不能晚于 to')
+
+    const current = now()
+    const calendar = localDayRange(from, to)
+    const days = calendar.days.map((day) => {
+      const taskRows = projectTasks(day.from, day.to, current)
+      const topLevelRows = taskRows.filter((task) => task.origin !== 'subagent')
+      const activeRanges = projectActiveRanges(day.from, day.to, current)
+      const onlineMs = unionDuration(intervals, ONLINE_INTERVAL, day.from, day.to,
+        (interval) => onlineIntervalEnd(interval, current, day.to))
+      const activeMs = unionRanges(activeRanges.map((entry) => [entry.start, entry.end]))
+      const taskMs = sumTaskUnion(topLevelRows, day.from, day.to)
+      return {
+        dateKey: day.dateKey,
+        from: day.from,
+        to: day.to,
+        onlineMs,
+        activeMs,
+        taskMs,
+        hasObservations: onlineMs > 0 || activeMs > 0 || topLevelRows.length > 0,
+      }
+    })
+    const observedDays = days.filter((day) => day.hasObservations)
+    const onlineMs = observedDays.reduce((total, day) => total + day.onlineMs, 0)
+    const activeMs = observedDays.reduce((total, day) => total + day.activeMs, 0)
+    const taskMs = observedDays.reduce((total, day) => total + day.taskMs, 0)
+    const activeDays = observedDays.filter((day) => day.activeMs > 0).length
+    let peak = null
+    for (const day of observedDays) {
+      if (day.activeMs <= 0) continue
+      if (peak === null || day.activeMs > peak.activeMs) {
+        peak = { dateKey: day.dateKey, activeMs: day.activeMs }
+      }
+    }
+    return {
+      range: calendar.range,
+      days,
+      summary: {
+        onlineMs,
+        activeMs,
+        taskMs,
+        activeDays,
+        observedDays: observedDays.length,
+        dailyAverageActiveMs: observedDays.length > 0 ? Math.round(activeMs / observedDays.length) : 0,
+        peak,
+      },
+    }
+  }
+
+  /**
    * 把工具传入的工作区/会话名称解析成稳定 ID。优先精确 ID，其次大小写不敏感的
    * 完整标题匹配；重名不算匹配，避免把两个同名工作区悄悄合并成一份统计。
    * 返回结构只包含查询需要的身份与状态，不读也不改任何设置。
@@ -1623,6 +1686,7 @@ export function createChronoScopeDomain({ domain, clock }) {
     recordPresence: (input) => withWriteLock(() => recordPresence(input)),
     recordSessionEvent: (input) => withWriteLock(() => applySessionEvent(input)),
     queryStats,
+    queryDailySeries,
     getSettings,
     setSettings,
     exportData,
