@@ -105,6 +105,10 @@ async function loadClientFunctions(windowExtras = {}) {
       renderDailyHeatmap: typeof renderDailyHeatmap === 'function' ? renderDailyHeatmap : undefined,
       useDailySeries: typeof useDailySeries === 'function' ? useDailySeries : undefined,
       HEAT_DEFAULT_RANGE: typeof HEAT_DEFAULT_RANGE === 'string' ? HEAT_DEFAULT_RANGE : undefined,
+      renderTrendCard: typeof renderTrendCard === 'function' ? renderTrendCard : undefined,
+      trendFocusStats: typeof trendFocusStats === 'function' ? trendFocusStats : undefined,
+      renderTrendFocusPage: typeof renderTrendFocusPage === 'function' ? renderTrendFocusPage : undefined,
+      TREND_FOCUS_HEIGHT: typeof TREND_FOCUS_HEIGHT === 'number' ? TREND_FOCUS_HEIGHT : undefined,
     };\n${anchor}`)
   const React = createTestReact()
   const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) }, ...windowExtras }
@@ -1605,6 +1609,7 @@ test('客户端：概览在首屏状态只渲染放大页，普通状态同时�
     focusSummary: '首屏概览', todayOnline: '今日在线时长', todayTask: '今日任务时长',
     onlineLabel: '在线时长', activeShare: '活跃占比', taskCountShort: '任务次数',
     focusTodayActive: '今日活跃', focusWeekActive: '本周活跃', focusMonthActive: '本月活跃',
+    peakActive: '峰值活跃', peakPeriod: '最活跃时段', trendFocusTitle: '条状图首屏',
   })[key] ?? key
   const data = sampleDashboardData()
   const hoverTip = { tip: null, show() {}, hide() {} }
@@ -1618,6 +1623,9 @@ test('客户端：概览在首屏状态只渲染放大页，普通状态同时�
   assert.equal(allOf(normal, byClass('cs-cycle')).length, 3, '普通概览保留日/周/月周期卡')
   assert.ok(allOf(normal, byClass('cs-trend-card')).length >= 1)
   assert.ok(allOf(normal, byClass('cs-composition')).length >= 1)
+  const normalZoomButtons = allOf(normal, byClass('cs-zoom-btn'))
+  assert.equal(normalZoomButtons.length, 2, '首屏卡片与趋势卡各有一个缩放按钮')
+  assert.ok(normalZoomButtons.every((button) => button.props['aria-label'] === '设为首屏'))
 
   const focused = renderOverviewView({ ...common, focus: 'hero' })
   assert.equal(allOf(focused, byClass('cs-hero-focus')).length, 1, '首屏态只留放大页')
@@ -1626,8 +1634,19 @@ test('客户端：概览在首屏状态只渲染放大页，普通状态同时�
   assert.equal(allOf(focused, byClass('cs-composition')).length, 0, '首屏态不渲染构成卡')
   assert.match(textOf(focused), /3:00:00/, '放大页主数字来自今日活跃')
 
-  const futureFocus = renderOverviewView({ ...common, focus: 'trend' })
-  assert.equal(allOf(futureFocus, byClass('cs-cycle')).length, 3, '尚未实现的 trend 首屏不崩溃，回落普通概览')
+  const trendFocus = renderOverviewView({ ...common, focus: 'trend' })
+  assert.equal(allOf(trendFocus, byClass('cs-trend-focus')).length, 1, '趋势首屏只留独立页')
+  assert.equal(allOf(trendFocus, byClass('cs-hero-focus')).length, 0, '两种首屏互斥')
+  assert.equal(allOf(trendFocus, byClass('cs-cycle')).length, 0, '趋势首屏不渲染周期卡')
+  assert.equal(allOf(trendFocus, byClass('cs-trend-card')).length, 0, '趋势首屏不渲染普通趋势卡')
+  assert.equal(allOf(trendFocus, byClass('cs-composition')).length, 0, '趋势首屏不渲染构成卡')
+  const trendText = textOf(trendFocus)
+  for (const expected of ['条状图首屏', '峰值活跃', '最活跃时段', '活跃占比', '75%']) {
+    assert.match(trendText, new RegExp(expected), `趋势首屏包含「${expected}」`)
+  }
+
+  const heatmapFocus = renderOverviewView({ ...common, focus: 'heatmap' })
+  assert.equal(allOf(heatmapFocus, byClass('cs-cycle')).length, 3, '#15 尚未实现的热力图首屏回落普通概览')
 })
 
 test('客户端：首屏缩放按钮与进度条样式无边框，并尊重减少动效', async () => {
@@ -1873,4 +1892,121 @@ test('客户端：热力图月份绝对定位、星期与网格共用七行对�
   for (const color of ['#c9d8ea', '#9fbde0', '#5e8fc9', '#1F4E94']) {
     assert.match(css, new RegExp(color, 'i'), `默认蓝热力色阶包含 ${color}`)
   }
+})
+
+test('客户端：条状图首屏统计给出峰值桶、最活跃时段、活跃占比与任务时长', async () => {
+  const { trendFocusStats } = await loadClientFunctions()
+  const data = sampleDashboardData()
+  const stats = trendFocusStats(data, 'day', true, 'hms')
+  assert.equal(stats.peakMs, 3_600_000, '峰值取最大活跃桶')
+  assert.equal(stats.peakLabel, '11:00', '最活跃时段用统一的桶标签')
+  assert.equal(stats.activeSharePct, 75, '活跃占比 = 3:00:00 / 4:00:00')
+  assert.equal(stats.taskMs, 3_600_000, '任务时长取当前周期总任务时长')
+
+  const empty = trendFocusStats({ trend: [], activeMs: 0, onlineMs: 0, taskMs: 0 }, 'day', true, 'hms')
+  assert.equal(empty.peakMs, 0)
+  assert.equal(empty.peakLabel, '—')
+  assert.equal(empty.activeSharePct, 0)
+  assert.equal(empty.taskMs, 0)
+})
+
+test('客户端：条状图首屏独立成页，按可用高度重排并给出统计与悬停浮层', async () => {
+  const { renderTrendFocusPage, TREND_FOCUS_HEIGHT } = await loadClientFunctions()
+  assert.equal(TREND_FOCUS_HEIGHT, 360, '首屏图形使用独立高度')
+  const labels = {
+    trendFocusTitle: '条状图首屏', focusSummary: '首屏概览', trendInfo: '活跃与任务独立统计',
+    activeLabel: '活跃', taskLabel: '任务', peakActive: '峰值活跃', peakPeriod: '最活跃时段',
+    activeShare: '活跃占比', focusSet: '设为首屏', focusUnset: '退出首屏', emptyDashboard: '暂无记录',
+  }
+  const t = (key) => labels[key] ?? key
+  const calls = []
+  const hoverEvents = []
+  const page = renderTrendFocusPage({
+    data: sampleDashboardData(), t, isZh: true, period: 'day', format: 'hms',
+    hoverTip: { tip: null, show: (content) => hoverEvents.push(content), hide() {} },
+    onToggleFocus: (value) => calls.push(value),
+  })
+  assert.match(page.props.className, /\bcs-trend-focus\b/, '放大态是独立首屏页')
+  assert.equal(page.props['data-focus'], 'trend', '与活跃时长共用 data-focus 语义')
+  assert.equal(page.props.style['--cs-focus-ms'], '240ms', '首屏转场时长变量与 hero 页一致')
+
+  const panel = allOf(page, byClass('cs-focus-panel'))[0]
+  assert.ok(panel, '统计面板存在')
+  const panelText = textOf(panel)
+  for (const expected of ['峰值活跃', '最活跃时段', '活跃占比', '任务']) {
+    assert.match(panelText, new RegExp(expected), `统计面板包含「${expected}」`)
+  }
+  assert.match(panelText, /1:00:00/, '峰值活跃为最大桶的活跃时长')
+  assert.match(panelText, /11:00/, '最活跃时段')
+  assert.match(panelText, /75%/, '活跃占比')
+  assert.match(panelText, /任务 1:00:00/, '任务时长')
+
+  const chartSvg = allOf(page, (node) => node.type === 'svg' && node.props?.viewBox === `0 0 1000 ${TREND_FOCUS_HEIGHT}`)[0]
+  assert.ok(chartSvg, 'SVG 视图高度随首屏高度重算')
+  const bars = allOf(page, byClass('cs-bar'))
+  assert.ok(bars.length >= 2, '首屏仍渲染真实柱形')
+  const tallest = Math.max(...bars.map((bar) => bar.props.height))
+  assert.equal(tallest, TREND_FOCUS_HEIGHT - 12, '柱高按可用高度计算而不是拉宽')
+
+  const groups = allOf(page, byClass('cs-bar-group'))
+  groups[1].props.onMouseEnter(fakeEvent())
+  assert.equal(hoverEvents[0].title, '11:00', '悬停浮出该时段')
+  assert.equal(hoverEvents[0].rows[0].value, '1:00:00', '浮出活跃时长')
+  assert.equal(hoverEvents[0].rows[1].value, '0:30:00', '浮出任务时长')
+
+  const zoom = allOf(page, byClass('cs-zoom-btn'))[0]
+  assert.equal(zoom.props['aria-label'], '退出首屏')
+  assert.equal(zoom.props['aria-pressed'], true)
+  zoom.props.onClick()
+  assert.deepEqual(calls, ['trend'], '再次点击缩回并回到同一首屏状态')
+})
+
+test('客户端：概览趋势卡复用首屏缩放按钮，趋势视图不传回调时不渲染按钮', async () => {
+  const { renderTrendCard } = await loadClientFunctions()
+  const labels = {
+    trendDay: '今日逐小时', trendWeek: '本周每日', trendMonth: '本月每日',
+    trendInfo: '活跃与任务独立统计', activeLabel: '活跃', taskLabel: '任务',
+    focusSet: '设为首屏', focusUnset: '退出首屏',
+  }
+  const t = (key) => labels[key] ?? key
+  const hoverTip = { tip: null, show() {}, hide() {} }
+  const data = sampleDashboardData()
+  const calls = []
+  const card = renderTrendCard(data, t, true, hoverTip, 'hms', 'day', {
+    focus: null, onToggleFocus: (value) => calls.push(value),
+  })
+  const button = allOf(card, byClass('cs-zoom-btn'))[0]
+  assert.ok(button, '概览趋势卡右上角有缩放按钮')
+  assert.equal(button.props['aria-label'], '设为首屏')
+  assert.equal(button.props['aria-pressed'], false)
+  button.props.onClick()
+  assert.deepEqual(calls, ['trend'], '点击把趋势卡设为首屏')
+
+  const focused = renderTrendCard(data, t, true, hoverTip, 'hms', 'day', {
+    focus: 'trend', onToggleFocus: () => {},
+  })
+  const focusedButton = allOf(focused, byClass('cs-zoom-btn'))[0]
+  assert.equal(focusedButton.props['aria-label'], '退出首屏', '首屏态图标语义为缩回')
+  assert.equal(focusedButton.props['aria-pressed'], true)
+
+  const plain = renderTrendCard(data, t, true, hoverTip, 'hms', 'day')
+  assert.equal(allOf(plain, byClass('cs-zoom-btn')).length, 0, '趋势视图复用同一卡片时不显示按钮')
+})
+
+test('客户端：条状图首屏按可用高度铺开、悬停分组放大并尊重减少动效', async () => {
+  const css = await loadClientCss()
+  assert.match(declarationsFor(css, '.cs-trend-focus'), /min-height:\s*calc\(100vh - 260px\)/, '首屏页占满可用高度')
+  const chart = declarationsFor(css, '.cs-trend-focus .cs-chart')
+  assert.match(chart, /height:\s*calc\(100vh - 420px\)/, '图表容器按视口高度铺开')
+  assert.match(declarationsFor(css, '.cs-trend-focus .cs-plot'), /flex:\s*1/, '绘图区弹性填满容器')
+  assert.match(declarationsFor(css, '.cs-trend-focus .cs-chart svg'), /height:\s*100%/, 'SVG 填满绘图区')
+  assert.match(
+    declarationsFor(css, '.cs-trend-focus .cs-bar-group:hover .cs-bar-pair'),
+    /scale\(1\.3/,
+    '悬停分组放大到 1.3 倍')
+  assert.match(
+    declarationsFor(css, '.cs-trend-focus .cs-bar-group:hover .cs-bar-pair'),
+    /brightness\(1\.12\)/,
+    '悬停分组提亮')
+  assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-trend-focus/, '减少动效下取消首屏动画')
 })
