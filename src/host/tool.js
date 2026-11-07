@@ -438,4 +438,3 @@ function formatDateTime(timestamp) {
   const at = new Date(timestamp)
   return `${at.getFullYear()}-${pad2(at.getMonth() + 1)}-${pad2(at.getDate())} ${pad2(at.getHours())}:${pad2(at.getMinutes())}`
 }
-
