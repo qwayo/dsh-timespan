@@ -1260,6 +1260,181 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 通用自定义下拉：开合、选中与键盘焦点都由组件自身状态驱动。
+     * 外部只读写 value，并通过 onChange(value) 复用原有业务处理，不再依赖原生事件。
+     * menuVariant='grid' 时用两列网格一次展示全部选项；placement='top' 时向上弹出，
+     * 为热力图等选项较多的范围菜单预留同一套接口。
+     */
+    function normalizeSelectOptions(options) {
+      if (!Array.isArray(options)) return []
+      return options.map((option, index) => {
+        if (option !== null && typeof option === 'object') {
+          return {
+            value: option.value,
+            label: option.label === undefined || option.label === null ? String(option.value) : String(option.label),
+            disabled: option.disabled === true,
+            span: option.span === 2 ? 2 : 1,
+            key: option.key === undefined ? index : option.key,
+          }
+        }
+        return { value: option, label: String(option), disabled: false, span: 1, key: index }
+      })
+    }
+
+    function selectOptionIndex(options, value) {
+      return options.findIndex((option) => String(option.value) === String(value))
+    }
+
+    function selectLabelOf(options, value) {
+      const index = selectOptionIndex(options, value)
+      return index >= 0 ? options[index].label : ''
+    }
+
+    function nextSelectIndex(options, index, step) {
+      const count = options.length
+      if (count === 0) return -1
+      let cursor = index >= 0 ? index : step > 0 ? -1 : 0
+      for (let hop = 0; hop < count; hop += 1) {
+        cursor = (cursor + step + count) % count
+        if (!options[cursor].disabled) return cursor
+      }
+      return -1
+    }
+
+    function edgeSelectIndex(options, edge) {
+      if (edge === 'last') {
+        for (let index = options.length - 1; index >= 0; index -= 1) {
+          if (!options[index].disabled) return index
+        }
+        return -1
+      }
+      return options.findIndex((option) => !option.disabled)
+    }
+
+    function isSelectOutside(root, target) {
+      if (root === null || root === undefined || typeof root.contains !== 'function') return true
+      if (target === null || target === undefined) return true
+      return !root.contains(target)
+    }
+
+    function createSelectOutsideHandler(rootRef, close) {
+      return (event) => {
+        if (isSelectOutside(rootRef?.current ?? null, event?.target ?? null)) close()
+      }
+    }
+
+    let selectIdSequence = 0
+
+    function Select(props) {
+      const options = normalizeSelectOptions(props.options)
+      const selectedIndex = selectOptionIndex(options, props.value)
+      const [open, setOpen] = React.useState(false)
+      const [activeIndex, setActiveIndex] = React.useState(selectedIndex >= 0 ? selectedIndex : edgeSelectIndex(options, 'first'))
+      const rootRef = React.useRef(null)
+      const triggerRef = React.useRef(null)
+      const idRef = React.useRef(null)
+      if (idRef.current === null) idRef.current = `cs-select-${++selectIdSequence}`
+      const menuId = `${idRef.current}-menu`
+      const optionId = (index) => `${idRef.current}-option-${index}`
+
+      React.useEffect(() => {
+        if (!open || typeof document === 'undefined') return undefined
+        const handle = createSelectOutsideHandler(rootRef, () => setOpen(false))
+        document.addEventListener('pointerdown', handle, true)
+        return () => document.removeEventListener('pointerdown', handle, true)
+      }, [open])
+
+      const openMenu = () => {
+        setActiveIndex(selectedIndex >= 0 ? selectedIndex : edgeSelectIndex(options, 'first'))
+        setOpen(true)
+      }
+      const closeMenu = () => setOpen(false)
+      const choose = (option) => {
+        setOpen(false)
+        if (String(option.value) !== String(props.value)) props.onChange?.(option.value)
+        if (triggerRef.current && typeof triggerRef.current.focus === 'function') triggerRef.current.focus()
+      }
+      const onKeyDown = (event) => {
+        if (props.disabled === true) return
+        const key = event.key
+        if (key === 'Escape') {
+          if (open) {
+            event.preventDefault()
+            closeMenu()
+          }
+          return
+        }
+        if (key === 'Tab') {
+          if (open) setOpen(false)
+          return
+        }
+        if (key === 'ArrowDown' || key === 'ArrowUp') {
+          event.preventDefault()
+          if (!open) openMenu()
+          else setActiveIndex((index) => nextSelectIndex(options, index, key === 'ArrowDown' ? 1 : -1))
+          return
+        }
+        if (key === 'Home' || key === 'End') {
+          if (!open) return
+          event.preventDefault()
+          setActiveIndex(edgeSelectIndex(options, key === 'Home' ? 'first' : 'last'))
+          return
+        }
+        if (key === 'Enter' || key === ' ') {
+          event.preventDefault()
+          if (!open) openMenu()
+          else if (activeIndex >= 0 && options[activeIndex] && !options[activeIndex].disabled) choose(options[activeIndex])
+        }
+      }
+
+      return h('div', {
+        className: `cs-select${props.placement === 'top' ? ' is-top' : ''}${props.menuVariant === 'grid' ? ' is-grid' : ''}${props.className ? ` ${props.className}` : ''}`,
+        ref: rootRef,
+      },
+        h('button', {
+          type: 'button',
+          ref: triggerRef,
+          className: 'cs-select-btn',
+          disabled: props.disabled === true,
+          'aria-label': props.ariaLabel,
+          'aria-haspopup': 'listbox',
+          'aria-expanded': open,
+          'aria-controls': menuId,
+          'aria-activedescendant': open && activeIndex >= 0 ? optionId(activeIndex) : undefined,
+          onClick: () => {
+            if (props.disabled === true) return
+            if (open) closeMenu()
+            else openMenu()
+          },
+          onKeyDown,
+        },
+        h('span', { className: 'cs-select-val' }, selectLabelOf(options, props.value)),
+        h('span', { className: 'cs-chev', 'aria-hidden': true })),
+        h('div', {
+          id: menuId,
+          className: `cs-select-menu${props.menuVariant === 'grid' ? ' is-grid' : ''}`,
+          role: 'listbox',
+          'aria-label': props.ariaLabel,
+          hidden: !open,
+        }, options.map((option, index) => h('button', {
+          key: option.key,
+          id: optionId(index),
+          type: 'button',
+          role: 'option',
+          tabIndex: -1,
+          disabled: option.disabled,
+          className: `cs-opt${String(option.value) === String(props.value) ? ' is-on' : ''}${index === activeIndex ? ' is-active' : ''}${props.menuVariant === 'grid' && option.span === 2 ? ' is-span-2' : ''}`,
+          'aria-selected': String(option.value) === String(props.value),
+          onMouseEnter: () => { if (!option.disabled) setActiveIndex(index) },
+          onClick: () => choose(option),
+        },
+        h('span', { className: 'cs-opt-label' }, option.label),
+        String(option.value) === String(props.value)
+          ? h('span', { className: 'cs-opt-check', 'aria-hidden': true }, '✓')
+          : null))))
+    }
+
+    /**
      * settings.section 设置页。表单草稿只是瞬时 UI 状态：初始值从 Host 读取，
      * 保存后以 Host 返回值为准，不写 localStorage、不缓存任何业务状态。
      */
@@ -1330,23 +1505,26 @@ window.__ModuleLoader__.load({
             h('section', { className: 'cs-settings-group' },
               h('h3', null, t('settingsSectionGeneral')),
               settingsRow(t, 'settingsIdleLabel', 'settingsIdleHint',
-                h('select', {
+                h(Select, {
                   value: draft?.idleThresholdMinutes ?? '5',
+                  options: idleOptions,
                   disabled: busy,
-                  'aria-label': t('settingsIdleLabel'),
-                  onChange: (event) => patch('idleThresholdMinutes', event?.target?.value ?? '5'),
-                }, idleOptions.map((value) => h('option', { key: value, value }, value))),
+                  ariaLabel: t('settingsIdleLabel'),
+                  onChange: (value) => patch('idleThresholdMinutes', value),
+                }),
                 h('span', { className: 'cs-settings-unit' }, t('settingsIdleUnit')),
                 h('span', { className: 'cs-settings-unit' }, t('settingsIdleRange'))),
               settingsRow(t, 'settingsWeekLabel', 'settingsWeekHint',
-                h('select', {
+                h(Select, {
                   value: draft?.weekStartsOn ?? '1',
+                  options: [
+                    { value: '1', label: t('settingsWeekMonday') },
+                    { value: '7', label: t('settingsWeekSunday') },
+                  ],
                   disabled: busy,
-                  'aria-label': t('settingsWeekLabel'),
-                  onChange: (event) => patch('weekStartsOn', event?.target?.value === '7' ? '7' : '1'),
-                },
-                  h('option', { value: '1' }, t('settingsWeekMonday')),
-                  h('option', { value: '7' }, t('settingsWeekSunday'))))),
+                  ariaLabel: t('settingsWeekLabel'),
+                  onChange: (value) => patch('weekStartsOn', value === '7' ? '7' : '1'),
+                }))),
             h('section', { className: 'cs-settings-group' },
               h('h3', null, t('settingsSectionDisplay')),
               settingsRow(t, 'settingsSubagentLabel', 'settingsSubagentHint',
@@ -1398,14 +1576,14 @@ window.__ModuleLoader__.load({
           catch { return 'light' }
         })
         const [paletteSaveError, setPaletteSaveError] = React.useState(false)
-        const changeAppearance = (event) => {
-          const value = event.target.value
+        const changeAppearance = (value) => {
+          if (value !== 'light' && value !== 'dark') return
           setAppearance(value)
           try { window.localStorage.setItem('chrono-scope.appearance', value); setPaletteSaveError(false) }
           catch { setPaletteSaveError(true) }
         }
-        const changePalette = (event) => {
-          const value = event.target.value
+        const changePalette = (value) => {
+          if (!['mono', 'blue', 'green', 'warm'].includes(value)) return
           setPalette(value)
           try { window.localStorage.setItem('chrono-scope.palette', value); setPaletteSaveError(false) }
           catch { setPaletteSaveError(true) }
@@ -1544,16 +1722,28 @@ window.__ModuleLoader__.load({
                   h('h1', null, t('title')),
                   h('span', { className: 'cs-sub' }, t('subtitle')))),
               h('div', { className: 'cs-topbar-right' },
-                h('label', { className: 'cs-palette-label' }, t('appearanceLabel'),
-                  h('select', { value: appearance, onChange: changeAppearance, 'aria-label': t('appearanceLabel') },
-                    h('option', { value: 'light' }, t('appearanceLight')),
-                    h('option', { value: 'dark' }, t('appearanceDark')))),
-                h('label', { className: 'cs-palette-label' }, t('paletteLabel'),
-                  h('select', { value: palette, onChange: changePalette, 'aria-label': t('paletteLabel') },
-                    h('option', { value: 'mono' }, t('paletteMono')),
-                    h('option', { value: 'blue' }, t('paletteBlue')),
-                    h('option', { value: 'green' }, t('paletteGreen')),
-                    h('option', { value: 'warm' }, t('paletteWarm')))),
+                h('span', { className: 'cs-palette-label' }, t('appearanceLabel'),
+                  h(Select, {
+                    value: appearance,
+                    options: [
+                      { value: 'light', label: t('appearanceLight') },
+                      { value: 'dark', label: t('appearanceDark') },
+                    ],
+                    ariaLabel: t('appearanceLabel'),
+                    onChange: changeAppearance,
+                  })),
+                h('span', { className: 'cs-palette-label' }, t('paletteLabel'),
+                  h(Select, {
+                    value: palette,
+                    options: [
+                      { value: 'mono', label: t('paletteMono') },
+                      { value: 'blue', label: t('paletteBlue') },
+                      { value: 'green', label: t('paletteGreen') },
+                      { value: 'warm', label: t('paletteWarm') },
+                    ],
+                    ariaLabel: t('paletteLabel'),
+                    onChange: changePalette,
+                  })),
                 h('span', { className: `cs-live${data.activeRunning ? ' is-live' : ''}` },
                   h('span', { className: 'cs-dot' }), t(data.activeRunning ? 'live' : 'idle')),
                 h('span', { className: `cs-live${data.taskRunning ? ' is-live' : ''}` },
@@ -1667,7 +1857,72 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** 页面与设置页共用同一套自定义下拉外观；颜色跟随所在页面作用域的主题变量。 */
+    const CS_SELECT_CSS = `
+      .cs-select { position: relative; display: inline-flex; vertical-align: middle; min-width: 0; }
+      .cs-select-btn {
+        display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
+        min-width: 104px; min-height: 34px; padding: 6px 10px;
+        font: inherit; font-size: 12px; line-height: 18px;
+        color: var(--dsw-alias-label-primary);
+        background: var(--dsw-alias-bg-layer-1);
+        border: 1px solid var(--dsw-alias-border-l1);
+        border-radius: 8px; cursor: pointer;
+        transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+      }
+      .cs-select-btn:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 45%, var(--dsw-alias-border-l1));
+        background: var(--dsw-alias-bg-layer-2);
+      }
+      .cs-select-btn:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      .cs-select-btn[aria-expanded="true"] {
+        border-color: var(--dsw-alias-brand-primary);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, transparent);
+      }
+      .cs-select-btn:disabled { opacity: .55; cursor: default; }
+      .cs-select-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cs-chev {
+        width: 7px; height: 7px; flex: 0 0 7px;
+        border-right: 1.5px solid var(--dsw-alias-label-secondary);
+        border-bottom: 1.5px solid var(--dsw-alias-label-secondary);
+        transform: rotate(45deg) translateY(-2px);
+        transition: transform 160ms ease;
+      }
+      .cs-select-btn[aria-expanded="true"] .cs-chev { transform: rotate(-135deg) translateY(-2px); }
+      .cs-select-menu {
+        position: absolute; z-index: 60; top: calc(100% + 6px); right: 0;
+        min-width: 100%; max-height: 260px; overflow-y: auto;
+        padding: 4px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px;
+        background: var(--dsw-alias-bg-layer-1);
+        box-shadow: 0 14px 34px rgba(0, 0, 0, .16);
+        animation: cs-menu-in 180ms ease both;
+      }
+      .cs-select-menu[hidden] { display: none !important; }
+      .cs-select.is-top .cs-select-menu { top: auto; bottom: calc(100% + 6px); animation-name: cs-menu-in-top; }
+      .cs-select-menu.is-grid {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px;
+        min-width: 224px; max-height: none; overflow: visible; padding: 6px;
+      }
+      @keyframes cs-menu-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes cs-menu-in-top { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      .cs-opt {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        width: 100%; text-align: left; white-space: nowrap;
+        padding: 7px 10px; border: 0; border-radius: 5px; background: transparent;
+        font: inherit; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-primary);
+        cursor: pointer; transition: background-color 160ms ease, color 160ms ease;
+      }
+      .cs-opt:hover:not(:disabled), .cs-opt.is-active { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent); }
+      .cs-opt:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -2px; }
+      .cs-opt.is-on { color: var(--dsw-alias-brand-primary); font-weight: 600; }
+      .cs-opt-check { flex: 0 0 auto; margin-left: 12px; font-size: 11px; }
+      .cs-select-menu.is-grid .cs-opt { justify-content: center; text-align: center; padding: 6px 8px; }
+      .cs-select-menu.is-grid .cs-opt.is-span-2 { grid-column: 1 / -1; justify-content: space-between; text-align: left; }
+      .cs-select-menu.is-grid .cs-opt.is-on:not(.is-span-2) { justify-content: center; gap: 6px; }
+    `
+
     const CHRONOSCOPE_CSS = `
+      ${CS_SELECT_CSS}
       .cs-page {
         box-sizing: border-box;
         min-height: 100%;
@@ -1908,7 +2163,7 @@ window.__ModuleLoader__.load({
       .cs-brand-text h1 { font-size: 20px; line-height: 26px; }
       .cs-sub { font-size: 12px; }
       .cs-palette-label { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
-      .cs-palette-label select { font: inherit; color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-1); border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; min-height: 34px; padding: 0 28px 0 10px; cursor: pointer; }
+      .cs-palette-label .cs-select-btn { min-height: 34px; font-size: 12px; }
       .cs-segmented { background: var(--dsw-alias-bg-layer-1); }
       .cs-segment { padding: 7px 16px; }
       .cs-segment.is-active { background: var(--dsw-alias-brand-primary); color: #fff; box-shadow: none; }
@@ -1926,7 +2181,7 @@ window.__ModuleLoader__.load({
       .cs-summary { padding: 13px 4px; }
       .cs-table-body { max-height: 400px; }
       .cs-session { padding: 10px 0; }
-      .cs-page button:focus-visible, .cs-page select:focus-visible, .cs-summary:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 3px; }
+      .cs-page button:focus-visible, .cs-summary:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 3px; }
       @media (max-width: 860px) { .cs-page { padding: 18px 16px 28px; } .cs-cycles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .cs-cycle { padding: 14px; } }
       @media (max-width: 600px) { .cs-cycles { grid-template-columns: 1fr; } .cs-chart svg { height: 130px; } .cs-topbar-right { justify-content: flex-start; } }
 
@@ -1942,7 +2197,7 @@ window.__ModuleLoader__.load({
       .cs-summary-item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); padding-bottom: 9px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
       .cs-summary-item:last-child { border-bottom: 0; padding-bottom: 0; }
       .cs-summary-item strong { color: var(--dsw-alias-label-primary); font-size: 14px; font-variant-numeric: tabular-nums; }
-      .cs-card, .cs-cycle, .cs-segment, .cs-palette-label select { transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
+      .cs-card, .cs-cycle, .cs-segment, .cs-palette-label .cs-select-btn { transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
       .cs-page { --cs-on-accent: #fff; }
       .cs-appearance-dark {
         color-scheme: dark;
@@ -2099,6 +2354,7 @@ window.__ModuleLoader__.load({
 
     /** 设置页独立挂载在 settings.section，样式自成一套，不依赖仪表盘根节点。 */
     const CHRONOSCOPE_SETTINGS_CSS = `
+      ${CS_SELECT_CSS}
       .cs-settings { box-sizing: border-box; color: var(--dsw-alias-label-primary); font-family: inherit; }
       .cs-settings *, .cs-settings *::before, .cs-settings *::after { box-sizing: border-box; }
       .cs-settings-inner { display: flex; flex-direction: column; gap: 18px; max-width: 720px; }
@@ -2114,12 +2370,13 @@ window.__ModuleLoader__.load({
       .cs-settings-label { font-size: 13px; line-height: 20px; font-weight: 600; }
       .cs-settings-row-hint { margin: 3px 0 0; font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); }
       .cs-settings-control { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-      .cs-settings-control select, .cs-settings-control input[type="number"] {
+      .cs-settings-control input[type="number"] {
         appearance: none; font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 8px;
         color: var(--dsw-alias-label-primary); border: 1px solid var(--dsw-alias-border-l1);
         background: var(--dsw-alias-bg-layer-1); min-width: 96px;
       }
-      .cs-settings-control select:focus-visible, .cs-settings-control input:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      .cs-settings-control input:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      .cs-settings-control .cs-select-btn { min-width: 96px; font-size: 13px; }
       .cs-settings-unit { font-size: 12px; color: var(--dsw-alias-label-secondary); }
       .cs-settings-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
       .cs-settings-switch input { width: 16px; height: 16px; accent-color: var(--dsw-alias-brand-primary); cursor: pointer; }
@@ -2127,6 +2384,9 @@ window.__ModuleLoader__.load({
       .cs-settings-status { font-size: 12px; color: var(--dsw-alias-state-success-primary); }
       .cs-settings-status.is-error { color: var(--dsw-alias-state-error-primary); }
       @media (max-width: 620px) { .cs-settings-row { grid-template-columns: 1fr; gap: 6px; } }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-settings *, .cs-settings *::before, .cs-settings *::after { transition-duration: 0s; animation-duration: 0s; }
+      }
     `
 
     return {
