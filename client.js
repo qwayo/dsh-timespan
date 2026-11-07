@@ -44,6 +44,8 @@ window.__ModuleLoader__.load({
     const FOCUS_KEY = 'chrono-scope.focus'
     const FOCUS_VALUES = ['hero', 'trend', 'heatmap']
     const FOCUS_TRANSITION_MS = 240
+    /** 条状图首屏的 SVG 视图高度；柱高与网格按它重新计算，而不是拉伸普通卡片。 */
+    const TREND_FOCUS_HEIGHT = 360
 
     const zh = {
       title: 'ChronoScope',
@@ -108,6 +110,8 @@ window.__ModuleLoader__.load({
       recentSessionsEmpty: '当前周期还没有会话记录',
       trendSummary: '本周期概览',
       peakActive: '峰值活跃',
+      peakPeriod: '最活跃时段',
+      trendFocusTitle: '条状图首屏',
       searchPlaceholder: '搜索工作区或会话',
       detailsEmpty: '没有匹配的工作区或会话',
       settingsPageTitle: '仪表盘设置',
@@ -314,6 +318,8 @@ window.__ModuleLoader__.load({
       recentSessionsEmpty: 'No sessions in this period yet',
       trendSummary: 'Period summary',
       peakActive: 'Peak active',
+      peakPeriod: 'Most active period',
+      trendFocusTitle: 'Trend focus view',
       searchPlaceholder: 'Search workspaces or sessions',
       detailsEmpty: 'No matching workspaces or sessions',
       settingsPageTitle: 'Dashboard settings',
@@ -1512,7 +1518,8 @@ window.__ModuleLoader__.load({
     /** 原生 SVG 双系列柱状图；每个时段分组带透明命中区，悬浮或聚焦时整体放大并浮出数值。 */
     function renderTrendChart(trend, period, t, isZh, hover, actions = {}, format = 'hms') {
       const width = 1000
-      const height = 140
+      // 首屏页可传入更大的 viewBox 高度，柱高、基线、网格与纵轴标签全部按它重算。
+      const height = Math.max(60, finite(actions?.height) || 140)
       const baseline = height - 3
       const usable = height - 12
       const count = trend.length
@@ -2566,23 +2573,37 @@ window.__ModuleLoader__.load({
       return { bucket: best, label: bucketLabel(best, period, isZh) }
     }
 
+    /** 条状图首屏统计：峰值活跃、最活跃时段、活跃占比与任务总时长。 */
+    function trendFocusStats(data, period, isZh, format = 'hms') {
+      const peak = trendPeak(data?.trend, period, isZh)
+      return {
+        peakMs: peak === null ? 0 : finite(peak.bucket.activeMs),
+        peakLabel: peak === null ? '—' : peak.label,
+        activeSharePct: activeSharePercent(data?.activeMs, data?.onlineMs),
+        taskMs: finite(data?.taskMs),
+      }
+    }
+
     function renderCycles(data, t, period, onSelect, format = 'hms') {
       return h('div', { className: 'cs-cycles' },
         ['day', 'week', 'month'].map((item) =>
           renderCycleCard(t, item, data?.cycles?.[item] ?? { activeMs: 0, taskMs: 0, taskCount: 0 }, item === period, () => onSelect?.(item), format)))
     }
 
-    function renderTrendCard(data, t, isZh, hoverTip, format, shownPeriod) {
+    function renderTrendCard(data, t, isZh, hoverTip, format, shownPeriod, options = {}) {
+      const { focus = null, onToggleFocus } = options ?? {}
+      const zoomable = typeof onToggleFocus === 'function'
       const isEmpty = !Array.isArray(data?.workspaces) || data.workspaces.length === 0
       const trendTitleKey = shownPeriod === 'day' ? 'trendDay' : shownPeriod === 'week' ? 'trendWeek' : 'trendMonth'
-      return h('section', { className: 'cs-card cs-trend-card' },
+      return h('section', { className: `cs-card cs-trend-card${zoomable ? ' has-zoom' : ''}`, 'data-focus': 'trend' },
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' },
             h('h2', null, t(trendTitleKey)),
             renderInfo(t('trendInfo'))),
           h('div', { className: 'cs-legend' },
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
-            h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel')))),
+            h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel'))),
+          zoomable ? renderZoomButton({ t, focus, onToggleFocus, value: 'trend' }) : null),
         isEmpty
           ? h('div', { className: 'cs-empty' }, t('emptyDashboard'))
           : renderTrendChart(data.trend, shownPeriod, t, isZh, hoverTip?.tip,
@@ -2659,6 +2680,40 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 条状图首屏页：不是把概览卡片拉宽，而是整页重排为按可用高度铺开的图表，
+     * 下方给出峰值活跃、最活跃时段、活跃占比与任务时长四项统计。
+     */
+    function renderTrendFocusPage(props) {
+      const { data, t, isZh, period, format = 'hms', hoverTip, focus = 'trend', onToggleFocus } = props
+      const shownPeriod = data?.period ?? period
+      const stats = trendFocusStats(data, shownPeriod, isZh, format)
+      const hasTrend = Array.isArray(data?.trend) && data.trend.length > 0
+      return h('section', {
+        className: 'cs-card cs-trend-focus',
+        'data-focus': 'trend',
+        style: { '--cs-focus-ms': `${focusTransitionMs(prefersReducedMotion())}ms` },
+      },
+        h('div', { className: 'cs-card-head' },
+          h('div', { className: 'cs-card-heading' },
+            h('h2', null, t('trendFocusTitle')),
+            h('span', { className: 'cs-tag' }, t('focusSummary')),
+            renderInfo(t('trendInfo'))),
+          h('div', { className: 'cs-legend' },
+            h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
+            h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel'))),
+          renderZoomButton({ t, focus, onToggleFocus, value: 'trend' })),
+        hasTrend
+          ? renderTrendChart(data.trend, shownPeriod, t, isZh, hoverTip?.tip,
+              { onHover: hoverTip?.show, onLeave: hoverTip?.hide, height: TREND_FOCUS_HEIGHT }, format)
+          : h('div', { className: 'cs-empty' }, t('emptyDashboard')),
+        h('div', { className: 'cs-focus-panel cs-trend-focus-stats' },
+          renderFocusStat(t('peakActive'), formatDuration(stats.peakMs, format)),
+          renderFocusStat(t('peakPeriod'), stats.peakLabel),
+          renderFocusStat(t('activeShare'), `${stats.activeSharePct}%`),
+          renderFocusStat(t('taskLabel'), formatDuration(stats.taskMs, format))))
+    }
+
+    /**
      * 首屏放大页：不是把卡片拉大，而是重新排版成整页大数字、
      * 在线/任务/占比/次数与日周月统计，并用进度条表示活跃占比。
      */
@@ -2713,6 +2768,11 @@ window.__ModuleLoader__.load({
       if (focus === 'hero') {
         return [renderHeroFocusPage({ data, t, format: durationFormat, focus, onToggleFocus })]
       }
+      if (focus === 'trend') {
+        return [renderTrendFocusPage({
+          data, t, isZh, period, format: durationFormat, hoverTip, focus, onToggleFocus,
+        })]
+      }
       const shownPeriod = data?.period ?? period
       return [
         h('div', { className: 'cs-section-head' },
@@ -2725,7 +2785,7 @@ window.__ModuleLoader__.load({
         h('div', { className: 'cs-analysis-grid' },
           renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat),
           renderWorkspaceRanking(data, t, durationFormat)),
-        renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod),
+        renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
         renderRecentSessions(data, t, nowMs, onOpenWorkspace, durationFormat),
       ]
     }
@@ -4233,6 +4293,29 @@ window.__ModuleLoader__.load({
         animation: cs-focus-in var(--cs-focus-ms, 240ms) var(--cs-ease) both;
       }
       .cs-hero-focus .cs-hero-num { font-size: clamp(56px, 8vw, 104px); margin-top: 18px; }
+      /* 条状图首屏：整页重排为按可用高度铺开的图表，再点右上角缩回。 */
+      .cs-trend-card.has-zoom { position: relative; }
+      .cs-trend-card.has-zoom .cs-card-head { padding-right: 30px; }
+      .cs-trend-focus {
+        position: relative; display: flex; flex-direction: column; gap: 16px;
+        min-height: calc(100vh - 260px); padding: 26px 30px;
+        animation: cs-focus-in var(--cs-focus-ms, 240ms) var(--cs-ease) both;
+      }
+      .cs-trend-focus .cs-card-head { padding-right: 30px; }
+      .cs-trend-focus .cs-chart {
+        display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+        height: calc(100vh - 420px);
+      }
+      .cs-trend-focus .cs-plot { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 280px; }
+      .cs-trend-focus .cs-chart svg { flex: 1 1 auto; height: 100%; min-height: 280px; }
+      .cs-trend-focus .cs-focus-panel { margin-top: auto; }
+      .cs-trend-focus .cs-bar-group .cs-bar-pair { transition: transform 160ms ease, filter 160ms ease; }
+      .cs-trend-focus .cs-bar-group:hover .cs-bar-pair {
+        transform: scale(1.3, 1.06); filter: brightness(1.12);
+      }
+      .cs-trend-focus .cs-bar-group:focus-visible .cs-bar-pair {
+        transform: scale(1.3, 1.06); filter: brightness(1.12);
+      }
       @keyframes cs-focus-in {
         from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: none; }
@@ -4258,11 +4341,14 @@ window.__ModuleLoader__.load({
       }
       @media (max-width: 600px) {
         .cs-hero-focus { min-height: calc(100vh - 320px); padding: 18px 16px; }
+        .cs-trend-focus { min-height: calc(100vh - 320px); padding: 18px 16px; }
+        .cs-trend-focus .cs-chart { height: calc(100vh - 480px); }
         .cs-fs-item { flex-basis: 120px; min-width: 108px; }
       }
       @media (prefers-reduced-motion: reduce) {
         .cs-view, .cs-view.is-leaving, .cs-curtain, .cs-tab-thumb,
-        .cs-hero-focus, .cs-zoom-btn, .cs-focus-bar i { animation: none !important; transition: none !important; }
+        .cs-hero-focus, .cs-trend-focus, .cs-zoom-btn, .cs-focus-bar i { animation: none !important; transition: none !important; }
+        .cs-trend-focus .cs-bar-group .cs-bar-pair { transition: none !important; }
       }
     `
 
