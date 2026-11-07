@@ -35,6 +35,11 @@ window.__ModuleLoader__.load({
     const PAGE_REFRESH_MS = 10_000
     /** 回填进行时加快轮询，让进度与完成后的数字尽快出现，无需刷新页面。 */
     const BACKFILL_REFRESH_MS = 2_000
+    /** 四个同级视图；tab 顺序即键盘左右方向键的顺序。 */
+    const VIEWS = ['overview', 'trend', 'details', 'settings']
+    /** 视图入场 300ms、退场 180ms（进入的 60%）；减少动效时直接到位。 */
+    const VIEW_ENTER_MS = 300
+    const VIEW_EXIT_MS = 180
 
     const zh = {
       title: 'ChronoScope',
@@ -82,6 +87,25 @@ window.__ModuleLoader__.load({
       appearanceToggle: '外观：{mode}，点击切换',
       currentPeriod: '当前周期',
       selectedPeriod: '当前',
+      tabOverview: '概览',
+      tabTrend: '趋势',
+      tabDetails: '明细',
+      tabSettings: '设置',
+      tabsLabel: 'ChronoScope 页面',
+      recentSessions: '最近会话',
+      recentSessionsHint: '按最近活动排序',
+      recentSessionsEmpty: '当前周期还没有会话记录',
+      trendSummary: '本周期概览',
+      peakActive: '峰值活跃',
+      searchPlaceholder: '搜索工作区或会话',
+      detailsEmpty: '没有匹配的工作区或会话',
+      settingsPageTitle: '仪表盘设置',
+      settingsPageHint: '设置只保存在本机，保存后立即影响后续统计，重启后仍然生效。',
+      settingsSectionAppearance: '外观与配色',
+      settingsRecheck: '重新检查回填',
+      settingsRechecking: '正在检查…',
+      settingsRecheckDone: '已重新检查回填状态',
+      settingsRecheckError: '重新检查失败，请重试',
       periodLoading: '正在更新，暂时显示',
       periodLoadFailed: '更新失败，暂时显示',
       trendInfo: '活跃与任务时长分别统计，可能重叠；悬停柱形可查看具体时长。',
@@ -262,6 +286,25 @@ window.__ModuleLoader__.load({
       appearanceToggle: 'Appearance: {mode}; click to cycle',
       currentPeriod: 'Current period',
       selectedPeriod: 'Current',
+      tabOverview: 'Overview',
+      tabTrend: 'Trend',
+      tabDetails: 'Details',
+      tabSettings: 'Settings',
+      tabsLabel: 'ChronoScope pages',
+      recentSessions: 'Recent sessions',
+      recentSessionsHint: 'Ordered by recent activity',
+      recentSessionsEmpty: 'No sessions in this period yet',
+      trendSummary: 'Period summary',
+      peakActive: 'Peak active',
+      searchPlaceholder: 'Search workspaces or sessions',
+      detailsEmpty: 'No matching workspaces or sessions',
+      settingsPageTitle: 'Dashboard settings',
+      settingsPageHint: 'Settings stay on this device, apply to later statistics immediately and survive restarts.',
+      settingsSectionAppearance: 'Appearance and colors',
+      settingsRecheck: 'Recheck backfill',
+      settingsRechecking: 'Checking…',
+      settingsRecheckDone: 'Backfill status rechecked',
+      settingsRecheckError: 'Recheck failed; please retry',
       periodLoading: 'Updating; still showing',
       periodLoadFailed: 'Update failed; still showing',
       trendInfo: 'Active and task time are measured independently and may overlap. Hover a bar for its value.',
@@ -1288,7 +1331,7 @@ window.__ModuleLoader__.load({
     }
 
     function formatRangeLabel(range, period, t, isZh) {
-      if (range === null) return ''
+      if (range === null || range === undefined) return ''
       const day = (value) => {
         const at = new Date(value)
         return isZh ? `${at.getMonth() + 1}月${at.getDate()}日` : `${at.getMonth() + 1}/${at.getDate()}`
@@ -2319,6 +2362,443 @@ window.__ModuleLoader__.load({
         h('div', { className: 'cs-settings-control' }, ...controls))
     }
 
+    /* ============================ 次级导航与四视图 ============================ */
+
+    /** 视图名只认四个同级视图；任何非法值（含旧 sessionStorage 脏值）回落概览。 */
+    function normalizeView(value) {
+      return VIEWS.includes(value) ? value : 'overview'
+    }
+
+    /** ArrowLeft/Right 循环，Home/End 跳到首尾；其它按键保持当前索引。 */
+    function nextTabIndex(currentIndex, key, count = VIEWS.length) {
+      const size = Number.isInteger(count) && count > 0 ? count : VIEWS.length
+      const index = Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < size ? currentIndex : 0
+      if (key === 'ArrowRight') return (index + 1) % size
+      if (key === 'ArrowLeft') return (index + size - 1) % size
+      if (key === 'Home') return 0
+      if (key === 'End') return size - 1
+      return index
+    }
+
+    /** tab 文案统一从语言包取，顺序与 VIEWS 一致。 */
+    function viewLabels(t) {
+      return [
+        { value: 'overview', label: t('tabOverview') },
+        { value: 'trend', label: t('tabTrend') },
+        { value: 'details', label: t('tabDetails') },
+        { value: 'settings', label: t('tabSettings') },
+      ]
+    }
+
+    function prefersReducedMotion() {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+      return window.matchMedia('(prefers-reduced-motion: reduce)').matches === true
+    }
+
+    /** 退出延时：正常 180ms，减少动效时 0（直接到位）。 */
+    function viewTransitionDelay(reduced) {
+      return reduced === true ? 0 : VIEW_EXIT_MS
+    }
+
+    /**
+     * 分段导航：移动滑块由当前 tab 的 offsetLeft / offsetWidth 测量，
+     * 在 view、语言或窗口尺寸变化时重算；键盘采用 roving tabindex。
+     */
+    function TabNav(props) {
+      const t = props?.t ?? ((key) => key)
+      const tabs = viewLabels(t)
+      const current = normalizeView(props?.view)
+      const tabRefs = React.useRef([])
+      const [thumb, setThumb] = React.useState({ left: 0, width: 0 })
+
+      const measure = () => {
+        const index = tabs.findIndex((tab) => tab.value === current)
+        const node = tabRefs.current?.[index]
+        if (!node) return
+        const left = typeof node.offsetLeft === 'number' ? node.offsetLeft : 0
+        const width = typeof node.offsetWidth === 'number' ? node.offsetWidth : 0
+        setThumb((previous) => previous.left === left && previous.width === width
+          ? previous
+          : { left, width })
+      }
+
+      React.useEffect(() => {
+        measure()
+        if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined
+        window.addEventListener('resize', measure)
+        return () => window.removeEventListener('resize', measure)
+      }, [current, props?.locale])
+
+      const select = (value) => {
+        if (value !== current) props?.onChange?.(value)
+      }
+      const handleKeyDown = (event, index) => {
+        const key = event?.key
+        if (key !== 'ArrowRight' && key !== 'ArrowLeft' && key !== 'Home' && key !== 'End') return
+        if (typeof event.preventDefault === 'function') event.preventDefault()
+        const next = nextTabIndex(index, key)
+        select(tabs[next].value)
+        const node = tabRefs.current?.[next]
+        if (node && typeof node.focus === 'function') node.focus()
+      }
+
+      return h('nav', { className: 'cs-tabs', role: 'tablist', 'aria-label': t('tabsLabel') },
+        h('span', {
+          className: 'cs-tab-thumb',
+          'aria-hidden': true,
+          style: { width: `${thumb.width}px`, transform: `translateX(${thumb.left}px)` },
+        }),
+        tabs.map((tab, index) => h('button', {
+          key: tab.value,
+          type: 'button',
+          role: 'tab',
+          id: `cs-tab-${tab.value}`,
+          'aria-selected': tab.value === current,
+          'aria-controls': `cs-view-${tab.value}`,
+          tabIndex: tab.value === current ? 0 : -1,
+          className: `cs-tab${tab.value === current ? ' is-active' : ''}`,
+          ref: (node) => { tabRefs.current[index] = node },
+          onClick: () => select(tab.value),
+          onKeyDown: (event) => handleKeyDown(event, index),
+        }, tab.label)))
+    }
+
+    /** 从工作区明细扁平化会话，按最近活动取若干条（默认 5）。 */
+    function flattenRecentSessions(data, limit = 5) {
+      const rows = []
+      for (const workspace of data?.workspaces ?? []) {
+        for (const session of workspace?.sessions ?? []) {
+          rows.push({ ...session, workspaceKey: workspace.key, workspaceTitle: workspace.workspaceTitle })
+        }
+      }
+      rows.sort((left, right) => finite(right.lastActivityAt) - finite(left.lastActivityAt))
+      return rows.slice(0, Math.max(0, Number.isFinite(limit) ? limit : 5))
+    }
+
+    /** 明细本地过滤：工作区名命中则整行保留；否则只保留会话名命中的会话。 */
+    function filterWorkspaces(workspaces, query) {
+      const list = Array.isArray(workspaces) ? workspaces : []
+      const needle = String(query ?? '').trim().toLowerCase()
+      if (needle === '') return list
+      const matched = []
+      for (const workspace of list) {
+        if (String(workspace?.workspaceTitle ?? '').toLowerCase().includes(needle)) {
+          matched.push(workspace)
+          continue
+        }
+        const sessions = (workspace?.sessions ?? []).filter((session) =>
+          String(session?.sessionTitle ?? '').toLowerCase().includes(needle))
+        if (sessions.length > 0) matched.push({ ...workspace, sessions })
+      }
+      return matched
+    }
+
+    function trendPeak(trend, period, isZh) {
+      if (!Array.isArray(trend) || trend.length === 0) return null
+      let best = trend[0]
+      for (const bucket of trend) {
+        if (finite(bucket?.activeMs) > finite(best?.activeMs)) best = bucket
+      }
+      return { bucket: best, label: bucketLabel(best, period, isZh) }
+    }
+
+    function renderCycles(data, t, period, onSelect, format = 'hms') {
+      return h('div', { className: 'cs-cycles' },
+        ['day', 'week', 'month'].map((item) =>
+          renderCycleCard(t, item, data?.cycles?.[item] ?? { activeMs: 0, taskMs: 0, taskCount: 0 }, item === period, () => onSelect?.(item), format)))
+    }
+
+    function renderTrendCard(data, t, isZh, hoverTip, format, shownPeriod) {
+      const isEmpty = !Array.isArray(data?.workspaces) || data.workspaces.length === 0
+      const trendTitleKey = shownPeriod === 'day' ? 'trendDay' : shownPeriod === 'week' ? 'trendWeek' : 'trendMonth'
+      return h('section', { className: 'cs-card cs-trend-card' },
+        h('div', { className: 'cs-card-head' },
+          h('div', { className: 'cs-card-heading' },
+            h('h2', null, t(trendTitleKey)),
+            renderInfo(t('trendInfo'))),
+          h('div', { className: 'cs-legend' },
+            h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
+            h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel')))),
+        isEmpty
+          ? h('div', { className: 'cs-empty' }, t('emptyDashboard'))
+          : renderTrendChart(data.trend, shownPeriod, t, isZh, hoverTip?.tip,
+              { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, format))
+    }
+
+    function renderStatBox(label, value) {
+      return h('div', { className: 'cs-stat-box' }, h('span', null, label), h('b', null, value))
+    }
+
+    /** 概览：周期卡、趋势卡、任务构成、工作区排行与最近会话。 */
+    function renderOverviewView(props) {
+      const { data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip, nowMs, onOpenWorkspace } = props
+      const shownPeriod = data?.period ?? period
+      return [
+        h('div', { className: 'cs-section-head' },
+          h('div', { className: 'cs-overview-heading' },
+            h('span', { className: 'cs-section-title' }, t('overviewTitle')),
+            h('span', { className: 'cs-tag' }, t('actualOccupied')),
+            renderInfo(overviewInfoMessages(data, t, durationFormat).join('；')))),
+        renderCycles(data, t, period, onSelectPeriod, durationFormat),
+        h('div', { className: 'cs-analysis-grid' },
+          renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat),
+          renderWorkspaceRanking(data, t, durationFormat)),
+        renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod),
+        renderRecentSessions(data, t, nowMs, onOpenWorkspace, durationFormat),
+      ]
+    }
+
+    /** 最近会话卡：点击工作区级别行切到明细并展开该工作区。 */
+    function renderRecentSessions(data, t, nowMs, onOpenWorkspace, format = 'hms') {
+      const rows = flattenRecentSessions(data, 5)
+      return h('section', { className: 'cs-card cs-recent' },
+        h('div', { className: 'cs-card-head' },
+          h('div', { className: 'cs-card-heading' },
+            h('h2', null, t('recentSessions')),
+            renderInfo(t('recentSessionsHint'))),
+          h('span', { className: 'cs-tag' }, '5')),
+        rows.length === 0
+          ? h('div', { className: 'cs-empty' }, t('recentSessionsEmpty'))
+          : h('div', { className: 'cs-recent-list' }, rows.map((session) =>
+              h('button', {
+                key: `${session.workspaceKey}:${session.sessionId}`,
+                type: 'button',
+                className: 'cs-recent-row',
+                onClick: () => onOpenWorkspace?.(session.workspaceKey),
+              },
+                h('span', { className: 'cs-recent-title' }, session.sessionTitle ?? t('unknownSession')),
+                h('span', { className: 'cs-recent-workspace' }, session.workspaceTitle ?? t('unassigned')),
+                h('span', { className: 'cs-recent-time' }, formatDuration(session.taskMs, format)),
+                h('span', { className: 'cs-recent-last' }, formatRelativeTime(session.lastActivityAt, t, nowMs))))))
+    }
+
+    /** 趋势：周期卡 + 趋势图 + 日均/任务次数/峰值摘要，日周月可比较。 */
+    function renderTrendView(props) {
+      const { data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip } = props
+      const shownPeriod = data?.period ?? period
+      const peak = trendPeak(data?.trend, shownPeriod, isZh)
+      return [
+        h('div', { className: 'cs-section-head' },
+          h('div', { className: 'cs-overview-heading' },
+            h('span', { className: 'cs-section-title' }, t('tabTrend')),
+            h('span', { className: 'cs-tag' }, t('actualOccupied')),
+            renderInfo(t('trendInfo')))),
+        renderCycles(data, t, period, onSelectPeriod, durationFormat),
+        h('div', { className: 'cs-trend-layout' },
+          renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod),
+          h('section', { className: 'cs-card cs-trend-summary' },
+            h('div', { className: 'cs-card-head' },
+              h('div', { className: 'cs-card-heading' },
+                h('h2', null, t('trendSummary')),
+                renderInfo(t('trendInfo')))),
+            h('div', { className: 'cs-stat-grid' },
+              renderStatBox(t('dailyAverageActive'), formatDuration(averageMsPerDay(data, 'activeMs'), durationFormat)),
+              renderStatBox(t('dailyAverageTask'), formatDuration(averageMsPerDay(data, 'taskMs'), durationFormat)),
+              renderStatBox(t('taskCountShort'), String(finite(data?.taskCount))),
+              renderStatBox(t('peakActive'), peak === null
+                ? '—'
+                : `${formatDuration(finite(peak.bucket.activeMs), durationFormat)} · ${peak.label}`)))),
+      ]
+    }
+
+    /** 明细：本地搜索、工作区行与渐进展开会话，空状态区分「无匹配」与「无数据」。 */
+    function renderDetailsView(props) {
+      const {
+        data, t, isZh, query, onQueryChange, durationFormat,
+        expanded, onToggleRow, nowMs, subagentByParent,
+      } = props
+      const rows = filterWorkspaces(data?.workspaces, query)
+      const hasQuery = String(query ?? '').trim() !== ''
+      return [
+        h('div', { className: 'cs-details-toolbar' },
+          h('input', {
+            className: 'cs-search',
+            type: 'search',
+            value: query ?? '',
+            placeholder: t('searchPlaceholder'),
+            'aria-label': t('searchPlaceholder'),
+            onChange: (event) => onQueryChange?.(event?.target?.value ?? ''),
+          }),
+          h('span', { className: 'cs-tag' }, t('sumTag')),
+          h('span', { className: 'cs-range' }, formatRangeLabel(data?.range, data?.period ?? 'day', t, isZh))),
+        h('section', { className: 'cs-card cs-table-card' },
+          h('div', { className: 'cs-card-head' },
+            h('div', { className: 'cs-card-heading' },
+              h('h2', null, t('workspaceTitle')),
+              renderInfo(t('sumFoot')))),
+          h('div', { className: 'cs-table-head cs-row' },
+            h('div', { className: 'cs-cell cs-name' }, t('colWorkspace')),
+            h('div', { className: 'cs-cell cs-active' }, t('colActive')),
+            h('div', { className: 'cs-cell cs-task' }, t('colTask')),
+            h('div', { className: 'cs-cell cs-share' }, t('colShare')),
+            h('div', { className: 'cs-cell cs-last' }, t('colLast')),
+            h('div', { className: 'cs-cell cs-toggle' })),
+          rows.length === 0
+            ? h('div', { className: 'cs-empty' }, t(hasQuery ? 'detailsEmpty' : 'emptyDashboard'))
+            : h('div', { className: 'cs-table-body' }, rows.map((row) =>
+                renderWorkspaceRow(row, expanded?.[row.key] === true, () => onToggleRow?.(row.key),
+                  t, nowMs, subagentByParent ?? {}, durationFormat)))),
+      ]
+    }
+
+    /**
+     * Dashboard 内设置页：表单值来自 Host 草稿，外观/配色来自页面本地主题状态。
+     * 纯渲染函数便于组成测试断言控件结构，数据加载与保存逻辑留在 createPage。
+     */
+    function renderSettingsView(props) {
+      const {
+        t, draft, phase, message, noticeState, appearance, palette,
+        dataBusy = '', dataMessage = null, clearStep = false, retrying = false, retryError = null,
+        onPatch, onSelectFormat, onSave, onRetryLoad, onExport, onRequestClear, onCancelClear, onClear,
+        onRecheckBackfill, onCycleAppearance, onChangePalette,
+      } = props
+      const loadFailed = phase === 'load-error'
+      const busy = phase === 'saving' || draft === null || loadFailed
+      const idleOptions = Array.from({ length: 15 }, (_, index) => String(index + 1))
+      const appearanceMode = normalizeAppearance(appearance)
+      return [h('div', { className: 'cs-settings cs-settings-board' },
+        h('header', { className: 'cs-settings-hero' },
+          h('h2', { className: 'cs-settings-title' }, t('settingsPageTitle')),
+          h('p', { className: 'cs-settings-hint' }, t('settingsPageHint'))),
+        h('div', { className: 'cs-settings-grid' },
+          h('section', { className: 'cs-settings-card cs-settings-wide' },
+            renderDurationFormatSection(t, draft?.durationFormat, {
+              disabled: busy,
+              onSelect: onSelectFormat,
+            })),
+          h('section', { className: 'cs-settings-card' },
+            h('h3', null, t('settingsSectionAppearance')),
+            h('div', { className: 'cs-settings-row' },
+              h('div', null, h('div', { className: 'cs-settings-label' }, t('appearanceLabel'))),
+              h('div', { className: 'cs-settings-control' },
+                h('button', {
+                  type: 'button',
+                  className: 'cs-icon-toggle',
+                  'aria-label': t('appearanceToggle').replace('{mode}', t(appearanceLabelKey(appearanceMode))),
+                  onClick: () => onCycleAppearance?.(),
+                }, h(AppearanceIcon, { mode: appearanceMode })),
+                h('span', { className: 'cs-settings-unit' }, t(appearanceLabelKey(appearanceMode))))),
+            h('div', { className: 'cs-settings-row' },
+              h('div', null, h('div', { className: 'cs-settings-label' }, t('paletteLabel'))),
+              h('div', { className: 'cs-settings-control' },
+                h(Select, {
+                  value: palette,
+                  options: [
+                    { value: 'blue', label: t('paletteBlue') },
+                    { value: 'stone', label: t('paletteStone') },
+                    { value: 'clay', label: t('paletteClay') },
+                  ],
+                  ariaLabel: t('paletteLabel'),
+                  onChange: onChangePalette,
+                })))),
+          h('section', { className: 'cs-settings-card' },
+            h('h3', null, t('settingsSectionGeneral')),
+            settingsRow(t, 'settingsIdleLabel', 'settingsIdleHint',
+              h(Select, {
+                value: draft?.idleThresholdMinutes ?? '5',
+                options: idleOptions,
+                disabled: busy,
+                ariaLabel: t('settingsIdleLabel'),
+                onChange: (value) => onPatch?.('idleThresholdMinutes', value),
+              }),
+              h('span', { className: 'cs-settings-unit' }, t('settingsIdleUnit')),
+              h('span', { className: 'cs-settings-unit' }, t('settingsIdleRange'))),
+            settingsRow(t, 'settingsWeekLabel', 'settingsWeekHint',
+              h(Select, {
+                value: draft?.weekStartsOn ?? '1',
+                options: [
+                  { value: '1', label: t('settingsWeekMonday') },
+                  { value: '7', label: t('settingsWeekSunday') },
+                ],
+                disabled: busy,
+                ariaLabel: t('settingsWeekLabel'),
+                onChange: (value) => onPatch?.('weekStartsOn', value === '7' ? '7' : '1'),
+              })),
+            settingsRow(t, 'settingsSubagentLabel', 'settingsSubagentHint',
+              h('label', { className: 'cs-settings-switch' },
+                h('input', {
+                  type: 'checkbox',
+                  'aria-label': t('settingsSubagentLabel'),
+                  checked: draft?.showSubagents !== false,
+                  disabled: busy,
+                  onChange: (event) => onPatch?.('showSubagents', event?.target?.checked === true),
+                }),
+                h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn')))),
+            settingsRow(t, 'settingsSidebarNameLabel', 'settingsSidebarNameHint',
+              h('label', { className: 'cs-settings-switch' },
+                h('input', {
+                  type: 'checkbox',
+                  'aria-label': t('settingsSidebarNameLabel'),
+                  checked: draft?.sidebarShowName !== false,
+                  disabled: busy,
+                  onChange: (event) => onPatch?.('sidebarShowName', event?.target?.checked === true),
+                }),
+                h('span', null, draft?.sidebarShowName === false ? t('settingsSidebarNameOff') : t('settingsSidebarNameOn'))))),
+          h('section', { className: 'cs-settings-card cs-settings-wide' },
+            h('h3', null, t('settingsSectionNotices')),
+            noticeState?.status === 'error'
+              ? h('p', { className: 'cs-notice-empty' }, t('backfillNoticeUnavailable'))
+              : noticeState?.data === null || noticeState?.data === undefined
+                ? h('p', { className: 'cs-notice-empty' }, t('loading'))
+                : renderBackfillNotices(noticeState.data, t),
+            h('div', { className: 'cs-data-actions cs-settings-recheck' },
+              h('button', {
+                type: 'button',
+                className: 'cs-btn',
+                disabled: retrying === true,
+                onClick: () => onRecheckBackfill?.(),
+              }, retrying === true ? t('settingsRechecking') : t('settingsRecheck')),
+              retryError ? h('span', { className: 'cs-data-status is-error' }, String(retryError)) : null)),
+          h('section', { className: 'cs-settings-card cs-settings-wide' },
+            h('h3', null, t('dataTitle')),
+            h('p', { className: 'cs-settings-row-hint' }, t('dataHint')),
+            h('div', { className: 'cs-data-actions' },
+              h('button', {
+                type: 'button', className: 'cs-btn', disabled: dataBusy !== '',
+                onClick: () => onExport?.('json'),
+              }, dataBusy === 'json' ? t('exporting') : t('exportJson')),
+              h('button', {
+                type: 'button', className: 'cs-btn', disabled: dataBusy !== '',
+                onClick: () => onExport?.('csv'),
+              }, dataBusy === 'csv' ? t('exporting') : t('exportCsv')),
+              h('span', { className: 'cs-data-spacer' }),
+              h('button', {
+                type: 'button', className: 'cs-btn is-danger', disabled: dataBusy !== '',
+                onClick: () => onRequestClear?.(),
+              }, t('clearData'))),
+            clearStep
+              ? h('div', { className: 'cs-clear-confirm', role: 'alertdialog', 'aria-label': t('clearStepTitle') },
+                  h('strong', null, t('clearStepTitle')),
+                  h('p', null, t('clearStepHint')),
+                  h('div', { className: 'cs-clear-buttons' },
+                    h('button', {
+                      type: 'button', className: 'cs-btn', disabled: dataBusy !== '',
+                      onClick: () => onCancelClear?.(),
+                    }, t('clearCancel')),
+                    h('button', {
+                      type: 'button', className: 'cs-btn is-danger is-solid', disabled: dataBusy !== '',
+                      onClick: () => onClear?.(),
+                    }, dataBusy === 'clear' ? t('clearing') : t('clearConfirm'))))
+              : null,
+            dataMessage
+              ? h('div', {
+                  className: `cs-data-status${dataMessage.error ? ' is-error' : ''}`,
+                  role: 'status',
+                }, dataMessage.text)
+              : null)),
+        h('div', { className: 'cs-settings-footer' },
+          h('button', {
+            type: 'button', className: 'cs-btn is-primary', disabled: busy, onClick: () => onSave?.(),
+          }, phase === 'saving' ? t('settingsSaving') : t('settingsSave')),
+          loadFailed
+            ? h('button', { type: 'button', className: 'cs-btn', onClick: () => onRetryLoad?.() }, t('settingsRetry'))
+            : null,
+          message ? h('span', {
+            className: `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`,
+            role: 'status',
+          }, message) : null))]
+    }
+
     function createPage(ctx) {
       return function ChronoPage(props) {
         const t = props?.t ?? ((key) => key)
@@ -2327,6 +2807,13 @@ window.__ModuleLoader__.load({
           try { const value = window.sessionStorage.getItem('chrono-scope.period'); return ['day', 'week', 'month'].includes(value) ? value : 'day' }
           catch { return 'day' }
         })
+        const [view, setView] = React.useState(() => {
+          try { return normalizeView(window.sessionStorage.getItem('chrono-scope.view')) }
+          catch { return 'overview' }
+        })
+        const [switchingView, setSwitchingView] = React.useState(false)
+        const switchingTimerRef = React.useRef(null)
+        const viewsRef = React.useRef(null)
         const [palette, setPalette] = React.useState(() => {
           try { return normalizePalette(window.localStorage.getItem('chrono-scope.palette')) }
           catch { return 'blue' }
@@ -2375,7 +2862,9 @@ window.__ModuleLoader__.load({
             return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
           } catch { return {} }
         })
+        const [detailsQuery, setDetailsQuery] = React.useState('')
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.period', period) } catch {} }, [period])
+        React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.view', view) } catch {} }, [view])
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
         const [pollMs, setPollMs] = React.useState(PAGE_REFRESH_MS)
         const [refreshNonce, setRefreshNonce] = React.useState(0)
@@ -2386,6 +2875,16 @@ window.__ModuleLoader__.load({
         const [dismissError, setDismissError] = React.useState(null)
         const [retrying, setRetrying] = React.useState(false)
         const [retryError, setRetryError] = React.useState(null)
+        // Dashboard 内设置页的独立草稿：进入视图时从 Host getSettings 拉取。
+        const [settingsForm, setSettingsForm] = React.useState(null)
+        const [settingsPhase, setSettingsPhase] = React.useState('idle')
+        const [settingsMessage, setSettingsMessage] = React.useState('')
+        const [settingsLoadNonce, setSettingsLoadNonce] = React.useState(0)
+        // 保存成功后 notifySettingsChanged 会触发一次重取；保留「已保存」反馈，
+        // 不把设置页闪回加载态。重新进入设置页时再恢复正常加载态。
+        const settingsSavedRef = React.useRef(false)
+        const [noticeState, setNoticeState] = React.useState({ status: 'idle', data: null })
+        const [noticeNonce, setNoticeNonce] = React.useState(0)
         const state = useDashboard(ctx, period, pollMs, refreshNonce)
         const hoverTip = useHoverTip()
         React.useEffect(() => { hoverTip.hide() }, [period])
@@ -2427,6 +2926,8 @@ window.__ModuleLoader__.load({
         React.useEffect(() => subscribeSettingsChanged(() => {
           setPreviewFormat(null)
           setRefreshNonce((value) => value + 1)
+          setSettingsLoadNonce((value) => value + 1)
+          setNoticeNonce((value) => value + 1)
         }), [])
         // 设置页选择数字格式时只广播草稿值：整页立即预览，不写 Host。
         React.useEffect(() => subscribeDurationFormatPreview((value) => setPreviewFormat(value)), [])
@@ -2434,6 +2935,98 @@ window.__ModuleLoader__.load({
         const [clearStep, setClearStep] = React.useState(false)
         const [dataBusy, setDataBusy] = React.useState('')
         const [dataMessage, setDataMessage] = React.useState(null)
+
+        // 视图转场：旧视图先播 180ms viewOut，再换 view 播 300ms viewIn。
+        // 减少动效偏好下直接到位；卸载时清掉未完成的计时器。
+        const goToView = (target) => {
+          const next = normalizeView(target)
+          if (next === view || switchingView) return
+          if (previewFormat !== null) {
+            setPreviewFormat(null)
+            notifySettingsChanged()
+          }
+          if (prefersReducedMotion()) {
+            setView(next)
+            return
+          }
+          setSwitchingView(true)
+          if (switchingTimerRef.current !== null) window.clearTimeout(switchingTimerRef.current)
+          switchingTimerRef.current = window.setTimeout(() => {
+            switchingTimerRef.current = null
+            setView(next)
+            setSwitchingView(false)
+          }, viewTransitionDelay(false))
+        }
+        React.useEffect(() => () => {
+          if (switchingTimerRef.current !== null) window.clearTimeout(switchingTimerRef.current)
+        }, [])
+        React.useEffect(() => {
+          const node = viewsRef.current
+          if (node && typeof node.scrollTop === 'number') node.scrollTop = 0
+        }, [view])
+
+        // 打开设置页时读取 Host 权威设置与通知记录；关闭时丢弃未保存草稿。
+        const settingsOpen = view === 'settings'
+        React.useEffect(() => {
+          if (!settingsOpen) return undefined
+          let active = true
+          const keepSaved = settingsSavedRef.current === true
+          settingsSavedRef.current = false
+          if (!keepSaved) {
+            setSettingsPhase('loading')
+            setSettingsMessage('')
+          }
+          callHost(ctx, 'getSettings', {}).then((value) => {
+            if (!active) return
+            setSettingsForm(settingsDraft(value))
+            setSettingsPhase(keepSaved ? 'saved' : 'ready')
+          }).catch(() => {
+            if (!active) return
+            setSettingsPhase('load-error')
+            setSettingsMessage(t('settingsLoadError'))
+          })
+          return () => { active = false }
+        }, [ctx, settingsOpen, settingsLoadNonce])
+        React.useEffect(() => {
+          if (!settingsOpen) return undefined
+          let active = true
+          setNoticeState({ status: 'loading', data: null })
+          callHost(ctx, 'getBackfillStatus', {}).then((value) => {
+            if (!active) return
+            setNoticeState({ status: 'ready', data: normalizeBackfill(value) })
+          }).catch(() => {
+            if (!active) return
+            setNoticeState({ status: 'error', data: null })
+          })
+          return () => { active = false }
+        }, [ctx, settingsOpen, noticeNonce])
+
+        const patchSetting = (key, value) => {
+          setSettingsForm((previous) => previous === null ? previous : { ...previous, [key]: value })
+          setSettingsMessage('')
+        }
+        const onSelectSettingsFormat = (value) => {
+          const format = normalizeDurationFormat(value)
+          setSettingsForm((previous) => previous === null ? previous : { ...previous, durationFormat: format })
+          setSettingsMessage('')
+          notifyDurationFormatPreview(format)
+        }
+        const onSaveSettings = async () => {
+          if (settingsForm === null || settingsPhase === 'saving') return
+          setSettingsPhase('saving')
+          setSettingsMessage('')
+          try {
+            const saved = await callHost(ctx, 'setSettings', settingsPayload(settingsForm))
+            setSettingsForm(settingsDraft(saved))
+            setSettingsPhase('saved')
+            setSettingsMessage(t('settingsSaved'))
+            settingsSavedRef.current = true
+            notifySettingsChanged()
+          } catch {
+            setSettingsPhase('error')
+            setSettingsMessage(t('settingsSaveError'))
+          }
+        }
 
         const onExport = async (format) => {
           if (dataBusy !== '') return
@@ -2477,6 +3070,7 @@ window.__ModuleLoader__.load({
           try {
             await callHost(ctx, 'retryBackfill', {})
             setRefreshNonce((value) => value + 1)
+            setNoticeNonce((value) => value + 1)
           } catch (error) {
             setRetryError(String(error?.message ?? error))
           } finally {
@@ -2499,6 +3093,13 @@ window.__ModuleLoader__.load({
             setDismissingBackfill(false)
           }
         }
+        const openWorkspaceInDetails = (workspaceKey) => {
+          if (workspaceKey !== undefined && workspaceKey !== null) {
+            setExpanded((previous) => ({ ...previous, [workspaceKey]: true }))
+          }
+          goToView('details')
+        }
+        const onToggleRow = (key) => setExpanded((previous) => ({ ...previous, [key]: !previous[key] }))
         const nowMs = Date.now()
         if (state.status === 'loading' && data === null) {
           return h('div', { className: pageClassName },
@@ -2518,11 +3119,51 @@ window.__ModuleLoader__.load({
                 h('span', null, t('retryHint')))))
         }
 
-        const isEmpty = data.workspaces.length === 0
         const hasApproximate = approximateNoticeVisible(data)
-        const shownPeriod = data.period
-        const trendTitleKey = shownPeriod === 'day' ? 'trendDay' : shownPeriod === 'week' ? 'trendWeek' : 'trendMonth'
-        const toggleRow = (key) => setExpanded((previous) => ({ ...previous, [key]: !previous[key] }))
+        const renderView = () => {
+          if (view === 'trend') {
+            return renderTrendView({
+              data, t, isZh, period, onSelectPeriod: setPeriod, durationFormat, hoverTip, nowMs,
+            })
+          }
+          if (view === 'details') {
+            return renderDetailsView({
+              data, t, isZh, query: detailsQuery, onQueryChange: setDetailsQuery,
+              durationFormat, expanded, onToggleRow, nowMs, subagentByParent,
+            })
+          }
+          if (view === 'settings') {
+            return renderSettingsView({
+              t,
+              draft: settingsForm,
+              phase: settingsPhase,
+              message: settingsMessage,
+              noticeState,
+              appearance,
+              palette,
+              dataBusy,
+              dataMessage,
+              clearStep,
+              retrying,
+              retryError,
+              onPatch: patchSetting,
+              onSelectFormat: onSelectSettingsFormat,
+              onSave: onSaveSettings,
+              onRetryLoad: () => setSettingsLoadNonce((value) => value + 1),
+              onExport,
+              onRequestClear: () => { setClearStep(true); setDataMessage(null) },
+              onCancelClear: () => setClearStep(false),
+              onClear,
+              onRecheckBackfill: onRetryBackfill,
+              onCycleAppearance: cycleAppearanceMode,
+              onChangePalette: changePalette,
+            })
+          }
+          return renderOverviewView({
+            data, t, isZh, period, onSelectPeriod: setPeriod, durationFormat, hoverTip, nowMs,
+            onOpenWorkspace: openWorkspaceInDetails,
+          })
+        }
 
         return h('div', { className: pageClassName },
           h('style', null, CHRONOSCOPE_CSS),
@@ -2572,91 +3213,19 @@ window.__ModuleLoader__.load({
               retryError,
               onRetry: onRetryBackfill,
             }, t),
-            h('div', { className: 'cs-section-head' },
-              h('div', { className: 'cs-overview-heading' },
-                h('span', { className: 'cs-section-title' }, t('overviewTitle')),
-                h('span', { className: 'cs-tag' }, t('actualOccupied')),
-                renderInfo(overviewInfoMessages(data, t, durationFormat).join('；')))),
-            h('div', { className: 'cs-cycles' },
-              ['day', 'week', 'month'].map((item) => renderCycleCard(t, item, data.cycles[item], item === period, () => setPeriod(item), durationFormat))),
-            h('div', { className: 'cs-data-panels', 'aria-busy': switchingPeriod },
-            switchingPeriod && (showPeriodWait || state.status === 'error')
-              ? h('div', { className: 'cs-period-notice', role: 'status' },
-                  `${t(state.status === 'error' ? 'periodLoadFailed' : 'periodLoading')} · ${t(shownPeriod === 'day' ? 'cycleToday' : shownPeriod === 'week' ? 'cycleWeek' : 'cycleMonth')}`)
-              : null,
-            h('div', { className: 'cs-analysis-grid' },
-              renderComposition(data, t, hoverTip.tip, { onHover: hoverTip.show, onLeave: hoverTip.hide }, durationFormat),
-              renderWorkspaceRanking(data, t, durationFormat)),
-            h('section', { className: 'cs-card cs-trend-card' },
-              h('div', { className: 'cs-card-head' },
-                h('div', { className: 'cs-card-heading' },
-                  h('h2', null, t(trendTitleKey)),
-                  renderInfo(t('trendInfo'))),
-                h('div', { className: 'cs-legend' },
-                  h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
-                  h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel')))),
-              isEmpty
-                ? h('div', { className: 'cs-empty' }, t('emptyDashboard'))
-                : renderTrendChart(data.trend, shownPeriod, t, isZh, hoverTip.tip, { onHover: hoverTip.show, onLeave: hoverTip.hide }, durationFormat)),
-            h('section', { className: 'cs-card cs-table-card' },
-              h('div', { className: 'cs-card-head' },
-                h('div', { className: 'cs-card-heading' },
-                  h('h2', null, t('workspaceTitle')),
-                  renderInfo(t('sumFoot'))),
-                h('div', { className: 'cs-table-meta' },
-                  h('span', { className: 'cs-range' }, formatRangeLabel(data.range, shownPeriod, t, isZh)))),
-              h('div', { className: 'cs-table-head cs-row' },
-                h('div', { className: 'cs-cell cs-name' }, t('colWorkspace')),
-                h('div', { className: 'cs-cell cs-active' }, t('colActive')),
-                h('div', { className: 'cs-cell cs-task' }, t('colTask')),
-                h('div', { className: 'cs-cell cs-share' }, t('colShare')),
-                h('div', { className: 'cs-cell cs-last' }, t('colLast')),
-                h('div', { className: 'cs-cell cs-toggle' })),
-              isEmpty
-                ? h('div', { className: 'cs-empty' }, t('emptyDashboard'))
-                : h('div', { className: 'cs-table-body' },
-                    data.workspaces.map((row) =>
-                      renderWorkspaceRow(row, expanded[row.key] === true, () => toggleRow(row.key),
-                        t, nowMs, subagentByParent, durationFormat))))),
-            h('section', { className: 'cs-card cs-data-card' },
-              h('div', { className: 'cs-card-head' },
-                h('div', { className: 'cs-card-heading' },
-                  h('h2', null, t('dataTitle')),
-                  renderInfo(t('dataHint')))),
-              h('div', { className: 'cs-data-actions' },
-                h('button', {
-                  type: 'button', className: 'cs-btn', disabled: dataBusy !== '',
-                  onClick: () => onExport('json'),
-                }, dataBusy === 'json' ? t('exporting') : t('exportJson')),
-                h('button', {
-                  type: 'button', className: 'cs-btn', disabled: dataBusy !== '',
-                  onClick: () => onExport('csv'),
-                }, dataBusy === 'csv' ? t('exporting') : t('exportCsv')),
-                h('span', { className: 'cs-data-spacer' }),
-                h('button', {
-                  type: 'button', className: 'cs-btn is-danger', disabled: dataBusy !== '',
-                  onClick: () => { setClearStep(true); setDataMessage(null) },
-                }, t('clearData'))),
-              clearStep
-                ? h('div', { className: 'cs-clear-confirm', role: 'alertdialog', 'aria-label': t('clearStepTitle') },
-                    h('strong', null, t('clearStepTitle')),
-                    h('p', null, t('clearStepHint')),
-                    h('div', { className: 'cs-clear-buttons' },
-                      h('button', {
-                        type: 'button', className: 'cs-btn', disabled: dataBusy !== '',
-                        onClick: () => setClearStep(false),
-                      }, t('clearCancel')),
-                      h('button', {
-                        type: 'button', className: 'cs-btn is-danger is-solid', disabled: dataBusy !== '',
-                        onClick: onClear,
-                      }, dataBusy === 'clear' ? t('clearing') : t('clearConfirm'))))
-                : null,
-              dataMessage
-                ? h('div', {
-                    className: `cs-data-status${dataMessage.error ? ' is-error' : ''}`,
-                    role: 'status',
-                  }, dataMessage.text)
-                : null),
+            h(TabNav, { view, t, locale: isZh ? 'zh' : 'en', onChange: goToView }),
+            h('div', { className: 'cs-views', ref: viewsRef },
+              h('div', { className: `cs-curtain${switchingView ? ' is-on' : ''}`, 'aria-hidden': true }),
+              h('section', {
+                key: view,
+                id: `cs-view-${view}`,
+                className: `cs-view${switchingView ? ' is-leaving' : ''}`,
+                role: 'tabpanel',
+                'aria-labelledby': `cs-tab-${view}`,
+                'data-view': view,
+              },
+                view === 'settings' ? h('style', null, CHRONOSCOPE_SETTINGS_CSS) : null,
+                ...renderView())),
             h('footer', { className: 'cs-foot' },
               h('span', null, `${t('todayActive')} ${formatDuration(data.cycles.day.activeMs, durationFormat)} · ${t('todayOnline')} ${formatDuration(data.cycles.day.onlineMs, durationFormat)}`),
               renderInfo(footerInfoMessages(t, hasApproximate).join('；'))),
@@ -3358,6 +3927,83 @@ window.__ModuleLoader__.load({
           padding: 1px 6px; border-radius: 4px; background: var(--dsw-alias-bg-layer-2);
         }
         .cs-session-last { margin-left: auto; padding-right: 2px; }
+      }
+
+      /* 票 10：次级导航与四视图骨架。 */
+      .cs-tabs {
+        position: relative; display: flex; align-items: center; gap: 2px;
+        min-height: 40px; border-bottom: 1px solid var(--dsw-alias-border-l1);
+        overflow-x: auto; scrollbar-width: none;
+      }
+      .cs-tab-thumb {
+        position: absolute; left: 0; bottom: -1px; height: 2px; border-radius: 2px;
+        background: var(--dsw-alias-brand-primary);
+        transition: transform var(--cs-dur-view) cubic-bezier(.2, .8, .2, 1), width var(--cs-dur-view) cubic-bezier(.2, .8, .2, 1);
+        will-change: transform, width;
+      }
+      .cs-tab {
+        appearance: none; border: 0; background: transparent; font: inherit;
+        font-size: 12px; line-height: 18px; padding: 10px 14px; cursor: pointer;
+        color: var(--dsw-alias-label-secondary); white-space: nowrap;
+        transition: color var(--cs-dur-tap) ease;
+      }
+      .cs-tab:hover { color: var(--dsw-alias-label-primary); }
+      .cs-tab:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -2px; border-radius: 6px; }
+      .cs-tab.is-active { color: var(--dsw-alias-label-primary); font-weight: 650; }
+      .cs-views { position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+      .cs-view { display: flex; flex-direction: column; gap: 12px; animation: viewIn var(--cs-dur-view) cubic-bezier(.2, .8, .2, 1) both; }
+      .cs-view.is-leaving { animation: viewOut var(--cs-dur-exit) ease both; }
+      .cs-curtain {
+        position: absolute; inset: 0; z-index: 20; border-radius: 12px;
+        background: var(--dsw-alias-bg-base); opacity: 0; pointer-events: none;
+        transition: opacity var(--cs-dur-exit) ease;
+      }
+      .cs-curtain.is-on { opacity: .84; pointer-events: auto; }
+      @keyframes viewIn { from { opacity: .45; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes viewOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-4px); } }
+
+      .cs-recent-list { display: flex; flex-direction: column; }
+      .cs-recent-row {
+        display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto;
+        align-items: center; gap: 12px; padding: 9px 2px; border: 0;
+        border-top: 1px solid var(--dsw-alias-border-l1); background: transparent;
+        font: inherit; color: inherit; text-align: left; cursor: pointer;
+      }
+      .cs-recent-row:first-child { border-top: 0; }
+      .cs-recent-row:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, transparent); }
+      .cs-recent-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+      .cs-recent-workspace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--dsw-alias-label-secondary); }
+      .cs-recent-time { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 11px; }
+      .cs-recent-last { font-size: 11px; color: var(--dsw-alias-label-secondary); white-space: nowrap; text-align: right; }
+      .cs-trend-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+      .cs-trend-summary { display: flex; flex-direction: column; gap: 10px; }
+      .cs-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .cs-stat-box { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: var(--dsw-alias-bg-layer-2); min-width: 0; }
+      .cs-stat-box span { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      .cs-stat-box b { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 15px; line-height: 22px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+      .cs-details-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .cs-search {
+        flex: 1 1 260px; min-width: 180px; appearance: none; font: inherit; font-size: 12px;
+        padding: 7px 12px; border-radius: 9px; color: var(--dsw-alias-label-primary);
+        border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
+      }
+      .cs-search:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
+      .cs-settings-board { display: flex; flex-direction: column; gap: 14px; }
+      .cs-settings-hero { display: flex; flex-direction: column; gap: 2px; }
+      .cs-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+      .cs-settings-card { min-width: 0; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); }
+      .cs-settings-card > h3 { margin: 0 0 4px; font-size: 13px; line-height: 20px; font-weight: 650; }
+      .cs-settings-wide { grid-column: 1 / -1; }
+      .cs-settings-recheck { margin-top: 8px; justify-content: flex-start; }
+      .cs-btn.is-primary { color: #fff; background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); }
+      .cs-btn.is-primary:hover:not(:disabled) { filter: brightness(1.05); }
+      @media (max-width: 860px) {
+        .cs-trend-layout, .cs-settings-grid { grid-template-columns: 1fr; }
+        .cs-recent-row { grid-template-columns: minmax(0, 1fr) auto; }
+        .cs-recent-workspace { grid-column: 1 / -1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-view, .cs-view.is-leaving, .cs-curtain, .cs-tab-thumb { animation: none !important; transition: none !important; }
       }
     `
 
