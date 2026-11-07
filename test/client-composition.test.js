@@ -601,6 +601,12 @@ test('客户端：ⓘ 按钮以完整说明作为 aria 名称，浮层含同一�
   assert.equal(typeof button.props.onKeyDown, 'function', '键盘可操作')
   assert.equal(typeof button.props.onFocus, 'function', '键盘聚焦可显示说明')
 
+  button.props.onFocus()
+  tree = React.render(Info, { message })
+  button = buttonOf(tree)
+  assert.equal(button.props['aria-expanded'], true, '键盘聚焦显示说明')
+  assert.match(findByClass(tree, 'cs-info').props.className, /is-open/)
+
   button.props.onKeyDown({ key: 'Escape' })
   tree = React.render(Info, { message })
   assert.match(findByClass(tree, 'cs-info').props.className, /is-dismissed/, 'Escape 关闭说明')

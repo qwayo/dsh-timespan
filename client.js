@@ -1341,8 +1341,16 @@ window.__ModuleLoader__.load({
       return h('span', { className: `cs-info${open ? ' is-open' : ''}${dismissed ? ' is-dismissed' : ''}` },
         h('button', {
           type: 'button', 'aria-label': message, 'aria-expanded': open,
-          onClick: () => { setDismissed(false); setOpen((value) => !value) },
-          onFocus: () => setDismissed(false),
+          onClick: () => {
+            if (open) {
+              setOpen(false)
+              setDismissed(true)
+            } else {
+              setDismissed(false)
+              setOpen(true)
+            }
+          },
+          onFocus: () => { setDismissed(false); setOpen(true) },
           onBlur: () => { setOpen(false); setDismissed(false) },
           onMouseLeave: () => setDismissed(false),
           onKeyDown: (event) => {
