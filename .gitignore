@@ -1,3 +1,5 @@
 node_modules/
 .dsh-write-probe
 .scratch
+skills-lock.json
+.agents

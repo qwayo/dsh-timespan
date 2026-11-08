@@ -11,3 +11,7 @@
 ### 领域文档
 
 单上下文（single-context）：仓库根目录共用一份 `GLOSSARY.md`，架构决策放在 `docs/adr/`。详见 `docs/agents/domain.md`。
+
+### 工作树
+
+当需要创建Worktree时，在项目根目录下的.agents\worktrees创建
