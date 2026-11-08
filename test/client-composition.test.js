@@ -2212,6 +2212,14 @@ test('客户端：热力图卡片含月份刻度、星期标签与浮层，且�
   // 3m/6m 的月份刻度仍在网格上方，全年才移到网格下方。
   const heatBody = findByClass(tree, 'heatmap-body')
   assert.ok(heatBody && !hasClass(heatBody, 'is-year'), '3m/6m 容器不带 is-year')
+  assert.equal(typeof heatBody.props.ref, 'function', '横向滚动容器挂初始对齐回调')
+  const scrollNode = { dataset: {}, scrollLeft: 0, scrollWidth: 900, clientWidth: 300 }
+  heatBody.props.ref(scrollNode)
+  assert.equal(scrollNode.scrollLeft, 600, '初始滚动停在最右列，即当前实时月份')
+  assert.ok(scrollNode.dataset.csScrollKey, '记住已经对齐过的范围')
+  scrollNode.scrollLeft = 0
+  heatBody.props.ref(scrollNode)
+  assert.equal(scrollNode.scrollLeft, 0, '同一范围内重渲染不打断用户手动滚动')
   const heatPlot = findByClass(tree, 'heat-plot')
   assert.ok(hasClass(heatPlot.children.filter(Boolean)[0], 'heat-months'), '3m/6m 月份刻度位于网格上方')
 
@@ -2614,6 +2622,7 @@ test('客户端：全年视图为 7 行 × 约 53 列周网格，中文月份刻
   const heatBody = allOf(tree, byClass('heatmap-body'))[0]
   assert.ok(heatBody, '存在周网格容器')
   assert.ok(hasClass(heatBody, 'is-year'), '全年容器带 class heatmap-body is-year')
+  assert.equal(heatBody.props.ref, undefined, '全年网格铺满整行不横向滚动，无需初始对齐')
   const heatPlot = findByClass(tree, 'heat-plot')
   assert.ok(heatPlot, '全年与 3m/6m 共用 .heat-plot')
   const plotChildren = heatPlot.children.filter(Boolean)
@@ -2765,10 +2774,22 @@ test('客户端：热力图范围复用统一下拉的向上两列菜单与自�
   assert.match(yearBody, /--cs-heat-gap:\s*2px/, '全年网格间隙 2px')
   assert.match(yearBody, /--cs-heat-cell:\s*clamp\(10px,\s*0\.95vw,\s*13px\)/, '全年格子尺寸 10–13px')
   assert.match(declarationsFor(css, '.heatmap-body.is-year .heat-plot'), /gap:\s*4px/, '全年月份刻度与网格之间留间距')
+  assert.match(declarationsFor(css, '.heatmap-body.is-year .heat-weekdays-spacer'), /display:\s*none/, '全年去掉星期标签上方空行，七行刻度与格子严格对齐')
   const monthGrid = declarationsFor(css, '.heat-month-grid')
   assert.match(monthGrid, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/, '单月日历 7 列')
   assert.match(declarationsFor(css, '.heat-month .heat-cell'), /aspect-ratio:\s*1/, '单月格子随列宽保持正方形')
   assert.match(declarationsFor(css, '.heat-month-bars'), /grid-template-columns:\s*repeat\(12,\s*minmax\(0,\s*1fr\)\)/, '12 个月度条铺满宽度')
+})
+
+test('客户端：任务时长构成行的时长不撑出卡片边框', async () => {
+  const { chronoscopeCss } = await loadClientFunctions()
+  const css = chronoscopeCss()
+  const row = declarationsFor(css, '.cs-composition-row')
+  assert.match(row, /grid-template-columns:\s*10px minmax\(0,1fr\) 38px minmax\(0,max-content\)/, '标签列吸收收缩、时长列按内容但不撑破')
+  assert.match(row, /min-width:\s*0/, '构成行本身允许收缩')
+  assert.match(declarationsFor(css, '.cs-composition-label'), /text-overflow:\s*ellipsis/, '过长标签省略')
+  assert.match(declarationsFor(css, '.cs-composition-time, .cs-ranking-time'), /text-overflow:\s*ellipsis/, '过长时长省略而不溢出边框')
+  assert.match(declarationsFor(css, '.cs-composition-body'), /gap:\s*16px/, '给列表留出更多宽度')
 })
 
 test('客户端：热力图首屏三种布局自适应且右侧统计与月度条铺开', async () => {

@@ -3555,8 +3555,24 @@ window.__ModuleLoader__.load({
           const grid = buildHeatGrid(scopedDays, range, monthLabels, weekdayLabels)
           const cells = renderWeekCells(grid)
           const { monthRow, weekdayRow } = renderWeekLabels(grid)
+          // 3m/6m 网格比卡片宽，初始横向滚动要停在当前月（最右列），而不是范围起点；
+          // 用 dataset 记住已对齐的范围，切换范围时重新对齐，同一范围内重渲染不打断用户手动滚动。
+          const heatScrollKey = String(normalizedValue)
+          const alignHeatScroll = isYear ? undefined : (node) => {
+            if (!node || typeof node.scrollLeft !== 'number') return
+            if (node.dataset?.csScrollKey === heatScrollKey) return
+            if (node.dataset) node.dataset.csScrollKey = heatScrollKey
+            const align = () => {
+              node.scrollLeft = Math.max(0, node.scrollWidth - node.clientWidth)
+            }
+            if (typeof requestAnimationFrame === 'function') requestAnimationFrame(align)
+            else align()
+          }
           body = [
-            h('div', { className: `heatmap-body${isYear ? ' is-year' : ''}` },
+            h('div', {
+              className: `heatmap-body${isYear ? ' is-year' : ''}`,
+              ref: alignHeatScroll,
+            },
               weekdayRow,
               h('div', { className: 'heat-plot' },
                 isYear ? null : monthRow,
@@ -5139,23 +5155,25 @@ window.__ModuleLoader__.load({
       }
       .cs-analysis-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
       .cs-composition, .cs-ranking { min-height: 250px; display: flex; flex-direction: column; gap: 20px; }
-      .cs-composition-body { display: flex; align-items: center; gap: 22px; flex: 1; }
-      .cs-donut { position: relative; width: clamp(130px, 14vw, 190px); aspect-ratio: 1; flex: none; }
+      .cs-composition-body { display: flex; align-items: center; gap: 16px; flex: 1; }
+      .cs-donut { position: relative; width: clamp(118px, 12vw, 168px); aspect-ratio: 1; flex: none; }
       .cs-donut svg { display: block; width: 100%; height: 100%; }
       .cs-donut-center { position: absolute; inset: 22%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
       .cs-donut-center strong { font-size: 19px; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
       .cs-donut-center span { font-size: 11px; color: var(--dsw-alias-label-secondary); }
       .cs-composition-list, .cs-ranking-list { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
-      .cs-composition-row { display: grid; grid-template-columns: 10px minmax(36px,1fr) 42px auto; align-items: center; gap: 8px; font-size: 12px; }
+      /* 时长可长可短（中文格式「2 小时 48 分」最宽）：标签列吸收收缩，时长列按内容但允许省略，绝不撑出卡片。 */
+      .cs-composition-row { display: grid; grid-template-columns: 10px minmax(0,1fr) 38px minmax(0,max-content); align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+      .cs-composition-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .cs-series-swatch { width: 9px; height: 9px; border-radius: 2px; }
       .cs-series-swatch.is-model { background: var(--cs-series-model); }
       .cs-series-swatch.is-tool { background: var(--cs-series-tool); }
       .cs-series-swatch.is-wait { background: var(--cs-series-wait); }
       .cs-series-swatch.is-other { background: var(--cs-series-other); }
       .cs-series-swatch.is-unknown { background: var(--cs-series-unknown); }
-      .cs-composition-percent, .cs-composition-time, .cs-ranking-time, .cs-ranking-share { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+      .cs-composition-percent, .cs-composition-time, .cs-ranking-time, .cs-ranking-share { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; min-width: 0; }
       .cs-composition-percent, .cs-ranking-share, .cs-rank-index { color: var(--dsw-alias-label-secondary); }
-      .cs-composition-time, .cs-ranking-time { font-weight: 600; }
+      .cs-composition-time, .cs-ranking-time { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
       .cs-ranking-row { display: grid; grid-template-columns: 23px minmax(65px, 1fr) minmax(45px, 1fr) auto 38px; align-items: center; gap: 10px; font-size: 12px; min-height: 26px; }
       .cs-ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
       .cs-ranking-bar { height: 8px; border-radius: 5px; background: var(--dsw-alias-bg-layer-2); overflow: hidden; }
@@ -5483,6 +5501,8 @@ window.__ModuleLoader__.load({
       .heatmap-body.is-year .heat-plot { gap: 4px; }
       .heatmap-body.is-year .heat-months { height: 16px; }
       .heatmap-body.is-year .heat-months span { font-size: 10px; line-height: 16px; }
+      /* 全年月份刻度在网格下方，星期标签不再预留上方空行，否则会与 7 行格子错开 20px。 */
+      .heatmap-body.is-year .heat-weekdays-spacer { display: none; }
       .heat-weekdays { display: flex; flex-direction: column; flex: 0 0 auto; }
       .heat-weekdays-spacer { display: block; height: 14px; margin-bottom: 6px; }
       .heat-weekday-list { display: grid; grid-template-rows: repeat(7, var(--cs-heat-cell)); row-gap: var(--cs-heat-gap); }
