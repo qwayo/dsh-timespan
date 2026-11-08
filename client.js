@@ -24,8 +24,6 @@ window.__ModuleLoader__.load({
     const NS = 'chrono-scope'
     /** 三套配色；blue 为默认。旧值（mono/green/warm）一律回落到 blue。 */
     const PALETTES = ['blue', 'stone', 'clay']
-    /** 顶栏循环图标的三枚配色点：固定代表色，当前套由描边标出，不随主题 token 漂移。 */
-    const PALETTE_DOT_COLORS = { blue: '#1F4E94', stone: '#4a5155', clay: '#a35a37' }
     /** 外观三态按用户确认的顺序循环：浅色 → 深色 → 跟随系统。 */
     const APPEARANCE_ORDER = ['light', 'dark', 'system']
     /** 数字格式五档；顺序与原型 FORMATS 一致，也是设置页卡片的展示顺序。 */
@@ -120,6 +118,7 @@ window.__ModuleLoader__.load({
       periodMonth: '月',
       periodLabel: '统计周期',
       paletteLabel: '配色',
+      paletteToggle: '配色：{name}，点击循环 {order}',
       appearanceLabel: '外观',
       appearanceLight: '浅色',
       appearanceDark: '深色',
@@ -370,6 +369,7 @@ window.__ModuleLoader__.load({
       periodMonth: 'Month',
       periodLabel: 'Period',
       paletteLabel: 'Colors',
+      paletteToggle: 'Colors: {name}; click to cycle {order}',
       appearanceLabel: 'Appearance',
       appearanceLight: 'Light',
       appearanceDark: 'Dark',
@@ -606,6 +606,18 @@ window.__ModuleLoader__.load({
 
     function AppearanceIcon({ mode }) {
       return APPEARANCE_ICONS[normalizeAppearance(mode)]()
+    }
+
+    /** 顶栏配色循环图标：与外观图标同用 16×16 线描；循环箭头表动作，中心点用当前套信号色表当前值。 */
+    function PaletteIcon() {
+      return h('svg', {
+        viewBox: '0 0 16 16', width: 15, height: 15, fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1.3,
+        strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
+      },
+        h('path', { d: 'M12.8 8a4.8 4.8 0 1 1-1.4-3.4' }),
+        h('path', { d: 'M11.4 2v2.6h2.6' }),
+        h('circle', { className: 'cs-palette-signal', cx: 8, cy: 8.4, r: 2.4, fill: 'var(--cs-signal)', stroke: 'none' }))
     }
 
     function appearanceLabelKey(mode) {
@@ -3476,7 +3488,8 @@ window.__ModuleLoader__.load({
             h('div', { className: 'cs-hero-num' }, formatDuration(current.value, format)),
             h('div', { className: 'cs-hero-meta' },
               h('span', null, `${t('todayOnline')} ${formatDuration(onlineMs, format)}`),
-              h('span', null, `${t('todayTask')} ${formatDuration(taskMs, format)}`)),
+              h('span', null, `${t('todayTask')} ${formatDuration(taskMs, format)}`),
+              h('span', null, `${t('taskCountShort')} ${String(finite(day.taskCount ?? data?.taskCount))}`)),
             h('div', { className: 'cs-share-block' },
               h('div', { className: 'cs-share-head' },
                 h('span', null, t('activeShare')),
@@ -3499,8 +3512,6 @@ window.__ModuleLoader__.load({
         h('div', { className: 'cs-focus-panel', role: 'group', 'aria-label': t('heroMetricGroup') },
           metricButton('online', t('onlineLabel'), formatDuration(onlineMs, format)),
           metricButton('task', t('todayTask'), formatDuration(taskMs, format)),
-          renderFocusStat(t('activeShare'), `${share}%`),
-          renderFocusStat(t('taskCountShort'), String(finite(day.taskCount ?? data?.taskCount))),
           metricButton('active', t('focusTodayActive'), formatDuration(activeMs, format)),
           metricButton('week', t('focusWeekActive'), formatDuration(weekMs, format)),
           metricButton('month', t('focusMonthActive'), formatDuration(monthMs, format))))
@@ -4195,7 +4206,8 @@ window.__ModuleLoader__.load({
           changePalette(PALETTES[(index + 1) % PALETTES.length])
         }
         const paletteNameKey = palette === 'stone' ? 'paletteStone' : palette === 'clay' ? 'paletteClay' : 'paletteBlue'
-        const paletteToggleLabel = `${t('paletteLabel')}：${t(paletteNameKey)}`
+        const paletteOrder = PALETTES.map((key) => t(key === 'stone' ? 'paletteStone' : key === 'clay' ? 'paletteClay' : 'paletteBlue')).join(' → ')
+        const paletteToggleLabel = t('paletteToggle').replace('{name}', t(paletteNameKey)).replace('{order}', paletteOrder)
         const [expanded, setExpanded] = React.useState(() => {
           try {
             const value = JSON.parse(window.sessionStorage.getItem('chrono-scope.expanded') || '{}')
@@ -4665,21 +4677,13 @@ window.__ModuleLoader__.load({
                     'aria-label': appearanceToggleLabel,
                     onClick: cycleAppearanceMode,
                   }, h(AppearanceIcon, { mode: appearance })),
-                  h('span', { className: 'cs-palette-name', 'aria-hidden': true }, t(paletteNameKey)),
                   h('button', {
                     type: 'button',
                     className: 'cs-icon-toggle cs-palette-toggle',
                     title: paletteToggleLabel,
                     'aria-label': paletteToggleLabel,
                     onClick: cyclePalette,
-                  }, h('svg', { viewBox: '0 0 20 20', width: 16, height: 16, fill: 'none', 'aria-hidden': true },
-                    h('circle', { cx: 10, cy: 7.5, r: 6, fill: 'var(--cs-signal)' }),
-                    ...PALETTES.map((key) => h('circle', {
-                      key,
-                      className: `cs-palette-dot${key === normalizePalette(palette) ? ' is-current' : ''}`,
-                      cx: 4 + PALETTES.indexOf(key) * 6, cy: 16.5, r: 1.8,
-                      fill: PALETTE_DOT_COLORS[key],
-                    }))))))),
+                  }, h(PaletteIcon))))),
             paletteSaveError ? h('div', { className: 'cs-alert', role: 'status' }, t('paletteSaveError')) : null,
             renderApproximateNotice(t, hasApproximate, { onDismiss: onDismissApproximate }),
             state.status === 'error'
@@ -4901,10 +4905,9 @@ window.__ModuleLoader__.load({
       .cs-topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; min-width: 0; }
       .cs-topbar-group { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
       .cs-topbar-divider { flex: none; width: 1px; height: 20px; background: var(--dsw-alias-border-l1); }
-      .cs-palette-toggle svg path { transition: fill 160ms ease; }
-      /* 顶栏常显当前配色名；循环图标用当前色实心圆 + 三枚代表色点，当前套加描边。 */
-      .cs-palette-name { font-size: 12px; line-height: 16px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
-      .cs-palette-toggle svg .cs-palette-dot.is-current { stroke: var(--dsw-alias-label-primary); stroke-width: 1.2; }
+      /* 顶栏两枚循环图标成对：16×16 线描 currentColor；配色用循环箭头表动作、中心点表当前套，
+         当前配色名与循环顺序收进 title/aria-label，不再常显占顶栏。 */
+      .cs-palette-toggle svg .cs-palette-signal { transition: fill 160ms ease; }
       .cs-live { display: inline-flex; align-items: center; gap: 6px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 16px; white-space: nowrap; }
       .cs-live.is-live { color: var(--dsw-alias-state-success-primary); }
       .cs-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dsw-alias-state-idle-primary); }
@@ -5875,40 +5878,20 @@ window.__ModuleLoader__.load({
         }
       }
 
-      /* 一屏密度收口：根容器吃到视口高度，flex 链一路传到内容网格；
-         窗口偏小时由页面自身滚动，最大化窗口下不出现整页滚动条。 */
-      .cs-page {
-        height: 100dvh; max-height: 100dvh; min-height: 0;
-        display: flex; flex-direction: column;
-        padding: 16px 24px 18px;
-      }
-      .cs-shell { flex: 1 1 auto; min-height: 0; gap: 8px; }
+      /* 整页滚轮滚动：根容器与 Bento 都按内容自然高度，不固定视口高度；
+         子模块不设内部竖滚，切全年时隐式第 4 行自然撑高，由整页滚动承载。 */
+      .cs-shell { gap: 8px; }
       .cs-topbar { margin-bottom: 0; min-height: 46px; }
       .cs-tabs { margin-bottom: 4px; min-height: 36px; }
-      .cs-views { flex: 1 1 auto; min-height: 0; }
-      .cs-view { flex: 1 1 auto; min-height: 0; }
-      .cs-foot, .cs-section-head { flex: 0 0 auto; }
-      .cs-overview-grid {
-        flex: 1 1 auto; min-height: 0; gap: 10px;
-        grid-template-rows: repeat(3, minmax(0, 1fr));
-        grid-auto-rows: minmax(0, 1fr); align-content: stretch;
-      }
-      .cs-overview-grid > * { min-height: 0; }
-      .cs-cycle, .cs-cycles, .cs-composition, .cs-ranking, .cs-recent,
-      .cs-trend-card, .cs-table-card, .cs-heatmap-card { min-height: 0; }
       .cs-composition, .cs-ranking { gap: 12px; }
-      .cs-composition-body { min-height: 0; }
       .cs-donut { width: clamp(88px, 9vw, 140px); }
       .cs-chart svg { height: clamp(90px, 13vh, 160px); }
-      .cs-summary { min-height: 0; padding: 8px 12px; }
-      .cs-table-body { max-height: none; min-height: 0; flex: 1 1 auto; overflow-y: auto; }
+      .cs-summary { padding: 8px 12px; }
       .cs-trend-card, .cs-table-card { gap: 10px; }
       /* 设置页留白：卡片按自然高度排，不再把两行卡强行拉到四行卡的高度。 */
-      .cs-settings.cs-settings-board { flex: 1 1 auto; min-height: 0; gap: 10px; }
-      .cs-settings-grid { flex: 1 1 auto; gap: 10px; min-height: 0; overflow-y: auto; align-content: start; }
+      .cs-settings-grid { gap: 10px; align-content: start; }
       .cs-settings-card { align-self: start; }
       .cs-settings-card > .cs-settings-row { flex: 0 0 auto; }
-      @media (max-width: 860px) { .cs-page { padding: 14px 16px 18px; } }
       .cs-import-hint { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-import-file-state { font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-primary); }
     `

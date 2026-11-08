@@ -628,18 +628,23 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与蓝派生�
   assert.doesNotMatch(css, /#315878|#285642|#78947c|#96543f|#7492a8|#73797b/i, '旧的灰绿配色值不得残留')
 })
 
-test('客户端：四视图一屏密度与设置页留白收口', async () => {
+test('客户端：概览整页滚轮滚动，子模块不出现内部竖滚', async () => {
   const { chronoscopeCss } = await loadClientFunctions()
   const css = chronoscopeCss()
-  assert.match(declarationsFor(css, '.cs-page'), /height:\s*100dvh/, '根容器按视口高度收口，小窗口才回落到整页滚动')
-  assert.match(declarationsFor(css, '.cs-shell'), /min-height:\s*0/, 'flex 链不撑破视口')
+  assert.doesNotMatch(css, /100dvh/, '根容器不固定视口高度')
+  assert.match(declarationsFor(css, '.cs-page'), /overflow:\s*auto/, '整页由 .cs-page 自己滚动')
+  assert.doesNotMatch(css, /grid-auto-rows:\s*minmax\(0,\s*1fr\)/, '隐式行不被压成 1fr，全年跨行时自然撑高')
   assert.match(declarationsFor(css, '.cs-shell'), /gap:\s*8px/, '顶栏与标签间距收到 8px')
-  assert.match(declarationsFor(css, '.cs-view'), /flex:\s*1 1 auto/, '视图吃到剩余高度')
-  assert.match(declarationsFor(css, '.cs-overview-grid'), /grid-template-rows:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/, '三行按可用高度均分')
+  assert.doesNotMatch(declarationsFor(css, '.cs-shell'), /min-height:\s*0/, '不再用 flex 链压高度')
+  assert.doesNotMatch(declarationsFor(css, '.cs-view'), /flex:\s*1 1 auto/, '视图不吃满固定剩余高度')
+  assert.match(declarationsFor(css, '.cs-overview-grid'), /grid-template-rows:\s*auto\s+auto\s+auto/, '三行按内容自然高度')
+  assert.match(declarationsFor(css, '.cs-overview-grid'), /align-content:\s*start/, 'Bento 从顶部排，不留底部空白')
   assert.match(declarationsFor(css, '.cs-chart svg'), /height:\s*clamp\(/, '图表高度随视口收缩')
-  assert.match(declarationsFor(css, '.cs-table-body'), /overflow-y:\s*auto/, '长列表内部滚动，不撑高整页')
+  assert.match(declarationsFor(css, '.cs-table-body'), /overflow:\s*visible/, '明细表不设内部竖滚，交给整页')
+  assert.doesNotMatch(css, /\.cs-table-body\s*\{[^}]*flex:\s*1 1 auto/, '明细表不再被 flex 拉进固定高度')
   assert.match(declarationsFor(css, '.cs-settings-card'), /align-self:\s*start/, '设置卡片按自然高度排，不再强行拉伸')
-  assert.match(declarationsFor(css, '.cs-settings-grid'), /overflow-y:\s*auto/, '设置页内容过长时内部滚动')
+  assert.doesNotMatch(declarationsFor(css, '.cs-settings-grid'), /overflow-y:\s*auto/, '设置页不设内部竖滚')
+  assert.doesNotMatch(css, /\.cs-recent\s*\{[^}]*min-height:\s*0/, '最近会话不被压到比内容矮')
 })
 
 test('客户端：外观三态按浅色→深色→跟随系统循环，非法值回落浅色', async () => {
@@ -1521,6 +1526,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     settingsSectionAppearance: '外观与配色', appearanceLabel: '外观',
     appearanceLight: '浅色', appearanceDark: '深色', appearanceSystem: '跟随系统',
     appearanceToggle: '外观：{mode}，点击切换', paletteLabel: '配色',
+    paletteToggle: '配色：{name}，点击循环 {order}',
     paletteBlue: '蓝', paletteStone: '石墨', paletteClay: '赤陶',
     settingsSectionGeneral: '统计口径', settingsIdleLabel: '活跃判定阈值', settingsIdleHint: '空闲多久后不计入',
     settingsIdleUnit: '分钟', settingsIdleRange: '可选 1–15 分钟', settingsWeekLabel: '每周起始',
@@ -1728,12 +1734,14 @@ test('客户端：首屏放大页重新排版为大数字、多项统计与占�
   assert.equal(allOf(page, byClass('cs-hero-focus')).length, 1, '放大态是独立首屏页')
   assert.equal(textOf(allOf(page, byClass('cs-hero-num'))[0]).trim(), '2:48:16', '大数字沿用统一格式')
   const panelText = textOf(allOf(page, byClass('cs-focus-panel'))[0])
-  for (const expected of ['在线时长', '任务时长', '活跃占比', '任务次数', '今日活跃', '本周活跃', '本月活跃']) {
-    assert.match(panelText, new RegExp(expected), `放大页包含「${expected}」`)
+  for (const expected of ['在线时长', '任务时长', '今日活跃', '本周活跃', '本月活跃']) {
+    assert.match(panelText, new RegExp(expected), `放大页统计面板含「${expected}」`)
   }
+  assert.doesNotMatch(panelText, /活跃占比|任务次数/, '不可点的两项不再混在按钮面板里')
+  assert.match(textOf(allOf(page, byClass('cs-hero-meta'))[0]), /任务次数/, '任务次数移到只读文字行')
+  assert.match(textOf(allOf(page, byClass('cs-share-head'))[0]), /47%/, '活跃占比在独立进度块里常显')
   assert.match(panelText, /5:58:08/, '在线时长')
   assert.match(panelText, /1:37:14/, '任务时长')
-  assert.match(panelText, /47%/, '活跃占比 = 2:48:16 / 5:58:08')
   assert.match(panelText, /5:51:01/, '本周活跃')
   assert.match(panelText, /14:14:00/, '本月活跃')
   const bar = allOf(page, byClass('cs-focus-bar'))[0]
@@ -1805,7 +1813,11 @@ test('客户端：首屏主指标五个时长项可点切换，非法持久化�
   const buttons = allOf(page, byClass('cs-fs-button'))
   assert.equal(buttons.length, 5, '五个时长项是可点按钮')
   assert.ok(buttons.every((button) => button.type === 'button'))
-  assert.equal(allOf(page, byClass('cs-fs-item')).length - buttons.length, 2, '活跃占比与任务次数保持只读')
+  assert.equal(allOf(page, byClass('cs-fs-item')).length - buttons.length, 0, '统计面板里不再混入不可点的只读项')
+  const panel = allOf(page, byClass('cs-focus-panel'))[0]
+  assert.equal(allOf(panel, byClass('cs-fs-item')).length, 5, '面板内每项都可点，不误导用户')
+  assert.doesNotMatch(textOf(panel), /活跃占比/, '活跃占比不再在按钮面板里重复')
+  assert.match(textOf(allOf(page, byClass('cs-hero-meta'))[0]), /任务次数/, '任务次数移到大数字下方只读文字行')
   const weekButton = buttons.filter((button) => textOf(button).includes('本周活跃'))[0]
   weekButton.props.onClick()
   assert.deepEqual(selected, ['week'], '点击请求切换主指标')
@@ -1920,7 +1932,7 @@ test('客户端：概览 Bento 网格声明三列三行，窄屏回落两列与�
   const css = await loadClientCss()
   const grid = declarationsFor(css, '.cs-overview-grid')
   assert.match(grid, /grid-template-columns:\s*1\.05fr\s+1fr\s+1fr/, '桌面三列，hero 列略宽')
-  assert.match(grid, /grid-template-rows:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/, '三行按可用高度均分，保证一屏')
+  assert.match(grid, /grid-template-rows:\s*auto\s+auto\s+auto/, '三行按内容自然高度，由整页滚动承载')
 
   const placements = [
     ['.cs-hero', 1, '1'],
@@ -3090,6 +3102,7 @@ test('客户端：全年 Bento 跨行、范围选择器紧凑尺寸与顶栏图�
   assert.match(declarationsFor(css, '.cs-topbar-divider'), /width:\s*1px/, '顶栏两组之间有 1px 分隔线')
   assert.match(css, /\.cs-icon-toggle\s*\{/, '配色与外观共用单枚循环图标按钮样式')
   assert.doesNotMatch(css, /\.cs-palette-label/, '顶栏不再有配色下拉的标签')
-  assert.match(declarationsFor(css, '.cs-palette-name'), /font-size:\s*12px/, '当前配色名常显在顶栏，不再只靠 tooltip')
-  assert.match(css, /\.cs-palette-toggle svg \.cs-palette-dot\.is-current/, '循环图标标出当前配色')
+  assert.doesNotMatch(css, /\.cs-palette-name/, '取消常显配色名，名称与循环顺序收进 tooltip')
+  assert.match(css, /\.cs-palette-toggle svg \.cs-palette-signal/, '循环图标用当前套信号色圆点表当前值')
+  assert.doesNotMatch(css, /\.cs-palette-dot/, '不再用三枚小色点编码当前套')
 })
