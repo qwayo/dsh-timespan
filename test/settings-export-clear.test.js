@@ -77,62 +77,95 @@ function csvRows(file) {
   return { header: lines[0].split(','), lines }
 }
 
-test('设置：默认空闲阈值 5 分钟、周起始周一、显示子代理、数字格式 hms 与侧栏名称', async () => {
+test('设置：首次安装默认紧凑单位、侧栏名称关闭且显示在线时长，其余预设符合初始状态', async () => {
   const { service } = await startedService(localTime(2026, 11, 4, 10, 0))
   assert.deepEqual(service.getSettings(), {
     idleThresholdMinutes: 5,
     weekStartsOn: 1,
     showSubagents: true,
-    durationFormat: 'hms',
-    sidebarShowName: true,
+    durationFormat: 'short',
+    sidebarShowName: false,
+    sidebarDuration: 'online',
     approximateNoticeDismissed: false,
   })
 })
 
-test('设置归一化：durationFormat 只认五种预设，补丁不覆盖其它项', () => {
-  assert.equal(DEFAULT_SETTINGS.durationFormat, 'hms')
+test('设置：resetSettings 恢复初始预设且不删除统计数据', async () => {
+  const t0 = localTime(2026, 11, 4, 10, 0)
+  const { service } = await startedService(t0)
+  await addTurn(service, 'session-reset', 1, t0, t0 + MINUTE)
+  await service.setSettings({
+    idleThresholdMinutes: 12,
+    weekStartsOn: 7,
+    showSubagents: false,
+    durationFormat: 'zh',
+    sidebarShowName: true,
+    approximateNoticeDismissed: true,
+  })
+
+  const before = service.queryStats({ from: t0, to: t0 + 2 * MINUTE, view: 'dashboard' })
+  const reset = await service.resetSettings()
+  assert.deepEqual(reset, DEFAULT_SETTINGS, '恢复结果就是首次安装预设')
+  const after = service.queryStats({ from: t0, to: t0 + 2 * MINUTE, view: 'dashboard' })
+  assert.equal(after.taskCount, before.taskCount, '恢复设置不影响任务统计')
+  assert.equal(after.taskCount, 1, '已有任务仍在')
+})
+
+test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只认三项，补丁不覆盖其它项', () => {
+  assert.equal(DEFAULT_SETTINGS.durationFormat, 'short')
+  assert.equal(DEFAULT_SETTINGS.sidebarDuration, 'online')
   assert.equal(normalizeSettings({ durationFormat: 'zh' }).durationFormat, 'zh')
   for (const value of ['short', 'sec', 'padded', 'hms']) {
     assert.equal(normalizeSettings({ durationFormat: value }).durationFormat, value)
   }
   for (const value of ['', 'HMS', 'auto', null, undefined, 7]) {
-    assert.equal(normalizeSettings({ durationFormat: value }).durationFormat, 'hms', `非法值 ${String(value)} 回落 hms`)
+    assert.equal(normalizeSettings({ durationFormat: value }).durationFormat, 'short', `非法值 ${String(value)} 回落紧凑单位`)
+  }
+  for (const value of ['online', 'active', 'task']) {
+    assert.equal(normalizeSettings({ sidebarDuration: value }).sidebarDuration, value)
+  }
+  for (const value of ['', 'ONLINE', 'idle', null, undefined, 7]) {
+    assert.equal(normalizeSettings({ sidebarDuration: value }).sidebarDuration, 'online', `非法侧栏时长 ${String(value)} 回落在线时长`)
   }
   const merged = mergeSettings(
     { idleThresholdMinutes: 9, weekStartsOn: 7, showSubagents: false, durationFormat: 'zh' },
-    { durationFormat: 'short' },
+    { durationFormat: 'short', sidebarDuration: 'task' },
   )
   assert.deepEqual(merged, {
     idleThresholdMinutes: 9,
     weekStartsOn: 7,
     showSubagents: false,
     durationFormat: 'short',
-    sidebarShowName: true,
+    sidebarShowName: false,
+    sidebarDuration: 'task',
     approximateNoticeDismissed: false,
   })
   const untouched = mergeSettings({ idleThresholdMinutes: 11, durationFormat: 'padded' }, { showSubagents: false })
   assert.equal(untouched.durationFormat, 'padded', '补丁未提及 durationFormat 时保留原值')
+  assert.equal(untouched.sidebarDuration, 'online', '补丁未提及 sidebarDuration 时保留默认在线时长')
 })
 
-test('设置：侧栏名称默认显示，可关闭并在局部更新与重启后保留', async () => {
+test('设置：侧栏名称默认关闭，可显式开启并在局部更新与重启后保留', async () => {
   const { domain, service } = await startedService(localTime(2026, 11, 4, 10, 0))
-  assert.equal(service.getSettings().sidebarShowName, true, '默认显示侧栏名称')
+  assert.equal(service.getSettings().sidebarShowName, false, '首次安装默认隐藏侧栏名称')
 
-  const saved = await service.setSettings({ sidebarShowName: 'false' })
-  assert.equal(saved.sidebarShowName, false, '字符串 false 也收敛为关闭')
+  const saved = await service.setSettings({ sidebarShowName: 'true' })
+  assert.equal(saved.sidebarShowName, true, '字符串 true 也收敛为开启')
 
   const partial = await service.setSettings({ idleThresholdMinutes: 9 })
-  assert.equal(partial.sidebarShowName, false, '局部更新保留侧栏名称开关')
+  assert.equal(partial.sidebarShowName, true, '局部更新保留侧栏名称开关')
 
   const restarted = createChronoScopeDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 4, 10, 0) }) })
   await restarted.start()
-  assert.equal(restarted.getSettings().sidebarShowName, false, '重启后侧栏名称开关仍保留')
+  assert.equal(restarted.getSettings().sidebarShowName, true, '重启后侧栏名称开关仍保留')
+
+  assert.equal((await restarted.setSettings({ sidebarShowName: 'false' })).sidebarShowName, false, '字符串 false 也收敛为关闭')
 })
 
 test('设置：非法值收敛到合法范围，局部更新不覆盖其他项，保存后重启仍生效', async () => {
   const { domain, service } = await startedService(localTime(2026, 11, 4, 10, 0))
 
-  assert.equal((await service.setSettings({ durationFormat: 'unsupported' })).durationFormat, 'hms', '非法格式回落默认')
+  assert.equal((await service.setSettings({ durationFormat: 'unsupported' })).durationFormat, 'short', '非法格式回落默认')
 
   const saved = await service.setSettings({
     idleThresholdMinutes: 99,
@@ -236,8 +269,9 @@ test('导出 JSON：包含原始区间、原始任务与设置，字段未经裁
     idleThresholdMinutes: 9,
     weekStartsOn: 7,
     showSubagents: true,
-    durationFormat: 'hms',
-    sidebarShowName: true,
+    durationFormat: 'short',
+    sidebarShowName: false,
+    sidebarDuration: 'online',
     approximateNoticeDismissed: false,
   })
   assert.ok(payload.intervals.some((row) => row.type === 'online'), '原始在线区间必须导出')
@@ -289,10 +323,10 @@ test('导出 CSV：按日 × 工作区平面表，字段完整可读且正确转
 
   const row1 = lines[1]
   assert.ok(row1.includes('600000'), '第一行任务时长为 10 分钟（毫秒）')
-  assert.ok(row1.includes(',600000,0:10:00,'), '同时给出可读时长（默认 hms，小时不补零）')
+  assert.ok(row1.includes(',600000,10m 0s,'), '同时给出可读时长（默认紧凑单位）')
   const row2 = lines[2]
   assert.ok(row2.includes('300000'), '第二行任务时长为 5 分钟（毫秒）')
-  assert.ok(row2.includes(',300000,0:05:00,'))
+  assert.ok(row2.includes(',300000,5m 0s,'))
 })
 
 test('导出 CSV：可读时长跟随当前 durationFormat，与页面使用同一格式定义', async () => {
@@ -467,24 +501,25 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     const defaults = await harness.call('getSettings')
     assert.equal(defaults.idleThresholdMinutes, 5)
     assert.equal(defaults.weekStartsOn, 1)
-    assert.equal(defaults.durationFormat, 'hms')
-    assert.equal(defaults.sidebarShowName, true)
+    assert.equal(defaults.durationFormat, 'short')
+    assert.equal(defaults.sidebarShowName, false)
+    assert.equal(defaults.sidebarDuration, 'online')
 
     const saved = await harness.call('setSettings', {
       idleThresholdMinutes: 11,
       weekStartsOn: 7,
       showSubagents: false,
       durationFormat: 'short',
-      sidebarShowName: false,
+      sidebarShowName: true,
       ignoredField: '不应写入',
     })
     assert.equal(saved.idleThresholdMinutes, 11)
     assert.equal(saved.durationFormat, 'short', 'RPC 白名单允许保存数字格式')
-    assert.equal(saved.sidebarShowName, false, '侧栏名称开关进入 setSettings 白名单')
+    assert.equal(saved.sidebarShowName, true, '侧栏名称开关进入 setSettings 白名单')
     assert.equal(Object.hasOwn(saved, 'ignoredField'), false, '未知字段仍被白名单丢弃')
     const readBack = await harness.call('getSettings')
     assert.equal(readBack.weekStartsOn, 7, '重启前就能读回新设置')
-    assert.equal(readBack.sidebarShowName, false, '侧栏名称开关可读回')
+    assert.equal(readBack.sidebarShowName, true, '侧栏名称开关可读回')
 
     let stats = await harness.call('queryStats', { period: 'week', view: 'dashboard' })
     assert.equal(stats.weekStartsOn, 7, '统计响应如实反映生效中的周起始')
@@ -517,7 +552,15 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     const keptSettings = await harness.call('getSettings')
     assert.equal(keptSettings.idleThresholdMinutes, 11, '设置保留')
     assert.equal(keptSettings.durationFormat, 'short', '数字格式随设置一并保留')
-    assert.equal(keptSettings.sidebarShowName, false, '清空数据不影响侧栏名称开关')
+    assert.equal(keptSettings.sidebarShowName, true, '清空数据不影响侧栏名称开关')
+
+    const reset = await harness.call('resetSettings')
+    assert.deepEqual(reset, defaults, '恢复初始设置返回完整的首次安装预设')
+    const afterReset = await harness.call('getSettings')
+    assert.deepEqual(afterReset, defaults, '恢复后读回同一份预设')
+    assert.equal(afterReset.durationFormat, 'short', '恢复后数字格式回到紧凑单位')
+    assert.equal(afterReset.sidebarShowName, false, '恢复后侧栏名称回到关闭')
+    assert.equal(afterReset.sidebarDuration, 'online', '恢复后侧栏时长回到在线时长')
   } finally {
     await harness.close()
   }

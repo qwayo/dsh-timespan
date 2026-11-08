@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  DEFAULT_DURATION_FORMAT,
   DURATION_FORMATS,
   formatDurationByPreset,
   normalizeDurationFormat,
@@ -57,11 +58,12 @@ test('毫秒向下取整，负数与非法数值按零处理', () => {
   assert.equal(formatDurationByPreset(Number.POSITIVE_INFINITY, 'short'), '0m 0s')
 })
 
-test('格式名只认五种预设，非法值回落 hms', () => {
+test('格式名只认五种预设，非法值回落紧凑单位', () => {
   assert.deepEqual(DURATION_FORMATS, ['hms', 'short', 'zh', 'sec', 'padded'])
+  assert.equal(DEFAULT_DURATION_FORMAT, 'short')
   for (const value of DURATION_FORMATS) assert.equal(normalizeDurationFormat(value), value)
   for (const value of ['', 'HMS', 'clock', 'zh-CN', null, undefined, 7, {}, []]) {
-    assert.equal(normalizeDurationFormat(value), 'hms', `非法格式 ${String(value)} 必须回落 hms`)
+    assert.equal(normalizeDurationFormat(value), 'short', `非法格式 ${String(value)} 必须回落紧凑单位`)
   }
-  assert.equal(formatDurationByPreset(3_600_000, 'unknown'), '1:00:00')
+  assert.equal(formatDurationByPreset(3_600_000, 'unknown'), '1h 0m')
 })

@@ -79,6 +79,8 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
         return getSettings()
       case 'setSettings':
         return setSettings(payload)
+      case 'resetSettings':
+        return resetSettings()
       case 'exportData':
         return exportData(payload)
       case 'clearData':
@@ -232,10 +234,15 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
   function setSettings(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('setSettings 载荷必须是对象')
     const patch = {}
-    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName', 'approximateNoticeDismissed']) {
+    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName', 'sidebarDuration', 'approximateNoticeDismissed']) {
       if (Object.hasOwn(payload, key)) patch[key] = payload[key]
     }
     return service.setSettings(patch)
+  }
+
+  /** 恢复初始设置不接收任何字段，避免 Client 用不完整载荷覆盖默认预设。 */
+  function resetSettings() {
+    return service.resetSettings()
   }
 
   function exportData(payload) {

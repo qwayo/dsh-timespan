@@ -17,14 +17,14 @@
 ## 界面一览
 
 <p align="center">
-  <img src="./assets/readme/dashboard.svg" width="100%" alt="ChronoScope 周期概览界面示意（真实数据）：侧栏今日活跃入口、今日活跃时长主数字、今日/本周/本月周期卡、本周每日趋势、任务时长构成、工作区任务排行、最近会话与每日时长热力图">
+  <img src="./assets/readme/dashboard.svg" width="100%" alt="ChronoScope 周期概览界面示意（真实数据）：侧栏在线时长入口、今日活跃时长主数字、今日/本周/本月周期卡、本周每日趋势、任务时长构成、工作区任务排行、最近会话与每日时长热力图">
 </p>
 
-- 侧边栏常驻入口，实时显示今日活跃时长与今日构成环。
-- 日/周/月仪表盘：概览、趋势、明细、设置四个同级视图；活跃主数字、趋势、热力图均可放大为首屏独立页。
+- 侧边栏常驻入口，实时显示所选时长（默认在线时长）与今日构成环，悬浮说明约 200ms 出现。
+- 日/周/月仪表盘：概览、趋势、明细、设置四个同级视图；活跃主数字、趋势、热力图均可放大为首屏独立页；趋势页附时段分布与趋势洞察。
 - 工作区 → 会话明细：活跃时长、任务时长、最近活动与当前计时状态。
 - Agent 只读工具 `chrono_stats`：在对话中按日/周/月或自定义日期查询，与仪表盘共用同一份 Host 统计。
-- 设置：空闲阈值（1–15 分钟）、周起始（周一/周日）、外观与配色、数字格式、是否显示子代理明细。
+- 设置：空闲阈值（1–15 分钟）、周起始（周一/周日）、外观（默认跟随系统）与配色、数字格式（默认紧凑单位，如 `2h 48m`）、是否显示子代理明细、侧栏显示名称与侧栏常驻时长（默认在线时长）。
 - 导出 JSON / CSV，备份文件按 ID 去重导入；清空数据等破坏性操作保留二次确认。
 - 首次启用自动回填已有历史会话的任务时长。
 
@@ -65,7 +65,7 @@ ChronoScope 分成两半：**Host** 是随 DSH 一起运行的后台，**Client*
 
 ### 装好后核对
 
-- 左侧栏出现 **ChronoScope** 入口，显示今日活跃时长。
+- 左侧栏出现 **ChronoScope** 入口，默认显示今日在线时长（可在设置中切换为活跃或任务时长；首次安装默认不显示名称，可在设置里打开）。
 - 设置页出现 **ChronoScope** 分区。
 - 对 Agent 说「用 chrono_stats 查一下今天的时长」，能返回统计结果。
 - 需要时用 `plugin_manager` 的 `list_bundles` / `list_plugins` 核对：bundle `@local/chrono-scope` 和插件行 `chrono-scope` 处于启用状态。
@@ -143,7 +143,7 @@ chrono-scope/
 | `index.js` | Host 半入口：打开 `chrono_scope` v1 存储域，注册 30 秒心跳、`session/event` 监听、包内 RPC 与 `chrono_stats` 工具。 |
 | `client.js` | Client 半入口：`sidebar.panellist` 侧栏入口、`shell.overlay` presence 心跳、`main` 仪表盘、`settings.section` 设置页。 |
 | `src/domain/chrono-scope-domain.js` | 全部业务规则的核心：在线/活跃/任务区间、任务四段构成、归属、并集/求和、查询与数据操作。 |
-| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`getSettings`、`setSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill`。 |
+| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`getSettings`、`setSettings`、`resetSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill`。 |
 | `src/host/tool.js` | 把 `chrono_stats` 参数转为 `queryStats` 查询，不另算一套数字。 |
 | `package.json` | 声明包名、版本、`exports`、发布文件列表；`dsh.bundle.patch` 指向 `cordis.patch.yml`，`dsh.client` 声明 Web 客户端加载方式。 |
 

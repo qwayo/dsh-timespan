@@ -14,13 +14,19 @@ import { MONDAY_WEEK_START, normalizeWeekStart } from './periods.js'
 export const MIN_IDLE_THRESHOLD_MINUTES = 1
 export const MAX_IDLE_THRESHOLD_MINUTES = 15
 
+/** 侧栏入口常驻展示的时长类型；默认在线时长，活跃与任务可另行选择。 */
+export const SIDEBAR_DURATION_VALUES = Object.freeze(['online', 'active', 'task'])
+export const DEFAULT_SIDEBAR_DURATION = 'online'
+
 export const DEFAULT_SETTINGS = Object.freeze({
   idleThresholdMinutes: 5,
   weekStartsOn: MONDAY_WEEK_START,
   showSubagents: true,
   durationFormat: DEFAULT_DURATION_FORMAT,
-  // 侧栏入口是否显示名称；关闭后仍保留时长、状态点与今日构成环。
-  sidebarShowName: true,
+  // 侧栏入口是否显示名称；首次安装默认关闭，仍保留时长、状态点与今日构成环。
+  sidebarShowName: false,
+  // 侧栏入口常驻显示哪种时长：online = 在线时长（默认）、active = 活跃时长、task = 任务时长。
+  sidebarDuration: DEFAULT_SIDEBAR_DURATION,
   // 「近似数据」说明是否已被用户关闭；属于展示偏好，默认未关闭。
   approximateNoticeDismissed: false,
 })
@@ -51,9 +57,19 @@ function normalizeShowSubagents(value) {
   return true
 }
 
+/**
+ * 侧栏名称默认关闭：只有明确打开才显示，缺省、旧版本字段缺失与脏数据都收敛为
+ * 关闭。这样首次安装不会先闪出一行名称。
+ */
 function normalizeSidebarShowName(value) {
-  if (value === false || value === 'false' || value === 0) return false
-  return true
+  return value === true || value === 'true' || value === 1
+}
+
+/** 侧栏时长只认三个预设；缺省与脏数据回落到在线时长。 */
+function normalizeSidebarDuration(value) {
+  return typeof value === 'string' && SIDEBAR_DURATION_VALUES.includes(value)
+    ? value
+    : DEFAULT_SIDEBAR_DURATION
 }
 
 /**
@@ -76,6 +92,7 @@ export function normalizeSettings(value) {
     showSubagents: normalizeShowSubagents(source.showSubagents),
     durationFormat: normalizeDurationFormat(source.durationFormat),
     sidebarShowName: normalizeSidebarShowName(source.sidebarShowName),
+    sidebarDuration: normalizeSidebarDuration(source.sidebarDuration),
     approximateNoticeDismissed: normalizeApproximateNoticeDismissed(source.approximateNoticeDismissed),
   }
 }
@@ -95,6 +112,7 @@ export function mergeSettings(current, patch) {
     showSubagents: Object.hasOwn(incoming, 'showSubagents') ? incoming.showSubagents : base.showSubagents,
     durationFormat: Object.hasOwn(incoming, 'durationFormat') ? incoming.durationFormat : base.durationFormat,
     sidebarShowName: Object.hasOwn(incoming, 'sidebarShowName') ? incoming.sidebarShowName : base.sidebarShowName,
+    sidebarDuration: Object.hasOwn(incoming, 'sidebarDuration') ? incoming.sidebarDuration : base.sidebarDuration,
     approximateNoticeDismissed: Object.hasOwn(incoming, 'approximateNoticeDismissed')
       ? incoming.approximateNoticeDismissed
       : base.approximateNoticeDismissed,
