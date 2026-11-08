@@ -1005,7 +1005,7 @@ test('客户端：配色/外观变更通过主题事件即时通知侧栏入口'
   assert.equal(calls.length, 1, '退订后不再收到通知')
 })
 
-test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬停/聚焦浮出三项数值', async () => {
+test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬停不再弹出浮层', async () => {
   const { renderSidebarEntry } = await loadClientFunctions()
   const labels = {
     title: 'ChronoScope',
@@ -1051,18 +1051,14 @@ test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬�
   assert.match(dot.props.className, /is-live/, '活跃状态点按活跃状态着色')
   assert.equal(dot.props['aria-label'], '活跃中')
 
-  tree.props.onMouseEnter(fakeEvent())
-  assert.equal(shown.length, 1, '悬停触发浮层')
-  assert.equal(shown[0].tip.title, '今日在线、活跃与任务时长')
-  assert.equal(
-    JSON.stringify(shown[0].tip.rows.map((row) => [row.label, row.value])),
-    JSON.stringify([['在线时长', '4:00:00'], ['活跃', '3:00:00'], ['任务', '1:00:00']]),
-    '浮层给出三项具体数值',
-  )
-  tree.props.onFocus(fakeEvent())
-  assert.equal(shown.length, 2, '键盘聚焦同样触发浮层')
-  tree.props.onKeyDown({ key: 'Escape' })
-  assert.equal(hidden.length, 1, 'Escape 收起浮层')
+  assert.equal(tree.props.onMouseEnter, undefined, '入口不再绑定悬停浮层')
+  assert.equal(tree.props.onFocus, undefined, '入口不再绑定聚焦浮层')
+  assert.equal(shown.length, 0, '悬停与聚焦都不再触发浮层')
+  assert.equal(hidden.length, 0, '也不再触发浮层收起')
+  assert.equal(findAll(tree, (node) => hasClass(node, 'cs-hover-tip')).length, 0, '入口内不再渲染 HoverTip 节点')
+  assert.match(tree.props['aria-label'], /在线时长 4:00:00/, '在线时长仍留在无障碍标签里')
+  assert.match(tree.props['aria-label'], /活跃 3:00:00/, '活跃时长仍留在无障碍标签里')
+  assert.match(tree.props['aria-label'], /任务 1:00:00/, '任务时长仍留在无障碍标签里')
 
   const named = renderSidebarEntry({
     stats: { ...stats, activeRunning: false },
@@ -1099,6 +1095,11 @@ test('客户端：侧栏名称只显示工作区标题，空值不回落插件�
   assert.equal(findByClass(missing, 'chronoscope-nav-name'), undefined, '没有工作区名时不再渲染名称')
   const sameAsPlugin = renderSidebarEntry({ ...base, workspaceTitle: 'ChronoScope' })
   assert.equal(findByClass(sameAsPlugin, 'chronoscope-nav-name'), undefined, '工作区名与插件名相同时也不重复渲染')
+  for (const variant of ['chrono-scope', 'CHRONO-SCOPE', 'Chrono Scope', 'chrono_scope']) {
+    const folded = renderSidebarEntry({ ...base, workspaceTitle: variant })
+    assert.equal(findByClass(folded, 'chronoscope-nav-name'), undefined,
+      `工作区名「${variant}」忽略大小写与分隔符后与插件名等价，不重复渲染`)
+  }
 
   const hiddenWorkspace = renderSidebarEntry({ ...base, workspaceTitle: '项目甲', showName: false })
   assert.equal(findByClass(hiddenWorkspace, 'chronoscope-nav-name'), undefined, '隐藏名称时工作区名不渲染')

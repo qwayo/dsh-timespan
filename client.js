@@ -1480,31 +1480,24 @@ window.__ModuleLoader__.load({
      * 侧栏入口的纯渲染层：主题、名称显隐与三项数值都可从外部注入，
      * 便于在隔离上下文断言结构；真实组件只负责轮询与订阅。
      */
-    function renderSidebarEntry({ stats, theme, showName = true, workspaceTitle, t, hover, size, format = 'hms' }) {
+    function renderSidebarEntry({ stats, theme, showName = true, workspaceTitle, t, size, format = 'hms' }) {
       const wide = typeof size !== 'number' || size !== 18
       const themeClass = sidebarThemeClass(theme?.palette, theme?.appearance, theme?.systemDark === true)
       const segments = sidebarRingSegments(stats)
-      const tip = buildSidebarTip(stats, t, format)
       const activeMs = sidebarDisplayMs(stats)
       const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(activeMs, format)
-      // 宿主侧栏已用 label 显示插件名；这里只在有工作区标题时补一行，避免重复出现两个名字。
+      // 宿主侧栏已用 label 显示插件名；工作区名与之等价（忽略大小写与分隔符）时不再重复渲染，
+      // 避免「ChronoScope」与「chrono-scope」这类同名字样并排出现两次。
       const workspaceName = typeof workspaceTitle === 'string' ? workspaceTitle.trim() : ''
-      const displayName = workspaceName !== '' && workspaceName !== t('title') ? workspaceName : ''
+      const foldName = (name) => String(name).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g, '')
+      const displayName = workspaceName !== '' && foldName(workspaceName) !== foldName(t('title')) ? workspaceName : ''
       const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(finite(stats?.onlineMs), format)} · ${t('activeLabel')} ${formatDuration(activeMs, format)} · ${t('taskLabel')} ${formatDuration(finite(stats?.taskMs), format)}`
-      const handlers = {
-        onMouseEnter: (event) => hover?.show?.(tip, event),
-        onFocus: (event) => hover?.show?.(tip, event),
-        onMouseLeave: () => hover?.hide?.(),
-        onBlur: () => hover?.hide?.(),
-        onKeyDown: (event) => {
-          if (event?.key === 'Escape') hover?.hide?.()
-        },
-      }
+      // 侧栏入口不挂悬停/聚焦浮层：鼠标移上去不再弹出一大块数值，
+      // 三项时长保留在 aria-label 与仪表盘里；ⓘ 才用点击 popover。
       return h('span', {
         className: `chronoscope-nav-entry ${themeClass}`,
         tabIndex: 0,
         'aria-label': summary,
-        ...handlers,
       },
       h('style', null, CHRONOSCOPE_SIDEBAR_CSS),
       h('span', {
@@ -1526,8 +1519,7 @@ window.__ModuleLoader__.load({
             role: 'img',
             'aria-label': stats?.activeRunning ? t('live') : t('idle'),
           })
-        : null,
-      hover?.tip ? h(HoverTip, { tip: hover.tip, id: 'chronoscope-sidebar-tip' }) : null)
+        : null)
     }
 
     /** 侧边栏常驻入口：今日构成环 + 活跃时长 + 可隐藏名称 + 状态点。 */
@@ -1539,8 +1531,7 @@ window.__ModuleLoader__.load({
         const [theme, setTheme] = React.useState(readStoredTheme)
         const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
         const [showName, setShowName] = React.useState(true)
-        const hover = useHoverTip()
-        // 侧栏名称跟随当前前台会话所属工作区；没有会话或工作区时回落插件名。
+        // 侧栏名称跟随当前前台会话所属工作区；空值不回落插件名，避免与宿主 label 重复。
         const currentSessionId = useStandardValue(props?.useSessions, (state) => sessionOf(state)?.id ?? null, null)
         const workspaceTitle = useStandardValue(props?.useWorkspaces, (state) => {
           const workspace = workspaceOf(state, currentSessionId)
@@ -1603,7 +1594,6 @@ window.__ModuleLoader__.load({
           showName,
           workspaceTitle,
           t,
-          hover,
           size: props?.size,
           format: normalizeDurationFormat(previewFormat ?? stats.durationFormat),
         })
