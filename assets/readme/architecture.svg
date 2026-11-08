@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="356" viewBox="0 0 1200 356" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">ChronoScope 运行机制</title>
+  <desc id="arch-desc">ChronoScope 分成两半：Host 是随 DSH 一起运行的后台，负责记心跳、听会话事件、统一计算统计并把数据写进本机；Client 是页面上看到的部分，负责侧栏入口、仪表盘与设置页，并把发生了什么报给后台。</desc>
+
+  <rect width="1200" height="356" rx="24" fill="#f7f8f9"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="354.5" rx="23.25" fill="none" stroke="#e2e4e6" stroke-width="1.5"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+
+    <!-- ===== 后台：DSH Host ===== -->
+    <g id="host-box">
+      <rect x="64" y="48" width="1072" height="90" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <circle cx="96" cy="74" r="6" fill="#133463"/>
+      <text x="114" y="81" font-size="22" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Host</text>
+      <text x="248" y="80" font-size="16" fill="#8a9095">插件的后台，随 DSH 一起运行</text>
+      <g font-size="16" fill="#565b5e" text-anchor="middle">
+        <rect x="88" y="92" width="192" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
+        <text x="184" y="113">每 30 秒记一次在线心跳</text>
+        <rect x="304" y="92" width="216" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
+        <text x="412" y="113">听会话事件，切出任务时段</text>
+        <rect x="544" y="92" width="136" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
+        <text x="612" y="113">统一算统计口径</text>
+        <rect x="704" y="92" width="184" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
+        <text x="796" y="113">写入本机存储，不上传</text>
+      </g>
+    </g>
+
+    <!-- ===== 双向通道 ===== -->
+    <g id="channel">
+      <line x1="440" y1="180" x2="440" y2="148" stroke="#8a9095" stroke-width="2"/>
+      <path d="M435 152 440 144 445 152" fill="none" stroke="#8a9095" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="452" y="167" font-size="16" fill="#8a9095">页面告诉后台发生了什么</text>
+      <line x1="790" y1="148" x2="790" y2="180" stroke="#1F4E94" stroke-width="2"/>
+      <path d="M785 176 790 184 795 176" fill="none" stroke="#1F4E94" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="802" y="167" font-size="16" fill="#8a9095">后台把算好的结果给页面</text>
+    </g>
+
+    <!-- ===== 页面：DSH Web Client ===== -->
+    <g id="client-box">
+      <rect x="64" y="186" width="1072" height="90" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <circle cx="96" cy="212" r="6" fill="#79B3F9"/>
+      <text x="114" y="219" font-size="22" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Web Client</text>
+      <text x="304" y="218" font-size="16" fill="#8a9095">你在页面上看到的部分</text>
+      <g font-size="16" fill="#565b5e" text-anchor="middle">
+        <rect x="88" y="230" width="200" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
+        <text x="188" y="251">侧栏入口，显示今日活跃</text>
+        <rect x="312" y="230" width="208" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
+        <text x="416" y="251">每 15 秒报一次「我开着」</text>
+        <rect x="544" y="230" width="136" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
+        <text x="612" y="251">仪表盘与设置页</text>
+        <rect x="704" y="230" width="208" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
+        <text x="808" y="251">chrono_stats 只读查询</text>
+      </g>
+    </g>
+
+    <text x="600" y="316" text-anchor="middle" font-size="20" fill="#565b5e">页面只负责上报事实；怎么算、算多久、存在哪，都由 Host 统一处理，数据不出本机。</text>
+  </g>
+</svg>

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">ChronoScope：记录 DSH 的在线、活跃与任务时长</title>
+  <desc id="hero-desc">ChronoScope 插件标题版面：左侧为插件名与一句话价值，右侧为今日在线、活跃、任务三项时长的构成环，与侧边栏入口同款。</desc>
+
+  <defs></defs>
+
+  <!-- 背景：与 icon.svg 同源的深色表面 -->
+  <rect width="1200" height="360" rx="24" fill="#242729"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="358.5" rx="23.25" fill="none" stroke="#313639" stroke-width="1.5"/>
+
+  <!-- 左侧标题区 -->
+  <g id="title-block">
+    <!-- 眉题：微型分段圆环 + 类别 -->
+    <g transform="translate(72 64)">
+      <g transform="rotate(-90 10 10)">
+        <circle cx="10" cy="10" r="7.5" fill="none" stroke="#3f6ba8" stroke-width="2.5" stroke-linecap="round"
+                pathLength="47" stroke-dasharray="20 27" stroke-dashoffset="-1"/>
+        <circle cx="10" cy="10" r="7.5" fill="none" stroke="#79B3F9" stroke-width="2.5" stroke-linecap="round"
+                pathLength="47" stroke-dasharray="11 36" stroke-dashoffset="-23"/>
+        <circle cx="10" cy="10" r="7.5" fill="none" stroke="#5F93D5" stroke-width="2.5" stroke-linecap="round"
+                pathLength="47" stroke-dasharray="8 39" stroke-dashoffset="-36"/>
+      </g>
+      <text x="30" y="15" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace"
+            font-size="18" letter-spacing="3" fill="#aeb6b9">DSH 插件 · 时长统计</text>
+    </g>
+
+    <text x="70" y="162" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
+          font-size="76" font-weight="700" letter-spacing="-1" fill="#f4f4f3">ChronoScope</text>
+
+    <text x="72" y="210" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
+          font-size="26" fill="#c9cdd0">记录 DSH 的在线、活跃与任务时长，数据只留在本机。</text>
+
+    <!-- 元数据胶囊 -->
+    <g id="meta-chips" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace"
+       font-size="18" fill="#aeb6b9">
+      <rect x="72" y="244" width="82" height="34" rx="17" fill="none" stroke="#3e4346" stroke-width="1.5"/>
+      <text x="113" y="266" text-anchor="middle">零依赖</text>
+      <rect x="166" y="244" width="82" height="34" rx="17" fill="none" stroke="#3e4346" stroke-width="1.5"/>
+      <text x="207" y="266" text-anchor="middle">无构建</text>
+      <rect x="260" y="244" width="82" height="34" rx="17" fill="none" stroke="#3e4346" stroke-width="1.5"/>
+      <text x="301" y="266" text-anchor="middle">本地存储</text>
+      <rect x="354" y="244" width="104" height="34" rx="17" fill="none" stroke="#3e4346" stroke-width="1.5"/>
+      <text x="406" y="266" text-anchor="middle">Node 24</text>
+    </g>
+  </g>
+
+  <!-- 右侧：今日构成环（侧栏入口同款，深色外观三档蓝） -->
+  <g id="composite-ring">
+    <!-- 轨道 -->
+    <circle cx="930" cy="178" r="100" fill="none" stroke="#3a3f42" stroke-width="26"/>
+    <g transform="rotate(-90 930 178)">
+      <!-- 在线 -->
+      <circle cx="930" cy="178" r="100" fill="none" stroke="#3f6ba8" stroke-width="26" stroke-linecap="round"
+              pathLength="660" stroke-dasharray="346 314" stroke-dashoffset="-5"/>
+      <!-- 活跃 -->
+      <circle cx="930" cy="178" r="100" fill="none" stroke="#79B3F9" stroke-width="26" stroke-linecap="round"
+              pathLength="660" stroke-dasharray="190 470" stroke-dashoffset="-361"/>
+      <!-- 任务 -->
+      <circle cx="930" cy="178" r="100" fill="none" stroke="#5F93D5" stroke-width="26" stroke-linecap="round"
+              pathLength="660" stroke-dasharray="89 571" stroke-dashoffset="-561"/>
+    </g>
+    <!-- 指针与轴心（icon.svg 同款） -->
+    <path d="M930 178 982 126" fill="none" stroke="#f4f4f3" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="930" cy="178" r="11" fill="#f4f4f3"/>
+
+    <!-- 分段标注（按弧段中点放置：在线右、活跃左下、任务左上） -->
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="20">
+      <g id="label-online">
+        <path d="M1034 190 1060 199" stroke="#4a4f52" stroke-width="1.5" fill="none"/>
+        <circle cx="1069" cy="203" r="5" fill="#3f6ba8"/>
+        <text x="1081" y="210" fill="#c9cdd0">在线</text>
+      </g>
+      <g id="label-active">
+        <path d="M833 217 810 239" stroke="#4a4f52" stroke-width="1.5" fill="none"/>
+        <circle cx="802" cy="246" r="5" fill="#79B3F9"/>
+        <text x="790" y="253" text-anchor="end" fill="#c9cdd0">活跃</text>
+      </g>
+      <g id="label-task">
+        <path d="M877 90 856 69" stroke="#4a4f52" stroke-width="1.5" fill="none"/>
+        <circle cx="848" cy="62" r="5" fill="#5F93D5"/>
+        <text x="836" y="69" text-anchor="end" fill="#c9cdd0">任务</text>
+      </g>
+    </g>
+
+    <text x="930" y="332" text-anchor="middle"
+          font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace"
+          font-size="18" fill="#8a9095">今日构成环 · 侧栏入口同款</text>
+  </g>
+</svg>

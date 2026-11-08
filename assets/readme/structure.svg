@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="struct-title struct-desc">
+  <title id="struct-title">ChronoScope bundle 结构树</title>
+  <desc id="struct-desc">ChronoScope 的 bundle 结构：package.json 与 cordis.patch.yml 组成 bundle；index.js 与 client.js 分为 Host、Client 两半；Host 半带 src/domain 领域层七个模块与 src/host 适配层两个模块，Client 半挂载宿主的四个页面点位；配套 test、docs/adr、locale 与 assets/readme。</desc>
+
+  <rect width="1200" height="400" rx="24" fill="#f7f8f9"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="398.5" rx="23.25" fill="none" stroke="#e2e4e6" stroke-width="1.5"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+    <text x="88" y="46" font-size="16" letter-spacing="2" fill="#8a9095"
+          font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">bundle 结构 · @local/chrono-scope</text>
+
+    <!-- ===== 第一层：bundle 清单 ===== -->
+    <g id="root-row">
+      <rect x="88" y="60" width="500" height="40" rx="10" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="104" y="85"><tspan font-size="16" font-weight="700" fill="#242729" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">package.json</tspan><tspan font-size="14" fill="#565b5e">　bundle 清单，声明 exports 与加载方式</tspan></text>
+      <rect x="612" y="60" width="500" height="40" rx="10" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="628" y="85"><tspan font-size="16" font-weight="700" fill="#242729" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">cordis.patch.yml</tspan><tspan font-size="14" fill="#565b5e">　向 Loader 插入 chrono-scope 插件行</tspan></text>
+    </g>
+
+    <!-- 连接线：bundle → 两半 -->
+    <path d="M338 100 V114 M862 100 V114 M338 114 H862 M338 114 V128 M862 114 V128"
+          fill="none" stroke="#c9cdd0" stroke-width="1.5"/>
+
+    <!-- ===== 第二层：两半入口 ===== -->
+    <g id="entry-row">
+      <rect x="88" y="128" width="500" height="68" rx="12" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <rect x="88" y="128" width="4" height="68" rx="2" fill="#133463"/>
+      <text x="108" y="156" font-size="18" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">index.js</text>
+      <rect x="200" y="139" width="60" height="22" rx="11" fill="none" stroke="#133463" stroke-width="1.2"/>
+      <text x="230" y="154" text-anchor="middle" font-size="13" fill="#133463">Host 半</text>
+      <text x="108" y="181" font-size="14" fill="#565b5e">存储域 · 30 秒在线心跳 · 会话事件 · 包内 RPC · chrono_stats 工具</text>
+
+      <rect x="612" y="128" width="500" height="68" rx="12" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <rect x="612" y="128" width="4" height="68" rx="2" fill="#79B3F9"/>
+      <text x="632" y="156" font-size="18" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">client.js</text>
+      <rect x="734" y="139" width="70" height="22" rx="11" fill="none" stroke="#1F4E94" stroke-width="1.2"/>
+      <text x="769" y="154" text-anchor="middle" font-size="13" fill="#1F4E94">Client 半</text>
+      <text x="632" y="181" font-size="14" fill="#565b5e">侧栏入口 · presence 心跳 · 仪表盘 · 设置页</text>
+    </g>
+
+    <!-- 连接线：入口 → 模块层 -->
+    <path d="M338 196 V208 M862 196 V208 M238 208 H542 M238 208 V220 M542 208 V220 M904 208 H862 M904 208 V220"
+          fill="none" stroke="#c9cdd0" stroke-width="1.5"/>
+
+    <!-- ===== 第三层：模块与挂载点 ===== -->
+    <g id="module-row">
+      <rect x="88" y="220" width="300" height="72" rx="12" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="104" y="246" font-size="16" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">src/domain/</text>
+      <text x="104" y="266" font-size="13" fill="#565b5e">领域层 · 7 个模块</text>
+      <text x="104" y="283" font-size="13" fill="#8a9095">纯逻辑，可用假时钟测试</text>
+
+      <rect x="412" y="220" width="260" height="72" rx="12" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="428" y="246" font-size="16" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">src/host/</text>
+      <text x="428" y="266" font-size="13" fill="#565b5e">Host 适配层 · 2 个模块</text>
+      <text x="428" y="283" font-size="13" fill="#8a9095">包内 RPC 与只读查询工具</text>
+
+      <rect x="696" y="220" width="416" height="72" rx="12" fill="none" stroke="#b3b8bc" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <text x="712" y="246" font-size="15" font-weight="700" fill="#242729">宿主挂载点位 × 4</text>
+      <text x="712" y="266" font-size="13" fill="#565b5e"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">sidebar.panellist · shell.overlay</text>
+      <text x="712" y="283" font-size="13" fill="#565b5e"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">main · settings.section</text>
+    </g>
+
+    <!-- ===== 第四层：配套资产 ===== -->
+    <g id="support-row">
+      <rect x="88" y="324" width="244" height="48" rx="10" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="104" y="344" font-size="14" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">test/</text>
+      <text x="104" y="362" font-size="13" fill="#8a9095">12 个 node:test 测试</text>
+
+      <rect x="348" y="324" width="244" height="48" rx="10" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="364" y="344" font-size="14" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">docs/adr/</text>
+      <text x="364" y="362" font-size="13" fill="#8a9095">6 篇架构决策记录</text>
+
+      <rect x="608" y="324" width="244" height="48" rx="10" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="624" y="344" font-size="14" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">locale/</text>
+      <text x="624" y="362" font-size="13" fill="#8a9095">中英展示元数据</text>
+
+      <rect x="868" y="324" width="244" height="48" rx="10" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="884" y="344" font-size="14" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">assets/readme/</text>
+      <text x="884" y="362" font-size="13" fill="#8a9095">README 视觉素材</text>
+    </g>
+  </g>
+</svg>

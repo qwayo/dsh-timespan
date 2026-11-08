@@ -1,0 +1,300 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600" role="img" aria-labelledby="dash-title dash-desc">
+  <title id="dash-title">ChronoScope 周期概览界面示意</title>
+  <desc id="dash-desc">ChronoScope 周期概览界面示意（真实数据）：左侧 DSH 深色侧栏中的今日活跃时长入口，右侧为今日活跃时长主数字、今日/本周/本月周期卡、本周每日趋势、任务时长构成、工作区任务排行、最近会话与每日时长热力图。</desc>
+
+  <!-- 画布 -->
+  <rect width="1200" height="600" rx="24" fill="#f7f8f9"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="598.5" rx="23.25" fill="none" stroke="#e2e4e6" stroke-width="1.5"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+
+    <!-- ===== DSH 侧栏（深色） ===== -->
+    <g id="host-sidebar">
+      <rect x="32" y="48" width="144" height="504" rx="16" fill="#242729"/>
+      <!-- 品牌占位 -->
+      <rect x="48" y="68" width="84" height="16" rx="4" fill="#3e4346"/>
+      <!-- 新会话按钮 -->
+      <rect x="48" y="100" width="112" height="30" rx="8" fill="#2e3336"/>
+      <text x="104" y="120" text-anchor="middle" font-size="14" fill="#aeb6b9">新会话</text>
+      <!-- 宿主导航占位 -->
+      <g fill="#3e4346">
+        <rect x="50" y="150" width="12" height="12" rx="3"/><rect x="70" y="151" width="60" height="10" rx="3"/>
+        <rect x="50" y="176" width="12" height="12" rx="3"/><rect x="70" y="177" width="52" height="10" rx="3"/>
+        <rect x="50" y="202" width="12" height="12" rx="3"/><rect x="70" y="203" width="66" height="10" rx="3"/>
+        <rect x="50" y="228" width="12" height="12" rx="3"/><rect x="70" y="229" width="58" height="10" rx="3"/>
+      </g>
+      <!-- ChronoScope 入口：构成环 + 今日活跃 + 状态点 -->
+      <rect x="40" y="288" width="128" height="36" rx="10" fill="#2e3336"/>
+      <g transform="rotate(-90 56 306)">
+        <circle cx="56" cy="306" r="9" fill="none" stroke="#3f6ba8" stroke-width="4" stroke-linecap="round" pathLength="56" stroke-dasharray="26 30" stroke-dashoffset="-1"/>
+        <circle cx="56" cy="306" r="9" fill="none" stroke="#79B3F9" stroke-width="4" stroke-linecap="round" pathLength="56" stroke-dasharray="16 40" stroke-dashoffset="-29"/>
+        <circle cx="56" cy="306" r="9" fill="none" stroke="#5F93D5" stroke-width="4" stroke-linecap="round" pathLength="56" stroke-dasharray="9 47" stroke-dashoffset="-47"/>
+      </g>
+      <text x="72" y="311" font-size="15" font-weight="700" fill="#79B3F9"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">01:13:32</text>
+      <circle cx="150" cy="306" r="7" fill="#79B3F9" opacity="0.25"/>
+      <circle cx="150" cy="306" r="3.5" fill="#79B3F9"/>
+      <!-- 工作区 -->
+      <rect x="50" y="346" width="40" height="10" rx="3" fill="#565b5e"/>
+      <g fill="#3e4346">
+        <rect x="50" y="372" width="12" height="10" rx="2"/><rect x="70" y="373" width="66" height="9" rx="3"/>
+        <rect x="50" y="400" width="12" height="10" rx="2"/><rect x="70" y="401" width="40" height="9" rx="3"/>
+        <rect x="50" y="428" width="12" height="10" rx="2"/><rect x="70" y="429" width="44" height="9" rx="3"/>
+        <rect x="50" y="456" width="12" height="10" rx="2"/><rect x="70" y="457" width="58" height="9" rx="3"/>
+        <rect x="50" y="484" width="12" height="10" rx="2"/><rect x="70" y="485" width="48" height="9" rx="3"/>
+        <rect x="50" y="512" width="12" height="10" rx="2"/><rect x="70" y="513" width="56" height="9" rx="3"/>
+      </g>
+    </g>
+
+    <!-- ===== 顶栏 ===== -->
+    <g id="topbar">
+      <text x="190" y="76" font-size="20" font-weight="700" fill="#242729">周期概览</text>
+      <rect x="284" y="58" width="72" height="24" rx="12" fill="#eceef0"/>
+      <text x="320" y="75" text-anchor="middle" font-size="14" fill="#565b5e">实际占用</text>
+      <circle cx="372" cy="70" r="7.5" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
+      <text x="372" y="74" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
+      <text x="1168" y="76" text-anchor="end" font-size="16" fill="#8a9095">界面示意</text>
+    </g>
+
+    <!-- ===== 第一行：今日活跃时长 + 周期卡 ===== -->
+    <g id="hero-metric-card">
+      <rect x="190" y="100" width="440" height="120" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="214" y="130" font-size="18" font-weight="700" fill="#242729">今日活跃时长</text>
+      <rect x="342" y="112" width="72" height="22" rx="11" fill="#eceef0"/>
+      <text x="378" y="128" text-anchor="middle" font-size="13" fill="#565b5e">实际占用</text>
+      <path d="M610 121v-5h5M620 121v5h-5" fill="none" stroke="#b3b8bc" stroke-width="1.2" stroke-linecap="round"/>
+      <text x="214" y="182" font-size="38" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">01:13:32</text>
+      <text x="214" y="206" font-size="13" fill="#8a9095"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">今日在线时长 08:10:32 · 今日任务时长 05:48:53</text>
+    </g>
+
+    <g id="period-today">
+      <rect x="642" y="100" width="155" height="120" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="658" y="130" font-size="18" font-weight="700" fill="#242729">今日</text>
+      <text x="781" y="129" text-anchor="end" font-size="12" fill="#8a9095">32 次任务</text>
+      <text x="658" y="163" font-size="14" fill="#8a9095">活跃</text>
+      <text x="781" y="164" text-anchor="end" font-size="15" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">01:13:32</text>
+      <text x="658" y="193" font-size="14" fill="#8a9095">任务</text>
+      <text x="781" y="194" text-anchor="end" font-size="15" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">05:48:53</text>
+    </g>
+
+    <g id="period-week">
+      <rect x="809" y="100" width="185" height="120" rx="14" fill="#133463"/>
+      <text x="825" y="130" font-size="18" font-weight="700" fill="#ffffff">本周</text>
+      <rect x="865" y="112" width="38" height="21" rx="10.5" fill="none" stroke="#7d97bd" stroke-width="1.2"/>
+      <text x="884" y="127" text-anchor="middle" font-size="12" fill="#cfe0f5">当前</text>
+      <text x="978" y="128" text-anchor="end" font-size="12" fill="#b8cbe4">136 次任务</text>
+      <text x="825" y="163" font-size="14" fill="#b8cbe4">活跃</text>
+      <text x="978" y="164" text-anchor="end" font-size="15" font-weight="700" fill="#ffffff"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">09:38:59</text>
+      <text x="825" y="193" font-size="14" fill="#b8cbe4">任务</text>
+      <text x="978" y="194" text-anchor="end" font-size="15" font-weight="700" fill="#ffffff"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">20:43:04</text>
+    </g>
+
+    <g id="period-month">
+      <rect x="1006" y="100" width="162" height="120" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="1022" y="130" font-size="18" font-weight="700" fill="#242729">本月</text>
+      <text x="1152" y="129" text-anchor="end" font-size="12" fill="#8a9095">136 次任务</text>
+      <text x="1022" y="163" font-size="14" fill="#8a9095">活跃</text>
+      <text x="1152" y="164" text-anchor="end" font-size="15" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">09:38:59</text>
+      <text x="1022" y="193" font-size="14" fill="#8a9095">任务</text>
+      <text x="1152" y="194" text-anchor="end" font-size="15" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">20:43:04</text>
+    </g>
+
+    <!-- ===== 第二行：本周每日 + 任务时长构成 ===== -->
+    <g id="daily-trend-card">
+      <rect x="190" y="232" width="600" height="168" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="214" y="260" font-size="18" font-weight="700" fill="#242729">本周每日</text>
+      <circle cx="312" cy="255" r="7.5" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
+      <text x="312" y="259" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
+      <circle cx="600" cy="255" r="5" fill="#133463"/>
+      <text x="611" y="261" font-size="15" fill="#565b5e">活跃</text>
+      <circle cx="662" cy="255" r="5" fill="#9fbde0"/>
+      <text x="673" y="261" font-size="15" fill="#565b5e">任务</text>
+      <path d="M770 249v-5h5M780 249v5h-5" fill="none" stroke="#b3b8bc" stroke-width="1.2" stroke-linecap="round"/>
+      <!-- 网格与刻度 -->
+      <g font-size="13" fill="#8a9095" text-anchor="end"
+         font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">
+        <text x="262" y="376">00:00:00</text>
+        <text x="262" y="334">02:58:02</text>
+        <text x="262" y="292">05:56:04</text>
+      </g>
+      <line x1="274" y1="372" x2="750" y2="372" stroke="#e2e4e6" stroke-width="1.5"/>
+      <line x1="274" y1="330" x2="750" y2="330" stroke="#e2e4e6" stroke-width="1" stroke-dasharray="3 4"/>
+      <line x1="274" y1="288" x2="750" y2="288" stroke="#e2e4e6" stroke-width="1" stroke-dasharray="3 4"/>
+      <!-- 活跃柱 -->
+      <g fill="#133463">
+        <rect x="427" y="294" width="9" height="78" rx="2"/>
+        <rect x="501" y="360" width="9" height="12" rx="2"/>
+        <rect x="575" y="366" width="9" height="6" rx="2"/>
+        <rect x="649" y="344" width="9" height="28" rx="2"/>
+        <rect x="723" y="358" width="9" height="14" rx="2"/>
+      </g>
+      <!-- 任务柱 -->
+      <g fill="#9fbde0">
+        <rect x="366" y="360" width="9" height="12" rx="2"/>
+        <rect x="440" y="292" width="9" height="80" rx="2"/>
+        <rect x="514" y="328" width="9" height="44" rx="2"/>
+        <rect x="662" y="288" width="9" height="84" rx="2"/>
+        <rect x="736" y="300" width="9" height="72" rx="2"/>
+      </g>
+      <g font-size="13" fill="#8a9095" text-anchor="middle">
+        <text x="290" y="392">周一</text>
+        <text x="364" y="392">周二</text>
+        <text x="438" y="392">周三</text>
+        <text x="512" y="392">周四</text>
+        <text x="586" y="392">周五</text>
+        <text x="660" y="392">周六</text>
+        <text x="734" y="392">周日</text>
+      </g>
+    </g>
+
+    <g id="task-mix-card">
+      <rect x="802" y="232" width="366" height="168" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="826" y="260" font-size="18" font-weight="700" fill="#242729">任务时长构成</text>
+      <circle cx="946" cy="255" r="7.5" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
+      <text x="946" y="259" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
+      <rect x="1052" y="242" width="92" height="24" rx="12" fill="#eceef0"/>
+      <text x="1098" y="259" text-anchor="middle" font-size="13" fill="#565b5e">累计工时</text>
+      <!-- 构成环 -->
+      <g transform="rotate(-90 890 330)">
+        <circle cx="890" cy="330" r="48" fill="none" stroke="#133463" stroke-width="16" pathLength="264" stroke-dasharray="164 100" stroke-dashoffset="-3"/>
+        <circle cx="890" cy="330" r="48" fill="none" stroke="#5e8fc9" stroke-width="16" pathLength="264" stroke-dasharray="34 230" stroke-dashoffset="-169"/>
+        <circle cx="890" cy="330" r="48" fill="none" stroke="#c9d8ea" stroke-width="16" pathLength="264" stroke-dasharray="2 262" stroke-dashoffset="-205"/>
+        <circle cx="890" cy="330" r="48" fill="none" stroke="#9fbde0" stroke-width="16" pathLength="264" stroke-dasharray="52 212" stroke-dashoffset="-209"/>
+        <circle cx="890" cy="330" r="48" fill="none" stroke="#e9edf2" stroke-width="16" pathLength="264" stroke-dasharray="1 263" stroke-dashoffset="-263"/>
+      </g>
+      <text x="890" y="326" text-anchor="middle" font-size="14" font-weight="700" fill="#242729"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">21:07:29</text>
+      <text x="890" y="342" text-anchor="middle" font-size="11" fill="#8a9095">累计工时</text>
+      <!-- 图例 -->
+      <g font-size="14">
+        <circle cx="964" cy="292" r="5" fill="#133463"/>
+        <text x="974" y="297" fill="#565b5e">模型</text>
+        <text x="1020" y="297" fill="#8a9095">65%</text>
+        <text x="1144" y="297" text-anchor="end" fill="#565b5e" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">13:48:45</text>
+        <circle cx="964" cy="316" r="5" fill="#5e8fc9"/>
+        <text x="974" y="321" fill="#565b5e">工具</text>
+        <text x="1020" y="321" fill="#8a9095">14%</text>
+        <text x="1144" y="321" text-anchor="end" fill="#565b5e" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">02:52:14</text>
+        <circle cx="964" cy="340" r="5" fill="#c9d8ea"/>
+        <text x="974" y="345" fill="#565b5e">等待</text>
+        <text x="1020" y="345" fill="#8a9095">0%</text>
+        <text x="1144" y="345" text-anchor="end" fill="#565b5e" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">00:04:54</text>
+        <circle cx="964" cy="364" r="5" fill="#9fbde0"/>
+        <text x="974" y="369" fill="#565b5e">其他</text>
+        <text x="1020" y="369" fill="#8a9095">21%</text>
+        <text x="1144" y="369" text-anchor="end" fill="#565b5e" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">04:21:29</text>
+        <circle cx="964" cy="388" r="5" fill="#e9edf2"/>
+        <text x="974" y="393" fill="#565b5e">未拆分</text>
+        <text x="1020" y="393" fill="#8a9095">0%</text>
+        <text x="1144" y="393" text-anchor="end" fill="#565b5e" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">00:00:05</text>
+      </g>
+    </g>
+
+    <!-- ===== 第三行：工作区排行 + 最近会话 + 每日时长 ===== -->
+    <g id="workspace-rank-card">
+      <rect x="190" y="412" width="360" height="140" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="214" y="440" font-size="18" font-weight="700" fill="#242729">工作区任务排行</text>
+      <circle cx="354" cy="435" r="7.5" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
+      <text x="354" y="439" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
+      <g font-size="14" fill="#8a9095"
+         font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">
+        <text x="214" y="474">01</text>
+        <text x="214" y="502">02</text>
+        <text x="214" y="530">03</text>
+      </g>
+      <g font-size="14" fill="#242729">
+        <text x="240" y="474">工作区 A</text>
+        <text x="240" y="502">工作区 B</text>
+        <text x="240" y="530">工作区 C</text>
+      </g>
+      <g fill="#edeff1">
+        <rect x="342" y="467" width="68" height="7" rx="3.5"/>
+        <rect x="342" y="495" width="68" height="7" rx="3.5"/>
+        <rect x="342" y="523" width="68" height="7" rx="3.5"/>
+      </g>
+      <g fill="#133463">
+        <rect x="342" y="467" width="61" height="7" rx="3.5"/>
+        <rect x="342" y="495" width="9" height="7" rx="3.5"/>
+        <rect x="342" y="523" width="2" height="7" rx="1"/>
+      </g>
+      <g font-size="14" fill="#565b5e" text-anchor="end"
+         font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">
+        <text x="476" y="474">18:42:44</text>
+        <text x="476" y="502">02:15:13</text>
+        <text x="476" y="530">00:09:31</text>
+      </g>
+      <g font-size="14" fill="#8a9095" text-anchor="end">
+        <text x="526" y="474">89%</text>
+        <text x="526" y="502">11%</text>
+        <text x="526" y="530">1%</text>
+      </g>
+    </g>
+
+    <g id="recent-sessions-card">
+      <rect x="562" y="412" width="300" height="140" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="586" y="440" font-size="18" font-weight="700" fill="#242729">最近会话</text>
+      <circle cx="668" cy="435" r="7.5" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
+      <text x="668" y="439" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
+      <rect x="810" y="424" width="28" height="22" rx="11" fill="#eceef0"/>
+      <text x="824" y="440" text-anchor="middle" font-size="13" fill="#565b5e">3</text>
+      <g font-size="14" fill="#242729">
+        <text x="586" y="474">未命名会话</text>
+        <text x="586" y="500">会话示例 A</text>
+        <text x="586" y="526">会话示例 B</text>
+      </g>
+      <g font-size="14" fill="#565b5e" text-anchor="end"
+         font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">
+        <text x="778" y="474">00:00:00</text>
+        <text x="778" y="500">02:34:04</text>
+        <text x="778" y="526">03:14:49</text>
+      </g>
+      <g font-size="12" fill="#8a9095" text-anchor="end">
+        <text x="838" y="474">刚刚</text>
+        <text x="838" y="500">15分钟前</text>
+        <text x="838" y="526">15分钟前</text>
+      </g>
+    </g>
+
+    <g id="daily-heatmap-card">
+      <rect x="874" y="412" width="294" height="140" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
+      <text x="898" y="440" font-size="18" font-weight="700" fill="#242729">每日时长</text>
+      <circle cx="982" cy="435" r="7.5" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
+      <text x="982" y="439" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
+      <rect x="1052" y="424" width="92" height="24" rx="12" fill="#eceef0"/>
+      <text x="1098" y="440" text-anchor="middle" font-size="13" fill="#565b5e">近 3 个月 ▾</text>
+      <!-- 月份刻度 -->
+      <g font-size="13" fill="#8a9095">
+        <text x="906" y="460">8月</text>
+        <text x="961" y="460">9月</text>
+        <text x="1016" y="460">10月</text>
+        <text x="1071" y="460">11月</text>
+      </g>
+            <g id="heatmap-grid">
+      <rect x="906" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="916" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="926" y="465" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="936" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="946" y="465" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="956" y="465" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="966" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="976" y="465" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="986" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="996" y="465" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1006" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1016" y="465" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1026" y="465" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1036" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1046" y="465" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1056" y="465" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1066" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1076" y="465" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1086" y="465" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1096" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1106" y="465" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1116" y="465" width="8" height="8" rx="1.5" fill="#e9edf2"/>
+      <rect x="906" y="475" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="916" y="475" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="926" y="475" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="936" y="475" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="946" y="475" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="956" y="475" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="966" y="475" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="976" y="475" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="986" y="475" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="996" y="475" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1006" y="475" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1016" y="475" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1026" y="475" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1036" y="475" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1046" y="475" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1056" y="475" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1066" y="475" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1076" y="475" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1086" y="475" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1096" y="475" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1106" y="475" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1116" y="475" width="8" height="8" rx="1.5" fill="#e9edf2"/>
+      <rect x="906" y="485" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="916" y="485" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="926" y="485" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="936" y="485" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="946" y="485" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="956" y="485" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="966" y="485" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="976" y="485" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="986" y="485" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="996" y="485" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1006" y="485" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1016" y="485" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1026" y="485" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1036" y="485" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1046" y="485" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1056" y="485" width="8" height="8" rx="1.5" fill="#1F4E94"/><rect x="1066" y="485" width="8" height="8" rx="1.5" fill="#133463"/><rect x="1076" y="485" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1086" y="485" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1096" y="485" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1106" y="485" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1116" y="485" width="8" height="8" rx="1.5" fill="#e9edf2"/>
+      <rect x="906" y="495" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="916" y="495" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="926" y="495" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="936" y="495" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="946" y="495" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="956" y="495" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="966" y="495" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="976" y="495" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="986" y="495" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="996" y="495" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1006" y="495" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1016" y="495" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1026" y="495" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1036" y="495" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1046" y="495" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1056" y="495" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1066" y="495" width="8" height="8" rx="1.5" fill="#1F4E94"/><rect x="1076" y="495" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1086" y="495" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1096" y="495" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1106" y="495" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1116" y="495" width="8" height="8" rx="1.5" fill="#c9d8ea"/>
+      <rect x="906" y="505" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="916" y="505" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="926" y="505" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="936" y="505" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="946" y="505" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="956" y="505" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="966" y="505" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="976" y="505" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="986" y="505" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="996" y="505" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1006" y="505" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1016" y="505" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1026" y="505" width="8" height="8" rx="1.5" fill="#1F4E94"/><rect x="1036" y="505" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1046" y="505" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1056" y="505" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1066" y="505" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1076" y="505" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1086" y="505" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1096" y="505" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1106" y="505" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1116" y="505" width="8" height="8" rx="1.5" fill="#5e8fc9"/>
+      <rect x="906" y="515" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="916" y="515" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="926" y="515" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="936" y="515" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="946" y="515" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="956" y="515" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="966" y="515" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="976" y="515" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="986" y="515" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="996" y="515" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1006" y="515" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1016" y="515" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1026" y="515" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1036" y="515" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1046" y="515" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1056" y="515" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1066" y="515" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1076" y="515" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1086" y="515" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1096" y="515" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1106" y="515" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1116" y="515" width="8" height="8" rx="1.5" fill="#9fbde0"/>
+      <rect x="906" y="525" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="916" y="525" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="926" y="525" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="936" y="525" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="946" y="525" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="956" y="525" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="966" y="525" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="976" y="525" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="986" y="525" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="996" y="525" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1006" y="525" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1016" y="525" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1026" y="525" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1036" y="525" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1046" y="525" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1056" y="525" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1066" y="525" width="8" height="8" rx="1.5" fill="#5e8fc9"/><rect x="1076" y="525" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1086" y="525" width="8" height="8" rx="1.5" fill="#c9d8ea"/><rect x="1096" y="525" width="8" height="8" rx="1.5" fill="#e9edf2"/><rect x="1106" y="525" width="8" height="8" rx="1.5" fill="#9fbde0"/><rect x="1116" y="525" width="8" height="8" rx="1.5" fill="#c9d8ea"/>
+      </g>
+      <text x="898" y="548" font-size="11" fill="#8a9095">范围活跃 09:38:59 · 活跃天数 5/12</text>
+    </g>
+
+    <!-- ===== 页脚 ===== -->
+    <g id="page-footer">
+      <text x="190" y="577" font-size="13" fill="#8a9095"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">今日活跃时长 01:13:32 · 今日在线时长 08:10:32</text>
+      <circle cx="524" cy="572" r="7" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
+      <text x="524" y="576" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
+    </g>
+  </g>
+</svg>
