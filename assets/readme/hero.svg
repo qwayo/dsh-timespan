@@ -32,15 +32,15 @@
 
     <!-- 元数据胶囊 -->
     <g id="meta-chips" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace"
-       font-size="18" fill="#aeb6b9">
-      <rect x="72" y="244" width="82" height="34" rx="17" fill="none" stroke="#3e4346" stroke-width="1.5"/>
-      <text x="113" y="266" text-anchor="middle">零依赖</text>
-      <rect x="166" y="244" width="82" height="34" rx="17" fill="none" stroke="#3e4346" stroke-width="1.5"/>
-      <text x="207" y="266" text-anchor="middle">无构建</text>
-      <rect x="260" y="244" width="82" height="34" rx="17" fill="none" stroke="#3e4346" stroke-width="1.5"/>
-      <text x="301" y="266" text-anchor="middle">本地存储</text>
-      <rect x="354" y="244" width="104" height="34" rx="17" fill="none" stroke="#3e4346" stroke-width="1.5"/>
-      <text x="406" y="266" text-anchor="middle">Node 24</text>
+       font-size="15" fill="#aeb6b9">
+      <rect x="72" y="244" width="68" height="30" rx="15" fill="none" stroke="#3e4346" stroke-width="1.5"/>
+      <text x="106" y="264" text-anchor="middle">零依赖</text>
+      <rect x="152" y="244" width="68" height="30" rx="15" fill="none" stroke="#3e4346" stroke-width="1.5"/>
+      <text x="186" y="264" text-anchor="middle">无构建</text>
+      <rect x="232" y="244" width="68" height="30" rx="15" fill="none" stroke="#3e4346" stroke-width="1.5"/>
+      <text x="266" y="264" text-anchor="middle">本地存储</text>
+      <rect x="312" y="244" width="86" height="30" rx="15" fill="none" stroke="#3e4346" stroke-width="1.5"/>
+      <text x="355" y="264" text-anchor="middle">Node 24</text>
     </g>
   </g>
 
