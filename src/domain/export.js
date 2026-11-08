@@ -7,7 +7,7 @@
  * 归属。Client 只负责把返回的 content 交给 Blob 下载，不持有任何业务规则。
  */
 
-import { formatDurationByPreset } from './duration-format.js'
+import { DEFAULT_DURATION_FORMAT, formatDurationByPreset } from './duration-format.js'
 import { localDayBounds, pad2 } from './periods.js'
 
 export const EXPORT_FORMATS = new Set(['json', 'csv'])
@@ -73,7 +73,7 @@ export function buildJsonExport({ exportedAt, settings, intervals, tasks }) {
  * workspace: { workspaceId, workspaceTitle, sessionCount, taskCount, activeMs,
  *              taskMs, modelMs, toolMs, waitMs, otherMs }
  */
-export function buildCsvExport({ dayRows, durationFormat = 'hms' }) {
+export function buildCsvExport({ dayRows, durationFormat = DEFAULT_DURATION_FORMAT }) {
   const lines = [CSV_COLUMNS.join(',')]
   for (const day of dayRows) {
     const groups = day.workspaces.length > 0 ? day.workspaces : [emptyWorkspaceRow()]
@@ -123,7 +123,7 @@ function emptyWorkspaceRow() {
 }
 
 /**
- * 可读时长沿用共享的五档格式定义；默认 hms（小时不补零），超过 24 小时继续累加小时数。
+ * 可读时长沿用共享的五档格式定义；默认紧凑单位（`short`），超过 24 小时继续累加小时数。
  */
 function csvCell(value) {
   const text = value === null || value === undefined ? '' : String(value)

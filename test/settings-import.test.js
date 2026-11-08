@@ -288,6 +288,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
     showSubagents: true,
     durationFormat: 'zh',
     sidebarShowName: false,
+    sidebarDuration: 'task',
     approximateNoticeDismissed: true,
     evilField: '不应写入',
   }
@@ -299,8 +300,9 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
     idleThresholdMinutes: 12,
     weekStartsOn: 1,
     showSubagents: false,
-    durationFormat: 'hms',
-    sidebarShowName: true,
+    durationFormat: 'short',
+    sidebarShowName: false,
+    sidebarDuration: 'online',
     approximateNoticeDismissed: false,
   })
 
@@ -316,6 +318,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
   assert.equal(restored.showSubagents, true)
   assert.equal(restored.durationFormat, 'zh')
   assert.equal(restored.sidebarShowName, false)
+  assert.equal(restored.sidebarDuration, 'task')
   assert.equal(restored.approximateNoticeDismissed, true)
   assert.equal(Object.hasOwn(restored, 'evilField'), false, '未知字段被 normalizeSettings 白名单丢弃')
 

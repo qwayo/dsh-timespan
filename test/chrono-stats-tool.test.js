@@ -181,7 +181,7 @@ test('按周期汇总：chrono_stats 活跃、任务、次数与范围跟仪表�
   assert.match(text, /活跃时长/u)
   assert.match(text, /任务时长/u)
   assert.match(text, /任务次数/u)
-  assert.match(text, /0:30:00/u, '在线时长按共享 hms 格式呈现（小时不补零）')
+  assert.match(text, /30m 0s/u, '在线时长按共享的紧凑单位格式呈现')
 })
 
 test('数字格式：chrono_stats 文本跟随 Host 设置，与页面使用同一份格式定义', async () => {

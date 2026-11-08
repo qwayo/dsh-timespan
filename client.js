@@ -1,7 +1,7 @@
 /**
  * ChronoScope 的 Client 半。
  *
- * 四件事：在侧边栏注册常驻入口并显示今日活跃时长；在 frame-wide overlay 上
+ * 四件事：在侧边栏注册常驻入口并显示所选时长；在 frame-wide overlay 上
  * 挂载 presence 心跳（每 15 秒上报页面可见性、窗口聚焦、前台会话与最近操作）；
  * 在 main 的 chrono-scope 键下渲染日/周/月仪表盘（含导出与二次确认清空）；
  * 在 settings.section 下渲染统计与侧栏显示设置。页面只负责渲染与交互，
@@ -9,8 +9,9 @@
  * Host 领域服务计算；Client 不缓存业务状态，刷新后所有数字都重新从 Host 读取。
  *
  * 视觉基座：页面容器用 cs-palette-* 与 cs-appearance-* 切换 CSS 变量；
- * 三档蓝 --cs-signal-deep/--cs-signal/--cs-signal-soft 派生 --cs-live、--cs-task、
- * --cs-tone-* 与 --cs-heat-*，灰色只用于表面、边框、轨道与次级文字。
+ * 三档蓝 --cs-signal-deep/--cs-signal/--cs-signal-soft 派生 --cs-live、--cs-tone-*
+ * 与 --cs-heat-*；--cs-task 使用独立的紫罗兰辅助色，保证活跃与任务两组柱分明。
+ * 灰色只用于表面、边框、轨道与次级文字。
  * 外观 helper（normalizePalette/normalizeAppearance/cycleAppearance/resolveAppearance）
  * 与 Info 组件供后续票据复用。
  */
@@ -28,10 +29,17 @@ window.__ModuleLoader__.load({
     const APPEARANCE_ORDER = ['light', 'dark', 'system']
     /** 数字格式五档；顺序与原型 FORMATS 一致，也是设置页卡片的展示顺序。 */
     const DURATION_FORMAT_ORDER = ['hms', 'short', 'zh', 'sec', 'padded']
+    /** 首次安装与恢复初始设置使用紧凑单位；非法值也回落到这里。 */
+    const DEFAULT_DURATION_FORMAT = 'short'
     /** 设置页卡片与预览行统一用原型里的 2:48:16 作为示例值。 */
     const DURATION_FORMAT_SAMPLE_MS = 2 * 3_600_000 + 48 * 60_000 + 16_000
     const PRESENCE_HEARTBEAT_MS = 15_000
     const SIDEBAR_REFRESH_MS = 5_000
+    /** 侧栏悬浮说明的等待时长；比常规 tooltip 更快，避免用户以为没有说明。 */
+    const SIDEBAR_TIP_DELAY_MS = 200
+    /** 侧栏入口可常驻展示的时长类型；与 Host 设置同名同序。 */
+    const SIDEBAR_DURATION_VALUES = ['online', 'active', 'task']
+    const SIDEBAR_DURATION_DEFAULT = 'online'
     const PAGE_REFRESH_MS = 10_000
     /** 每日时长热力图的默认范围：最近 3 个本地日历月；#13 再扩展范围切换。 */
     const HEAT_DEFAULT_RANGE = '3m'
@@ -71,7 +79,7 @@ window.__ModuleLoader__.load({
 
     const zh = {
       title: 'ChronoScope',
-      subtitle: 'DSH 时长统计',
+
       todayActive: '今日活跃时长',
       todayOnline: '今日在线时长',
       todayTask: '今日任务时长',
@@ -111,9 +119,8 @@ window.__ModuleLoader__.load({
       error: '暂时无法读取时长统计，正在自动重试',
       sinceBoot: '活跃按页面可见、窗口聚焦与键鼠操作判定',
       localOnly: '数据仅保存在本机',
-      navTooltip: 'ChronoScope · 今日在线、活跃与任务时长',
-      sidebarRingTitle: '今日在线、活跃与任务时长',
-      sidebarRingHint: '环的弧长按三项合计归一',
+      navTooltip: 'ChronoScope · 在线、活跃与任务时长',
+      sidebarRingTitle: '在线、活跃与任务时长',
       periodDay: '日',
       periodWeek: '周',
       periodMonth: '月',
@@ -138,6 +145,16 @@ window.__ModuleLoader__.load({
       trendSummary: '本周期概览',
       peakActive: '峰值活跃',
       peakPeriod: '最活跃时段',
+      trendBreakdownTitle: '时段分布',
+      trendBreakdownHint: '按活跃与任务合计排序，展示前 7 个最忙时段；蓝色为活跃，紫色为任务。',
+      trendBreakdownEmpty: '暂无时段数据',
+      trendInsightsTitle: '趋势洞察',
+      trendInsightsHint: '本周期峰值、活跃覆盖与集中度。',
+      trendInsightPeak: '峰值时段',
+      trendInsightCoverage: '活跃覆盖',
+      trendInsightConcentration: '前三集中度',
+      trendInsightTaskRatio: '任务/在线',
+      trendInsightNote: '前三集中度按活跃时长最高的三个时段计算。',
       trendFocusTitle: '条状图首屏',
       heatmapFocusTitle: '热力图首屏',
       rangeOnline: '范围在线',
@@ -271,6 +288,11 @@ window.__ModuleLoader__.load({
       settingsSidebarNameHint: '关闭后侧栏入口只保留时长、状态点与今日构成环，仍保持单行紧凑。',
       settingsSidebarNameOn: '显示名称',
       settingsSidebarNameOff: '隐藏名称',
+      settingsSidebarDurationLabel: '侧栏显示时长',
+      settingsSidebarDurationHint: '选择侧栏入口常驻展示的时长类型；今日构成环仍按在线、活跃、任务三项显示。',
+      sidebarDurationOnline: '在线时长',
+      sidebarDurationActive: '活跃时长',
+      sidebarDurationTask: '任务时长',
       settingsSave: '保存设置',
       settingsSaving: '正在保存…',
       settingsSaved: '已保存，统计已按新设置更新',
@@ -279,14 +301,26 @@ window.__ModuleLoader__.load({
       settingsSaveError: '设置保存失败，请重试',
       settingsSectionGeneral: '统计口径',
       settingsSectionDisplay: '明细展示',
+      settingsSectionBasics: '统计与显示',
+      settingsBasicsHint: '统计口径、明细展示与侧栏入口，改动会立即生效。',
       settingsSectionFormat: '数字格式',
       settingsFormatHint: '选择后整页立即预览并自动保存，刷新后沿用已保存的格式。',
+      settingsFormatShared: '侧栏、概览、趋势、明细与导出共用这一格式。',
       formatHintHms: '时:分:秒',
       formatHintShort: '紧凑单位',
       formatHintZh: '中文单位',
       formatHintSec: '纯秒',
       formatHintPadded: '补零时钟',
       formatPreviewLabel: '预览 · 2:48:16 显示为',
+      settingsResetTitle: '初始化设置',
+      settingsResetHint: '把侧栏名称与显示时长、数字格式、外观配色与统计偏好恢复为首次安装时的默认值；不会删除任何统计数据。',
+      settingsResetButton: '恢复初始设置',
+      settingsResetConfirmTitle: '恢复初始设置？',
+      settingsResetConfirmHint: '名称、侧栏显示时长、数字格式、外观配色、空闲阈值、周起始与子代理显示都会回到默认值；统计记录不受影响。',
+      settingsResetConfirm: '确认恢复',
+      settingsResetCancel: '取消',
+      settingsResetDone: '已恢复初始设置',
+      settingsResetError: '恢复初始设置失败，请重试',
       settingsSectionNotices: '通知记录',
       dataTitle: '数据管理',
       dataHint: '导出包含原始区间、任务与设置；清空只删除 ChronoScope 统计记录，不影响会话日志。',
@@ -325,7 +359,7 @@ window.__ModuleLoader__.load({
 
     const en = {
       title: 'ChronoScope',
-      subtitle: 'DSH time tracking',
+
       todayActive: 'Active today',
       todayOnline: 'Online today',
       todayTask: 'Task time today',
@@ -365,9 +399,8 @@ window.__ModuleLoader__.load({
       error: 'Unable to read time statistics. Retrying automatically.',
       sinceBoot: 'Active time follows page visibility, window focus and input',
       localOnly: 'Data stays on this device',
-      navTooltip: 'ChronoScope · online, active and task time today',
-      sidebarRingTitle: 'Today online, active and task time',
-      sidebarRingHint: 'Arc length normalized across all three',
+      navTooltip: 'ChronoScope · online, active and task time',
+      sidebarRingTitle: 'Online, active and task time',
       periodDay: 'Day',
       periodWeek: 'Week',
       periodMonth: 'Month',
@@ -392,6 +425,16 @@ window.__ModuleLoader__.load({
       trendSummary: 'Period summary',
       peakActive: 'Peak active',
       peakPeriod: 'Most active period',
+      trendBreakdownTitle: 'Time distribution',
+      trendBreakdownHint: 'Top 7 busiest buckets by combined active and task time; blue is active and violet is task.',
+      trendBreakdownEmpty: 'No time-bucket data',
+      trendInsightsTitle: 'Trend insights',
+      trendInsightsHint: 'Peak, active coverage and concentration for this period.',
+      trendInsightPeak: 'Peak period',
+      trendInsightCoverage: 'Active coverage',
+      trendInsightConcentration: 'Top-3 concentration',
+      trendInsightTaskRatio: 'Task / online',
+      trendInsightNote: 'Top-3 concentration is computed from the three buckets with the most active time.',
       trendFocusTitle: 'Trend focus view',
       heatmapFocusTitle: 'Heatmap focus',
       rangeOnline: 'Online in range',
@@ -525,6 +568,11 @@ window.__ModuleLoader__.load({
       settingsSidebarNameHint: 'When off, the sidebar entry keeps the duration, status dot and today ring, staying on one compact line.',
       settingsSidebarNameOn: 'Show name',
       settingsSidebarNameOff: 'Hide name',
+      settingsSidebarDurationLabel: 'Sidebar duration',
+      settingsSidebarDurationHint: 'Choose which duration the sidebar entry shows. The today ring still shows online, active and task.',
+      sidebarDurationOnline: 'Online',
+      sidebarDurationActive: 'Active',
+      sidebarDurationTask: 'Task',
       settingsSave: 'Save settings',
       settingsSaving: 'Saving…',
       settingsSaved: 'Saved; statistics now use the new settings',
@@ -533,14 +581,26 @@ window.__ModuleLoader__.load({
       settingsSaveError: 'Could not save settings; please retry',
       settingsSectionGeneral: 'Counting rules',
       settingsSectionDisplay: 'Detail display',
+      settingsSectionBasics: 'Counting and display',
+      settingsBasicsHint: 'Counting rules, detail display and the sidebar entry; changes apply immediately.',
       settingsSectionFormat: 'Number format',
       settingsFormatHint: 'The whole page previews immediately and the choice is saved automatically; the saved format survives refresh.',
+      settingsFormatShared: 'The sidebar, overview, trend, details and exports all use this format.',
       formatHintHms: 'Hours:minutes:seconds',
       formatHintShort: 'Compact units',
       formatHintZh: 'Chinese units',
       formatHintSec: 'Total seconds',
       formatHintPadded: 'Padded clock',
       formatPreviewLabel: 'Preview · 2:48:16 shows as',
+      settingsResetTitle: 'Initial settings',
+      settingsResetHint: 'Restore the sidebar name and duration, number format, colors and counting preferences to their first-install defaults. Statistics are never deleted.',
+      settingsResetButton: 'Restore initial settings',
+      settingsResetConfirmTitle: 'Restore initial settings?',
+      settingsResetConfirmHint: 'Name, sidebar duration, number format, colors, idle threshold, week start and subagent display return to defaults. Statistics are unaffected.',
+      settingsResetConfirm: 'Restore',
+      settingsResetCancel: 'Cancel',
+      settingsResetDone: 'Initial settings restored',
+      settingsResetError: 'Could not restore initial settings; please retry',
       settingsSectionNotices: 'Notifications',
       dataTitle: 'Data',
       dataHint: 'Exports include raw intervals, tasks and settings; clearing removes only ChronoScope records, not session logs.',
@@ -614,16 +674,22 @@ window.__ModuleLoader__.load({
       return APPEARANCE_ICONS[normalizeAppearance(mode)]()
     }
 
-    /** 顶栏配色循环图标：与外观图标同用 16×16 线描；循环箭头表动作，中心点用当前套信号色表当前值。 */
+    /** 顶栏配色图标：外围白色圆环、中心当前套信号色圆点，像一枚小巧的色卡。 */
     function PaletteIcon() {
       return h('svg', {
         viewBox: '0 0 16 16', width: 15, height: 15, fill: 'none',
-        stroke: 'currentColor', strokeWidth: 1.3,
-        strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
+        'aria-hidden': true,
       },
-        h('path', { d: 'M12.8 8a4.8 4.8 0 1 1-1.4-3.4' }),
-        h('path', { d: 'M11.4 2v2.6h2.6' }),
-        h('circle', { className: 'cs-palette-signal', cx: 8, cy: 8.4, r: 2.4, fill: 'var(--cs-signal)', stroke: 'none' }))
+        h('circle', {
+          className: 'cs-palette-ring',
+          cx: 8, cy: 8, r: 6.1,
+          fill: 'none', stroke: '#fff', strokeWidth: 1.4,
+        }),
+        h('circle', {
+          className: 'cs-palette-signal',
+          cx: 8, cy: 8, r: 3.7,
+          fill: 'var(--cs-signal)', stroke: 'none',
+        }))
     }
 
     function appearanceLabelKey(mode) {
@@ -632,7 +698,81 @@ window.__ModuleLoader__.load({
       return 'appearanceLight'
     }
 
-    function formatDuration(ms, format = 'hms') {
+    /** 明细行的轻量图标语言：用形状替代重复文字，具体数值与解释由统一 HoverTip 承载。 */
+    function DetailGlyph({ name, size = 15 }) {
+      const common = {
+        className: 'cs-detail-glyph', viewBox: '0 0 16 16', width: size, height: size,
+        fill: 'none', stroke: 'currentColor', strokeWidth: 1.45,
+        strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
+      }
+      if (name === 'active') {
+        return h('svg', common, h('circle', { cx: 8, cy: 8, r: 3.3, fill: 'currentColor', stroke: 'none' }))
+      }
+      if (name === 'task') {
+        return h('svg', common,
+          h('rect', { x: 2.3, y: 2.3, width: 11.4, height: 11.4, rx: 2.6 }),
+          h('path', { d: 'M5.2 8.2l1.8 1.8 3.8-4' }))
+      }
+      if (name === 'count') {
+        return h('svg', common,
+          h('path', { d: 'M3 5.2h10M3 8h10M3 10.8h6.4' }),
+          h('circle', { cx: 12.2, cy: 10.8, r: 1.1, fill: 'currentColor', stroke: 'none' }))
+      }
+      if (name === 'clock') {
+        return h('svg', common,
+          h('circle', { cx: 8, cy: 8, r: 5.5 }),
+          h('path', { d: 'M8 4.7V8l2.2 1.4' }))
+      }
+      if (name === 'breakdown') {
+        return h('svg', common,
+          h('circle', { cx: 8, cy: 8, r: 5.5 }),
+          h('path', { d: 'M8 2.5V8h5.5' }))
+      }
+      if (name === 'subagent') {
+        return h('svg', common,
+          h('circle', { cx: 3.4, cy: 8, r: 1.6 }),
+          h('circle', { cx: 12.6, cy: 4, r: 1.6 }),
+          h('circle', { cx: 12.6, cy: 12, r: 1.6 }),
+          h('path', { d: 'M5 8h2.1M8 8V4.7h3M8 8v3.3h3' }))
+      }
+      if (name === 'approx') {
+        return h('svg', common,
+          h('path', { d: 'M8 2.4l5.6 9.8H2.4z' }),
+          h('path', { d: 'M8 6.3v2.5' }),
+          h('circle', { cx: 8, cy: 10.7, r: 0.7, fill: 'currentColor', stroke: 'none' }))
+      }
+      if (name === 'running') {
+        return h('svg', common,
+          h('circle', { cx: 8, cy: 8, r: 5.4 }),
+          h('circle', { cx: 8, cy: 8, r: 2.1, fill: 'currentColor', stroke: 'none' }))
+      }
+      return h('svg', common,
+        h('rect', { x: 2.2, y: 3, width: 11.6, height: 8.1, rx: 2.1 }),
+        h('path', { d: 'M5.4 11.1L4.1 13.2' }))
+    }
+
+    /** 只显示图标和值的小单元；标签、单位与解释统一放进悬浮说明。 */
+    function renderDetailMeta(props) {
+      const { className, icon, label, value, tipTitle, tipRows, hoverTip, tone = '' } = props
+      return h('span', {
+        className: `cs-detail-meta${tone ? ` is-${tone}` : ''}${className ? ` ${className}` : ''}`,
+        role: 'img',
+        tabIndex: 0,
+        'aria-label': label,
+        onClick: (event) => event.stopPropagation(),
+        onKeyDown: (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+        },
+        ...hoverTipProps(hoverTip, tipTitle ?? label, tipRows ?? []),
+      },
+        h(DetailGlyph, { name: icon }),
+        value == null ? null : h('span', { className: 'cs-detail-meta-value' }, value))
+    }
+
+    function formatDuration(ms, format = DEFAULT_DURATION_FORMAT) {
       const preset = normalizeDurationFormat(format)
       const numeric = Number(ms)
       const totalSeconds = Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric / 1000) : 0
@@ -655,9 +795,9 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** 数字格式只认五种预设；旧响应、脏草稿与非法值一律回落 hms。 */
+    /** 数字格式只认五种预设；旧响应、脏草稿与非法值一律回落紧凑单位。 */
     function normalizeDurationFormat(value) {
-      return typeof value === 'string' && DURATION_FORMAT_ORDER.includes(value) ? value : 'hms'
+      return typeof value === 'string' && DURATION_FORMAT_ORDER.includes(value) ? value : DEFAULT_DURATION_FORMAT
     }
 
     function durationFormatHintKey(format) {
@@ -666,6 +806,11 @@ window.__ModuleLoader__.load({
       if (format === 'sec') return 'formatHintSec'
       if (format === 'padded') return 'formatHintPadded'
       return 'formatHintHms'
+    }
+
+    /** 侧栏时长只认三个预设；缺省与脏数据回落到在线时长。 */
+    function normalizeSidebarDuration(value) {
+      return SIDEBAR_DURATION_VALUES.includes(value) ? value : SIDEBAR_DURATION_DEFAULT
     }
 
     /** 本地日历月回退：保留日号，目标月没有该日时收敛到月末（如 5/31 回退到 2/28）。 */
@@ -887,15 +1032,14 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 热力图范围选择器：复用页面统一的自定义下拉，向上弹出两列网格。
-     * 前三个跨度选项横跨两列，12 个月份按 2 列排布；交互由 Select 统一处理。
+     * 热力图范围选择器：复用页面统一的自定义下拉，向上弹出紧凑三列网格。
+     * 3 个跨度 + 12 个月份共 15 项，五排铺开，触发器与菜单都不占过多宽度。
      */
     function renderHeatRangePicker({ value, t, onSelectRange } = {}) {
       const normalized = normalizeHeatRangeValue(value)
-      const options = HEAT_RANGE_OPTIONS.map((option, index) => ({
+      const options = HEAT_RANGE_OPTIONS.map((option) => ({
         value: option.value,
         label: heatRangeOptionLabel(option, t),
-        span: index < 3 ? 2 : 1,
         key: `heat-range-${option.value}`,
       }))
       return h(Select, {
@@ -1069,12 +1213,12 @@ window.__ModuleLoader__.load({
       return PALETTES.includes(value) ? value : 'blue'
     }
 
-    /** 外观只认 light / dark / system；旧值或非法值按浅色处理，不让旧存储破坏页面。 */
+    /** 外观只认 light / dark / system；旧值或非法值按跟随系统处理，不让旧存储破坏页面。 */
     function normalizeAppearance(value) {
-      return APPEARANCE_ORDER.includes(value) ? value : 'light'
+      return APPEARANCE_ORDER.includes(value) ? value : 'system'
     }
 
-    /** 点击循环：浅色 → 深色 → 跟随系统 → 浅色。非法值先归一到浅色。 */
+    /** 点击循环：浅色 → 深色 → 跟随系统 → 浅色。非法值先归一到跟随系统。 */
     function cycleAppearance(value) {
       const current = normalizeAppearance(value)
       return APPEARANCE_ORDER[(APPEARANCE_ORDER.indexOf(current) + 1) % APPEARANCE_ORDER.length]
@@ -1112,10 +1256,23 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** 恢复初始外观：配色回到蓝色、外观回到跟随系统，只写本机浏览器存储。 */
+    function resetStoredTheme() {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('chrono-scope.palette', 'blue')
+          window.localStorage.setItem('chrono-scope.appearance', 'system')
+        }
+      } catch {
+        // 隐私模式下写不进去时仍广播，让当前页面按内存值回到默认视觉。
+      }
+      notifyThemeChanged()
+    }
+
     /** 侧栏入口在宿主侧栏里，读取与仪表盘同一份浏览器本地主题偏好。 */
     function readStoredTheme() {
       let palette = 'blue'
-      let appearance = 'light'
+      let appearance = 'system'
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           palette = normalizePalette(window.localStorage.getItem('chrono-scope.palette'))
@@ -1221,7 +1378,8 @@ window.__ModuleLoader__.load({
         weekStartsOn: week === 7 ? '7' : '1',
         showSubagents: value?.showSubagents !== false,
         durationFormat: normalizeDurationFormat(value?.durationFormat),
-        sidebarShowName: value?.sidebarShowName !== false,
+        sidebarShowName: value?.sidebarShowName === true,
+        sidebarDuration: normalizeSidebarDuration(value?.sidebarDuration),
         approximateNoticeDismissed: value?.approximateNoticeDismissed === true,
       }
     }
@@ -1233,7 +1391,8 @@ window.__ModuleLoader__.load({
         weekStartsOn: Number(draft.weekStartsOn),
         showSubagents: draft.showSubagents === true,
         durationFormat: normalizeDurationFormat(draft.durationFormat),
-        sidebarShowName: draft.sidebarShowName !== false,
+        sidebarShowName: draft.sidebarShowName === true,
+        sidebarDuration: normalizeSidebarDuration(draft.sidebarDuration),
         approximateNoticeDismissed: draft.approximateNoticeDismissed === true,
       }
     }
@@ -1251,7 +1410,7 @@ window.__ModuleLoader__.load({
         receivedAt: 0,
         running: false,
         activeRunning: false,
-        durationFormat: 'hms',
+        durationFormat: DEFAULT_DURATION_FORMAT,
       })
 
       React.useEffect(() => {
@@ -1499,29 +1658,38 @@ window.__ModuleLoader__.load({
       return `conic-gradient(${stops.join(', ')})`
     }
 
-    /** 活跃时长随心跳实时增长；其余两项仍来自同一份 Host 快照。 */
-    function sidebarLiveElapsed(stats) {
-      return stats?.activeRunning ? Math.max(0, Date.now() - finite(stats.receivedAt)) : 0
+    /** 所选时长随心跳实时增长；Host 快照之间不再等下一次轮询才跳数。 */
+    function sidebarLiveElapsed(stats, metric = 'online') {
+      const running = metric === 'active'
+        ? stats?.activeRunning === true
+        : metric === 'task'
+          ? stats?.taskRunning === true
+          : stats?.running === true
+      return running ? Math.max(0, Date.now() - finite(stats.receivedAt)) : 0
     }
 
-    function sidebarDisplayMs(stats) {
-      return finite(stats?.activeMs) + sidebarLiveElapsed(stats)
+    function sidebarMetricBaseMs(stats, metric = 'online') {
+      if (metric === 'active') return finite(stats?.activeMs)
+      if (metric === 'task') return finite(stats?.taskMs)
+      return finite(stats?.onlineMs)
+    }
+
+    function sidebarDisplayMs(stats, metric = 'online') {
+      return sidebarMetricBaseMs(stats, metric) + sidebarLiveElapsed(stats, metric)
     }
 
     /** 悬停 / 聚焦浮层：三项具体数值、颜色与环上占比。 */
     function buildSidebarTip(stats, t, format = 'hms') {
       const segments = sidebarRingSegments(stats)
       const rows = [
-        { key: 'online', label: t('onlineLabel'), value: formatDuration(finite(stats?.onlineMs), format) },
-        { key: 'active', label: t('activeLabel'), value: formatDuration(sidebarDisplayMs(stats), format) },
-        { key: 'task', label: t('taskLabel'), value: formatDuration(finite(stats?.taskMs), format) },
+        { key: 'online', label: t('onlineLabel'), value: formatDuration(sidebarDisplayMs(stats, 'online'), format) },
+        { key: 'active', label: t('activeLabel'), value: formatDuration(sidebarDisplayMs(stats, 'active'), format) },
+        { key: 'task', label: t('taskLabel'), value: formatDuration(sidebarDisplayMs(stats, 'task'), format) },
       ]
       return {
         kind: 'sidebar',
         key: 'today',
-        kicker: t('cycleToday'),
         title: t('sidebarRingTitle'),
-        hint: t('sidebarRingHint'),
         rows: rows.map((row, index) => ({
           ...row,
           color: segments[index]?.color,
@@ -1568,7 +1736,6 @@ window.__ModuleLoader__.load({
         style,
         'data-placement': position?.placement ?? 'top',
       },
-      h('span', { className: 'chronoscope-nav-tip-kicker' }, tip.kicker),
       h('strong', { className: 'chronoscope-nav-tip-title' }, tip.title),
       h('span', { className: 'chronoscope-nav-tip-rows' }, (tip.rows || []).map((row) => h('span', {
         className: 'chronoscope-nav-tip-row', key: row.key ?? row.label,
@@ -1576,8 +1743,7 @@ window.__ModuleLoader__.load({
       h('i', { className: 'chronoscope-nav-tip-swatch', style: { background: `var(${row.color})` }, 'aria-hidden': true }),
       h('span', { className: 'chronoscope-nav-tip-label' }, row.label),
       h('span', { className: 'chronoscope-nav-tip-value' }, row.value),
-      h('span', { className: 'chronoscope-nav-tip-share' }, row.share)))),
-      tip.hint ? h('span', { className: 'chronoscope-nav-tip-foot' }, tip.hint) : null)
+      h('span', { className: 'chronoscope-nav-tip-share' }, row.share)))))
     }
 
     /** 量一次浮层尺寸再定位，保证贴边时也完整可读。 */
@@ -1593,7 +1759,7 @@ window.__ModuleLoader__.load({
         if (!node) return
         setPosition(clampTipPosition(tip.anchor, {
           width: typeof node.offsetWidth === 'number' ? node.offsetWidth : 232,
-          height: typeof node.offsetHeight === 'number' ? node.offsetHeight : 118,
+          height: typeof node.offsetHeight === 'number' ? node.offsetHeight : 104,
         }, {
           width: typeof window !== 'undefined' ? window.innerWidth : 0,
           height: typeof window !== 'undefined' ? window.innerHeight : 0,
@@ -1603,7 +1769,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 侧栏专属悬停状态：移入后延迟出现，聚焦立即出现；移出、失焦或 Esc 立即收起。 */
-    function useDelayedSidebarTip(delay = 600) {
+    function useDelayedSidebarTip(delay = SIDEBAR_TIP_DELAY_MS) {
       const [tip, setTip] = React.useState(null)
       const timerRef = React.useRef(null)
       const clear = () => {
@@ -1640,12 +1806,12 @@ window.__ModuleLoader__.load({
      * 侧栏入口的纯渲染层：主题、名称显隐与三项数值都可从外部注入，
      * 便于在隔离上下文断言结构；真实组件只负责轮询与订阅。
      */
-    function renderSidebarEntry({ stats, theme, showName = true, workspaceTitle, t, size, format = 'hms', hover = null }) {
+    function renderSidebarEntry({ stats, theme, showName = true, workspaceTitle, t, size, format = DEFAULT_DURATION_FORMAT, sidebarMetric = SIDEBAR_DURATION_DEFAULT, hover = null }) {
       const wide = typeof size !== 'number' || size !== 18
       const themeClass = sidebarThemeClass(theme?.palette, theme?.appearance, theme?.systemDark === true)
       const segments = sidebarRingSegments(stats)
-      const activeMs = sidebarDisplayMs(stats)
-      const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(activeMs, format)
+      const selectedMetric = normalizeSidebarDuration(sidebarMetric)
+      const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(sidebarDisplayMs(stats, selectedMetric), format)
       // 宿主侧栏已用 label 显示插件名；工作区名与之等价（忽略大小写与分隔符）时不再重复渲染，
       // 避免「ChronoScope」与「chrono-scope」这类同名字样并排出现两次。
       const workspaceName = typeof workspaceTitle === 'string' ? workspaceTitle.trim() : ''
@@ -1653,8 +1819,13 @@ window.__ModuleLoader__.load({
       const displayName = workspaceName !== '' && foldName(workspaceName) !== foldName(t('title')) ? workspaceName : ''
       const active = stats?.activeRunning === true
       const task = stats?.taskRunning === true
+      const selectedLive = selectedMetric === 'active'
+        ? active
+        : selectedMetric === 'task'
+          ? task
+          : stats?.running === true
       const statusLabel = task ? t('taskRunning') : active ? t('live') : t('idle')
-      const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(finite(stats?.onlineMs), format)} · ${t('activeLabel')} ${formatDuration(activeMs, format)} · ${t('taskLabel')} ${formatDuration(finite(stats?.taskMs), format)} · ${statusLabel}`
+      const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(sidebarDisplayMs(stats, 'online'), format)} · ${t('activeLabel')} ${formatDuration(sidebarDisplayMs(stats, 'active'), format)} · ${t('taskLabel')} ${formatDuration(sidebarDisplayMs(stats, 'task'), format)} · ${statusLabel}`
       // 去掉名称后时间居中并放大一档；环与状态点仍留在两端。
       const nameless = wide && showName === false
       const tipContent = buildSidebarTip(stats, t, format)
@@ -1676,7 +1847,10 @@ window.__ModuleLoader__.load({
       renderSidebarRing(segments),
       wide
         ? h('span', {
-            className: `chronoscope-nav-time${active ? ' is-live' : ''}`,
+            key: `nav-time-${format}`,
+            className: `chronoscope-nav-time${selectedLive ? ' is-live' : ''}`,
+            'data-format': format,
+            'data-metric': selectedMetric,
           }, value)
         : null,
       wide && showName && displayName !== ''
@@ -1692,16 +1866,19 @@ window.__ModuleLoader__.load({
       hover === null ? null : h(SidebarTip, { tip: hover.tip }))
     }
 
-    /** 侧边栏常驻入口：今日构成环 + 活跃时长 + 可隐藏名称 + 状态点。 */
+    /** 侧边栏常驻入口：今日构成环 + 所选时长 + 可隐藏名称 + 状态点。 */
     function createSidebarEntry(ctx, t) {
       return function ChronoScopeSidebarEntry(props) {
         const [previewFormat, setPreviewFormat] = React.useState(null)
         const [refreshNonce, setRefreshNonce] = React.useState(0)
         const stats = useTodayStats(ctx, SIDEBAR_REFRESH_MS, refreshNonce)
-        const hover = useDelayedSidebarTip(600)
+        const hover = useDelayedSidebarTip(SIDEBAR_TIP_DELAY_MS)
         const [theme, setTheme] = React.useState(readStoredTheme)
         const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
-        const [showName, setShowName] = React.useState(true)
+        // 首次安装默认隐藏名称；设置读取完成前也保持隐藏，避免先闪出一行名称。
+        const [showName, setShowName] = React.useState(false)
+        // 侧栏显示哪种时长；Host 设置读回前先按默认在线时长渲染，避免布局闪动。
+        const [sidebarDuration, setSidebarDuration] = React.useState(SIDEBAR_DURATION_DEFAULT)
         // 侧栏名称跟随当前前台会话所属工作区；空值不回落插件名，避免与宿主 label 重复。
         const currentSessionId = useStandardValue(props?.useSessions, (state) => sessionOf(state)?.id ?? null, null)
         const workspaceTitle = useStandardValue(props?.useWorkspaces, (state) => {
@@ -1745,12 +1922,13 @@ window.__ModuleLoader__.load({
             callHost(ctx, 'getSettings', {})
               .then((value) => {
                 if (!active) return
-                const visible = value?.sidebarShowName !== false
+                const visible = value?.sidebarShowName === true
                 setShowName(visible)
+                setSidebarDuration(normalizeSidebarDuration(value?.sidebarDuration))
                 applySidebarHostNameVisibility(visible)
               })
               .catch(() => {
-                // 读不到设置时保留默认显示，不拿默认值覆盖 Host。
+                // 读不到设置时保持默认隐藏，不拿默认值覆盖 Host。
               })
           }
           load()
@@ -1770,6 +1948,7 @@ window.__ModuleLoader__.load({
           t,
           size: props?.size,
           format: normalizeDurationFormat(previewFormat ?? stats.durationFormat),
+          sidebarMetric: sidebarDuration,
           hover,
         })
       }
@@ -2413,32 +2592,20 @@ window.__ModuleLoader__.load({
       return [t('localOnly'), hasApproximate === true ? t('approximateHint') : null].filter(Boolean)
     }
 
+    /**
+     * 周期迷你卡：只保留「活跃时长」一个大数字、活跃占比文字与一条极细占比线。
+     * 旧的 46px 占比环在窄窗口会把信息挤到卡外，这里彻底移除，信息层级更干净。
+     */
     function renderCycleCard(t, period, cycle, isCurrent, onSelect, format = 'hms') {
       const titleKey = period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth'
       const share = activeSharePercent(cycle.activeMs, cycle.onlineMs)
       return h('button', { key: period, type: 'button', className: `cs-cycle${isCurrent ? ' is-current' : ''}`, 'aria-pressed': isCurrent, onClick: onSelect },
-        h('span', { className: 'cs-cycle-main' },
-          h('div', { className: 'cs-cycle-head' },
-            h('span', { className: 'cs-cycle-title' }, t(titleKey)),
-            isCurrent ? h('span', { className: 'cs-current-badge' }, t('selectedPeriod')) : null,
-            h('span', { className: 'cs-cycle-count' }, `${cycle.taskCount} ${t('taskCountUnit')}`)),
-          h('div', { className: 'cs-cycle-metric' },
-            h('span', { className: 'cs-metric-label' }, t('activeLabel')),
-            h('span', { className: 'cs-metric-value' }, formatDuration(cycle.activeMs, format))),
-          h('div', { className: 'cs-cycle-metric is-secondary' },
-            h('span', { className: 'cs-metric-label' }, t('taskLabel')),
-            h('span', { className: 'cs-metric-value' }, formatDuration(cycle.taskMs, format)))),
-        h('span', { className: 'cs-cycle-visual', 'aria-hidden': true },
-          h('span', { className: 'cs-cycle-ring' },
-            h('svg', { viewBox: '0 0 48 48', width: 46, height: 46 },
-              h('circle', { cx: 24, cy: 24, r: 18, fill: 'none', stroke: 'var(--cs-ring-track)', strokeWidth: 4 }),
-              h('circle', {
-                cx: 24, cy: 24, r: 18, fill: 'none', stroke: 'var(--cs-live)', strokeWidth: 4,
-                strokeLinecap: 'round', pathLength: 100,
-                strokeDasharray: `${share} ${100 - share}`,
-              })),
-            h('span', { className: 'cs-cycle-ring-value' }, `${share}%`)),
-          h('span', { className: 'cs-cycle-ring-label' }, t('activeShare'))))
+        h('span', { className: 'cs-cycle-head' },
+          h('span', { className: 'cs-cycle-title' }, t(titleKey)),
+          h('span', { className: 'cs-cycle-share' }, `${t('activeShare')} ${share}%`)),
+        h('span', { className: 'cs-cycle-value' }, formatDuration(cycle.activeMs, format)),
+        h('span', { className: 'cs-cycle-track', 'aria-hidden': true },
+          h('i', { style: { width: `${share}%` } })))
     }
 
     /** 口径说明：鼠标悬浮或键盘聚焦即显示，紧贴图标下方；与 HoverTip 共用 fixed 定位与视口夹取。 */
@@ -2634,47 +2801,131 @@ window.__ModuleLoader__.load({
     }
 
     /** 恢复票 03 的任务构成展示：四部分之和等于任务时长，历史任务显示「未拆分」。 */
-    function renderSessionBreakdown(session, t, format = 'hms') {
+    function sessionBreakdownRows(session, t, format = 'hms') {
       const values = [session.modelMs, session.toolMs, session.waitMs, session.otherMs]
       const labels = ['breakdownModel', 'breakdownTool', 'breakdownWait', 'breakdownOther']
       let remaining = Math.max(0, session.taskMs)
-      const parts = values.map((value, index) => {
+      const rows = []
+      values.forEach((value, index) => {
         const amount = Math.min(remaining, Math.max(0, value))
         remaining -= amount
-        return amount > 0 ? `${t(labels[index])} ${formatDuration(amount, format)}` : null
-      }).filter(Boolean)
-      if (remaining > 0) parts.push(`${t('notBroken')} ${formatDuration(remaining, format)}`)
-      return h('span', { className: 'cs-session-breakdown' }, parts.join(' · ') || t('notBroken'))
+        if (amount > 0) rows.push({ key: labels[index], label: t(labels[index]), value: formatDuration(amount, format) })
+      })
+      if (remaining > 0) rows.push({ key: 'notBroken', label: t('notBroken'), value: formatDuration(remaining, format) })
+      return rows
     }
 
-    function renderSessionRow(session, t, nowMs, subagentRows, format = 'hms', hoverTip = null) {
+    function renderSessionBreakdown(session, t, format = 'hms') {
+      const rows = sessionBreakdownRows(session, t, format)
+      return h('span', { className: 'cs-session-breakdown' },
+        rows.length > 0 ? rows.map((row) => `${row.label} ${row.value}`).join(' · ') : t('notBroken'))
+    }
+
+    function renderSessionRow(session, t, nowMs, subagentRows, format = 'hms', hoverTip = null, highlighted = false) {
       const subagents = subagentRows.length
       const subagentDuration = formatDuration(
         subagentRows.reduce((sum, row) => sum + row.durationMs, 0),
         format,
       )
       const sessionTitle = session.sessionTitle ?? t('unknownSession')
-      return h('div', { className: 'cs-session', key: session.sessionId },
+      const lastText = formatRelativeTime(session.lastActivityAt, t, nowMs)
+      const breakdownRows = session.taskCount > 0 ? sessionBreakdownRows(session, t, format) : []
+      const breakdownSummary = breakdownRows.length > 0
+        ? breakdownRows.map((row) => `${row.label} ${row.value}`).join(' · ')
+        : t('notBroken')
+      const subagentSummary = t('subagentDetailHint')
+        .replace('{count}', String(subagents))
+        .replace('{duration}', subagentDuration)
+      const subagentTipRows = subagentRows.map((row) => ({
+        key: row.sessionId,
+        label: row.sessionTitle ?? row.sessionId,
+        value: formatDuration(row.durationMs, format),
+      }))
+      return h('div', {
+        className: `cs-session${highlighted ? ' is-highlighted' : ''}`,
+        key: session.sessionId,
+        'data-session-id': session.sessionId,
+      },
         h('span', { className: 'cs-session-title', ...hoverTipProps(hoverTip, sessionTitle) }, sessionTitle),
-        session.taskRunning ? h('span', { className: 'cs-chip is-live' }, t('runningTag')) : null,
-        session.approximate ? h('span', { className: 'cs-chip', ...hoverTipProps(hoverTip, t('approximateHint')) }, t('approximateTag')) : null,
-        h('span', { className: 'cs-session-stat', 'data-label': t('activeLabel') }, `${t('activeLabel')} ${formatDuration(session.activeMs, format)}`),
-        h('span', { className: 'cs-session-stat', 'data-label': t('taskLabel') }, `${t('taskLabel')} ${formatDuration(session.taskMs, format)}`),
-        h('span', { className: 'cs-session-stat' }, `${session.taskCount} ${t('taskCountUnit')}`),
-        h('span', { className: 'cs-session-last' }, formatRelativeTime(session.lastActivityAt, t, nowMs)),
-        session.taskCount > 0 ? renderSessionBreakdown(session, t, format) : null,
+        session.taskRunning
+          ? renderDetailMeta({
+            className: 'cs-session-status',
+            icon: 'running',
+            label: t('runningTag'),
+            tipTitle: t('runningTag'),
+            hoverTip,
+            tone: 'running',
+          })
+          : null,
+        session.approximate
+          ? renderDetailMeta({
+            className: 'cs-session-status',
+            icon: 'approx',
+            label: t('approximateHint'),
+            tipTitle: t('approximateHint'),
+            hoverTip,
+            tone: 'warning',
+          })
+          : null,
+        h('span', { className: 'cs-session-metrics' },
+          renderDetailMeta({
+            className: 'cs-session-stat',
+            icon: 'active',
+            label: `${t('activeLabel')} ${formatDuration(session.activeMs, format)}`,
+            value: formatDuration(session.activeMs, format),
+            tipTitle: `${t('activeLabel')} ${formatDuration(session.activeMs, format)}`,
+            hoverTip,
+            tone: 'active',
+          }),
+          renderDetailMeta({
+            className: 'cs-session-stat',
+            icon: 'task',
+            label: `${t('taskLabel')} ${formatDuration(session.taskMs, format)}`,
+            value: formatDuration(session.taskMs, format),
+            tipTitle: `${t('taskLabel')} ${formatDuration(session.taskMs, format)}`,
+            hoverTip,
+            tone: 'task',
+          }),
+          renderDetailMeta({
+            className: 'cs-session-stat',
+            icon: 'count',
+            label: `${session.taskCount} ${t('taskCountUnit')}`,
+            value: String(session.taskCount),
+            tipTitle: `${session.taskCount} ${t('taskCountUnit')}`,
+            hoverTip,
+          })),
+        session.taskCount > 0
+          ? renderDetailMeta({
+            className: 'cs-session-tool',
+            icon: 'breakdown',
+            label: `${t('compositionTitle')}：${breakdownSummary}`,
+            tipTitle: t('compositionTitle'),
+            tipRows: breakdownRows,
+            hoverTip,
+          })
+          : null,
         // 子代理任务只在父会话明细里露出，不参与上面的任务时长与次数。
         subagents > 0
-          ? h('span', {
-            className: 'cs-session-subagents',
-            ...hoverTipProps(hoverTip, subagentRows.map((row) => row.sessionTitle ?? row.sessionId).join('、')),
-          }, `${t('subagentDetail')} · ${t('subagentDetailHint')
-            .replace('{count}', String(subagents))
-            .replace('{duration}', subagentDuration)}`)
-          : null)
+          ? renderDetailMeta({
+            className: 'cs-session-tool is-subagent',
+            icon: 'subagent',
+            label: `${t('subagentDetail')}：${subagentSummary}`,
+            tipTitle: t('subagentDetail'),
+            tipRows: subagentTipRows,
+            hoverTip,
+          })
+          : null,
+        renderDetailMeta({
+          className: 'cs-session-last',
+          icon: 'clock',
+          label: `${t('colLast')} ${lastText}`,
+          value: lastText,
+          tipTitle: `${t('colLast')} ${lastText}`,
+          hoverTip,
+        }))
     }
 
-    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null) {
+    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null, highlightSessionId = null) {
       const workspaceTitle = row.workspaceTitle ?? t('unassigned')
       return h('div', { className: 'cs-group', key: row.key },
         h('div', {
@@ -2693,7 +2944,14 @@ window.__ModuleLoader__.load({
         },
           h('div', { className: 'cs-cell cs-name' },
             h('span', { className: 'cs-name-text', ...hoverTipProps(hoverTip, workspaceTitle) }, workspaceTitle),
-            h('span', { className: 'cs-name-sub' }, `${row.sessions.length} ${t('sessionsUnit')}`)),
+            renderDetailMeta({
+              className: 'cs-name-sub',
+              icon: 'sessions',
+              label: `${row.sessions.length} ${t('sessionsUnit')}`,
+              value: String(row.sessions.length),
+              tipTitle: `${row.sessions.length} ${t('sessionsUnit')}`,
+              hoverTip,
+            })),
           h('div', { className: 'cs-cell cs-active cs-num', 'data-label': t('colActive') }, formatDuration(row.activeMs, format)),
           h('div', { className: 'cs-cell cs-task cs-num', 'data-label': t('colTask') }, formatDuration(row.taskMs, format)),
           h('div', { className: 'cs-cell cs-share', 'data-label': t('colShare') },
@@ -2707,7 +2965,10 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'cs-sessions' }, row.sessions.length === 0
               ? h('div', { className: 'cs-empty is-small' }, t('emptyWorkspace'))
               : row.sessions.map((session) =>
-                renderSessionRow(session, t, nowMs, subagentByParent[session.sessionId] ?? [], format, hoverTip)))
+                renderSessionRow(
+                  session, t, nowMs, subagentByParent[session.sessionId] ?? [], format, hoverTip,
+                  session.sessionId === highlightSessionId,
+                )))
           : null)
     }
 
@@ -3019,15 +3280,21 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 数字格式选择区：五张卡片同时给出样例，底部预览行按当前草稿实时变化。
-     * 抽成纯函数便于组成测试直接断言五档输出与选中态，不依赖设置页的数据加载。
+     * 数字格式选择区：五档压成一条紧凑选项条，标题右侧只保留一枚实时预览。
+     * 原来的五张大卡片与单独预览行会把一个轻量设置撑成页面最重的一块，这里
+     * 不再重复展开说明；完整提示留给 title 与 aria-label，五档仍可键盘操作。
      */
     function renderDurationFormatSection(t, draftFormat, options = {}) {
       const current = normalizeDurationFormat(draftFormat)
       const disabled = options.disabled === true
-      return h('section', { className: 'cs-settings-group' },
-        h('h3', null, t('settingsSectionFormat')),
-        h('p', { className: 'cs-settings-row-hint' }, t('settingsFormatHint')),
+      return h('section', { className: 'cs-settings-group cs-format-section' },
+        h('div', { className: 'cs-format-head' },
+          h('div', { className: 'cs-format-heading' },
+            h('h3', null, t('settingsSectionFormat')),
+            h('p', { className: 'cs-settings-row-hint' }, t('settingsFormatHint'))),
+          h('div', { className: 'cs-format-preview', 'aria-live': 'polite' },
+            h('span', null, t('formatPreviewLabel')),
+            h('b', { key: current, className: 'cs-format-preview-value', 'data-format': current }, formatDuration(DURATION_FORMAT_SAMPLE_MS, current)))),
         h('div', {
           className: 'cs-format-grid',
           role: 'radiogroup',
@@ -3039,6 +3306,7 @@ window.__ModuleLoader__.load({
             type: 'button',
             role: 'radio',
             'aria-checked': selected,
+            title: t(durationFormatHintKey(format)),
             className: `cs-format-opt${selected ? ' is-on' : ''}`,
             disabled,
             onClick: () => options.onSelect?.(format),
@@ -3046,9 +3314,7 @@ window.__ModuleLoader__.load({
           h('b', null, formatDuration(DURATION_FORMAT_SAMPLE_MS, format)),
           h('span', null, t(durationFormatHintKey(format))))
         })),
-        h('div', { className: 'cs-format-preview' },
-          h('span', null, t('formatPreviewLabel')),
-          h('b', null, formatDuration(DURATION_FORMAT_SAMPLE_MS, current))))
+        h('p', { className: 'cs-format-shared' }, t('settingsFormatShared')))
     }
 
     /**
@@ -3063,6 +3329,8 @@ window.__ModuleLoader__.load({
         const [message, setMessage] = React.useState('')
         const [loadNonce, setLoadNonce] = React.useState(0)
         const [noticeState, setNoticeState] = React.useState({ status: 'loading', data: null })
+        const [resetStep, setResetStep] = React.useState(false)
+        const [resetting, setResetting] = React.useState(false)
 
         React.useEffect(() => {
           let active = true
@@ -3139,8 +3407,26 @@ window.__ModuleLoader__.load({
           notifyDurationFormatPreview(format)
           void autoSave(next)
         }
+        const resetInitialSettings = async () => {
+          if (resetting || draft === null || phase === 'load-error') return
+          setResetting(true)
+          setMessage('')
+          try {
+            const saved = await callHost(ctx, 'resetSettings', {})
+            setDraft(settingsDraft(saved))
+            resetStoredTheme()
+            setResetStep(false)
+            setPhase('saved')
+            setMessage(t('settingsResetDone'))
+            notifySettingsChanged()
+          } catch {
+            setMessage(t('settingsResetError'))
+            setPhase('error')
+          } finally {
+            setResetting(false)
+          }
+        }
 
-        const idleOptions = Array.from({ length: 15 }, (_, index) => String(index + 1))
         const loadFailed = phase === 'load-error'
         const busy = phase === 'saving' || draft === null || loadFailed
         const statusClass = `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`
@@ -3152,53 +3438,20 @@ window.__ModuleLoader__.load({
               h('h2', { className: 'cs-settings-title' }, t('settingsTitle')),
               h('p', { className: 'cs-settings-hint' }, t('settingsHint'))),
             h('section', { className: 'cs-settings-group' },
-              h('h3', null, t('settingsSectionGeneral')),
-              settingsRow(t, 'settingsIdleLabel', 'settingsIdleHint',
-                h(Select, {
-                  value: draft?.idleThresholdMinutes ?? '5',
-                  options: idleOptions,
-                  disabled: busy,
-                  ariaLabel: t('settingsIdleLabel'),
-                  onChange: (value) => patch('idleThresholdMinutes', value),
-                }),
-                h('span', { className: 'cs-settings-unit' }, t('settingsIdleUnit')),
-                h('span', { className: 'cs-settings-unit' }, t('settingsIdleRange'))),
-              settingsRow(t, 'settingsWeekLabel', 'settingsWeekHint',
-                h(Select, {
-                  value: draft?.weekStartsOn ?? '1',
-                  options: [
-                    { value: '1', label: t('settingsWeekMonday') },
-                    { value: '7', label: t('settingsWeekSunday') },
-                  ],
-                  disabled: busy,
-                  ariaLabel: t('settingsWeekLabel'),
-                  onChange: (value) => patch('weekStartsOn', value === '7' ? '7' : '1'),
-                }))),
-            h('section', { className: 'cs-settings-group' },
-              h('h3', null, t('settingsSectionDisplay')),
-              settingsRow(t, 'settingsSubagentLabel', 'settingsSubagentHint',
-                h('label', { className: 'cs-settings-switch' },
-                  h('input', {
-                    type: 'checkbox',
-                    checked: draft?.showSubagents !== false,
-                    disabled: busy,
-                    onChange: (event) => patch('showSubagents', event?.target?.checked === true),
-                  }),
-                  h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn')))),
-              settingsRow(t, 'settingsSidebarNameLabel', 'settingsSidebarNameHint',
-                h('label', { className: 'cs-settings-switch' },
-                  h('input', {
-                    type: 'checkbox',
-                    'aria-label': t('settingsSidebarNameLabel'),
-                    checked: draft?.sidebarShowName !== false,
-                    disabled: busy,
-                    onChange: (event) => patch('sidebarShowName', event?.target?.checked === true),
-                  }),
-                  h('span', null, draft?.sidebarShowName === false ? t('settingsSidebarNameOff') : t('settingsSidebarNameOn'))))),
+              ...renderBasicSettingsBody(t, draft, busy, patch)),
             renderDurationFormatSection(t, draft?.durationFormat, {
               disabled: busy,
               onSelect: selectDurationFormat,
             }),
+            h('section', { className: 'cs-settings-group cs-settings-reset-group' },
+              ...renderResetSettingsBody(t, {
+                disabled: busy,
+                resetting,
+                resetStep,
+                onRequest: () => setResetStep(true),
+                onCancel: () => setResetStep(false),
+                onReset: resetInitialSettings,
+              })),
             h('section', { className: 'cs-settings-group' },
               h('h3', null, t('settingsSectionNotices')),
               noticeState.status === 'error'
@@ -3222,6 +3475,110 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-settings-label' }, t(labelKey)),
           h('p', { className: 'cs-settings-row-hint' }, t(hintKey))),
         h('div', { className: 'cs-settings-control' }, ...controls))
+    }
+
+    /**
+     * 统计口径、明细展示与侧栏入口合并成一张紧凑列表：每项一行、标签与控件
+     * 对齐，避免 2×2 大卡把四个小开关撑成整页最重的区块。两套设置界面共用。
+     */
+    function renderBasicSettingsBody(t, draft, busy, onPatch, options = {}) {
+      const idleOptions = Array.from({ length: 15 }, (_, index) => String(index + 1))
+      return [
+        h('div', { className: 'cs-settings-card-head' },
+          h('div', null,
+            h('h3', null, t('settingsSectionBasics')),
+            h('p', { className: 'cs-settings-card-sub' }, t('settingsBasicsHint')))),
+        h('div', { className: `cs-settings-list${options.split === true ? ' is-split' : ''}` },
+          settingsRow(t, 'settingsIdleLabel', 'settingsIdleHint',
+            h(Select, {
+              value: draft?.idleThresholdMinutes ?? '5',
+              options: idleOptions,
+              disabled: busy,
+              className: options.selectClass ?? '',
+              ariaLabel: t('settingsIdleLabel'),
+              onChange: (value) => onPatch?.('idleThresholdMinutes', value),
+            }),
+            h('span', { className: 'cs-settings-unit' }, t('settingsIdleUnit'))),
+          settingsRow(t, 'settingsWeekLabel', 'settingsWeekHint',
+            h(Select, {
+              value: draft?.weekStartsOn ?? '1',
+              options: [
+                { value: '1', label: t('settingsWeekMonday') },
+                { value: '7', label: t('settingsWeekSunday') },
+              ],
+              disabled: busy,
+              className: options.selectClass ?? '',
+              ariaLabel: t('settingsWeekLabel'),
+              onChange: (value) => onPatch?.('weekStartsOn', value === '7' ? '7' : '1'),
+            })),
+          settingsRow(t, 'settingsSubagentLabel', 'settingsSubagentHint',
+            h('label', { className: 'cs-settings-switch' },
+              h('input', {
+                type: 'checkbox',
+                'aria-label': t('settingsSubagentLabel'),
+                checked: draft?.showSubagents !== false,
+                disabled: busy,
+                onChange: (event) => onPatch?.('showSubagents', event?.target?.checked === true),
+              }),
+              h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn')))),
+          settingsRow(t, 'settingsSidebarNameLabel', 'settingsSidebarNameHint',
+            h('label', { className: 'cs-settings-switch' },
+              h('input', {
+                type: 'checkbox',
+                'aria-label': t('settingsSidebarNameLabel'),
+                checked: draft?.sidebarShowName === true,
+                disabled: busy,
+                onChange: (event) => onPatch?.('sidebarShowName', event?.target?.checked === true),
+              }),
+              h('span', null, draft?.sidebarShowName === true ? t('settingsSidebarNameOn') : t('settingsSidebarNameOff')))),
+          settingsRow(t, 'settingsSidebarDurationLabel', 'settingsSidebarDurationHint',
+            h(Select, {
+              value: normalizeSidebarDuration(draft?.sidebarDuration),
+              options: [
+                { value: 'online', label: t('sidebarDurationOnline') },
+                { value: 'active', label: t('sidebarDurationActive') },
+                { value: 'task', label: t('sidebarDurationTask') },
+              ],
+              disabled: busy,
+              className: options.selectClass ?? '',
+              ariaLabel: t('settingsSidebarDurationLabel'),
+              onChange: (value) => onPatch?.('sidebarDuration', normalizeSidebarDuration(value)),
+            }))),
+      ]
+    }
+
+    /**
+     * 初始化设置：恢复 Host 预设与浏览器本地外观。按钮先展开二次确认，
+     * 不用浏览器原生 confirm，保持两套设置界面的视觉与键盘行为一致。
+     */
+    function renderResetSettingsBody(t, options = {}) {
+      const disabled = options.disabled === true || options.resetting === true
+      return [
+        h('h3', null, t('settingsResetTitle')),
+        h('p', { className: 'cs-settings-row-hint' }, t('settingsResetHint')),
+        options.resetStep === true
+          ? h('div', {
+              className: 'cs-settings-reset-confirm',
+              role: 'alertdialog',
+              'aria-label': t('settingsResetConfirmTitle'),
+            },
+            h('strong', null, t('settingsResetConfirmTitle')),
+            h('p', null, t('settingsResetConfirmHint')),
+            h('div', { className: 'cs-settings-reset-actions' },
+              h('button', {
+                type: 'button', className: 'cs-btn', disabled,
+                onClick: () => options.onCancel?.(),
+              }, t('settingsResetCancel')),
+              h('button', {
+                type: 'button', className: 'cs-btn is-danger is-solid', disabled,
+                onClick: () => options.onReset?.(),
+              }, options.resetting === true ? t('loading') : t('settingsResetConfirm'))))
+          : h('div', { className: 'cs-settings-reset-actions' },
+              h('button', {
+                type: 'button', className: 'cs-btn', disabled,
+                onClick: () => options.onRequest?.(),
+              }, t('settingsResetButton'))),
+      ]
     }
 
     /* ============================ 次级导航与四视图 ============================ */
@@ -3454,6 +3811,125 @@ window.__ModuleLoader__.load({
           renderCycleCard(t, item, data?.cycles?.[item] ?? { activeMs: 0, taskMs: 0, taskCount: 0 }, item === period, () => onSelect?.(item), format)))
     }
 
+    /** 概览趋势卡底部的一条紧凑统计带，填住图表与卡片底边之间的空白。 */
+    function renderTrendFoot(data, t, isZh, shownPeriod, format) {
+      const stats = trendFocusStats(data, shownPeriod, isZh, format)
+      const items = [
+        { key: 'peak', label: t('peakActive'), value: formatDuration(stats.peakMs, format) },
+        { key: 'period', label: t('peakPeriod'), value: stats.peakLabel },
+        { key: 'share', label: t('activeShare'), value: `${stats.activeSharePct}%` },
+        { key: 'task', label: t('taskLabel'), value: formatDuration(stats.taskMs, format) },
+      ]
+      return h('div', { className: 'cs-trend-foot' }, items.map((item) =>
+        h('div', { className: 'cs-trend-foot-item', key: item.key },
+          h('span', null, item.label),
+          h('b', null, item.value))))
+    }
+
+    /** 趋势页底部的时段分布：按活跃与任务合计取最忙的几个桶。 */
+    function trendDistributionRows(data, isZh, shownPeriod) {
+      const trend = Array.isArray(data?.trend) ? data.trend : []
+      return trend
+        .map((bucket) => {
+          const activeMs = Math.max(0, finite(bucket?.activeMs))
+          const taskMs = Math.max(0, finite(bucket?.taskMs))
+          return {
+            key: bucket?.key ?? `${bucket?.from}`,
+            label: bucketLabel(bucket, shownPeriod, isZh),
+            activeMs,
+            taskMs,
+            totalMs: activeMs + taskMs,
+          }
+        })
+        .filter((row) => row.totalMs > 0)
+        .sort((left, right) => right.totalMs - left.totalMs)
+    }
+
+    /** 趋势页右下的文字洞察：峰值、覆盖、集中度与任务占在线比。 */
+    function trendInsightRows(data, t, isZh, shownPeriod, format) {
+      const trend = Array.isArray(data?.trend) ? data.trend : []
+      const observed = trend.filter((bucket) => bucket?.future !== true)
+      const buckets = observed.length > 0 ? observed : trend
+      const activeMs = buckets.reduce((sum, bucket) => sum + Math.max(0, finite(bucket?.activeMs)), 0)
+      const activeBucketCount = buckets.filter((bucket) => finite(bucket?.activeMs) > 0).length
+      const topThreeMs = buckets
+        .map((bucket) => Math.max(0, finite(bucket?.activeMs)))
+        .sort((left, right) => right - left)
+        .slice(0, 3)
+        .reduce((sum, value) => sum + value, 0)
+      const concentration = activeMs > 0 ? Math.round((topThreeMs / activeMs) * 100) : 0
+      const hasBuckets = buckets.length > 0
+      const taskRatio = finite(data?.onlineMs) > 0
+        ? Math.round((finite(data?.taskMs) / finite(data?.onlineMs)) * 100)
+        : null
+      const peak = trendPeak(trend, shownPeriod, isZh)
+      return [
+        {
+          key: 'peak',
+          label: t('trendInsightPeak'),
+          value: peak === null || finite(peak.bucket.activeMs) <= 0
+            ? '—'
+            : `${peak.label} · ${formatDuration(peak.bucket.activeMs, format)}`,
+        },
+        {
+          key: 'coverage',
+          label: t('trendInsightCoverage'),
+          value: hasBuckets ? `${activeBucketCount} / ${buckets.length}` : '—',
+        },
+        {
+          key: 'concentration',
+          label: t('trendInsightConcentration'),
+          value: activeMs > 0 ? `${concentration}%` : '—',
+        },
+        {
+          key: 'taskRatio',
+          label: t('trendInsightTaskRatio'),
+          value: taskRatio === null ? '—' : `${taskRatio}%`,
+        },
+      ]
+    }
+
+    function renderTrendBottom(data, t, isZh, shownPeriod, format) {
+      const rows = trendDistributionRows(data, isZh, shownPeriod)
+      const shownRows = rows.slice(0, 7)
+      const maxTotal = shownRows.reduce((max, row) => Math.max(max, row.totalMs), 0)
+      const percentOfMax = (value) => maxTotal > 0 ? Math.max(0, Math.min(100, (value / maxTotal) * 100)) : 0
+      const insights = trendInsightRows(data, t, isZh, shownPeriod, format)
+      return h('div', { className: 'cs-trend-bottom' },
+        h('section', { className: 'cs-card cs-trend-breakdown' },
+          h('div', { className: 'cs-card-head' },
+            h('div', { className: 'cs-card-heading' },
+              h('h2', null, t('trendBreakdownTitle')),
+              renderInfo(t('trendBreakdownHint'))),
+            h('div', { className: 'cs-legend' },
+              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
+              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel')))),
+          shownRows.length === 0
+            ? h('div', { className: 'cs-empty' }, t('trendBreakdownEmpty'))
+            : h('div', { className: 'cs-breakdown-list' }, shownRows.map((row) =>
+                h('div', {
+                  className: 'cs-breakdown-row',
+                  key: row.key,
+                  role: 'group',
+                  'aria-label': `${row.label} · ${t('activeLabel')} ${formatDuration(row.activeMs, format)} · ${t('taskLabel')} ${formatDuration(row.taskMs, format)}`,
+                },
+                  h('span', { className: 'cs-breakdown-label' }, row.label),
+                  h('span', { className: 'cs-breakdown-track', 'aria-hidden': true },
+                    h('i', { className: 'cs-breakdown-active', style: { width: `${percentOfMax(row.activeMs)}%` } }),
+                    h('i', { className: 'cs-breakdown-task', style: { width: `${percentOfMax(row.taskMs)}%` } })),
+                  h('span', { className: 'cs-breakdown-value' }, formatDuration(row.totalMs, format)))))),
+        h('section', { className: 'cs-card cs-trend-insights' },
+          h('div', { className: 'cs-card-head' },
+            h('div', { className: 'cs-card-heading' },
+              h('h2', null, t('trendInsightsTitle')),
+              renderInfo(t('trendInsightsHint')))),
+          h('div', { className: 'cs-trend-insight-list' }, insights.map((item) =>
+            h('div', { className: 'cs-trend-insight-row', key: item.key },
+              h('span', null, item.label),
+              h('b', null, item.value)))),
+          h('p', { className: 'cs-trend-insight-note' }, t('trendInsightNote'))))
+    }
+
     function renderTrendCard(data, t, isZh, hoverTip, format, shownPeriod, options = {}) {
       const { focus = null, onToggleFocus } = options ?? {}
       const zoomable = typeof onToggleFocus === 'function'
@@ -3471,18 +3947,19 @@ window.__ModuleLoader__.load({
         isEmpty
           ? h('div', { className: 'cs-empty' }, t('emptyDashboard'))
           : renderTrendChart(data.trend, shownPeriod, t, isZh, hoverTip?.tip,
-              { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, format))
+              { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, format),
+        zoomable && !isEmpty ? renderTrendFoot(data, t, isZh, shownPeriod, format) : null)
     }
 
     function renderStatBox(label, value) {
       return h('div', { className: 'cs-stat-box' }, h('span', null, label), h('b', null, value))
     }
 
-    /** 对角双尖角图标：只保留左上与右下两个角；普通态向外放大，首屏态向内缩回。 */
+    /** 对角双尖角图标：普通态右上+左下，首屏态左上+右下；两种状态方向相反，提示可放大/缩回。 */
     function zoomIcon(expanded) {
       const path = expanded
-        ? 'M9 2h5v5M7 14H2V9'
-        : 'M7 2H2v5M9 14h5V9'
+        ? 'M7 2H2v5M9 14h5V9'
+        : 'M9 2h5v5M7 14H2V9'
       return h('svg', {
         viewBox: '0 0 16 16',
         width: 16,
@@ -3512,23 +3989,58 @@ window.__ModuleLoader__.load({
       }, zoomIcon(active))
     }
 
-    /** 今日活跃大数字卡片：普通概览里位于周期卡之前，右上角可放大为首屏。 */
+    /** 首屏主指标的统一取值表：普通 hero 卡与放大页共用，避免两处口径漂移。 */
+    function heroMetricTable(data, t) {
+      const day = data?.cycles?.day ?? {}
+      const week = data?.cycles?.week ?? {}
+      const month = data?.cycles?.month ?? {}
+      return {
+        active: { title: t('todayActive'), value: finite(day.activeMs ?? data?.activeMs) },
+        online: { title: t('todayOnline'), value: finite(day.onlineMs ?? data?.onlineMs) },
+        task: { title: t('todayTask'), value: finite(day.taskMs ?? data?.taskMs) },
+        week: { title: t('heroMetricWeekTitle'), value: finite(week.activeMs) },
+        month: { title: t('heroMetricMonthTitle'), value: finite(month.activeMs) },
+      }
+    }
+
+    /** 首屏主指标对应的右上角标签：实际占用、今日、本周或本月。 */
+    function heroMetricTag(t, metric) {
+      if (metric === 'active' || metric === 'task') return t('actualOccupied')
+      if (metric === 'week') return t('cycleWeek')
+      if (metric === 'month') return t('cycleMonth')
+      return t('cycleToday')
+    }
+
+    /** 今日大数字卡片：普通概览里位于周期卡之前，右上角可放大为首屏。 */
     function renderHeroCard(props) {
-      const { data, t, format = 'hms', focus = null, onToggleFocus } = props
+      const { data, t, format = 'hms', focus = null, onToggleFocus, heroMetric } = props
       const day = data?.cycles?.day ?? {}
       const activeMs = finite(day.activeMs ?? data?.activeMs)
       const onlineMs = finite(day.onlineMs ?? data?.onlineMs)
       const taskMs = finite(day.taskMs ?? data?.taskMs)
-      return h('section', { className: 'cs-card cs-hero', 'data-focus': 'hero' },
+      const metric = normalizeHeroMetric(heroMetric)
+      const current = heroMetricTable(data, t)[metric]
+      // 选中哪一项，另外两项今日数据作为副信息；周/月主指标仍用今日在线与任务托底。
+      const meta = metric === 'active'
+        ? [['todayOnline', onlineMs], ['todayTask', taskMs]]
+        : metric === 'online'
+          ? [['todayActive', activeMs], ['todayTask', taskMs]]
+          : metric === 'task'
+            ? [['todayOnline', onlineMs], ['todayActive', activeMs]]
+            : [['todayActive', activeMs], ['todayTask', taskMs]]
+      return h('section', {
+        className: 'cs-card cs-hero',
+        'data-focus': 'hero',
+        'data-metric': metric,
+      },
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' },
-            h('h2', null, t('todayActive')),
-            h('span', { className: 'cs-tag' }, t('actualOccupied'))),
+            h('h2', null, current.title),
+            h('span', { className: 'cs-tag' }, heroMetricTag(t, metric))),
           renderZoomButton({ t, focus, onToggleFocus })),
-        h('div', { className: 'cs-hero-num' }, formatDuration(activeMs, format)),
-        h('div', { className: 'cs-hero-meta' },
-          h('span', null, `${t('todayOnline')} ${formatDuration(onlineMs, format)}`),
-          h('span', null, `${t('todayTask')} ${formatDuration(taskMs, format)}`)))
+        h('div', { className: 'cs-hero-num' }, formatDuration(current.value, format)),
+        h('div', { className: 'cs-hero-meta' }, meta.map(([labelKey, value]) =>
+          h('span', { key: labelKey }, `${t(labelKey)} ${formatDuration(value, format)}`))))
     }
 
     /** 活跃占比：在线为 0 时按 0% 处理，结果夹在 0–100 之间。 */
@@ -3578,31 +4090,20 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 首屏放大页：重新排版成左右两栏——左侧大数字与带可见标签的占比条，
-     * 右侧趋势迷你图；底部七项统计里五个时长项可点，点击切换大数字的主指标。
+     * 首屏放大页：重新排版成左右两栏——左侧大数字与只读信息，
+     * 右侧活跃占比圆环；底部五项时长统计可点，点击切换大数字的主指标。
      */
     function renderHeroFocusPage(props) {
       const {
-        data, t, isZh = true, period = 'day', format = 'hms', hoverTip,
-        focus = 'hero', onToggleFocus, heroMetric, onSelectHeroMetric,
+        data, t, format = 'hms', focus = 'hero', onToggleFocus, heroMetric, onSelectHeroMetric,
       } = props
       const day = data?.cycles?.day ?? {}
-      const week = data?.cycles?.week ?? {}
-      const month = data?.cycles?.month ?? {}
       const activeMs = finite(day.activeMs ?? data?.activeMs)
       const onlineMs = finite(day.onlineMs ?? data?.onlineMs)
       const taskMs = finite(day.taskMs ?? data?.taskMs)
-      const weekMs = finite(week.activeMs)
-      const monthMs = finite(month.activeMs)
       const share = activeSharePercent(activeMs, onlineMs)
       const metric = normalizeHeroMetric(heroMetric)
-      const metricTable = {
-        active: { title: t('todayActive'), value: activeMs },
-        online: { title: t('todayOnline'), value: onlineMs },
-        task: { title: t('todayTask'), value: taskMs },
-        week: { title: t('heroMetricWeekTitle'), value: weekMs },
-        month: { title: t('heroMetricMonthTitle'), value: monthMs },
-      }
+      const metricTable = heroMetricTable(data, t)
       const current = metricTable[metric]
       const metricButton = (key, label, value) => h('button', {
         type: 'button',
@@ -3610,11 +4111,6 @@ window.__ModuleLoader__.load({
         'aria-pressed': key === metric,
         onClick: () => onSelectHeroMetric?.(key),
       }, h('span', null, label), h('b', null, value))
-      const trend = Array.isArray(data?.trend) ? data.trend : []
-      const miniChart = trend.length > 0
-        ? renderTrendChart(trend, period, t, isZh, hoverTip?.tip,
-            { onHover: hoverTip?.show, onLeave: hoverTip?.hide, height: 220 }, format)
-        : h('div', { className: 'cs-empty' }, t('emptyDashboard'))
       return h('section', {
         className: 'cs-card cs-hero cs-hero-focus',
         'data-focus': 'hero',
@@ -3624,7 +4120,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-card-heading' },
             h('h2', null, current.title),
             h('span', { className: 'cs-tag' }, t('focusSummary')),
-            h('span', { className: 'cs-tag' }, t('actualOccupied'))),
+            h('span', { className: 'cs-tag' }, heroMetricTag(t, metric))),
           renderZoomButton({ t, focus, onToggleFocus })),
         h('div', { className: 'cs-hero-focus-body' },
           h('div', { className: 'cs-hero-focus-primary' },
@@ -3632,32 +4128,36 @@ window.__ModuleLoader__.load({
             h('div', { className: 'cs-hero-meta' },
               h('span', null, `${t('todayOnline')} ${formatDuration(onlineMs, format)}`),
               h('span', null, `${t('todayTask')} ${formatDuration(taskMs, format)}`),
-              h('span', null, `${t('taskCountShort')} ${String(finite(day.taskCount ?? data?.taskCount))}`)),
-            h('div', { className: 'cs-share-block' },
-              h('div', { className: 'cs-share-head' },
-                h('span', null, t('activeShare')),
-                h('b', null, `${share}%`)),
-              h('div', {
-                className: 'cs-focus-bar',
-                role: 'progressbar',
-                'aria-label': t('activeShare'),
-                'aria-valuemin': 0,
-                'aria-valuemax': 100,
-                'aria-valuenow': share,
-              }, h('i', { style: { width: `${share}%` } })),
-              h('div', { className: 'cs-share-foot' },
-                `${t('activeLabel')} ${formatDuration(activeMs, format)} / ${t('onlineLabel')} ${formatDuration(onlineMs, format)}`))),
+              h('span', null, `${t('taskCountShort')} ${String(finite(day.taskCount ?? data?.taskCount))}`))),
           h('div', { className: 'cs-hero-focus-aside' },
-            h('div', { className: 'cs-legend' },
-              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
-              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel'))),
-            h('div', { className: 'cs-hero-mini-chart' }, miniChart))),
+            h('div', {
+              className: 'cs-hero-ring',
+              role: 'img',
+              'aria-label': `${t('activeShare')} ${share}%`,
+            },
+              h('svg', { viewBox: '0 0 160 160', 'aria-hidden': true },
+                h('circle', { className: 'cs-hero-ring-track', cx: 80, cy: 80, r: 68, fill: 'none', strokeWidth: 9 }),
+                h('circle', {
+                  className: 'cs-hero-ring-value', cx: 80, cy: 80, r: 68, fill: 'none', strokeWidth: 9,
+                  pathLength: 100, strokeLinecap: share > 0 ? 'round' : 'butt',
+                  strokeDasharray: `${share} ${100 - share}`, transform: 'rotate(-90 80 80)',
+                })),
+              h('div', { className: 'cs-hero-ring-center' },
+                h('b', null, `${share}%`),
+                h('span', null, t('activeShare')))),
+            h('div', { className: 'cs-hero-ring-legend' },
+              h('div', { className: 'cs-hero-ring-legend-item is-active' },
+                h('span', null, h('i', { 'aria-hidden': true }), t('activeLabel')),
+                h('b', null, formatDuration(activeMs, format))),
+              h('div', { className: 'cs-hero-ring-legend-item is-online' },
+                h('span', null, h('i', { 'aria-hidden': true }), t('onlineLabel')),
+                h('b', null, formatDuration(onlineMs, format)))))),
         h('div', { className: 'cs-focus-panel', role: 'group', 'aria-label': t('heroMetricGroup') },
-          metricButton('online', t('onlineLabel'), formatDuration(onlineMs, format)),
-          metricButton('task', t('todayTask'), formatDuration(taskMs, format)),
-          metricButton('active', t('focusTodayActive'), formatDuration(activeMs, format)),
-          metricButton('week', t('focusWeekActive'), formatDuration(weekMs, format)),
-          metricButton('month', t('focusMonthActive'), formatDuration(monthMs, format))))
+          metricButton('online', t('onlineLabel'), formatDuration(metricTable.online.value, format)),
+          metricButton('task', t('todayTask'), formatDuration(metricTable.task.value, format)),
+          metricButton('active', t('focusTodayActive'), formatDuration(metricTable.active.value, format)),
+          metricButton('week', t('focusWeekActive'), formatDuration(metricTable.week.value, format)),
+          metricButton('month', t('focusMonthActive'), formatDuration(metricTable.month.value, format))))
     }
 
     /** 月度条：12 个月共用同一套高度比例；普通全年视图与首屏下方的填充条复用。 */
@@ -3797,24 +4297,31 @@ window.__ModuleLoader__.load({
           }
           return cells
         }
-        const renderWeekLabels = (grid) => ({
-          // 首屏网格宽度不固定：月份刻度改用与格子相同的等比列，随卡片一起铺满。
-          monthRow: h('div', {
-            className: `heat-months${focusPage ? ' is-focus' : ''}`,
-            style: focusPage ? { gridTemplateColumns: `repeat(${grid.weeks.length}, minmax(0, 1fr))` } : undefined,
-          }, grid.months.map((entry) =>
-            h('span', {
-              key: `${entry.abbr}-${entry.column}`,
-              'data-column': entry.column,
-              style: focusPage
-                ? { gridColumnStart: entry.column + 1 }
-                : { left: `calc(${entry.column} * (var(--cs-heat-cell) + var(--cs-heat-gap)))` },
-            }, entry.abbr))),
-          weekdayRow: h('div', { className: 'heat-weekdays' },
-            h('span', { className: 'heat-weekdays-spacer', 'aria-hidden': true }),
-            h('div', { className: 'heat-weekday-list' }, weekdayLabels.map((label) =>
-              h('span', { key: label }, label)))),
-        })
+        const renderWeekLabels = (grid) => {
+          // 全年与首屏网格宽度不固定：月份刻度改用与格子相同的列宽。
+          // 全年按 1fr 等比压缩；首屏 3m/6m 保持与固定像素格子一致的列宽，避免刻度跑偏。
+          const gridMonths = focusPage || layout === 'year'
+          const fixedMonthColumns = focusPage && layout !== 'year'
+          return {
+            monthRow: h('div', {
+              className: `heat-months${gridMonths ? ' is-grid' : ''}${focusPage ? ' is-focus' : ''}${layout === 'year' ? ' is-year' : ''}`,
+              style: gridMonths
+                ? { gridTemplateColumns: `repeat(${grid.weeks.length}, ${fixedMonthColumns ? 'var(--cs-heat-cell)' : 'minmax(0, 1fr)'})` }
+                : undefined,
+            }, grid.months.map((entry) =>
+              h('span', {
+                key: `${entry.abbr}-${entry.column}`,
+                'data-column': entry.column,
+                style: gridMonths
+                  ? { gridColumnStart: String(entry.column + 1) }
+                  : { left: `calc(${entry.column} * (var(--cs-heat-cell) + var(--cs-heat-gap)))` },
+              }, entry.abbr))),
+            weekdayRow: h('div', { className: 'heat-weekdays' },
+              h('span', { className: 'heat-weekdays-spacer', 'aria-hidden': true }),
+              h('div', { className: 'heat-weekday-list' }, weekdayLabels.map((label) =>
+                h('span', { key: label }, label)))),
+          }
+        }
 
         if (layout === 'month') {
           const grid = buildMonthGrid(scopedDays, resolved, weekdayLabels)
@@ -3865,18 +4372,11 @@ window.__ModuleLoader__.load({
       let content = body
       if (focusPage) {
         const main = Array.isArray(body) ? body.slice() : [body]
-        // 主视图全年已改为周网格，12 个月月度条只保留在首屏作为补充数值面板。
+        // 上半区整块留给热力图；统计与月度条全部沉到下半区。
         const matrix = buildYearMatrix(scopedDays, year, monthLabels)
         const peakBar = matrix.bars.reduce((best, bar) =>
           finite(bar.activeMs) > finite(best?.activeMs) ? bar : best, matrix.bars[0] ?? null)
         const peakActiveMs = finite(peakBar?.activeMs)
-        main.push(h('div', { className: 'heat-focus-bars' },
-          h('div', { className: 'heat-focus-bars-head' },
-            h('span', null, t('monthBars')),
-            h('span', null, peakActiveMs > 0 && peakBar
-              ? `${peakBar.abbr} · ${t('activeLabel')} ${formatDuration(peakActiveMs, format)}`
-              : t('noRecord'))),
-          renderMonthBars(matrix.bars, t, format, 'heat-month-bars heat-focus-month-bars')))
         const peakDay = focusSummary.peakDay
         const peakDaySource = peakDay === null ? null : scopedDays.find((day) => day?.dateKey === peakDay.dateKey)
         const peakDayText = peakDay === null
@@ -3886,14 +4386,23 @@ window.__ModuleLoader__.load({
           ? `${focusSummary.activeDays}/${focusSummary.observedDays}`
           : String(focusSummary.activeDays)
         content = h('div', { className: 'heat-focus-layout' },
-          h('div', { className: 'heat-focus-main' }, ...main),
-          h('aside', { className: 'heat-focus-panel' },
-            renderFocusStat(t('rangeOnline'), formatDuration(focusSummary.onlineMs, format)),
-            renderFocusStat(t('rangeActive'), formatDuration(focusSummary.activeMs, format)),
-            renderFocusStat(t('rangeTask'), formatDuration(focusSummary.taskMs, format)),
-            renderFocusStat(t('peakDay'), peakDayText),
-            renderFocusStat(t('activeDaysLabel'), activeDaysText),
-            renderFocusStat(t('dailyAverageActive'), formatDuration(focusSummary.dailyAverageActiveMs, format))))
+          h('div', { className: 'heat-focus-main' },
+            h('div', { className: 'heat-focus-visual' }, ...main)),
+          h('div', { className: 'heat-focus-bottom' },
+            h('aside', { className: 'heat-focus-panel' },
+              renderFocusStat(t('rangeOnline'), formatDuration(focusSummary.onlineMs, format)),
+              renderFocusStat(t('rangeActive'), formatDuration(focusSummary.activeMs, format)),
+              renderFocusStat(t('rangeTask'), formatDuration(focusSummary.taskMs, format)),
+              renderFocusStat(t('peakDay'), peakDayText),
+              renderFocusStat(t('activeDaysLabel'), activeDaysText),
+              renderFocusStat(t('dailyAverageActive'), formatDuration(focusSummary.dailyAverageActiveMs, format))),
+            h('div', { className: 'heat-focus-bars' },
+              h('div', { className: 'heat-focus-bars-head' },
+                h('span', null, t('monthBars')),
+                h('span', null, peakActiveMs > 0 && peakBar
+                  ? `${peakBar.abbr} · ${t('activeLabel')} ${formatDuration(peakActiveMs, format)}`
+                  : t('noRecord'))),
+              renderMonthBars(matrix.bars, t, format, 'heat-month-bars heat-focus-month-bars'))))
       }
       return h('section', {
         className: `cs-card cs-heatmap-card${focusPage ? ' cs-heatmap-focus' : ''}${zoomable ? ' has-zoom' : ''}`,
@@ -3905,7 +4414,7 @@ window.__ModuleLoader__.load({
 
     /**
      * 热力图首屏独立页：外层负责首屏语义与转场，内部卡片按 focusPage 重排为
-     * 左侧自适应网格、右侧六项范围统计与下方 12 个月度条。
+     * 上半区整幅热力图、下半区左侧六项范围统计与右侧 12 个月度条。
      */
     function renderHeatmapFocusPage(props) {
       const {
@@ -3925,7 +4434,7 @@ window.__ModuleLoader__.load({
     /** 概览：首屏大数字、周期卡、趋势卡、每日热力图、任务构成、工作区排行与最近会话。 */
     function renderOverviewView(props) {
       const {
-        data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip, nowMs, onOpenWorkspace,
+        data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip, nowMs, onOpenSession,
         focus = null, onToggleFocus, heatSeries, heatStatus,
         heatRangeValue = HEAT_DEFAULT_RANGE, onSelectHeatRange,
         heroMetric, onSelectHeroMetric,
@@ -3953,15 +4462,14 @@ window.__ModuleLoader__.load({
         h('div', { className: 'cs-section-head' },
           h('div', { className: 'cs-overview-heading' },
             h('span', { className: 'cs-section-title' }, t('overviewTitle')),
-            h('span', { className: 'cs-tag' }, t('actualOccupied')),
             renderInfo(overviewInfoMessages(data, t, durationFormat).join('；')))),
         h('div', { className: 'cs-overview-grid' },
-          renderHeroCard({ data, t, format: durationFormat, focus, onToggleFocus }),
+          renderHeroCard({ data, t, format: durationFormat, focus, onToggleFocus, heroMetric }),
           renderCycles(data, t, period, onSelectPeriod, durationFormat),
           renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
           renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat),
           renderWorkspaceRanking(data, t, durationFormat, hoverTip),
-          renderRecentSessions(data, t, nowMs, onOpenWorkspace, durationFormat),
+          renderRecentSessions(data, t, nowMs, onOpenSession, durationFormat),
           renderDailyHeatmap({
             series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
             rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange, focus, onToggleFocus,
@@ -3969,8 +4477,8 @@ window.__ModuleLoader__.load({
       ]
     }
 
-    /** 最近会话卡：点击工作区级别行切到明细并展开该工作区。 */
-    function renderRecentSessions(data, t, nowMs, onOpenWorkspace, format = 'hms') {
+    /** 最近会话卡：点击某条会话切到明细、展开所在工作区并高亮该会话。 */
+    function renderRecentSessions(data, t, nowMs, onOpenSession, format = 'hms') {
       const rows = flattenRecentSessions(data, 5)
       return h('section', { className: 'cs-card cs-recent' },
         h('div', { className: 'cs-card-head' },
@@ -3985,7 +4493,7 @@ window.__ModuleLoader__.load({
                 key: `${session.workspaceKey}:${session.sessionId}`,
                 type: 'button',
                 className: 'cs-recent-row',
-                onClick: () => onOpenWorkspace?.(session.workspaceKey),
+                onClick: () => onOpenSession?.(session),
               },
                 h('span', { className: 'cs-recent-title' }, session.sessionTitle ?? t('unknownSession')),
                 h('span', { className: 'cs-recent-workspace' }, session.workspaceTitle ?? t('unassigned')),
@@ -3998,6 +4506,7 @@ window.__ModuleLoader__.load({
       const { data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip } = props
       const shownPeriod = data?.period ?? period
       const peak = trendPeak(data?.trend, shownPeriod, isZh)
+      const share = activeSharePercent(data?.activeMs, data?.onlineMs)
       return [
         h('div', { className: 'cs-section-head' },
           h('div', { className: 'cs-overview-heading' },
@@ -4018,7 +4527,16 @@ window.__ModuleLoader__.load({
               renderStatBox(t('taskCountShort'), String(finite(data?.taskCount))),
               renderStatBox(t('peakActive'), peak === null
                 ? '—'
-                : `${formatDuration(finite(peak.bucket.activeMs), durationFormat)} · ${peak.label}`)))),
+                : `${formatDuration(finite(peak.bucket.activeMs), durationFormat)} · ${peak.label}`)),
+            h('div', { className: 'cs-trend-summary-foot' },
+              h('div', { className: 'cs-trend-share-head' },
+                h('span', null, t('activeShare')),
+                h('b', null, `${share}%`)),
+              h('div', { className: 'cs-trend-share-track', 'aria-hidden': true },
+                h('i', { style: { width: `${share}%` } })),
+              h('div', { className: 'cs-trend-share-caption' },
+                `${t('activeLabel')} ${formatDuration(data?.activeMs, durationFormat)} · ${t('onlineLabel')} ${formatDuration(data?.onlineMs, durationFormat)}`)))),
+        renderTrendBottom(data, t, isZh, shownPeriod, durationFormat),
       ]
     }
 
@@ -4027,6 +4545,7 @@ window.__ModuleLoader__.load({
       const {
         data, t, isZh, query, onQueryChange, durationFormat,
         expanded, onToggleRow, nowMs, subagentByParent, hoverTip = null,
+        highlightSessionId = null,
       } = props
       const rows = filterWorkspaces(data?.workspaces, query)
       const hasQuery = String(query ?? '').trim() !== ''
@@ -4076,7 +4595,7 @@ window.__ModuleLoader__.load({
               ? h('div', { className: 'cs-empty' }, t(hasQuery ? 'detailsEmpty' : 'emptyDashboard'))
               : h('div', { className: 'cs-table-body' }, rows.map((row) =>
                   renderWorkspaceRow(row, expanded?.[row.key] === true, () => onToggleRow?.(row.key),
-                    t, nowMs, subagentByParent ?? {}, durationFormat, hoverTip)))),
+                    t, nowMs, subagentByParent ?? {}, durationFormat, hoverTip, highlightSessionId)))),
           h('aside', { className: 'cs-details-side' },
             h('section', { className: 'cs-card cs-details-side-card' },
               h('div', { className: 'cs-card-head' },
@@ -4123,13 +4642,14 @@ window.__ModuleLoader__.load({
         t, draft, phase, message, noticeState, appearance, palette,
         dataBusy = '', dataMessage = null, clearStep = false, retrying = false, retryError = null,
         importPreview = null, importRestoreSettings = false, importError = '',
+        resetStep = false, resetting = false,
         onPatch, onSelectFormat, onRetryLoad, onExport, onRequestClear, onCancelClear, onClear,
         onPickImportFile, onCancelImport, onImport, onToggleImportSettings, onShowApproximate,
         onRecheckBackfill, onCycleAppearance, onSelectAppearance, onChangePalette,
+        onRequestReset, onCancelReset, onResetSettings,
       } = props
       const loadFailed = phase === 'load-error'
       const busy = phase === 'saving' || draft === null || loadFailed
-      const idleOptions = Array.from({ length: 15 }, (_, index) => String(index + 1))
       const appearanceMode = normalizeAppearance(appearance)
       const importRange = importPreview ? importPreviewRange(importPreview.payload) : ''
       return [h('div', { className: 'cs-settings cs-settings-board' },
@@ -4137,12 +4657,14 @@ window.__ModuleLoader__.load({
           h('h2', { className: 'cs-settings-title' }, t('settingsPageTitle')),
           h('p', { className: 'cs-settings-hint' }, t('settingsPageHint'))),
         h('div', { className: 'cs-settings-grid' },
-          h('section', { className: 'cs-settings-card cs-settings-wide' },
+          h('section', { className: 'cs-settings-card cs-settings-main cs-settings-basics-card' },
+            ...renderBasicSettingsBody(t, draft, busy, onPatch, { selectClass: 'cs-settings-select', split: true })),
+          h('section', { className: 'cs-settings-card cs-settings-side cs-format-card' },
             renderDurationFormatSection(t, draft?.durationFormat, {
               disabled: busy,
               onSelect: onSelectFormat,
             })),
-          h('section', { className: 'cs-settings-card cs-settings-wide cs-appearance-card' },
+          h('section', { className: 'cs-settings-card cs-settings-main cs-appearance-card' },
             h('div', { className: 'cs-settings-card-head' },
               h('div', null,
                 h('h3', null, t('settingsSectionAppearance')),
@@ -4187,54 +4709,16 @@ window.__ModuleLoader__.load({
                     h('span', { className: 'cs-palette-opt-name' }, t(labelKey)),
                     active ? h('span', { className: 'cs-appearance-check', 'aria-hidden': true }, '✓') : null)
                   }))))),
-          h('section', { className: 'cs-settings-card cs-settings-wide' },
-            h('h3', null, t('settingsSectionGeneral')),
-            h('div', { className: 'cs-settings-row-grid' },
-              settingsRow(t, 'settingsIdleLabel', 'settingsIdleHint',
-                h(Select, {
-                  value: draft?.idleThresholdMinutes ?? '5',
-                  options: idleOptions,
-                  disabled: busy,
-                  ariaLabel: t('settingsIdleLabel'),
-                  onChange: (value) => onPatch?.('idleThresholdMinutes', value),
-                }),
-                h('span', { className: 'cs-settings-unit' }, t('settingsIdleUnit')),
-                h('span', { className: 'cs-settings-unit' }, t('settingsIdleRange'))),
-              settingsRow(t, 'settingsWeekLabel', 'settingsWeekHint',
-                h(Select, {
-                  value: draft?.weekStartsOn ?? '1',
-                  options: [
-                    { value: '1', label: t('settingsWeekMonday') },
-                    { value: '7', label: t('settingsWeekSunday') },
-                  ],
-                  disabled: busy,
-                  ariaLabel: t('settingsWeekLabel'),
-                  onChange: (value) => onPatch?.('weekStartsOn', value === '7' ? '7' : '1'),
-                })))),
-          h('section', { className: 'cs-settings-card cs-settings-wide' },
-            h('h3', null, t('settingsSectionDisplay')),
-            h('div', { className: 'cs-settings-row-grid cs-settings-row-grid-wide' },
-              settingsRow(t, 'settingsSubagentLabel', 'settingsSubagentHint',
-                h('label', { className: 'cs-settings-switch' },
-                  h('input', {
-                    type: 'checkbox',
-                    'aria-label': t('settingsSubagentLabel'),
-                    checked: draft?.showSubagents !== false,
-                    disabled: busy,
-                    onChange: (event) => onPatch?.('showSubagents', event?.target?.checked === true),
-                  }),
-                  h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn')))),
-              settingsRow(t, 'settingsSidebarNameLabel', 'settingsSidebarNameHint',
-                h('label', { className: 'cs-settings-switch' },
-                  h('input', {
-                    type: 'checkbox',
-                    'aria-label': t('settingsSidebarNameLabel'),
-                    checked: draft?.sidebarShowName !== false,
-                    disabled: busy,
-                    onChange: (event) => onPatch?.('sidebarShowName', event?.target?.checked === true),
-                  }),
-                  h('span', null, draft?.sidebarShowName === false ? t('settingsSidebarNameOff') : t('settingsSidebarNameOn')))))),
-          h('section', { className: 'cs-settings-card cs-settings-wide' },
+          h('section', { className: 'cs-settings-card cs-settings-side cs-settings-reset-card' },
+            ...renderResetSettingsBody(t, {
+              disabled: busy,
+              resetting,
+              resetStep,
+              onRequest: onRequestReset,
+              onCancel: onCancelReset,
+              onReset: onResetSettings,
+            })),
+          h('section', { className: 'cs-settings-card cs-settings-side cs-notices-card' },
             h('h3', null, t('settingsSectionNotices')),
             noticeState?.status === 'error'
               ? h('p', { className: 'cs-notice-empty' }, t('backfillNoticeUnavailable'))
@@ -4249,7 +4733,7 @@ window.__ModuleLoader__.load({
                 onClick: () => onRecheckBackfill?.(),
               }, retrying === true ? t('settingsRechecking') : t('settingsRecheck')),
               retryError ? h('span', { className: 'cs-data-status is-error' }, String(retryError)) : null)),
-          h('section', { className: 'cs-settings-card cs-settings-wide' },
+          h('section', { className: 'cs-settings-card cs-settings-main cs-data-card' },
             h('h3', null, t('dataTitle')),
             h('p', { className: 'cs-settings-row-hint' }, t('dataHint')),
             h('div', { className: 'cs-data-actions' },
@@ -4363,7 +4847,7 @@ window.__ModuleLoader__.load({
         })
         const [appearance, setAppearance] = React.useState(() => {
           try { return normalizeAppearance(window.localStorage.getItem('chrono-scope.appearance')) }
-          catch { return 'light' }
+          catch { return 'system' }
         })
         const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
         const [paletteSaveError, setPaletteSaveError] = React.useState(false)
@@ -4415,6 +4899,8 @@ window.__ModuleLoader__.load({
           } catch { return {} }
         })
         const [detailsQuery, setDetailsQuery] = React.useState('')
+        const [detailHighlight, setDetailHighlight] = React.useState(null)
+        const detailHighlightTimerRef = React.useRef(null)
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.period', period) } catch {} }, [period])
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.view', view) } catch {} }, [view])
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
@@ -4432,6 +4918,8 @@ window.__ModuleLoader__.load({
         const [settingsPhase, setSettingsPhase] = React.useState('idle')
         const [settingsMessage, setSettingsMessage] = React.useState('')
         const [settingsLoadNonce, setSettingsLoadNonce] = React.useState(0)
+        const [settingsResetStep, setSettingsResetStep] = React.useState(false)
+        const [settingsResetting, setSettingsResetting] = React.useState(false)
         // 保存成功后 notifySettingsChanged 会触发一次重取；保留「已保存」反馈，
         // 不把设置页闪回加载态。重新进入设置页时再恢复正常加载态。
         const settingsSavedRef = React.useRef(false)
@@ -4577,11 +5065,28 @@ window.__ModuleLoader__.load({
         }
         React.useEffect(() => () => {
           if (switchingTimerRef.current !== null) window.clearTimeout(switchingTimerRef.current)
+          if (detailHighlightTimerRef.current !== null) window.clearTimeout(detailHighlightTimerRef.current)
         }, [])
         React.useEffect(() => {
           const node = viewsRef.current
           if (node && typeof node.scrollTop === 'number') node.scrollTop = 0
         }, [view])
+        React.useEffect(() => {
+          if (view !== 'details' || detailHighlight === null) return undefined
+          const sessionId = detailHighlight.sessionId
+          const timer = window.setTimeout(() => {
+            if (typeof document === 'undefined') return
+            const target = [...document.querySelectorAll('.cs-session[data-session-id]')]
+              .find((row) => row.getAttribute('data-session-id') === sessionId)
+            if (target && typeof target.scrollIntoView === 'function') {
+              target.scrollIntoView({
+                block: 'center',
+                behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+              })
+            }
+          }, 320)
+          return () => window.clearTimeout(timer)
+        }, [view, detailHighlight, expanded])
         // 放大/缩回时回到内容区顶部，避免继承普通概览的滚动位置。
         React.useEffect(() => {
           const node = viewsRef.current
@@ -4591,7 +5096,10 @@ window.__ModuleLoader__.load({
         // 打开设置页时读取 Host 权威设置与通知记录；关闭时丢弃未保存草稿。
         const settingsOpen = view === 'settings'
         React.useEffect(() => {
-          if (!settingsOpen) return undefined
+          if (!settingsOpen) {
+            setSettingsResetStep(false)
+            return undefined
+          }
           let active = true
           const keepSaved = settingsSavedRef.current === true
           settingsSavedRef.current = false
@@ -4663,6 +5171,33 @@ window.__ModuleLoader__.load({
           notifyDurationFormatPreview(format)
           void autoSaveSettings(next)
         }
+        const resetInitialSettings = async () => {
+          if (settingsResetting || settingsForm === null || settingsPhase === 'load-error') return
+          setSettingsResetting(true)
+          setSettingsMessage('')
+          try {
+            const saved = await callHost(ctx, 'resetSettings', {})
+            setSettingsForm(settingsDraft(saved))
+            setPreviewFormat(null)
+            applyAppearance('light')
+            changePalette('blue')
+            setSettingsResetStep(false)
+            setSettingsPhase('saved')
+            settingsSavedRef.current = true
+            setSettingsMessage(t('settingsResetDone'))
+            if (savedBadgeTimerRef.current !== null) window.clearTimeout(savedBadgeTimerRef.current)
+            savedBadgeTimerRef.current = window.setTimeout(() => {
+              savedBadgeTimerRef.current = null
+              setSettingsMessage('')
+            }, 1800)
+            notifySettingsChanged()
+          } catch {
+            setSettingsPhase('error')
+            setSettingsMessage(t('settingsResetError'))
+          } finally {
+            setSettingsResetting(false)
+          }
+        }
 
         const onExport = async (format) => {
           if (dataBusy !== '') return
@@ -4732,10 +5267,20 @@ window.__ModuleLoader__.load({
             setDismissingBackfill(false)
           }
         }
-        const openWorkspaceInDetails = (workspaceKey) => {
+        const openSessionInDetails = (session) => {
+          const sessionId = typeof session?.sessionId === 'string' ? session.sessionId : ''
+          if (sessionId === '') return
+          const workspaceKey = session?.workspaceKey
           if (workspaceKey !== undefined && workspaceKey !== null) {
             setExpanded((previous) => ({ ...previous, [workspaceKey]: true }))
           }
+          setDetailsQuery('')
+          setDetailHighlight({ sessionId, token: Date.now() })
+          if (detailHighlightTimerRef.current !== null) window.clearTimeout(detailHighlightTimerRef.current)
+          detailHighlightTimerRef.current = window.setTimeout(() => {
+            detailHighlightTimerRef.current = null
+            setDetailHighlight(null)
+          }, 3000)
           goToView('details')
         }
         const onToggleRow = (key) => setExpanded((previous) => ({ ...previous, [key]: !previous[key] }))
@@ -4804,6 +5349,7 @@ window.__ModuleLoader__.load({
             return renderDetailsView({
               data, t, isZh, query: detailsQuery, onQueryChange: setDetailsQuery,
               durationFormat, expanded, onToggleRow, nowMs, subagentByParent, hoverTip,
+              highlightSessionId: detailHighlight?.sessionId ?? null,
             })
           }
           if (view === 'settings') {
@@ -4820,8 +5366,13 @@ window.__ModuleLoader__.load({
               clearStep,
               retrying,
               retryError,
+              resetStep: settingsResetStep,
+              resetting: settingsResetting,
               onPatch: patchSetting,
               onSelectFormat: onSelectSettingsFormat,
+              onRequestReset: () => setSettingsResetStep(true),
+              onCancelReset: () => setSettingsResetStep(false),
+              onResetSettings: resetInitialSettings,
               onRetryLoad: () => setSettingsLoadNonce((value) => value + 1),
               onExport,
               importPreview,
@@ -4843,7 +5394,7 @@ window.__ModuleLoader__.load({
           }
           return renderOverviewView({
             data, t, isZh, period, onSelectPeriod: setPeriod, durationFormat, hoverTip, nowMs,
-            onOpenWorkspace: openWorkspaceInDetails,
+            onOpenSession: openSessionInDetails,
             focus, onToggleFocus: toggleFocus,
             heroMetric, onSelectHeroMetric: selectHeroMetric,
             heatSeries: heatState.data, heatStatus: heatState.status,
@@ -4856,16 +5407,15 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-shell' },
             h('header', { className: 'cs-topbar' },
               h('div', { className: 'cs-brand' },
-                h('span', { className: 'cs-mark' }, h(ChronoIcon, { size: 30, active: true })),
+                h('span', { className: 'cs-mark' }, h(ChronoIcon, { size: 36, active: true })),
                 h('div', { className: 'cs-brand-text' },
-                  h('h1', null, t('title')),
-                  h('span', { className: 'cs-sub' }, t('subtitle')))),
+                  h('h1', null, t('title')))),
               h('div', { className: 'cs-topbar-right' },
                 h('div', { className: 'cs-topbar-group' },
-                  h('span', { className: `cs-live${data.activeRunning ? ' is-live' : ''}` },
+                  h('span', { className: `cs-live cs-live-active${data.activeRunning ? ' is-live' : ''}` },
                     h('span', { className: 'cs-dot' }), t(data.activeRunning ? 'live' : 'idle')),
-                  h('span', { className: `cs-live${data.taskRunning ? ' is-live' : ''}` },
-                    t(data.taskRunning ? 'taskRunning' : 'taskIdle')),
+                  h('span', { className: `cs-live cs-live-task${data.taskRunning ? ' is-live is-task' : ''}` },
+                    h('span', { className: 'cs-dot' }), t(data.taskRunning ? 'taskRunning' : 'taskIdle')),
                   h('span', { className: 'cs-period-display' },
                     h('span', null, t('currentPeriod')),
                     h('strong', null, t(period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth')))),
@@ -4982,12 +5532,27 @@ window.__ModuleLoader__.load({
       .cs-select-menu.is-grid .cs-opt { justify-content: center; text-align: center; padding: 6px 8px; }
       .cs-select-menu.is-grid .cs-opt.is-span-2 { grid-column: 1 / -1; justify-content: space-between; text-align: left; }
       .cs-select-menu.is-grid .cs-opt.is-on:not(.is-span-2) { justify-content: center; gap: 6px; }
+      /* 热力图范围：15 项统一三列，菜单宽度只占触发器附近一小块。 */
+      .heat-range-select .cs-select-menu.is-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        min-width: 178px; gap: 1px; padding: 4px;
+      }
+      .heat-range-select .cs-select-menu.is-grid .cs-opt {
+        padding: 4px 5px; font-size: 11.5px; line-height: 16px; border-radius: 4px;
+      }
+      /* 统计口径两个下拉统一收窄，不再撑大设置行。 */
+      .cs-settings-select .cs-select-btn {
+        min-width: 72px; min-height: 30px; padding: 4px 8px;
+        gap: 6px; font-size: 12px; line-height: 18px; border-radius: 7px;
+      }
+      .cs-settings-select .cs-select-menu { min-width: 78px; max-height: 220px; padding: 3px; border-radius: 8px; }
+      .cs-settings-select .cs-opt { padding: 5px 9px; font-size: 12px; line-height: 17px; }
     `
 
     /**
      * 侧栏入口的独立主题作用域。入口落在宿主侧栏，拿不到 .cs-page 的变量，
-     * 因此在这里按 cs-palette-* / cs-appearance-* 重新声明三档蓝并派生
-     * --cs-live / --cs-task；不使用宿主的 success 绿。
+     * 因此在这里按 cs-palette-* / cs-appearance-* 重新声明三档蓝，并给任务段
+     * 指定与活跃段明显区分的紫罗兰辅助色；不使用宿主的 success 绿。
      */
     const CHRONOSCOPE_SIDEBAR_CSS = `
       .chronoscope-nav-entry {
@@ -4995,7 +5560,7 @@ window.__ModuleLoader__.load({
         --cs-signal: #1F4E94;
         --cs-signal-soft: #79B3F9;
         --cs-live: var(--cs-signal);
-        --cs-task: color-mix(in srgb, var(--cs-signal) 55%, var(--cs-signal-soft));
+        --cs-task: #7A5AA6;
         --cs-ring-track: color-mix(in srgb, currentColor 18%, transparent);
         --cs-entry-muted: color-mix(in srgb, currentColor 62%, transparent);
         --cs-entry-ink: color-mix(in srgb, currentColor 94%, transparent);
@@ -5022,6 +5587,7 @@ window.__ModuleLoader__.load({
       }
       .chronoscope-nav-entry.cs-appearance-dark {
         --cs-signal-deep: #a9cffa; --cs-signal: #79B3F9; --cs-signal-soft: #3f6ba8;
+        --cs-task: #C29BE8;
       }
       .chronoscope-nav-entry.cs-appearance-dark.cs-palette-stone {
         --cs-signal-deep: #d9dee0; --cs-signal: #aeb6b9; --cs-signal-soft: #6c7477;
@@ -5040,8 +5606,18 @@ window.__ModuleLoader__.load({
         font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         font-size: 14px; line-height: 20px; font-weight: 650; color: var(--cs-entry-ink);
         letter-spacing: -0.015em; white-space: nowrap; flex: 0 0 auto;
+        display: inline-block;
+        animation: chronoscope-time-swap 160ms ease-out both;
       }
       .chronoscope-nav-time.is-live { color: var(--cs-entry-ink); }
+      /* 纯透明度淡入：不做模糊、位移和缩放，切换数字格式时安静利落。 */
+      @keyframes chronoscope-time-swap {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .chronoscope-nav-time { animation: none !important; }
+      }
       .chronoscope-nav-name {
         font-size: 11px; line-height: 18px; color: var(--cs-entry-muted);
         min-width: 0; max-width: 132px; flex: 0 1 auto;
@@ -5050,29 +5626,34 @@ window.__ModuleLoader__.load({
       .chronoscope-nav-dot {
         position: relative; display: block; width: 8px; height: 8px;
         border-radius: 999px !important; flex: 0 0 8px;
+        margin-left: 2px;
         background: var(--cs-entry-muted); opacity: .55;
-        transition: background-color 180ms ease, opacity 180ms ease, box-shadow 180ms ease;
+        transition: background-color 180ms ease, opacity 180ms ease;
       }
       .chronoscope-nav-dot.is-live {
         background: var(--cs-live); opacity: 1;
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--cs-live) 16%, transparent);
+        /* 核心点保持干净的实心色；不再叠加静态 box-shadow，避免被误看成第二个内环。 */
       }
-      .chronoscope-nav-dot.is-task::before,
-      .chronoscope-nav-dot.is-task::after {
+      /*
+       * 只保留一个扩散环：3.6s 一轮，约 2s 扩散到 2.15 倍并完全淡出，剩余
+       * 时间保持不可见；下一轮从中心出现时，上一轮已经彻底消失。活跃或任务
+       * 进行中都会脉冲，鼠标移开也不会留下静态光环。
+       */
+      .chronoscope-nav-dot.is-live::before {
         content: ''; position: absolute; inset: -2px; border-radius: 50%;
         border: 1.5px solid color-mix(in srgb, var(--cs-live) 58%, transparent);
-        animation: chronoscope-dot-pulse 3.2s cubic-bezier(.2, .6, .3, 1) infinite;
+        animation: chronoscope-dot-pulse 3.6s cubic-bezier(.2, .55, .25, 1) infinite;
+        will-change: transform, opacity;
       }
-      .chronoscope-nav-dot.is-task::after { animation-delay: 1.6s; }
       @keyframes chronoscope-dot-pulse {
-        0% { transform: scale(.6); opacity: .62; }
-        68%, 100% { transform: scale(1.65); opacity: 0; }
+        0% { transform: scale(.48); opacity: .58; }
+        52%, 100% { transform: scale(2.15); opacity: 0; }
       }
       /* 悬浮 / 聚焦一段时间后出现的今日构成浮层；固定定位，避免被侧栏滚动容器裁切。 */
       .chronoscope-nav-tip {
         --cs-tip-bg: var(--dsw-alias-bg-layer-1, #26272b);
         position: fixed; z-index: 95; display: flex; flex-direction: column;
-        min-width: 226px; max-width: 286px; padding: 10px 12px 9px;
+        min-width: 214px; max-width: 276px; padding: 10px 12px;
         border-radius: 11px; border: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, .14));
         background: var(--cs-tip-bg); color: var(--dsw-alias-label-primary, currentColor);
         box-shadow: 0 12px 32px rgba(0, 0, 0, .28), 0 2px 8px rgba(0, 0, 0, .16);
@@ -5092,11 +5673,7 @@ window.__ModuleLoader__.load({
         border-top: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, .14));
       }
       @keyframes chronoscope-tip-in { from { opacity: 0; } to { opacity: 1; } }
-      .chronoscope-nav-tip-kicker {
-        font-size: 10px; line-height: 14px; letter-spacing: .08em;
-        color: var(--cs-entry-muted); text-transform: uppercase;
-      }
-      .chronoscope-nav-tip-title { margin-top: 1px; font-size: 12.5px; line-height: 18px; font-weight: 650; color: var(--cs-entry-ink); }
+      .chronoscope-nav-tip-title { font-size: 12.5px; line-height: 18px; font-weight: 650; color: var(--cs-entry-ink); }
       .chronoscope-nav-tip-rows {
         display: flex; flex-direction: column; gap: 5px; margin-top: 8px; padding-top: 8px;
         border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent);
@@ -5112,9 +5689,6 @@ window.__ModuleLoader__.load({
         font-variant-numeric: tabular-nums; font-weight: 650;
       }
       .chronoscope-nav-tip-share { min-width: 32px; text-align: right; color: var(--cs-entry-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
-      .chronoscope-nav-tip-foot {
-        margin-top: 8px; font-size: 10px; line-height: 15px; color: var(--cs-entry-muted);
-      }
       .chronoscope-nav-entry:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
       /* 关闭「显示名称」时连宿主 panelTitle 一起隐藏：只隐藏第二个 span，
          折叠态只剩 panelGlyph 一个 span，不会被误隐藏；label 保留可访问名与 tooltip。 */
@@ -5127,8 +5701,8 @@ window.__ModuleLoader__.load({
       }
       @media (prefers-reduced-motion: reduce) {
         .chronoscope-nav-entry, .chronoscope-nav-entry * { transition-duration: 0s; animation-duration: 0s; }
-        .chronoscope-nav-dot.is-task::before, .chronoscope-nav-dot.is-task::after {
-          animation: none; opacity: .35; transform: scale(1.35);
+        .chronoscope-nav-dot.is-live::before {
+          animation: none; opacity: .35; transform: scale(1.55);
         }
         .chronoscope-nav-tip { animation: none; }
       }
@@ -5160,25 +5734,46 @@ window.__ModuleLoader__.load({
       .cs-topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
       .cs-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
       .cs-mark {
-        width: 40px; height: 40px; border-radius: 10px; flex: none;
+        width: 42px; height: 42px; border-radius: 0; flex: none;
         display: inline-flex; align-items: center; justify-content: center;
         color: var(--cs-signal);
         background: transparent;
-        border: 0;
+        border: 0; overflow: visible;
       }
       .cs-brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
       .cs-brand-text h1 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 650; letter-spacing: -0.01em; }
-      .cs-sub { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 16px; }
       .cs-topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; min-width: 0; }
       .cs-topbar-group { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
       .cs-topbar-divider { flex: none; width: 1px; height: 20px; background: var(--dsw-alias-border-l1); }
-      /* 顶栏两枚循环图标成对：16×16 线描 currentColor；配色用循环箭头表动作、中心点表当前套，
-         当前配色名与循环顺序收进 title/aria-label，不再常显占顶栏。 */
+      /* 顶栏两枚循环图标成对：外观保持线描；配色图标改成白色外环包住当前套信号色圆心。 */
+      .cs-palette-toggle svg .cs-palette-ring {
+        stroke: #fff;
+        filter: drop-shadow(0 0 1px rgba(0, 0, 0, .45));
+      }
       .cs-palette-toggle svg .cs-palette-signal { transition: fill 160ms ease; }
       .cs-live { display: inline-flex; align-items: center; gap: 6px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 16px; white-space: nowrap; }
       .cs-live.is-live { color: var(--dsw-alias-state-success-primary); }
-      .cs-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dsw-alias-state-idle-primary); }
-      .cs-live.is-live .cs-dot { background: var(--dsw-alias-state-success-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-success-primary) 18%, transparent); }
+      .cs-live.is-task.is-live { color: var(--cs-task); }
+      .cs-dot { position: relative; display: inline-block; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--dsw-alias-state-idle-primary); }
+      .cs-live.is-live .cs-dot { background: var(--dsw-alias-state-success-primary); }
+      .cs-live.is-task.is-live .cs-dot { background: var(--cs-task); }
+      /* 与侧栏入口一致：活跃/任务进行中时只做一圈向外扩散的呼吸环。 */
+      .cs-live.is-live .cs-dot::before {
+        content: ''; position: absolute; inset: -2px; border-radius: 50%;
+        border: 1.5px solid color-mix(in srgb, var(--dsw-alias-state-success-primary) 58%, transparent);
+        animation: cs-status-dot-pulse 3.6s cubic-bezier(.2, .55, .25, 1) infinite;
+        will-change: transform, opacity;
+      }
+      .cs-live.is-task.is-live .cs-dot::before {
+        border-color: color-mix(in srgb, var(--cs-task) 58%, transparent);
+      }
+      @keyframes cs-status-dot-pulse {
+        0% { transform: scale(.48); opacity: .58; }
+        52%, 100% { transform: scale(2.15); opacity: 0; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-live.is-live .cs-dot::before { animation: none; }
+      }
       .cs-segmented { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 9px; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); }
       .cs-segment { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; line-height: 18px; padding: 4px 12px; border-radius: 6px; cursor: pointer; }
       .cs-segment.is-active {
@@ -5257,40 +5852,32 @@ window.__ModuleLoader__.load({
       .cs-tag { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); padding: 2px 9px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l1); white-space: nowrap; }
       .cs-cycles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
       .cs-cycle {
-        display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main visual";
-        align-items: center; gap: 12px; min-width: 0; padding: 11px 16px 13px;
-        border-radius: 14px; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
+        display: flex; flex-direction: column; gap: 9px; min-width: 0;
+        padding: 15px 18px 16px; border-radius: 14px;
+        border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
         color: inherit; font: inherit; text-align: left; cursor: pointer;
       }
-      .cs-cycle-main { grid-area: main; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-      .cs-cycle-visual { grid-area: visual; display: flex; flex-direction: column; align-items: center; gap: 3px; flex: none; }
-      .cs-cycle-ring { position: relative; display: grid; place-items: center; width: 46px; height: 46px; }
-      .cs-cycle-ring svg { display: block; transform: rotate(-90deg); }
-      .cs-cycle-ring-value {
-        position: absolute; inset: 0; display: grid; place-items: center;
-        font-size: 10px; line-height: 12px; font-weight: 650; color: var(--dsw-alias-label-secondary);
-        font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+      .cs-cycle-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+      .cs-cycle-title { font-size: 13px; line-height: 18px; font-weight: 620; letter-spacing: .01em; }
+      .cs-cycle-share {
+        font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary);
+        font-variant-numeric: tabular-nums; white-space: nowrap;
       }
-      .cs-cycle-ring-label { font-size: 10px; line-height: 13px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+      .cs-cycle-value {
+        font-family: var(--cs-mono); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+        font-size: clamp(27px, 2.7vw, 36px); line-height: 1.08; font-weight: 650; letter-spacing: -0.045em;
+      }
+      .cs-cycle-track {
+        display: block; height: 3px; border-radius: 999px; overflow: hidden;
+        background: var(--cs-tone-faint);
+      }
+      .cs-cycle-track i { display: block; height: 100%; border-radius: inherit; background: var(--cs-signal); }
       .cs-cycle.is-current {
-        border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 45%, var(--dsw-alias-border-l1));
-        background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, var(--dsw-alias-bg-layer-1)), var(--dsw-alias-bg-layer-1));
+        border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 48%, var(--dsw-alias-border-l1));
+        background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-brand-primary) 8%, var(--dsw-alias-bg-layer-1)), var(--dsw-alias-bg-layer-1));
       }
-      .cs-cycle.is-current .cs-cycle-ring circle:first-child { stroke: color-mix(in srgb, currentColor 24%, transparent); }
-      .cs-cycle.is-current .cs-cycle-ring circle:last-child { stroke: currentColor; }
-      .cs-cycle.is-current .cs-cycle-ring-value,
-      .cs-cycle.is-current .cs-cycle-ring-label { color: currentColor; }
-      .cs-cycle-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-      .cs-cycle-title { font-size: 13px; line-height: 18px; font-weight: 600; }
-      .cs-cycle-count { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
-      .cs-cycle-metric { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-      .cs-metric-label { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
-      .cs-metric-value {
-        font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-        font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
-        font-size: 21px; line-height: 26px; font-weight: 600; letter-spacing: -0.035em;
-      }
-      .cs-cycle-metric.is-secondary .cs-metric-value { font-size: 16px; line-height: 22px; font-weight: 560; color: var(--dsw-alias-label-secondary); }
+      .cs-cycle.is-current .cs-cycle-track { background: color-mix(in srgb, var(--cs-on-accent) 28%, transparent); }
+      .cs-cycle.is-current .cs-cycle-track i { background: var(--cs-on-accent); }
       .cs-card { min-width: 0; border: 1px solid var(--dsw-alias-border-l1); border-radius: 14px; background: var(--dsw-alias-bg-layer-1); padding: 13px 16px; }
       .cs-trend-card { display: flex; flex-direction: column; gap: 8px; }
       .cs-table-card { display: flex; flex-direction: column; gap: 8px; padding-bottom: 8px; }
@@ -5303,9 +5890,18 @@ window.__ModuleLoader__.load({
       .cs-swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
       .cs-swatch.is-active { background: var(--cs-live); }
       .cs-swatch.is-task { background: var(--cs-task); }
-      .cs-session-breakdown { flex: 1 1 100%; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; }
-      .cs-session-subagents { flex: 1 1 100%; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; font-variant-numeric: tabular-nums; }
-      .cs-session-subagents::before { content: '↳ '; }
+      .cs-detail-glyph { display: block; flex: 0 0 auto; }
+      .cs-detail-meta {
+        display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+        color: var(--dsw-alias-label-secondary); cursor: help; border-radius: 5px;
+      }
+      .cs-detail-meta:hover { color: var(--dsw-alias-label-primary); }
+      .cs-detail-meta:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      .cs-detail-meta-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .cs-detail-meta.is-active .cs-detail-glyph { color: var(--cs-live); }
+      .cs-detail-meta.is-task .cs-detail-glyph { color: var(--cs-task); }
+      .cs-detail-meta.is-running .cs-detail-glyph { color: var(--cs-live); }
+      .cs-detail-meta.is-warning .cs-detail-glyph { color: var(--dsw-alias-state-error-primary); }
       .cs-chart { position: relative; width: 100%; min-width: 0; }
       .cs-chart svg { display: block; width: 100%; height: 138px; }
       .cs-axis { position: relative; height: 16px; margin-top: 2px; }
@@ -5314,7 +5910,7 @@ window.__ModuleLoader__.load({
       .cs-range { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
       .cs-row {
         display: grid;
-        grid-template-columns: minmax(0, 2.2fr) 96px 96px 108px 112px 24px;
+        grid-template-columns: minmax(0, 2.2fr) 96px 96px 84px 112px 24px;
         grid-template-areas: "name active task share last toggle";
         align-items: center;
         gap: 10px;
@@ -5327,28 +5923,58 @@ window.__ModuleLoader__.load({
       .cs-cell { min-width: 0; }
       .cs-name { grid-area: name; display: flex; flex-direction: column; gap: 1px; }
       .cs-name-text { font-size: 13px; line-height: 18px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .cs-name-sub { font-size: 11px; line-height: 15px; color: var(--dsw-alias-label-secondary); }
+      .cs-name-sub { display: inline-flex; align-items: center; gap: 3px; width: max-content; font-size: 11px; line-height: 15px; color: var(--dsw-alias-label-secondary); }
+      .cs-name-sub .cs-detail-glyph { width: 11px; height: 11px; }
+      .cs-name-sub .cs-detail-meta-value { font-size: 10.5px; line-height: 14px; }
       .cs-active { grid-area: active; }
       .cs-task { grid-area: task; }
-      .cs-share { grid-area: share; display: flex; flex-direction: column; gap: 4px; }
+      .cs-share { grid-area: share; display: flex; flex-direction: column; gap: 3px; }
       .cs-last { grid-area: last; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .cs-toggle { grid-area: toggle; display: flex; justify-content: flex-end; }
       .cs-num { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 12px; line-height: 18px; white-space: nowrap; }
-      .cs-share-text { font-size: 12px; line-height: 16px; font-variant-numeric: tabular-nums; }
-      .cs-share-track { display: block; height: 4px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); overflow: hidden; }
+      .cs-share-text { font-size: 11px; line-height: 15px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
+      .cs-share-track { display: block; width: 100%; max-width: 68px; height: 3px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); overflow: hidden; }
       .cs-share-fill { display: block; height: 100%; border-radius: 999px; background: var(--dsw-alias-brand-primary); }
       .cs-chevron { width: 7px; height: 7px; border-right: 1.5px solid var(--dsw-alias-label-secondary); border-bottom: 1.5px solid var(--dsw-alias-label-secondary); transform: rotate(45deg); transition: transform 0.15s ease; }
       .cs-chevron.is-open { transform: rotate(-135deg); }
       .cs-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
       /* 会话明细改用同色系表面：整块圆角、左侧引导线，缩进与汇总行一致。 */
       .cs-sessions { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 10px; border-left: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); }
-      .cs-session { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      .cs-session {
+        position: relative; display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap;
+        padding: 8px 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary);
+        border-radius: 8px;
+      }
       .cs-session + .cs-session { border-top: 1px dashed var(--dsw-alias-border-l1); }
-      .cs-session-title { color: var(--dsw-alias-label-primary); font-size: 12px; font-weight: 540; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
-      .cs-session-stat { font-variant-numeric: tabular-nums; white-space: nowrap; }
-      .cs-session-last { margin-left: auto; white-space: nowrap; }
-      .cs-chip { padding: 1px 6px; border-radius: 999px; font-size: 10px; line-height: 15px; background: color-mix(in srgb, var(--dsw-alias-label-secondary) 12%, transparent); color: var(--dsw-alias-label-secondary); }
-      .cs-chip.is-live { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent); color: var(--dsw-alias-state-success-primary); }
+      /* 从最近会话跳转过来时给目标行留一段可见的定位高亮，随后自然淡出。 */
+      .cs-session.is-highlighted {
+        animation: cs-session-locate 3s ease-out both;
+        scroll-margin-block: 28vh;
+      }
+      @keyframes cs-session-locate {
+        0% {
+          background: color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent);
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-brand-primary) 48%, transparent);
+        }
+        68% {
+          background: color-mix(in srgb, var(--dsw-alias-brand-primary) 13%, transparent);
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-brand-primary) 26%, transparent);
+        }
+        100% { background: transparent; box-shadow: inset 0 0 0 1px transparent; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-session.is-highlighted { animation-duration: .01ms; }
+      }
+      .cs-session-title { color: var(--dsw-alias-label-primary); font-size: 12px; font-weight: 540; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+      .cs-session-status { width: 18px; height: 18px; justify-content: center; }
+      .cs-session-status:hover { background: var(--dsw-alias-bg-layer-2); }
+      .cs-session-metrics { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+      .cs-session-stat { padding: 2px 6px; background: var(--dsw-alias-bg-layer-2); }
+      .cs-session-stat .cs-detail-meta-value { font-size: 10.5px; }
+      .cs-session-tool { width: 18px; height: 18px; justify-content: center; }
+      .cs-session-tool:hover { background: var(--dsw-alias-bg-layer-2); }
+      .cs-session-last { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; white-space: nowrap; font-size: 11px; color: var(--dsw-alias-label-secondary); }
+      .cs-session-last:hover { color: var(--dsw-alias-label-primary); }
       .cs-empty { padding: 22px 12px; text-align: center; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
       .cs-empty.is-small { padding: 10px; }
       .cs-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
@@ -5358,10 +5984,11 @@ window.__ModuleLoader__.load({
       .cs-spinner { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--dsw-alias-border-l1); border-top-color: var(--dsw-alias-brand-primary); animation: cs-spin 0.8s linear infinite; }
       @keyframes cs-spin { to { transform: rotate(360deg); } }
       @media (max-width: 1080px) {
-        .cs-row { grid-template-columns: minmax(0, 2fr) 88px 88px 96px 100px 24px; }
+        .cs-row { grid-template-columns: minmax(0, 2fr) 88px 88px 78px 100px 24px; }
       }
       @media (max-width: 860px) {
-        .cs-topbar { flex-wrap: wrap; }
+        .cs-topbar { display: flex; flex-wrap: wrap; justify-content: flex-start; }
+        .cs-brand { width: 100%; justify-content: flex-start; }
         .cs-topbar-right { width: 100%; justify-content: space-between; flex-wrap: wrap; }
         .cs-cycles { grid-template-columns: 1fr; gap: 10px; }
         .cs-cycle { padding: 10px 14px; }
@@ -5371,8 +5998,8 @@ window.__ModuleLoader__.load({
         .cs-name { flex: 1 1 calc(100% - 36px); order: 0; }
         .cs-toggle { order: 1; }
         .cs-task { order: 2; }
-        .cs-share { order: 3; flex: 1 1 90px; flex-direction: row; align-items: center; gap: 8px; }
-        .cs-share-track { flex: 1; min-width: 40px; }
+        .cs-share { order: 3; flex: 1 1 76px; flex-direction: row; align-items: center; gap: 7px; }
+        .cs-share-track { flex: 0 1 64px; min-width: 32px; max-width: 64px; }
         .cs-active { order: 4; }
         .cs-last { order: 5; margin-left: auto; }
         .cs-session-last { margin-left: 0; }
@@ -5386,7 +6013,6 @@ window.__ModuleLoader__.load({
         .cs-legend { gap: 8px; }
         .cs-brand-text h1 { font-size: 16px; }
         .cs-segment { padding: 4px 10px; }
-        .cs-metric-value { font-size: 19px; }
         .cs-foot { line-height: 18px; }
       }
 
@@ -5407,15 +6033,16 @@ window.__ModuleLoader__.load({
         --cs-accent: var(--cs-signal-deep);
         --cs-on-accent: #ffffff;
         --cs-live: var(--cs-signal);
-        --cs-task: color-mix(in srgb, var(--cs-signal) 60%, var(--cs-surface));
+        --cs-task: #7A5AA6;
         --cs-ring-track: color-mix(in srgb, var(--cs-signal) 20%, var(--cs-surface));
         --cs-tone-faint: color-mix(in srgb, var(--cs-signal-soft) 18%, var(--cs-surface));
         --cs-tone-soft: color-mix(in srgb, var(--cs-signal-soft) 38%, var(--cs-surface));
         --cs-tone-other: color-mix(in srgb, var(--cs-signal) 42%, var(--cs-surface));
-        --cs-heat-0: var(--cs-tone-faint);
-        --cs-heat-1: var(--cs-tone-soft);
-        --cs-heat-2: var(--cs-signal-soft);
-        --cs-heat-3: color-mix(in srgb, var(--cs-signal-soft) 72%, var(--cs-signal));
+        /* 热力图从极浅的信号色平滑过渡到深信号色；0 级是“有记录但活跃很低”，不是灰色。 */
+        --cs-heat-0: color-mix(in srgb, var(--cs-signal-soft) 13%, transparent);
+        --cs-heat-1: color-mix(in srgb, var(--cs-signal-soft) 30%, var(--cs-surface));
+        --cs-heat-2: color-mix(in srgb, var(--cs-signal-soft) 56%, var(--cs-surface));
+        --cs-heat-3: color-mix(in srgb, var(--cs-signal-soft) 78%, var(--cs-signal));
         --cs-heat-4: var(--cs-signal);
         --cs-heat-5: var(--cs-signal-deep);
         --cs-error: #ad3e3e;
@@ -5448,19 +6075,27 @@ window.__ModuleLoader__.load({
       .cs-page.cs-palette-clay {
         --cs-signal-deep: #6b3b26; --cs-signal: #a35a37; --cs-signal-soft: #e2ac86;
       }
-      /* 热力图默认蓝阶：浅色外观取指定由浅到深五档；深色与其它配色继续由三档蓝派生。 */
+      /* 热力图蓝色阶梯：浅色由雾蓝到深海蓝共六档，色相连续、明度均匀递进。 */
       .cs-page.cs-palette-blue.cs-appearance-light {
-        --cs-heat-1: #c9d8ea;
-        --cs-heat-2: #9fbde0;
-        --cs-heat-3: #5e8fc9;
-        --cs-heat-4: #1F4E94;
-        --cs-heat-5: #133463;
+        --cs-heat-0: #eef5fc;
+        --cs-heat-1: #dbe9f7;
+        --cs-heat-2: #b8d4ef;
+        --cs-heat-3: #86b0dd;
+        --cs-heat-4: #4f80bd;
+        --cs-heat-5: #1b4c87;
+      }
+      .cs-page.cs-palette-blue.cs-appearance-dark {
+        --cs-heat-0: rgba(121, 179, 249, .13);
+        --cs-heat-1: #233a53;
+        --cs-heat-2: #315a83;
+        --cs-heat-3: #4d82b7;
+        --cs-heat-4: #79b3f9;
+        --cs-heat-5: #b8d9fb;
       }
       .cs-shell { max-width: 1440px; gap: 18px; }
       .cs-topbar { min-height: 54px; margin-bottom: 4px; }
-      .cs-mark { width: 48px; height: 48px; border-radius: 13px; background: transparent; color: var(--cs-signal); border: 0; }
+      .cs-mark { width: 44px; height: 44px; border-radius: 0; background: transparent; color: var(--cs-signal); border: 0; }
       .cs-brand-text h1 { font-size: 20px; line-height: 26px; }
-      .cs-sub { font-size: 12px; }
       .cs-icon-toggle {
         appearance: none; display: inline-flex; align-items: center; justify-content: center;
         width: 30px; height: 30px; padding: 0; border-radius: 8px; cursor: pointer;
@@ -5475,11 +6110,10 @@ window.__ModuleLoader__.load({
       .cs-segment { padding: 7px 16px; }
       .cs-segment.is-active { background: var(--dsw-alias-brand-primary); color: #fff; box-shadow: none; }
       .cs-section-title { font-size: 17px; line-height: 24px; }
-      .cs-cycles { gap: 16px; }
-      .cs-cycle { padding: 19px 20px; gap: 12px; border-radius: 12px; }
+      .cs-cycles { gap: 14px; }
+      .cs-cycle { padding: 16px 18px 17px; gap: 10px; border-radius: 12px; }
       .cs-cycle.is-current { background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); color: #fff; }
-      .cs-cycle.is-current .cs-cycle-count, .cs-cycle.is-current .cs-metric-label, .cs-cycle.is-current .cs-cycle-metric.is-secondary .cs-metric-value { color: #e1e3e2; }
-      .cs-metric-value { font-size: 25px; line-height: 30px; }
+      .cs-cycle.is-current .cs-cycle-share { color: #e1e3e2; }
       .cs-card { padding: 20px; border-radius: 12px; }
       .cs-card-heading h2 { font-size: 16px; line-height: 24px; }
       .cs-trend-card { gap: 16px; }
@@ -5520,6 +6154,7 @@ window.__ModuleLoader__.load({
         --cs-signal-soft: #3f6ba8;
         --cs-accent: var(--cs-signal);
         --cs-on-accent: #171a19;
+        --cs-task: #C29BE8;
         --cs-error: #f09691;
       }
       .cs-page.cs-appearance-dark.cs-palette-stone {
@@ -5529,7 +6164,7 @@ window.__ModuleLoader__.load({
         --cs-signal-deep: #f0c0a4; --cs-signal: #e2ac86; --cs-signal-soft: #8a5a40;
       }
       .cs-segment.is-active, .cs-cycle.is-current { color: var(--cs-on-accent); }
-      .cs-appearance-dark .cs-cycle.is-current .cs-cycle-count, .cs-appearance-dark .cs-cycle.is-current .cs-metric-label, .cs-appearance-dark .cs-cycle.is-current .cs-cycle-metric.is-secondary .cs-metric-value { color: color-mix(in srgb, var(--cs-on-accent) 72%, var(--cs-surface)); }
+      .cs-appearance-dark .cs-cycle.is-current .cs-cycle-share { color: color-mix(in srgb, var(--cs-on-accent) 72%, var(--cs-surface)); }
       .cs-appearance-dark .cs-segment.is-active { color: var(--cs-on-accent); }
       @media (prefers-reduced-motion: reduce) { .cs-page.cs-page *, .cs-page.cs-page *::before, .cs-page.cs-page *::after { transition-duration: 0s; animation-duration: 0s; } }
 
@@ -5538,8 +6173,7 @@ window.__ModuleLoader__.load({
       .cs-cycle:not(.is-current):hover { border-color: var(--dsw-alias-brand-primary); background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, var(--dsw-alias-bg-layer-1)); }
       .cs-cycle:active { transform: translateY(1px); }
       .cs-cycle-head { align-items: center; }
-      .cs-cycle-count { margin-left: auto; }
-      .cs-current-badge { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: color-mix(in srgb, var(--cs-on-accent) 12%, transparent); }
+      .cs-cycle-share { margin-left: auto; }
       .cs-period-display { display: inline-flex; align-items: center; gap: 8px; padding: 7px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; white-space: nowrap; }
       .cs-period-display strong { color: var(--dsw-alias-label-primary); font-weight: 600; }
       .cs-period-loading { min-height: 180px; }
@@ -5553,14 +6187,9 @@ window.__ModuleLoader__.load({
       }
 
       /* 数字、对齐与明细交互：主指标优先，展开箭头留出稳定空间。 */
-      .cs-cycle { min-height: 132px; }
+      .cs-cycle { min-height: 112px; }
       .cs-cycle-title { font-size: 14px; }
-      .cs-cycle-metric { align-items: center; }
-      .cs-metric-label { font-size: 12px; }
-      .cs-metric-value { font-size: 24px; letter-spacing: -0.025em; }
-      .cs-cycle-metric.is-secondary .cs-metric-value { font-size: 16px; font-weight: 500; }
-      .cs-cycle.is-current .cs-metric-value { font-weight: 700; }
-      .cs-cycle.is-current .cs-cycle-metric.is-secondary .cs-metric-value { font-weight: 500; }
+      .cs-cycle.is-current .cs-cycle-value { font-weight: 700; }
       .cs-row { grid-template-columns: minmax(0, 2.2fr) 96px 96px 108px 112px 40px; }
       .cs-table-head { padding: 7px 12px; }
       .cs-summary { min-height: 64px; padding: 10px 12px; }
@@ -5574,7 +6203,7 @@ window.__ModuleLoader__.load({
       .cs-page { scrollbar-gutter: stable; }
       @media (max-width: 1080px) and (min-width: 861px) { .cs-row { grid-template-columns: minmax(0, 2fr) 88px 88px 96px 100px 40px; } }
       @media (max-width: 860px) { .cs-summary { padding: 10px 12px; } .cs-toggle { margin: -5px -5px -5px 0; } }
-      @media (max-width: 600px) { .cs-cycle { min-height: 108px; } .cs-summary { padding: 12px 10px; } .cs-sessions { padding-left: 12px; } }
+      @media (max-width: 600px) { .cs-cycle { min-height: 96px; } .cs-summary { padding: 12px 10px; } .cs-sessions { padding-left: 12px; } }
 
       /* 构成圆环与工作区排行均来自当前周期的真实会话累计数据；色阶全部由三档蓝派生。 */
       .cs-page {
@@ -5601,15 +6230,16 @@ window.__ModuleLoader__.load({
       .cs-overview-grid:has(> .cs-heatmap-card[data-range="year"]) > .cs-recent { grid-column: 2 / 4; }
       @media (max-width: 900px) {
         .cs-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .cs-hero { grid-column: 1; grid-row: 1; }
-        .cs-cycles { grid-column: 2; grid-row: 1; }
-        .cs-trend-card { grid-column: 1 / -1; grid-row: 2; }
-        .cs-composition { grid-column: 1; grid-row: 3; }
-        .cs-ranking { grid-column: 2; grid-row: 3; }
-        .cs-recent { grid-column: 1; grid-row: 4; }
-        .cs-heatmap-card { grid-column: 2; grid-row: 4; }
-        .cs-overview-grid > .cs-heatmap-card[data-range="year"] { grid-column: 1 / -1; grid-row: 5; }
-        .cs-overview-grid:has(> .cs-heatmap-card[data-range="year"]) > .cs-recent { grid-column: 1; grid-row: 4; }
+        /* 窗口收窄时周期卡独占整行，避免三张卡挤在右半列里把内容压扁。 */
+        .cs-hero { grid-column: 1 / -1; grid-row: 1; }
+        .cs-cycles { grid-column: 1 / -1; grid-row: 2; }
+        .cs-trend-card { grid-column: 1 / -1; grid-row: 3; }
+        .cs-composition { grid-column: 1; grid-row: 4; }
+        .cs-ranking { grid-column: 2; grid-row: 4; }
+        .cs-recent { grid-column: 1; grid-row: 5; }
+        .cs-heatmap-card { grid-column: 2; grid-row: 5; }
+        .cs-overview-grid > .cs-heatmap-card[data-range="year"] { grid-column: 1 / -1; grid-row: 6; }
+        .cs-overview-grid:has(> .cs-heatmap-card[data-range="year"]) > .cs-recent { grid-column: 1 / -1; grid-row: 5; }
       }
       @media (max-width: 600px) {
         .cs-overview-grid { grid-template-columns: 1fr; }
@@ -5756,7 +6386,7 @@ window.__ModuleLoader__.load({
       .cs-sessions { padding-right: 24px; }
       .cs-name-text { display: block; min-width: 0; max-width: 100%; }
       .cs-session-title { flex: 0 1 auto; min-width: 0; max-width: min(100%, 340px); }
-      .cs-session-stat { display: inline-flex; align-items: baseline; gap: 4px; }
+      .cs-session-stat { display: inline-flex; align-items: center; gap: 4px; }
       @media (max-width: 600px) {
         .cs-table-card { padding: 12px; }
         .cs-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 12px 10px; }
@@ -5779,7 +6409,7 @@ window.__ModuleLoader__.load({
         .cs-session { gap: 6px 10px; padding: 10px 0; }
         .cs-session-title { flex: 1 1 100%; max-width: 100%; }
         .cs-session-stat {
-          display: inline-flex; align-items: baseline; gap: 4px;
+          display: inline-flex; align-items: center; gap: 4px;
           padding: 1px 6px; border-radius: 4px; background: var(--dsw-alias-bg-layer-2);
         }
         .cs-session-last { margin-left: auto; padding-right: 2px; }
@@ -5836,22 +6466,102 @@ window.__ModuleLoader__.load({
       .cs-trend-layout > .cs-trend-card { grid-column: 1; grid-row: 1; }
       .cs-trend-layout > .cs-trend-summary { grid-column: 2; grid-row: 1; }
       .cs-trend-summary { display: flex; flex-direction: column; gap: 10px; align-self: stretch; }
-      .cs-trend-summary .cs-stat-grid { display: flex; flex-direction: column; gap: 0; flex: 1 1 auto; min-height: 0; }
+      .cs-trend-summary .cs-stat-grid {
+        display: flex; flex-direction: column; gap: 0; flex: 1 1 auto; min-height: 0;
+        border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; overflow: hidden;
+      }
       .cs-trend-summary .cs-stat-box {
-        display: flex; flex-direction: row; align-items: baseline; justify-content: space-between; gap: 12px;
-        flex: 1 1 0; min-height: 0; padding: 11px 2px;
-        border-radius: 0; border-top: 1px solid var(--dsw-alias-border-l1); background: transparent;
+        display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px;
+        flex: 1 1 0; min-height: 0; padding: 10px 12px;
+        border-radius: 0; border: 0; border-top: 1px solid var(--dsw-alias-border-l1); background: transparent;
       }
       .cs-trend-summary .cs-stat-box:first-child {
-        padding: 12px 12px; border: 1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 24%, var(--dsw-alias-border-l1));
-        border-radius: 10px; background: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, var(--dsw-alias-bg-layer-2));
+        border-top: 0;
+        background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, var(--dsw-alias-bg-layer-1));
+        box-shadow: inset 3px 0 0 var(--dsw-alias-brand-primary);
       }
+      .cs-trend-summary .cs-stat-box:first-child span { color: var(--dsw-alias-label-primary); font-weight: 600; }
       .cs-trend-summary .cs-stat-box span { font-size: 12px; }
       .cs-trend-summary .cs-stat-box b { font-size: 18px; line-height: 24px; }
+      /* 右栏底部补一条活跃占比可视化，填满原来空旷的下半区。 */
+      .cs-trend-summary-foot {
+        display: flex; flex-direction: column; gap: 7px;
+        margin-top: auto; padding-top: 12px; border-top: 1px solid var(--dsw-alias-border-l1);
+      }
+      .cs-trend-share-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+      .cs-trend-share-head b { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 22px; line-height: 26px; color: var(--dsw-alias-label-primary); }
+      .cs-trend-share-track { height: 6px; border-radius: 999px; overflow: hidden; background: var(--cs-tone-faint); }
+      .cs-trend-share-track i { display: block; height: 100%; border-radius: inherit; background: var(--cs-signal); }
+      .cs-trend-share-caption { font-size: 10.5px; line-height: 15px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
       .cs-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: 1 1 auto; height: 100%; min-height: 0; align-content: space-between; }
       .cs-stat-box { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: var(--dsw-alias-bg-layer-2); min-width: 0; }
       .cs-stat-box span { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-stat-box b { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 15px; line-height: 22px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+      /* 概览趋势卡底部的四项统计带：贴着卡片底边，填住图表下方原本的空白。 */
+      .cs-trend-foot {
+        display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: auto; padding-top: 10px; border-top: 1px solid var(--dsw-alias-border-l1);
+      }
+      .cs-trend-foot-item {
+        display: flex; flex-direction: column; gap: 2px; min-width: 0;
+        padding: 0 12px; border-left: 1px solid var(--dsw-alias-border-l1);
+      }
+      .cs-trend-foot-item:first-child { padding-left: 0; border-left: 0; }
+      .cs-trend-foot-item:last-child { padding-right: 0; }
+      .cs-trend-foot-item span { font-size: 10.5px; line-height: 15px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cs-trend-foot-item b {
+        font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-variant-numeric: tabular-nums; font-size: 14px; line-height: 20px; font-weight: 650;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      @media (max-width: 760px) {
+        .cs-trend-foot { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 0; }
+        .cs-trend-foot-item:nth-child(3) { padding-left: 0; border-left: 0; }
+      }
+      /* 趋势页下半区：时段分布 + 趋势洞察，填满图表下方的留白。 */
+      .cs-trend-bottom {
+        display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+        gap: 12px; align-items: stretch;
+      }
+      .cs-trend-breakdown, .cs-trend-insights { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+      .cs-breakdown-list { display: flex; flex-direction: column; justify-content: space-around; gap: 9px; flex: 1 1 auto; min-height: 0; }
+      .cs-breakdown-row { display: grid; grid-template-columns: 54px minmax(0, 1fr) 78px; align-items: center; gap: 12px; min-width: 0; }
+      .cs-breakdown-label { font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
+      .cs-breakdown-track {
+        display: flex; align-items: stretch; height: 8px; min-width: 0;
+        border-radius: 999px; overflow: hidden; background: var(--cs-tone-faint);
+      }
+      .cs-breakdown-active { display: block; height: 100%; flex: 0 0 auto; background: var(--cs-live); }
+      .cs-breakdown-task { display: block; height: 100%; flex: 0 0 auto; background: var(--cs-task); }
+      .cs-breakdown-value {
+        font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-variant-numeric: tabular-nums; font-size: 11.5px; line-height: 16px;
+        text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .cs-trend-insight-list {
+        display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
+        border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; overflow: hidden;
+      }
+      .cs-trend-insight-row {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        flex: 1 1 0; min-height: 0; padding: 9px 12px;
+        border-top: 1px solid var(--dsw-alias-border-l1);
+      }
+      .cs-trend-insight-row:first-child { border-top: 0; }
+      .cs-trend-insight-row span { font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      .cs-trend-insight-row b {
+        font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-variant-numeric: tabular-nums; font-size: 14px; line-height: 20px; font-weight: 650;
+        text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .cs-trend-insight-note { margin: 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      @media (max-width: 900px) {
+        .cs-trend-bottom { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 760px) {
+        .cs-breakdown-row { grid-template-columns: 46px minmax(0, 1fr) 68px; gap: 8px; }
+        .cs-trend-insight-row { padding: 9px 10px; }
+      }
       .cs-details-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
       .cs-search {
         flex: 1 1 260px; min-width: 180px; appearance: none; font: inherit; font-size: 12px;
@@ -5859,12 +6569,17 @@ window.__ModuleLoader__.load({
         border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
       }
       .cs-search:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
-      .cs-details-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-      .cs-detail-stat {
-        display: flex; flex-direction: column; gap: 2px; min-width: 0;
-        padding: 11px 14px; border: 1px solid var(--dsw-alias-border-l1);
+      .cs-details-stats {
+        display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0; padding: 9px 16px; border: 1px solid var(--dsw-alias-border-l1);
         border-radius: 12px; background: var(--dsw-alias-bg-layer-1);
       }
+      .cs-detail-stat {
+        display: flex; flex-direction: column; gap: 2px; min-width: 0;
+        padding: 3px 16px; border: 0; border-left: 1px solid var(--dsw-alias-border-l1);
+        border-radius: 0; background: transparent;
+      }
+      .cs-detail-stat:first-child { border-left: 0; padding-left: 0; }
       .cs-detail-stat-label { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-detail-stat-value {
         font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -5888,8 +6603,13 @@ window.__ModuleLoader__.load({
       @media (max-width: 1080px) {
         .cs-details-layout { grid-template-columns: minmax(0, 1fr); }
         .cs-details-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .cs-detail-stat:nth-child(3) { border-left: 0; padding-left: 0; }
       }
-      @media (max-width: 620px) { .cs-details-stats { grid-template-columns: minmax(0, 1fr); } }
+      @media (max-width: 620px) {
+        .cs-details-stats { grid-template-columns: minmax(0, 1fr); padding: 6px 14px; }
+        .cs-detail-stat { border-left: 0; border-top: 1px solid var(--dsw-alias-border-l1); padding: 8px 0; }
+        .cs-detail-stat:first-child { border-top: 0; }
+      }
       .cs-settings-board { display: flex; flex-direction: column; gap: 14px; }
       .cs-settings-hero { display: flex; flex-direction: column; gap: 2px; }
       .cs-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
@@ -5935,51 +6655,104 @@ window.__ModuleLoader__.load({
         stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
       }
       .cs-hero-focus {
-        min-height: calc(100vh - 260px); padding: 26px 30px; gap: 16px;
+        min-height: calc(100vh - 260px); padding: 28px 32px 24px; gap: 18px;
         display: flex; flex-direction: column;
+        background:
+          radial-gradient(110% 90% at 4% 0%, color-mix(in srgb, var(--cs-signal-soft) 12%, transparent), transparent 58%),
+          var(--dsw-alias-bg-layer-1);
         animation: cs-focus-in var(--cs-focus-ms, 240ms) var(--cs-ease) both;
       }
-      .cs-hero-focus .cs-hero-num { font-size: clamp(56px, 8vw, 104px); margin-top: 18px; }
-      /* 首屏主指标：上半区左大数字 + 占比条，右趋势迷你图；下半区七项统计沉底。 */
+      /* 主数字是整个首屏唯一的主角：字号拉到接近满高，其他指标退成辅助信息。 */
+      .cs-hero-focus .cs-hero-num {
+        font-size: clamp(88px, 11.2vw, 156px); line-height: .9; margin-top: 0;
+        letter-spacing: -0.065em; font-weight: 640;
+      }
+      .cs-hero-focus .cs-tag { font-size: 10.5px; padding: 1px 8px; }
       .cs-hero-focus-body {
-        display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 0.9fr);
-        gap: 20px; flex: 1 1 auto; min-height: 0; align-items: stretch;
+        display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(250px, .65fr);
+        gap: 36px; flex: 1 1 auto; min-height: 0; align-items: center;
       }
-      .cs-hero-focus-primary { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
-      .cs-hero-focus .cs-hero-meta { flex-direction: column; gap: 2px; }
-      .cs-share-block {
-        margin-top: auto; padding: 12px 14px;
-        border: 1px solid var(--cs-line); border-radius: var(--cs-radius-sm);
-        background: var(--cs-surface-2);
+      .cs-hero-focus-primary {
+        display: flex; flex-direction: column; justify-content: center;
+        gap: 18px; min-width: 0; min-height: 0;
       }
-      .cs-share-head {
-        display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-        font-size: 12px; line-height: 18px; color: var(--cs-ink-3);
+      .cs-hero-focus .cs-hero-meta {
+        flex-direction: row; flex-wrap: wrap; gap: 4px 16px;
+        font-size: 12.5px; line-height: 18px;
       }
-      .cs-share-head b {
+      .cs-hero-focus .cs-hero-meta span { white-space: nowrap; }
+      .cs-hero-focus-aside {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+        min-width: 0; min-height: 0; padding-left: 28px;
+        border-left: 1px solid color-mix(in srgb, var(--cs-line) 75%, transparent);
+      }
+      /* 圆环替代柱状图：中心读占比，外圈颜色只表示活跃在在线时长中的份额。 */
+      .cs-hero-ring {
+        position: relative; width: min(100%, 248px); aspect-ratio: 1;
+        display: grid; place-items: center; flex: 0 1 auto;
+      }
+      .cs-hero-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      .cs-hero-ring-track { stroke: var(--cs-ring-track); }
+      .cs-hero-ring-value {
+        stroke: var(--cs-signal); stroke-linecap: round;
+        transition: stroke-dasharray 420ms var(--cs-ease);
+      }
+      .cs-hero-ring-center {
+        position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px;
+        text-align: center;
+      }
+      .cs-hero-ring-center b {
         font-family: var(--cs-mono); font-variant-numeric: tabular-nums;
-        font-size: 18px; line-height: 24px; color: var(--cs-ink);
+        font-size: clamp(42px, 4.2vw, 64px); line-height: .95; font-weight: 660;
+        letter-spacing: -.06em; color: var(--cs-ink);
       }
-      .cs-share-foot { font-size: 11px; line-height: 16px; color: var(--cs-ink-3); font-variant-numeric: tabular-nums; }
-      .cs-hero-focus-aside { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
-      .cs-hero-mini-chart { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-      /* .cs-chart / .cs-plot 本身不是 flex 容器，必须显式补上，svg 才能吃到右栏剩余高度。 */
-      .cs-hero-mini-chart .cs-chart { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-      .cs-hero-mini-chart .cs-plot { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-      .cs-hero-mini-chart .cs-chart svg { flex: 1 1 auto; height: auto; min-height: 0; }
-      .cs-hero-focus .cs-focus-panel { margin-top: auto; }
+      .cs-hero-ring-center span { font-size: 12px; line-height: 16px; color: var(--cs-ink-3); }
+      .cs-hero-ring-legend {
+        width: min(100%, 248px); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px; padding-top: 13px; border-top: 1px solid var(--cs-line);
+      }
+      .cs-hero-ring-legend-item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+      .cs-hero-ring-legend-item span {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 11px; line-height: 16px; color: var(--cs-ink-3); white-space: nowrap;
+      }
+      .cs-hero-ring-legend-item i { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 8px; background: var(--cs-signal); }
+      .cs-hero-ring-legend-item.is-online i { background: var(--cs-ring-track); }
+      .cs-hero-ring-legend-item b {
+        font-family: var(--cs-mono); font-variant-numeric: tabular-nums;
+        font-size: 15px; line-height: 21px; font-weight: 600; color: var(--cs-ink);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .cs-hero-focus .cs-focus-panel { margin-top: 0; }
       .cs-fs-button {
         cursor: pointer; text-align: left; font: inherit; color: inherit;
         transition: border-color var(--cs-focus-ms, 240ms) var(--cs-ease),
           background var(--cs-focus-ms, 240ms) var(--cs-ease);
       }
-      .cs-fs-button:hover { border-color: var(--cs-signal-soft); }
-      .cs-fs-button:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
-      .cs-fs-button.is-current { border-color: var(--cs-signal); background: var(--cs-tone-faint); }
-      .cs-fs-button.is-current b { color: var(--cs-signal-deep); }
+      .cs-fs-button:hover { background: color-mix(in srgb, var(--cs-signal) 5%, transparent); }
+      .cs-fs-button:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: -2px; }
+      .cs-fs-button.is-current { background: transparent; border-color: transparent; }
+      .cs-fs-button.is-current b { color: var(--cs-signal); }
       @media (max-width: 900px) {
-        .cs-hero-focus-body { grid-template-columns: 1fr; }
-        .cs-hero-focus-aside { min-height: 180px; }
+        .cs-hero-focus-body { grid-template-columns: 1fr; gap: 20px; }
+        .cs-hero-focus-aside {
+          min-height: 0; padding-left: 0; border-left: 0; border-top: 1px solid var(--cs-line);
+          padding-top: 16px; flex-direction: row; gap: 28px;
+        }
+        .cs-hero-ring { width: 190px; }
+        .cs-hero-ring-legend {
+          width: 190px; grid-template-columns: 1fr; gap: 9px;
+          padding-top: 0; border-top: 0;
+        }
+        .cs-hero-focus .cs-hero-num { font-size: clamp(64px, 16vw, 112px); }
+      }
+      @media (max-width: 520px) {
+        .cs-hero-focus-aside { flex-direction: column; gap: 14px; }
+        .cs-hero-ring { width: 168px; }
+        .cs-hero-ring-legend {
+          width: min(100%, 248px); grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px; padding-top: 11px; border-top: 1px solid var(--cs-line);
+        }
       }
       @media (prefers-reduced-motion: reduce) {
         .cs-fs-button { transition: none !important; }
@@ -6012,24 +6785,28 @@ window.__ModuleLoader__.load({
         from { opacity: 0; }
         to { opacity: 1; }
       }
-      .cs-focus-panel { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
-      .cs-fs-item {
-        flex: 1 1 150px; min-width: 130px; display: flex; flex-direction: column; gap: 6px;
-        padding: 12px 14px; border: 1px solid var(--cs-line); border-radius: var(--cs-radius-sm);
-        background: var(--cs-surface-2);
+      .cs-focus-panel {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        gap: 0; margin-top: 4px; padding-top: 12px;
+        border-top: 1px solid var(--cs-line);
       }
-      .cs-fs-item span { font-size: 11px; line-height: 16px; color: var(--cs-ink-3); }
+      .cs-fs-item {
+        flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px;
+        padding: 4px 18px; border: 0; border-left: 1px solid color-mix(in srgb, var(--cs-line) 80%, transparent);
+        border-radius: 0; background: transparent;
+      }
+      .cs-fs-item:first-child { border-left: 0; padding-left: 0; }
+      .cs-fs-item span { font-size: 10.5px; line-height: 16px; color: var(--cs-ink-3); }
       .cs-fs-item b {
         font-family: var(--cs-mono); font-variant-numeric: tabular-nums;
-        font-size: 18px; line-height: 24px; font-weight: 620; color: var(--cs-ink);
+        font-size: 20px; line-height: 26px; font-weight: 620; color: var(--cs-ink);
+        letter-spacing: -.02em;
       }
-      .cs-focus-bar {
-        flex: 1 1 100%; height: 8px; margin-top: 8px; border-radius: 20px;
-        overflow: hidden; background: var(--cs-tone-faint);
-      }
-      .cs-focus-bar i {
-        display: block; height: 100%; border-radius: 20px;
-        background: var(--cs-signal); transition: width var(--cs-focus-ms, 240ms) var(--cs-ease);
+      @media (max-width: 620px) {
+        .cs-focus-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .cs-fs-item { padding: 6px 12px; }
+        .cs-fs-item:nth-child(2n + 1) { border-left: 0; padding-left: 0; }
+        .cs-fs-item:last-child:nth-child(odd) { grid-column: 1 / -1; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--cs-line); }
       }
       @media (max-width: 600px) {
         .cs-hero-focus { min-height: calc(100vh - 320px); padding: 18px 16px; }
@@ -6039,7 +6816,7 @@ window.__ModuleLoader__.load({
       }
       @media (prefers-reduced-motion: reduce) {
         .cs-view, .cs-view.is-leaving, .cs-curtain, .cs-tab-thumb,
-        .cs-hero-focus, .cs-trend-focus, .cs-zoom-btn, .cs-focus-bar i { animation: none !important; transition: none !important; }
+        .cs-hero-focus, .cs-trend-focus, .cs-zoom-btn { animation: none !important; transition: none !important; }
         .cs-trend-focus .cs-bar-group .cs-bar-pair { transition: none !important; }
       }
 
@@ -6049,18 +6826,43 @@ window.__ModuleLoader__.load({
         position: relative; overflow: visible;
         display: flex; flex-direction: column; gap: 12px;
       }
-      /* 范围选择器只收窄触发器；弹出的两列 15 项菜单保持完整，避免选项被裁切。 */
+      /* 范围选择器只收窄触发器；弹出的三列 15 项菜单保持完整，避免选项被裁切。 */
       .heat-range-select .cs-select-btn { min-width: 88px; min-height: 28px; padding: 4px 8px; gap: 6px; }
       .heat-card-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
       .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
-      /* 全年 53 列铺满整行：格子略收、间隙收紧、月份刻度随网格下方居中。 */
+      /* 全年 53 列压进卡片可用宽度：列宽等比分配、格子用 aspect-ratio 保持正方形，
+         不再靠固定像素宽度撑出横向滚动条；月份刻度也走同一套等比列。 */
       .heatmap-body.is-year {
-        --cs-heat-cell: clamp(10px, 0.95vw, 13px); --cs-heat-gap: 2px;
-        justify-content: center; width: 100%;
+        --cs-heat-gap: clamp(1px, .2vw, 3px);
+        display: grid; grid-template-columns: auto minmax(0, 1fr);
+        align-items: stretch; justify-content: normal; gap: 4px;
+        width: 100%; overflow: visible; padding-bottom: 0;
       }
-      .heatmap-body.is-year .heat-plot { gap: 4px; }
+      .heatmap-body.is-year .heat-plot { flex: 1 1 auto; width: 100%; min-width: 0; gap: 4px; }
+      .heatmap-body.is-year .heat-weekgrid {
+        width: 100%; grid-auto-columns: minmax(0, 1fr);
+        grid-template-rows: repeat(7, auto);
+      }
+      .heatmap-body.is-year .heat-weekgrid .heat-cell {
+        width: auto; height: auto; min-width: 0; aspect-ratio: 1;
+      }
+      .heatmap-body.is-year .heat-weekdays { align-self: stretch; padding-bottom: 20px; }
+      .heatmap-body.is-year .heat-weekday-list {
+        flex: 1 1 auto; grid-template-rows: repeat(7, minmax(0, 1fr));
+      }
+      .heatmap-body.is-year .heat-weekday-list span {
+        display: flex; align-items: center; justify-content: flex-end; line-height: 1;
+      }
       .heatmap-body.is-year .heat-months { height: 16px; }
       .heatmap-body.is-year .heat-months span { font-size: 10px; line-height: 16px; }
+      /* 窄卡片里 53 列会让月份标签互相重叠，按可用宽度降为隔月、再降为每季度显示。 */
+      @media (max-width: 1180px) {
+        .heatmap-body.is-year .heat-months span:nth-child(even) { display: none; }
+      }
+      @media (max-width: 820px) {
+        .heatmap-body.is-year .heat-months span { display: none; font-size: 9px; }
+        .heatmap-body.is-year .heat-months span:nth-child(3n + 1) { display: block; }
+      }
       /* 全年月份刻度在网格下方，星期标签不再预留上方空行，否则会与 7 行格子错开 20px。 */
       .heatmap-body.is-year .heat-weekdays-spacer { display: none; }
       .heat-weekdays { display: flex; flex-direction: column; flex: 0 0 auto; }
@@ -6069,6 +6871,8 @@ window.__ModuleLoader__.load({
       .heat-weekday-list span { font-size: 10px; line-height: var(--cs-heat-cell); color: var(--dsw-alias-label-secondary); }
       .heat-plot { display: inline-flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
       .heat-months { position: relative; height: 14px; }
+      .heat-months.is-grid { display: grid; }
+      .heat-months.is-grid span { position: static; justify-self: start; }
       .heat-months span { position: absolute; top: 0; font-size: 10px; line-height: 14px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
       .heat-weekgrid {
         display: grid; grid-auto-flow: column; width: max-content;
@@ -6078,7 +6882,7 @@ window.__ModuleLoader__.load({
       }
       .heat-cell {
         display: block; width: var(--cs-heat-cell); height: var(--cs-heat-cell);
-        border-radius: 2px; background: var(--cs-heat-0); user-select: none;
+        border: 0; border-radius: 4px; background: var(--cs-heat-0); user-select: none;
       }
       .heat-cell.l0 { background: var(--cs-heat-0); }
       .heat-cell.l1 { background: var(--cs-heat-1); }
@@ -6086,11 +6890,17 @@ window.__ModuleLoader__.load({
       .heat-cell.l3 { background: var(--cs-heat-3); }
       .heat-cell.l4 { background: var(--cs-heat-4); }
       .heat-cell.l5 { background: var(--cs-heat-5); }
+      /* 无记录落在最浅一档雾蓝，而不是灰块；日历补位才真正留空。 */
       .heat-cell.is-empty {
         background: var(--cs-heat-0);
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-border-l1) 70%, transparent);
+        box-shadow: none;
+        border: 0;
       }
-      .heat-cell.is-pad { background: transparent; box-shadow: none; }
+      .heat-cell.is-pad {
+        background: transparent;
+        box-shadow: none;
+        border: 0;
+      }
       .heat-cell[role="button"] {
         position: relative; cursor: pointer;
         transition: transform 120ms ease, filter 120ms ease;
@@ -6117,7 +6927,7 @@ window.__ModuleLoader__.load({
       }
       .heat-year .heat-cell {
         width: auto; height: auto; min-width: 0; aspect-ratio: 1;
-        border-radius: 2px;
+        border-radius: 4px;
       }
       .heat-month-bars {
         display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px;
@@ -6147,7 +6957,7 @@ window.__ModuleLoader__.load({
       }
       .heat-month .heat-cell {
         width: auto; height: auto; min-width: 0; aspect-ratio: 1;
-        border-radius: 3px;
+        border-radius: 5px;
       }
       @media (max-width: 600px) {
         .cs-heatmap-card { --cs-heat-cell: clamp(9px, 3vw, 13px); --cs-heat-gap: 2px; }
@@ -6156,54 +6966,98 @@ window.__ModuleLoader__.load({
         .heat-month-bars { height: 84px; }
       }
 
-      /* 票 15：热力图首屏。放大后整页重排：网格随宽度铺满，右侧固定统计栏，月度条填充下方空白。 */
+      /* 热力图首屏：上半区整幅全年热力图，下半区左侧统计、右侧月度活跃。 */
       .cs-heatmap-focus-page {
         min-height: calc(100vh - 260px); display: flex; flex-direction: column;
         animation: cs-focus-in var(--cs-focus-ms, 240ms) var(--cs-ease) both;
       }
       .cs-heatmap-focus-page > .cs-heatmap-card { flex: 1 1 auto; min-height: 0; }
       .cs-heatmap-focus {
-        --cs-heat-cell: clamp(10px, 1.6vw, 20px); --cs-heat-gap: 4px;
-        flex: 1 1 auto; min-height: 0; gap: 14px;
+        --cs-heat-cell: clamp(16px, 1.6vw, 28px); --cs-heat-gap: 4px;
+        flex: 1 1 auto; min-height: 0; gap: 16px; padding: 20px 24px 20px;
       }
       .cs-heatmap-card.has-zoom .cs-card-head { padding-right: 30px; }
       .heat-focus-layout {
-        display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 20px;
-        align-items: stretch; min-height: 0; flex: 1 1 auto;
+        display: flex; flex-direction: column; gap: 16px;
+        min-height: 0; flex: 1 1 auto;
       }
-      .heat-focus-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
-      /* 周网格按内容高度铺 53 列正方形格子；强行按行高拉伸会变成细长竖条。
-         剩余高度全部交给下方月度条区，不再让两块五五分。 */
+      .heat-focus-main {
+        min-width: 0; display: flex; align-items: center; justify-content: center;
+        flex: 1 1 auto; min-height: clamp(200px, 32vh, 360px);
+      }
+      .heat-focus-visual { width: 100%; display: flex; flex-direction: column; gap: 8px; }
       .cs-heatmap-focus .heatmap-body {
-        width: 100%; align-items: stretch; flex: 0 1 auto; min-height: 0;
+        width: 100%; align-items: center; justify-content: center;
+        flex: 0 1 auto; min-height: 0; overflow-x: auto; overflow-y: visible;
       }
-      .cs-heatmap-focus .heatmap-body.is-year { overflow: visible; }
-      .cs-heatmap-focus .heat-plot { flex: 1 1 auto; width: auto; min-width: 0; }
+      .cs-heatmap-focus .heat-plot { flex: 1 1 auto; width: 100%; min-width: 0; }
+      /* 3m/6m 首屏：星期刻度与固定像素周网格作为一个整体居中，月份刻度与网格同宽。 */
+      .cs-heatmap-focus:not([data-layout="year"]) .heatmap-body {
+        width: fit-content; max-width: 100%; margin: 0 auto;
+        justify-content: flex-start;
+      }
+      .cs-heatmap-focus:not([data-layout="year"]) .heat-plot {
+        flex: 0 0 auto; width: max-content;
+      }
+      .cs-heatmap-focus:not([data-layout="year"]) .heat-months.is-grid {
+        width: max-content; max-width: 100%; margin: 0 auto;
+      }
+      /* 全年 53 列铺满整行；其它范围保持大小适中的正方形，居中而不无限放大。 */
       .cs-heatmap-focus .heat-weekgrid {
         width: 100%; grid-auto-columns: minmax(0, 1fr); grid-template-rows: repeat(7, auto);
+        gap: var(--cs-heat-gap);
+      }
+      .cs-heatmap-focus:not([data-layout="year"]) .heat-weekgrid {
+        width: max-content; margin: 0 auto; grid-auto-columns: var(--cs-heat-cell);
       }
       .cs-heatmap-focus .heat-weekgrid .heat-cell {
         width: auto; height: auto; min-width: 0; aspect-ratio: 1;
       }
+      .cs-heatmap-focus .heatmap-body.is-year {
+        --cs-heat-cell: clamp(15px, 1.3vw, 22px);
+        display: grid; align-items: stretch; justify-content: normal; overflow: visible;
+      }
       .cs-heatmap-focus .heat-weekdays { align-self: stretch; }
-      .cs-heatmap-focus .heat-weekday-list { grid-template-rows: repeat(7, var(--cs-heat-cell)); flex: 0 0 auto; }
+      .cs-heatmap-focus .heat-weekday-list {
+        grid-template-rows: repeat(7, minmax(0, 1fr)); flex: 1 1 auto;
+      }
       .cs-heatmap-focus .heat-months { display: grid; gap: var(--cs-heat-gap); }
       .cs-heatmap-focus .heat-months span { position: static; }
       .cs-heatmap-focus .heat-year { flex: 1 1 auto; }
       .cs-heatmap-focus .heat-year-grid { width: 100%; }
-      .cs-heatmap-focus .heat-month { width: 100%; max-width: none; }
+      .cs-heatmap-focus[data-layout="month"] .heat-month { width: min(100%, 560px); max-width: 560px; margin: 0 auto; }
       .cs-heatmap-focus .heat-month-grid { width: 100%; }
-      .heat-focus-panel { display: flex; flex-direction: column; gap: 8px; justify-content: space-between; min-height: 0; }
-      .heat-focus-panel .cs-fs-item { flex: 0 0 auto; }
-      /* 月度条独占剩余高度；给它确定下界，避免矮视口把 12 根条压成短桩。 */
-      .heat-focus-bars { flex: 1 1 auto; min-height: 150px; display: flex; flex-direction: column; gap: 8px; }
+      .heat-focus-bottom {
+        display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+        gap: 26px; align-items: end; flex: 0 0 auto;
+        padding-top: 14px; border-top: 1px solid var(--cs-line);
+      }
+      .heat-focus-panel {
+        display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px 0; min-width: 0;
+      }
+      .heat-focus-panel .cs-fs-item {
+        flex: 0 0 auto; min-width: 0; padding: 2px 14px;
+        border: 0; border-left: 1px solid color-mix(in srgb, var(--cs-line) 80%, transparent);
+        border-radius: 0; background: transparent;
+      }
+      .heat-focus-panel .cs-fs-item:nth-child(3n + 1) { border-left: 0; padding-left: 0; }
+      .heat-focus-bars { min-height: 96px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
       .heat-focus-bars-head {
         display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
         font-size: 11px; line-height: 16px; color: var(--cs-ink-3); font-variant-numeric: tabular-nums;
       }
-      .cs-heatmap-focus .heat-month-bars { height: auto; min-height: 130px; flex: 1 1 auto; }
+      .cs-heatmap-focus .heat-month-bars { height: 92px; min-height: 0; padding-bottom: 16px; }
       @media (max-width: 900px) {
-        .heat-focus-layout { grid-template-columns: 1fr; }
+        .heat-focus-layout { gap: 14px; }
+        .heat-focus-bottom { grid-template-columns: 1fr; gap: 16px; align-items: stretch; }
+      }
+      @media (max-width: 600px) {
+        .cs-heatmap-focus { padding: 16px 14px; --cs-heat-cell: clamp(13px, 4.5vw, 20px); }
+        .heat-focus-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .heat-focus-panel .cs-fs-item:nth-child(3n + 1) { border-left: 1px solid color-mix(in srgb, var(--cs-line) 80%, transparent); padding-left: 14px; }
+        .heat-focus-panel .cs-fs-item:nth-child(2n + 1) { border-left: 0; padding-left: 0; }
+        .cs-heatmap-focus .heatmap-body.is-year { --cs-heat-cell: 14px; }
       }
       @media (prefers-reduced-motion: reduce) {
         .cs-heatmap-focus-page, .cs-heatmap-focus, .cs-heatmap-focus .heat-month-bar {
@@ -6240,41 +7094,82 @@ window.__ModuleLoader__.load({
       .cs-settings-group { display: flex; flex-direction: column; gap: 2px; }
       .cs-settings-group > h3 { margin: 0 0 6px; font-size: 12px; font-weight: 650; letter-spacing: .04em; color: var(--dsw-alias-label-secondary); }
       .cs-settings-row {
-        display: grid; grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
-        gap: 12px; align-items: start; padding: 12px 0;
+        display: grid; grid-template-columns: minmax(150px, 235px) minmax(0, 1fr);
+        gap: 14px; align-items: center; padding: 8px 0;
         border-bottom: 1px solid var(--dsw-alias-border-l1);
       }
-      .cs-settings-label { font-size: 13px; line-height: 20px; font-weight: 600; }
-      .cs-settings-row-hint { margin: 3px 0 0; font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); }
-      .cs-settings-control { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .cs-settings-label { font-size: 12.5px; line-height: 18px; font-weight: 600; }
+      .cs-settings-row-hint { margin: 2px 0 0; font-size: 11.5px; line-height: 1.55; color: var(--dsw-alias-label-secondary); }
+      .cs-settings-control { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .cs-settings-control input[type="number"] {
         appearance: none; font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 8px;
         color: var(--dsw-alias-label-primary); border: 1px solid var(--dsw-alias-border-l1);
         background: var(--dsw-alias-bg-layer-1); min-width: 96px;
       }
       .cs-settings-control input:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
-      .cs-settings-control .cs-select-btn { min-width: 96px; font-size: 13px; }
+      .cs-settings-control .cs-settings-select .cs-select-btn { min-width: 72px; font-size: 12px; }
       .cs-settings-unit { font-size: 12px; color: var(--dsw-alias-label-secondary); }
       .cs-settings-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
       .cs-settings-switch input { width: 16px; height: 16px; accent-color: var(--dsw-alias-brand-primary); cursor: pointer; }
-      /* Dashboard 设置：单列卡片带 + 卡内双栏网格，卡片各自按内容收口，不再出现半列空白。 */
-      .cs-settings-board .cs-settings-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-      .cs-settings-board .cs-settings-card { padding: 16px 18px; align-self: start; }
-      .cs-settings-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-      .cs-settings-card-head h3 { margin: 0; font-size: 13px; line-height: 20px; font-weight: 650; }
+      /* Dashboard 设置：12 列双栏板。统计与数字格式在上，外观/初始化/通知/数据交错排布，
+         宽屏利用横向空间，窄屏自动回到单列；每张卡只占内容需要的高度。 */
+      .cs-settings-board .cs-settings-grid {
+        grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: start;
+      }
+      .cs-settings-board .cs-settings-card { padding: 13px 15px; align-self: start; }
+      .cs-settings-main { grid-column: span 7; }
+      .cs-settings-side { grid-column: span 5; }
+      .cs-settings-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+      .cs-settings-card-head h3 { margin: 0; font-size: 13px; line-height: 19px; font-weight: 650; }
+      .cs-settings-card-sub { margin: 2px 0 0; font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-settings-scope {
         flex: none; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l1);
         color: var(--dsw-alias-label-secondary); font-size: 10px; line-height: 16px; letter-spacing: .02em;
       }
-      .cs-appearance-panel {
-        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;
-        padding-top: 12px;
+      .cs-settings-list { display: flex; flex-direction: column; margin-top: 6px; }
+      .cs-settings-list .cs-settings-row:last-child { border-bottom: 0; padding-bottom: 1px; }
+      /* 仪表盘宽卡：统计项排成两列，长标签的侧栏显示时长独占一行，避免右半张卡空着。 */
+      .cs-settings-list.is-split {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 18px; row-gap: 0;
       }
-      .cs-appearance-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-      .cs-appearance-options, .cs-palette-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+      .cs-settings-list.is-split .cs-settings-row {
+        grid-template-columns: minmax(0, 1fr) auto; gap: 10px;
+      }
+      .cs-settings-list.is-split .cs-settings-row:last-child { grid-column: 1 / -1; }
+      .cs-settings-list.is-split .cs-settings-row > div:first-child { min-width: 0; }
+      .cs-settings-list.is-split .cs-settings-control { justify-content: flex-end; }
+      .cs-settings-board .cs-format-card { align-self: stretch; }
+      .cs-settings-board .cs-format-card .cs-format-section {
+        display: flex; flex: 1 1 auto; flex-direction: column; height: 100%;
+      }
+      /* 与左侧统计卡同高时，把五档排成两列三行，竖向填满而不是堆在顶部。 */
+      @media (min-width: 1101px) {
+        .cs-settings-board .cs-format-grid {
+          display: grid; flex: 1 1 auto; grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 6px; align-content: center;
+        }
+        .cs-settings-board .cs-format-opt {
+          flex: none; min-height: 40px; justify-content: flex-start; padding: 5px 9px;
+        }
+        .cs-settings-board .cs-format-opt:last-child { grid-column: 1 / -1; }
+      }
+      .cs-format-shared {
+        margin: auto 0 0; padding-top: 10px; border-top: 1px solid var(--dsw-alias-border-l1);
+        font-size: 10.5px; line-height: 16px; color: var(--dsw-alias-label-secondary);
+      }
+      /* 最底一排两张卡共享行高，底边保持齐平；内容多的数据管理决定这一排的高度。 */
+      .cs-settings-board .cs-notices-card,
+      .cs-settings-board .cs-data-card { align-self: stretch; }
+      .cs-appearance-panel {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+        padding-top: 8px;
+      }
+      .cs-appearance-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+      .cs-appearance-options, .cs-palette-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
       .cs-appearance-opt, .cs-palette-opt {
-        position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
-        padding: 9px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px;
+        position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+        padding: 7px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 9px;
         background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
         transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
       }
@@ -6286,7 +7181,7 @@ window.__ModuleLoader__.load({
         background: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent);
       }
       .cs-appearance-preview {
-        display: flex; gap: 5px; width: 100%; height: 36px; padding: 6px; border-radius: 7px;
+        display: flex; gap: 4px; width: 100%; height: 28px; padding: 4px; border-radius: 6px;
         border: 1px solid var(--dsw-alias-border-l1); background: #f4f6f8; color: #48525c; overflow: hidden;
       }
       .cs-appearance-preview-side { display: block; width: 12px; height: 100%; border-radius: 3px; background: currentColor; opacity: .18; flex: none; }
@@ -6295,36 +7190,53 @@ window.__ModuleLoader__.load({
       .cs-appearance-preview-body i:last-child { width: 46%; opacity: .3; }
       .cs-appearance-opt-dark .cs-appearance-preview { background: #1b1c1f; color: #c7cdd4; border-color: #34363a; }
       .cs-appearance-opt-system .cs-appearance-preview { background: linear-gradient(135deg, #f4f6f8 0 49.5%, #1b1c1f 50% 100%); color: #7e8791; }
-      .cs-appearance-opt-name, .cs-palette-opt-name { font-size: 12px; line-height: 17px; font-weight: 600; }
+      .cs-appearance-opt-name, .cs-palette-opt-name { font-size: 11.5px; line-height: 16px; font-weight: 600; }
       .cs-appearance-check {
         position: absolute; top: 6px; right: 7px; display: grid; place-items: center;
         width: 14px; height: 14px; border-radius: 50%; background: var(--dsw-alias-brand-primary);
         color: #fff; font-size: 9px; line-height: 1;
       }
       .cs-palette-preview { display: flex; gap: 4px; width: 100%; }
-      .cs-palette-preview i { display: block; flex: 1 1 0; height: 36px; border-radius: 6px; background: var(--cs-swatch-1); }
+      .cs-palette-preview i { display: block; flex: 1 1 0; height: 28px; border-radius: 5px; background: var(--cs-swatch-1); }
       .cs-palette-preview i:nth-child(2) { background: var(--cs-swatch-2); }
       .cs-palette-preview i:nth-child(3) { background: var(--cs-swatch-3); }
       .cs-palette-opt.cs-palette-blue { --cs-swatch-1: #133463; --cs-swatch-2: #1F4E94; --cs-swatch-3: #79B3F9; }
       .cs-palette-opt.cs-palette-stone { --cs-swatch-1: #2b3033; --cs-swatch-2: #4a5155; --cs-swatch-3: #aeb6b9; }
       .cs-palette-opt.cs-palette-clay { --cs-swatch-1: #6b3b26; --cs-swatch-2: #a35a37; --cs-swatch-3: #e2ac86; }
-      .cs-settings-row-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding-top: 8px; }
-      .cs-settings-row-grid .cs-settings-row {
-        grid-template-columns: minmax(0, 1fr); gap: 6px; align-items: start;
-        padding: 10px 12px; border: 1px solid var(--dsw-alias-border-l1);
-        border-radius: 10px; background: var(--dsw-alias-bg-layer-2);
+      @media (max-width: 1100px) {
+        .cs-settings-board .cs-settings-grid { grid-template-columns: minmax(0, 1fr); }
+        .cs-settings-main, .cs-settings-side { grid-column: 1 / -1; }
       }
-      .cs-settings-row-grid .cs-settings-label { font-size: 12.5px; line-height: 18px; }
-      .cs-settings-row-grid .cs-settings-row-hint { font-size: 11.5px; }
-      .cs-settings-row-grid .cs-settings-control { gap: 8px; }
-      @media (max-width: 860px) {
-        .cs-appearance-panel, .cs-settings-row-grid { grid-template-columns: 1fr; }
+      @media (max-width: 760px) {
+        .cs-appearance-panel { grid-template-columns: 1fr; }
       }
-      /* 数字格式：五张卡片始终可见，原生 button 支持 Tab/Enter/Space 操作。 */
-      .cs-format-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding-top: 6px; }
+      /* 数字格式：五档压成一条横向选项条，标题右侧只留一枚实时预览。 */
+      .cs-format-section { gap: 0; }
+      .cs-format-head {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        gap: 8px 10px; flex-wrap: wrap; margin-bottom: 7px;
+      }
+      .cs-format-heading { min-width: 0; }
+      .cs-format-heading > h3 {
+        margin: 0 0 2px; font-size: 13px; line-height: 19px; font-weight: 650;
+        color: var(--dsw-alias-label-primary);
+      }
+      .cs-format-preview {
+        display: inline-flex; align-items: baseline; gap: 6px; flex: none;
+        padding: 2px 8px; border-radius: 999px;
+        background: var(--dsw-alias-bg-layer-2);
+      }
+      .cs-format-preview span { font-size: 10px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+      .cs-format-preview b {
+        font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-variant-numeric: tabular-nums; font-size: 11.5px; line-height: 17px;
+      }
+      .cs-format-grid { display: flex; flex-wrap: wrap; gap: 5px; }
       .cs-format-opt {
-        padding: 10px 8px; text-align: center; border: 1px solid var(--dsw-alias-border-l1);
-        border-radius: 8px; background: transparent; color: inherit; font: inherit; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+        flex: 1 1 80px; min-height: 30px; padding: 4px 7px;
+        border: 1px solid var(--dsw-alias-border-l1); border-radius: 7px;
+        background: transparent; color: inherit; font: inherit; cursor: pointer;
         transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
       }
       .cs-format-opt:hover:not(:disabled) { border-color: var(--dsw-alias-label-secondary); }
@@ -6332,15 +7244,33 @@ window.__ModuleLoader__.load({
       .cs-format-opt:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
       .cs-format-opt.is-on { border-color: var(--dsw-alias-brand-primary); background: var(--dsw-alias-bg-layer-2); }
       .cs-format-opt:disabled { opacity: .55; cursor: default; }
-      .cs-format-opt b { display: block; font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 600; }
-      .cs-format-opt span { display: block; margin-top: 4px; font-size: 11px; color: var(--dsw-alias-label-secondary); }
-      .cs-format-preview {
-        display: flex; align-items: center; justify-content: space-between; gap: 12px;
-        margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--dsw-alias-bg-layer-2);
+      .cs-format-opt b {
+        font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; white-space: nowrap;
       }
-      .cs-format-preview span { font-size: 11px; color: var(--dsw-alias-label-secondary); }
-      .cs-format-preview b { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 14px; }
-      @media (max-width: 620px) { .cs-format-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+      .cs-format-opt span { font-size: 10px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+      .cs-format-preview-value { display: inline-block; animation: cs-format-time-swap 160ms ease-out both; }
+      @keyframes cs-format-time-swap {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-format-preview-value { animation: none !important; }
+      }
+      @media (max-width: 620px) {
+        .cs-format-head { align-items: flex-start; flex-direction: column; gap: 6px; }
+        .cs-format-opt { flex-basis: calc(50% - 3px); }
+      }
+      /* 初始化设置：默认状态只用文案说明，展开后才出现二次确认。 */
+      .cs-settings-reset-group { gap: 6px; }
+      .cs-settings-reset-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+      .cs-settings-reset-confirm {
+        margin-top: 8px; padding: 12px 14px; border-radius: 9px;
+        border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 40%, var(--dsw-alias-border-l1));
+        background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 7%, var(--dsw-alias-bg-layer-1));
+      }
+      .cs-settings-reset-confirm strong { display: block; margin-bottom: 4px; font-size: 13px; }
+      .cs-settings-reset-confirm p { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.6; }
       /* 保存按钮组与上方内容拉开留白；独立挂载的设置页也统一 30–32px 按钮高度。 */
       .cs-settings-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 12px; }
       .cs-btn { min-height: 30px; padding: 5px 12px; }
@@ -6357,7 +7287,11 @@ window.__ModuleLoader__.load({
       .cs-notice-tag { flex: none; font-size: 11px; line-height: 18px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l1); color: var(--dsw-alias-label-secondary); }
       .cs-notice-tag.is-unread { color: var(--dsw-alias-brand-primary); border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 35%, var(--dsw-alias-border-l1)); }
       .cs-notice-empty { margin: 0; padding: 10px 0; font-size: 12px; color: var(--dsw-alias-label-secondary); }
-      @media (max-width: 620px) { .cs-settings-row { grid-template-columns: 1fr; gap: 6px; } }
+      @media (max-width: 620px) {
+        .cs-settings-row { grid-template-columns: 1fr; gap: 6px; }
+        .cs-settings-list.is-split { grid-template-columns: 1fr; }
+        .cs-settings-list.is-split .cs-settings-row:last-child { grid-column: auto; }
+      }
       @media (prefers-reduced-motion: reduce) {
         .cs-settings *, .cs-settings *::before, .cs-settings *::after { transition-duration: 0s; animation-duration: 0s; }
       }

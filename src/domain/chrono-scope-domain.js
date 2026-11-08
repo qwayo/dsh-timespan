@@ -21,7 +21,7 @@ import {
   trendBuckets,
 } from './periods.js'
 import { BACKFILL_VERSION, normalizeBackfillStatus, planBackfillSession } from './backfill.js'
-import { mergeSettings, normalizeSettings, settingsToIdleMs } from './settings.js'
+import { DEFAULT_SETTINGS, mergeSettings, normalizeSettings, settingsToIdleMs } from './settings.js'
 import {
   buildCsvExport,
   buildJsonExport,
@@ -129,6 +129,20 @@ export function createChronoScopeDomain({ domain, clock }) {
     return withWriteLock(async () => {
       const meta = readMeta()
       const next = mergeSettings(meta.settings, patch)
+      await domain.global.set({ ...meta, settings: next })
+      return next
+    })
+  }
+
+  /**
+   * 恢复首次安装的完整设置预设。只覆盖 meta.settings，不触碰统计区间、任务与
+   * 回填记录；清空数据与恢复设置是两件独立的事。写入前仍经过 normalizeSettings，
+   * 保证默认对象本身就是合法且可持久化的完整设置。
+   */
+  async function resetSettings() {
+    return withWriteLock(async () => {
+      const meta = readMeta()
+      const next = normalizeSettings(DEFAULT_SETTINGS)
       await domain.global.set({ ...meta, settings: next })
       return next
     })
@@ -1884,6 +1898,7 @@ export function createChronoScopeDomain({ domain, clock }) {
     queryDailySeries,
     getSettings,
     setSettings,
+    resetSettings,
     exportData,
     clearData,
     importData,

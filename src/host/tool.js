@@ -6,7 +6,7 @@
  * 同一个 Host 领域操作，永远不会各算一套。
  */
 
-import { DURATION_FORMATS, formatDurationByPreset, normalizeDurationFormat } from '../domain/duration-format.js'
+import { DEFAULT_DURATION_FORMAT, DURATION_FORMATS, formatDurationByPreset, normalizeDurationFormat } from '../domain/duration-format.js'
 import { PERIODS, pad2 } from '../domain/periods.js'
 
 export const CHRONO_STATS_TOOL_NAME = 'chrono_stats'
@@ -332,7 +332,7 @@ function describeFilterFailure(filters) {
   return null
 }
 
-function successValue(stats, period, groupBy, requested = {}, durationFormat = 'hms') {
+function successValue(stats, period, groupBy, requested = {}, durationFormat = DEFAULT_DURATION_FORMAT) {
   const value = {
     ok: true,
     period,
