@@ -1225,6 +1225,138 @@ export function createChronoScopeDomain({ domain, clock }) {
     })
   }
 
+  /**
+   * 数据导入：入参是 Client 已读文件并 JSON.parse 好的导出对象（Host 不碰
+   * 文件系统、不调用浏览器 API），与 exportData / clearData 同级、同属领域层。
+   *
+   * 规则：格式与版本严格校验，不满足即抛结构化错误且在任何写入之前返回；
+   * intervals / tasks 按各自稳定唯一键（优先记录自带 id，详见文件末尾
+   * intervalImportKey / taskImportKey 的注释）跳过已存在记录，既不覆盖也不
+   * 重复插入；设置默认不恢复，只有显式 restoreSettings === true 才把
+   * payload.settings 经 normalizeSettings 白名单合并进当前 meta.settings。
+   * 导入结束按 clearData 同一套不变量收口：回填状态置 done + 当前版本、
+   * 递增 dataGeneration、合并后 intervals 为空时重开一条在线区间；会话日志
+   * 不属于本域，绝不触碰；只写本插件 storageDomain。
+   */
+  async function importData(payload) {
+    return withWriteLock(async () => {
+      // 校验全部前置：任何一条不满足都在写入之前抛错，保证「拒绝且不改库」。
+      if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw importValidationError('invalid-payload', '导入载荷必须是对象')
+      }
+      if (payload.format !== 'chronoscope-export') {
+        throw importValidationError('invalid-format', `导入文件格式不合法：${String(payload.format)}`)
+      }
+      if (payload.version !== 1) {
+        throw importValidationError('unsupported-version', `不支持的导入文件版本：${String(payload.version)}`)
+      }
+      if (!Array.isArray(payload.intervals)) {
+        throw importValidationError('invalid-intervals', '导入文件的 intervals 必须是数组')
+      }
+      if (!Array.isArray(payload.tasks)) {
+        throw importValidationError('invalid-tasks', '导入文件的 tasks 必须是数组')
+      }
+
+      const at = now()
+      const restoreSettings = payload.restoreSettings === true
+
+      // 现有记录的存储键即各自的 id；以此作为「已存在」集合，导入过程中新写入
+      // 的键也即时加入，顺带把载荷内部的重复 ID 一并跳过。
+      const seenIntervalKeys = new Set(intervals.keys())
+      const seenTaskKeys = new Set(tasks.keys())
+      const hadIntervals = seenIntervalKeys.size > 0
+
+      let importedIntervals = 0
+      let skippedIntervals = 0
+      for (const record of payload.intervals) {
+        const key = intervalImportKey(record)
+        // 非对象条目与已存在/重复键一律跳过并计入 skipped，绝不写进存储。
+        if (key === null || seenIntervalKeys.has(key)) {
+          skippedIntervals += 1
+          continue
+        }
+        // 补上 id（无显式 id 的兜底键），让落库记录始终满足 domain-spec 的必填形状。
+        await intervals.put(key, { ...record, id: key })
+        seenIntervalKeys.add(key)
+        importedIntervals += 1
+      }
+
+      let importedTasks = 0
+      let skippedTasks = 0
+      for (const record of payload.tasks) {
+        const key = taskImportKey(record)
+        if (key === null || seenTaskKeys.has(key)) {
+          skippedTasks += 1
+          continue
+        }
+        await tasks.put(key, { ...record, id: key })
+        seenTaskKeys.add(key)
+        importedTasks += 1
+      }
+
+      // 合并而非清空：实时在线/活跃跟踪与内存 presence 状态保持原样，不清空。
+      dataGeneration += 1
+
+      // 设置：默认保留当前值；显式要求恢复时经白名单合并，未知字段被丢弃。
+      const meta = readMeta()
+      const settings = restoreSettings
+        ? mergeSettings(meta.settings, payload.settings)
+        : currentSettings()
+      const previousBackfill = normalizeBackfillStatus(meta.backfill)
+      const nextMeta = {
+        ...meta,
+        settings,
+        // 照抄 clearData：回填收口为 done + 当前版本，避免下一次 RPC 兜底
+        // 触发回填时把刚导入的数据当成需要重扫的历史。
+        backfill: normalizeBackfillStatus({
+          ...previousBackfill,
+          status: 'done',
+          version: BACKFILL_VERSION,
+          scanned: 0,
+          total: 0,
+          tasksWritten: 0,
+          error: null,
+          updatedAt: at,
+          eventId: '',
+          eventKind: '',
+          eventAt: 0,
+          readEventId: '',
+          readAt: 0,
+          clearedAt: at,
+        }),
+      }
+
+      // 合并后 intervals 仍为空（全新空域导入空文件）：照抄 clearData 重开
+      // 一条在线区间，保证在线时长能从当前时刻继续记录。
+      if (!hadIntervals && importedIntervals === 0) {
+        const bootId = createRecordId('boot', at)
+        await intervals.put(bootId, {
+          id: bootId,
+          type: ONLINE_INTERVAL,
+          start: at,
+          end: null,
+          lastHeartbeat: at,
+          lastHeartbeatUptime: uptimeMs(),
+          ...EMPTY_ATTRIBUTION,
+          approximate: false,
+          source: 'live',
+        })
+        presenceByClient.clear()
+        nextMeta.currentBootId = bootId
+        nextMeta.lastHeartbeat = at
+      }
+
+      await domain.global.set(nextMeta)
+
+      return {
+        imported: { intervals: importedIntervals, tasks: importedTasks },
+        skipped: { intervals: skippedIntervals, tasks: skippedTasks },
+        settingsRestored: restoreSettings,
+        dataGeneration,
+      }
+    })
+  }
+
   /** 三张周期卡：一次查询同时给出今日/本周/本月的轻量汇总。 */
   function computeCycles(current, weekStartsOn, filters = null) {
     const cycles = {}
@@ -1754,6 +1886,7 @@ export function createChronoScopeDomain({ domain, clock }) {
     setSettings,
     exportData,
     clearData,
+    importData,
     close: () => withWriteLock(close),
     backfill,
     getBackfillStatus,
@@ -1936,4 +2069,60 @@ function unionDuration(intervals, type, from, to, openEnd) {
     if (hi > lo) ranges.push([lo, hi])
   }
   return unionRanges(ranges)
+}
+
+/**
+ * 导入校验失败的结构化错误：中文 message 给调用方展示，code / name 供上层
+ * 按原因分支处理。领域层只抛带信息的 Error，不引入任何运行时依赖。
+ */
+function importValidationError(code, message) {
+  const error = new Error(message)
+  error.name = 'ChronoScopeImportError'
+  error.code = code
+  return error
+}
+
+/**
+ * 导入去重键的约定（与 domain-spec 的存储形状一致）：
+ * intervals / tasks 两张表都由领域服务以 table.put(id, { id, ... }) 写入，
+ * 且 domain-spec 把 id 定为必填字符串，因此「记录自带的 id」就是稳定唯一键，
+ * 按它跳过已存在记录、不覆盖、不重复插入。
+ *
+ * 兼容极旧或手工构造、缺少显式 id 的导出：改用能稳定标识一条记录的字段
+ * 组合兜底——区间用 type|start|end|lastHeartbeat|clientId|sessionId，任务优先
+ * 用逻辑键 key（即 sessionId:turn），无 key 时退到 sessionId|turn|start。组合
+ * 经固定散列压成路径安全的键，重复导入同一批记录仍会命中同一批键。
+ * 非对象条目返回 null，由调用方计入 skipped，绝不写进存储。
+ */
+function isPlainImportRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** 把字段组合压成路径安全的稳定键；FNV-1a 32 位散列，纯函数无依赖。 */
+function importStableKey(raw) {
+  let hash = 2166136261
+  for (let index = 0; index < raw.length; index += 1) {
+    hash ^= raw.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+function intervalImportKey(record) {
+  if (!isPlainImportRecord(record)) return null
+  if (typeof record.id === 'string' && record.id.length > 0) return record.id
+  const raw = [
+    record.type, record.start, record.end, record.lastHeartbeat,
+    record.clientId, record.sessionId,
+  ].map((part) => String(part ?? '')).join('|')
+  return `import_iv_${importStableKey(raw)}`
+}
+
+function taskImportKey(record) {
+  if (!isPlainImportRecord(record)) return null
+  if (typeof record.id === 'string' && record.id.length > 0) return record.id
+  const logical = typeof record.key === 'string' && record.key.length > 0
+    ? record.key
+    : [record.sessionId, record.turn, record.start].map((part) => String(part ?? '')).join('|')
+  return `import_tk_${importStableKey(logical)}`
 }

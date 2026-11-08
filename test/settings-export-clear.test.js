@@ -85,6 +85,7 @@ test('设置：默认空闲阈值 5 分钟、周起始周一、显示子代理�
     showSubagents: true,
     durationFormat: 'hms',
     sidebarShowName: true,
+    approximateNoticeDismissed: false,
   })
 })
 
@@ -107,6 +108,7 @@ test('设置归一化：durationFormat 只认五种预设，补丁不覆盖其�
     showSubagents: false,
     durationFormat: 'short',
     sidebarShowName: true,
+    approximateNoticeDismissed: false,
   })
   const untouched = mergeSettings({ idleThresholdMinutes: 11, durationFormat: 'padded' }, { showSubagents: false })
   assert.equal(untouched.durationFormat, 'padded', '补丁未提及 durationFormat 时保留原值')
@@ -236,6 +238,7 @@ test('导出 JSON：包含原始区间、原始任务与设置，字段未经裁
     showSubagents: true,
     durationFormat: 'hms',
     sidebarShowName: true,
+    approximateNoticeDismissed: false,
   })
   assert.ok(payload.intervals.some((row) => row.type === 'online'), '原始在线区间必须导出')
   assert.ok(payload.intervals.some((row) => row.type === 'active'), '原始活跃区间必须导出')

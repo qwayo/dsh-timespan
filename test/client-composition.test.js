@@ -609,8 +609,13 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与蓝派生�
   assert.match(css, /\.cs-page\.cs-palette-clay\s*\{/)
   assert.match(css, /\.cs-page\.cs-palette-blue\s*\{/)
   assert.match(css, /\.cs-page\.cs-appearance-dark\s*\{/)
-  assert.match(css, /\.cs-info:hover \.cs-info-tip/)
-  assert.match(css, /\.cs-info:focus-within \.cs-info-tip/)
+  // ⓘ 改为点击展开的 popover：浮层 fixed 定位，显示规则只有 .cs-info.is-open .cs-info-tip。
+  assert.match(css, /\.cs-info-tip\s*\{[^}]*position:\s*fixed/, '说明浮层用 fixed 定位，脱离卡片裁切')
+  assert.match(css, /\.cs-info-tip\s*\{[^}]*z-index:\s*90/, '说明浮层层级为 90')
+  assert.match(css, /\.cs-info\.is-open \.cs-info-tip\s*\{[^}]*visibility:\s*visible/, '仅 is-open 展开态显示浮层')
+  assert.doesNotMatch(css, /\.cs-info:hover \.cs-info-tip/, '不再用 hover 触发说明浮层')
+  assert.doesNotMatch(css, /\.cs-info:focus-within \.cs-info-tip/, '不再用 focus-within 触发说明浮层')
+  assert.doesNotMatch(css, /\.cs-info\.is-dismissed/, '不再有 dismissed 状态')
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
   assert.match(css, /--cs-dur-tap\s*:\s*160ms/)
   assert.doesNotMatch(css, /#315878|#285642|#78947c|#96543f|#7492a8|#73797b/i, '旧的灰绿配色值不得残留')
@@ -649,7 +654,7 @@ test('客户端：图表的数据状态使用三档蓝 token，不用灰或绿',
   assert.ok(fills.every((fill) => typeof fill === 'string' && fill.startsWith('var(--cs-')), '图表只使用设计 token 着色')
 })
 
-test('客户端：ⓘ 按钮以完整说明作为 aria 名称，浮层含同一说明', async () => {
+test('客户端：ⓘ 按钮以完整说明作为 aria 名称，点击展开 popover', async () => {
   const { Info, React } = await loadClientFunctions()
   const message = '实际占用：多会话重叠时段只计一次；在线时长包含挂机时间。'
   let tree = React.render(Info, { message })
@@ -663,18 +668,25 @@ test('客户端：ⓘ 按钮以完整说明作为 aria 名称，浮层含同一�
   const tip = findByClass(tree, 'cs-info-tip')
   assert.equal(tip.props.role, 'tooltip')
   assert.equal(textOf(tip), message)
-  assert.equal(typeof button.props.onKeyDown, 'function', '键盘可操作')
-  assert.equal(typeof button.props.onFocus, 'function', '键盘聚焦可显示说明')
+  assert.equal(typeof tip.props.style.left, 'string', '浮层用内联 left 定位')
+  assert.equal(typeof tip.props.style.top, 'string', '浮层用内联 top 定位（clampTipPosition 计算）')
+  assert.equal(typeof button.props.onClick, 'function', '点击可展开说明')
+  assert.equal(button.props.onFocus, undefined, '不再用聚焦打开')
+  assert.equal(button.props.onBlur, undefined, '不再用失焦关闭')
+  assert.equal(button.props.onKeyDown, undefined, '不再有 dismissed 键盘关闭')
 
-  button.props.onFocus()
+  button.props.onClick()
   tree = React.render(Info, { message })
   button = buttonOf(tree)
-  assert.equal(button.props['aria-expanded'], true, '键盘聚焦显示说明')
-  assert.match(findByClass(tree, 'cs-info').props.className, /is-open/)
+  assert.equal(button.props['aria-expanded'], true, '点击后 aria-expanded 为 true')
+  assert.match(findByClass(tree, 'cs-info').props.className, /is-open/, '点击后展开 popover')
+  assert.doesNotMatch(findByClass(tree, 'cs-info').props.className, /is-dismissed/, '不再有 dismissed 状态')
 
-  button.props.onKeyDown({ key: 'Escape' })
+  button.props.onClick()
   tree = React.render(Info, { message })
-  assert.match(findByClass(tree, 'cs-info').props.className, /is-dismissed/, 'Escape 关闭说明')
+  button = buttonOf(tree)
+  assert.equal(button.props['aria-expanded'], false, '再次点击收起')
+  assert.doesNotMatch(findByClass(tree, 'cs-info').props.className, /is-open/)
 })
 
 test('客户端：散落小字收进 ⓘ 消息，信息不丢失', async () => {
@@ -720,7 +732,7 @@ test('客户端：任务构成与排行的口径说明也收进 ⓘ', async () =
   assert.match(ranking, /累计工时/)
 })
 
-test('客户端：明细标题保留完整文本并以省略方式呈现', async () => {
+test('客户端：明细标题保留完整文本并走统一浮层', async () => {
   const { renderWorkspaceRow, renderSessionRow } = await loadClientFunctions()
   const labels = {
     unassigned: '未归属', sessionsUnit: '个会话', expand: '展开', collapse: '收起',
@@ -728,6 +740,12 @@ test('客户端：明细标题保留完整文本并以省略方式呈现', async
   }
   const t = (key) => labels[key] ?? key
   const now = new Date(2026, 10, 7, 12, 0, 0).getTime()
+  const shown = []
+  const hoverTip = {
+    tip: null,
+    show: (content) => shown.push(content),
+    hide: () => shown.push(null),
+  }
   const longWorkspace = '这是一个特别长的工作区名称，长到必须省略而不是把卡片撑破'
   const workspace = renderWorkspaceRow({
     key: 'workspace-1',
@@ -737,11 +755,14 @@ test('客户端：明细标题保留完整文本并以省略方式呈现', async
     share: 0.5,
     lastActivityAt: now - 60_000,
     sessions: [],
-  }, false, () => {}, t, now, {})
+  }, false, () => {}, t, now, {}, 'hms', hoverTip)
   const workspaceTitle = findAll(workspace, (node) => hasClass(node, 'cs-name-text'))[0]
   assert.ok(workspaceTitle, '工作区标题节点存在')
-  assert.equal(workspaceTitle.props.title, longWorkspace, '工作区标题保留悬停可见的完整文本')
+  assert.equal(workspaceTitle.props.title, undefined, '不再使用原生 title 属性')
+  assert.equal(typeof workspaceTitle.props.onMouseEnter, 'function', '悬停改走统一 HoverTip')
   assert.equal(textOf(workspaceTitle), longWorkspace, '工作区标题文本未被截断')
+  workspaceTitle.props.onMouseEnter({ currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }) } })
+  assert.equal(shown.at(-1)?.title, longWorkspace, '浮层展示完整工作区名称')
 
   const longSession = '这是一个特别长的会话标题，长到必须省略而不是被裁切'
   const session = renderSessionRow({
@@ -757,11 +778,53 @@ test('客户端：明细标题保留完整文本并以省略方式呈现', async
     toolMs: 0,
     waitMs: 0,
     otherMs: 0,
-  }, t, now, [])
+  }, t, now, [], 'hms', hoverTip)
   const sessionTitle = findAll(session, (node) => hasClass(node, 'cs-session-title'))[0]
   assert.ok(sessionTitle, '会话标题节点存在')
-  assert.equal(sessionTitle.props.title, longSession, '会话标题保留悬停可见的完整文本')
+  assert.equal(sessionTitle.props.title, undefined, '会话标题不再使用原生 title 属性')
+  assert.equal(typeof sessionTitle.props.onMouseEnter, 'function', '会话标题悬停走统一 HoverTip')
   assert.equal(textOf(sessionTitle), longSession, '会话标题文本未被截断')
+  sessionTitle.props.onMouseEnter({ currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }) } })
+  assert.equal(shown.at(-1)?.title, longSession, '浮层展示完整会话名称')
+})
+
+test('客户端：排行、近似标签与子代理说明一律收进统一浮层', async () => {
+  const { renderWorkspaceRanking, renderSessionRow } = await loadClientFunctions()
+  const labels = {
+    unassigned: '未归属', accumulated: '累计', sumFoot: '合计', workspaceRanking: '工作区排行',
+    taskLabel: '任务', colShare: '占比', noTaskComposition: '暂无', approximateTag: '近似',
+    approximateHint: '按最后心跳估算', subagentDetail: '子代理', subagentDetailHint: '{count} 个 · {duration}',
+    unknownSession: '未命名会话', notBroken: '未拆分', activeLabel: '活跃', taskCountUnit: '个任务',
+  }
+  const t = (key) => labels[key] ?? key
+  const shown = []
+  const hoverTip = { tip: null, show: (content) => shown.push(content), hide: () => {} }
+  const event = { currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0, right: 10, bottom: 10, width: 10, height: 10 }) } }
+  const ranking = renderWorkspaceRanking({ workspaces: [
+    { key: 'w1', workspaceTitle: '工作区甲', taskMs: 3_600_000, share: 0.6 },
+  ] }, t, 'hms', hoverTip)
+  const rankRow = findAll(ranking, (node) => hasClass(node, 'cs-ranking-row'))[0]
+  assert.ok(rankRow, '排行行存在')
+  assert.equal(rankRow.props.title, undefined, '排行行不再使用原生 title')
+  rankRow.props.onMouseEnter(event)
+  assert.equal(shown.at(-1)?.title, '工作区甲', '浮层标题为工作区名')
+  assert.equal(shown.at(-1)?.rows.length, 2, '浮层带任务时长与占比两行')
+
+  const session = renderSessionRow({
+    sessionId: 's1', sessionTitle: '会话甲', taskRunning: false, approximate: true,
+    activeMs: 0, taskMs: 0, taskCount: 0, lastActivityAt: Date.now(),
+    modelMs: 0, toolMs: 0, waitMs: 0, otherMs: 0,
+  }, t, Date.now(), [{ sessionId: 'a1', sessionTitle: '子任务甲', durationMs: 1000 }], 'hms', hoverTip)
+  const withTitle = findAll(session, (node) => typeof node?.type === 'string' && node.props && 'title' in node.props)
+  assert.equal(withTitle.length, 0, '会话行内没有任何原生 title 属性')
+  const chip = findAll(session, (node) => hasClass(node, 'cs-chip'))[0]
+  assert.ok(chip, '近似标签存在')
+  chip.props.onMouseEnter(event)
+  assert.equal(shown.at(-1)?.title, '按最后心跳估算', '近似说明走统一浮层')
+  const subagents = findAll(session, (node) => hasClass(node, 'cs-session-subagents'))[0]
+  assert.ok(subagents, '子代理说明存在')
+  subagents.props.onMouseEnter(event)
+  assert.equal(shown.at(-1)?.title, '子任务甲', '子代理名称列表走统一浮层')
 })
 
 test('客户端：明细行把活跃与任务数值暴露为带标签的单元', async () => {
@@ -1008,11 +1071,11 @@ test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬�
     t,
     hover,
   })
-  assert.equal(textOf(findByClass(named, 'chronoscope-nav-name')), 'ChronoScope', '显示名称时使用插件名称')
+  assert.equal(findByClass(named, 'chronoscope-nav-name'), undefined, '无工作区标题时不再渲染名称，避免与宿主 label 重复')
   assert.doesNotMatch(findByClass(named, 'chronoscope-nav-dot').props.className, /is-live/, '空闲状态点不点亮')
 })
 
-test('客户端：侧栏名称优先显示当前工作区，空值回落插件名，隐藏时两者都不渲染', async () => {
+test('客户端：侧栏名称只显示工作区标题，空值不回落插件名，隐藏时都不渲染', async () => {
   const { renderSidebarEntry } = await loadClientFunctions()
   const t = (key) => ({
     title: 'ChronoScope',
@@ -1031,9 +1094,11 @@ test('客户端：侧栏名称优先显示当前工作区，空值回落插件�
   assert.equal(textOf(findByClass(named, 'chronoscope-nav-name')), '项目甲', '有工作区时显示工作区名')
 
   const fallback = renderSidebarEntry({ ...base, workspaceTitle: '   ' })
-  assert.equal(textOf(findByClass(fallback, 'chronoscope-nav-name')), 'ChronoScope', '空白工作区名回落插件名')
+  assert.equal(findByClass(fallback, 'chronoscope-nav-name'), undefined, '空白工作区名不再回落插件名')
   const missing = renderSidebarEntry(base)
-  assert.equal(textOf(findByClass(missing, 'chronoscope-nav-name')), 'ChronoScope', '没有工作区名时回落插件名')
+  assert.equal(findByClass(missing, 'chronoscope-nav-name'), undefined, '没有工作区名时不再渲染名称')
+  const sameAsPlugin = renderSidebarEntry({ ...base, workspaceTitle: 'ChronoScope' })
+  assert.equal(findByClass(sameAsPlugin, 'chronoscope-nav-name'), undefined, '工作区名与插件名相同时也不重复渲染')
 
   const hiddenWorkspace = renderSidebarEntry({ ...base, workspaceTitle: '项目甲', showName: false })
   assert.equal(findByClass(hiddenWorkspace, 'chronoscope-nav-name'), undefined, '隐藏名称时工作区名不渲染')
@@ -1056,6 +1121,7 @@ test('客户端：侧栏名称开关进入设置草稿、保存载荷与设置�
     showSubagents: false,
     durationFormat: 'hms',
     sidebarShowName: false,
+    approximateNoticeDismissed: false,
   }), '保存时提交 sidebarShowName 与数字格式')
 
   const labels = {
@@ -1436,6 +1502,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     clearStepHint: '此操作不可撤销', clearConfirm: '确认清空', clearCancel: '取消', clearing: '正在清空…',
     settingsSave: '保存设置', settingsSaving: '正在保存…', settingsSaved: '已保存',
     settingsLoadError: '无法读取设置', settingsRetry: '重试', settingsSaveError: '保存失败',
+    savedBadge: '已保存', importData: '从备份文件恢复', approximateShowAgain: '重新显示说明',
     backfillNoticeKindRetry: '手动重试', backfillDone: '历史任务回填完成',
   }
   const t = (key) => labels[key] ?? key
@@ -1455,9 +1522,10 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     onRecheckBackfill: () => {}, onCycleAppearance: () => {}, onChangePalette: () => {},
   })
   const text = textOf(tree)
-  for (const expected of ['数字格式', '外观与配色', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示名称', '通知记录', '导出 JSON', '导出 CSV', '清空全部数据', '保存设置']) {
+  for (const expected of ['数字格式', '外观与配色', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示名称', '通知记录', '导出 JSON', '导出 CSV', '从备份文件恢复', '重新显示说明', '清空全部数据']) {
     assert.match(text, new RegExp(expected), `设置页包含「${expected}」`)
   }
+  assert.doesNotMatch(text, /保存设置/, '即点即存后不再有「保存设置」按钮')
   assert.equal(allOf(tree, byClass('cs-format-opt')).length, 5, '五张数字格式卡片')
   const checkboxes = findAll(tree, (node) => node.type === 'input' && node.props?.type === 'checkbox')
   assert.equal(checkboxes.length, 2, '子代理与侧栏名称两个开关')
@@ -1465,7 +1533,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     .map((node) => node.props.ariaLabel)
   assert.ok(selectLabels.includes('活跃判定阈值'), '空闲阈值下拉可用')
   assert.ok(selectLabels.includes('每周起始'), '每周起始下拉可用')
-  assert.ok(selectLabels.includes('配色'), '配色下拉可用')
+  assert.equal(allOf(tree, byClass('cs-swatch-preview')).length, 3, '配色区改为三枚可预览色板')
   assert.match(text, /累计回填 130 条/, '通知记录可回看')
   assert.equal(findAll(tree, (node) => node.props?.role === 'alertdialog').length, 0, '清空前不显示确认框')
   const exportButtons = findAll(tree, (node) => node.type === 'button' && /导出 JSON/.test(textOf(node)))
@@ -1828,25 +1896,33 @@ test('客户端：热力图网格从周一开始且月份刻度对齐首日所�
   const { buildHeatGrid } = await loadClientFunctions()
   const augustRange = { from: new Date(2026, 7, 1).getTime(), to: new Date(2026, 8, 1).getTime() }
   const august = buildHeatGrid(buildHeatDays(augustRange.from, augustRange.to), augustRange)
-  assert.equal(august.weekdayLabels.join(','), 'Mon,Tue,Wed,Thu,Fri,Sat,Sun', '星期刻度固定周一到周日')
+  assert.equal(august.weekdayLabels.join(','), '一,二,三,四,五,六,日', '默认中文星期刻度固定周一到周日')
   assert.equal(august.weeks.length, 6, '8 月对齐到完整的 6 周')
   assert.ok(august.weeks.every((week) => week.length === 7), '每周恰好 7 格')
   assert.equal(august.weeks[0][0], null, '范围之前的补齐格为空')
   assert.equal(august.weeks[0][5].dateKey, '2026-08-01', '8 月 1 日落在第一列周六')
   assert.equal(august.weeks[0][5].inRange, true)
   const augustColumn = august.weeks.findIndex((week) => week.some((cell) => cell?.dateKey === '2026-08-01'))
-  assert.equal(august.months.find((month) => month.abbr === 'Aug').column, augustColumn, 'Aug 刻度与 8 月 1 日所在列严格对齐')
+  assert.equal(august.months.find((month) => month.abbr === '8月').column, augustColumn, '8月 刻度与 8 月 1 日所在列严格对齐')
 
   const range = { from: new Date(2026, 7, 7).getTime(), to: new Date(2026, 10, 8).getTime() }
   const grid = buildHeatGrid(buildHeatDays(range.from, range.to), range)
-  assert.equal(grid.months.map((month) => month.abbr).join(','), 'Aug,Sep,Oct,Nov', '三个月范围出现四个跨月刻度')
+  assert.equal(grid.months.map((month) => month.abbr).join(','), '8月,9月,10月,11月', '默认中文四个月份刻度')
   assert.equal(grid.weeks[0][4].dateKey, '2026-08-07', '首列只保留范围内的日期')
-  for (const [abbr, monthNumber] of [['Sep', 9], ['Oct', 10], ['Nov', 11]]) {
+  for (const [abbr, monthNumber] of [['9月', 9], ['10月', 10], ['11月', 11]]) {
     const firstKey = `2026-${String(monthNumber).padStart(2, '0')}-01`
     const column = grid.weeks.findIndex((week) => week.some((cell) => cell?.dateKey === firstKey))
     assert.ok(column >= 0, `${abbr} 1 日必须在网格内`)
     assert.equal(grid.months.find((month) => month.abbr === abbr).column, column, `${abbr} 刻度与当月 1 日所在列严格对齐`)
   }
+  // 显式传入英文标签（en 字典调用）时仍是英文界面。
+  const english = buildHeatGrid(
+    buildHeatDays(range.from, range.to), range,
+    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+  )
+  assert.equal(english.weekdayLabels.join(','), 'Mon,Tue,Wed,Thu,Fri,Sat,Sun', '显式英文标签时星期仍为英文')
+  assert.equal(english.months.map((month) => month.abbr).join(','), 'Aug,Sep,Oct,Nov', '显式英文标签时月份刻度仍为英文')
 })
 
 test('客户端：热力图浮层给出当天三项时长，无观测显示无记录', async () => {
@@ -2083,6 +2159,7 @@ test('客户端：热力图首屏独立页给出六项范围统计、12 个月�
   assert.match(panelText, /2:00:00/, '日均活跃为 6h / 3 天')
   assert.equal(allOf(page, byClass('heat-summary')).length, 0, '首屏不重复普通范围汇总')
   assert.equal(allOf(page, byClass('heat-month-bar')).length, 12, '正文下方保留 12 个月度条')
+  assert.equal(allOf(page, byClass('heat-month-bar'))[0].props['data-month'], '1月', '首屏月度条月份名使用中文')
   const picker = allOf(page, (node) => node.type === Select)[0]
   assert.ok(picker, '首屏复用统一自定义下拉')
   assert.equal(picker.props.options.length, 15, '范围选择器一次展示全部 15 项')
@@ -2124,22 +2201,27 @@ test('客户端：热力图卡片含月份刻度、星期标签与浮层，且�
 
   const monthRow = allOf(tree, byClass('heat-months'))[0]
   assert.ok(monthRow, '存在月份刻度行')
-  assert.match(textOf(monthRow), /Aug/, '月份刻度使用英文缩写')
+  assert.match(textOf(monthRow), /8月/, '月份刻度使用中文月份')
   const weekdayRow = allOf(tree, byClass('heat-weekdays'))[0]
   assert.ok(weekdayRow, '存在星期刻度')
   const weekdayText = textOf(weekdayRow)
-  for (const label of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) {
+  for (const label of ['一', '二', '三', '四', '五', '六', '日']) {
     assert.match(weekdayText, new RegExp(label))
   }
+  // 3m/6m 的月份刻度仍在网格上方，全年才移到网格下方。
+  const heatBody = findByClass(tree, 'heatmap-body')
+  assert.ok(heatBody && !hasClass(heatBody, 'is-year'), '3m/6m 容器不带 is-year')
+  const heatPlot = findByClass(tree, 'heat-plot')
+  assert.ok(hasClass(heatPlot.children.filter(Boolean)[0], 'heat-months'), '3m/6m 月份刻度位于网格上方')
 
   const grid = allOf(tree, byClass('heat-weekgrid'))[0]
   assert.ok(grid, '存在热力图网格')
   const cells = findAll(grid, (node) => hasClass(node, 'heat-cell'))
   const augustIndex = cells.findIndex((cell) => cell.props['data-date'] === '2026-08-01')
   assert.ok(augustIndex >= 0, '8 月 1 日格子存在')
-  const augustLabel = findAll(monthRow, (node) => node.props?.['data-column'] !== undefined && textOf(node) === 'Aug')[0]
-  assert.ok(augustLabel, 'Aug 刻度存在')
-  assert.equal(Number(augustLabel.props['data-column']), Math.floor(augustIndex / 7), 'Aug 刻度与 8 月 1 日所在列严格对齐')
+  const augustLabel = findAll(monthRow, (node) => node.props?.['data-column'] !== undefined && textOf(node) === '8月')[0]
+  assert.ok(augustLabel, '8月 刻度存在')
+  assert.equal(Number(augustLabel.props['data-column']), Math.floor(augustIndex / 7), '8月 刻度与 8 月 1 日所在列严格对齐')
 
   const observed = cells.find((cell) => !hasClass(cell, 'is-pad') && !hasClass(cell, 'is-empty'))
   assert.ok(observed, '有可聚焦的观测格')
@@ -2437,7 +2519,7 @@ test('客户端：单月网格从周一开始、前后补齐为 null 且只含�
     heatDay('2026-09-01', 99 * 3_600_000),
   ]
   const grid = buildMonthGrid(days, augustRange)
-  assert.equal(grid.weekdayLabels.join(','), 'Mon,Tue,Wed,Thu,Fri,Sat,Sun', '星期刻度固定周一到周日')
+  assert.equal(grid.weekdayLabels.join(','), '一,二,三,四,五,六,日', '默认中文星期刻度固定周一到周日')
   assert.equal(grid.daysInMonth, 31)
   assert.equal(grid.weeks.length, 6, '8 月对齐到完整的 6 周')
   assert.ok(grid.weeks.every((week) => week.length === 7), '每周恰好 7 格')
@@ -2454,9 +2536,13 @@ test('客户端：单月网格从周一开始、前后补齐为 null 且只含�
   const june = buildMonthGrid([], juneRange)
   assert.equal(june.weeks[0][0].dateKey, '2026-06-01', '6 月 1 日是周一，无前补格')
   assert.equal(june.weeks[0][0].day.hasObservations, false, '缺失日期补成无观测格')
+
+  // 显式传入英文标签时仍是英文界面。
+  const english = buildMonthGrid(days, augustRange, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+  assert.equal(english.weekdayLabels.join(','), 'Mon,Tue,Wed,Thu,Fri,Sat,Sun', '显式英文标签时星期仍为英文')
 })
 
-test('客户端：全年矩阵为 12 月 × 31 格，月度条只统计有观测的日期', async () => {
+test('客户端：全年月度条数据仍是 12 月 × 31 格，默认中文刻度且只统计有观测的日期', async () => {
   const { buildYearMatrix, HEAT_MONTH_ABBR } = await loadClientFunctions()
   const days = [
     heatDay('2026-01-01', 3_600_000),
@@ -2467,7 +2553,16 @@ test('客户端：全年矩阵为 12 月 × 31 格，月度条只统计有观测
   const matrix = buildYearMatrix(days, 2026)
   assert.equal(matrix.year, 2026)
   assert.equal(matrix.months.length, 12)
-  assert.deepEqual(Array.from(matrix.months, (month) => month.abbr), Array.from(HEAT_MONTH_ABBR), '左侧月份刻度为 Jan…Dec')
+  assert.deepEqual(
+    Array.from(matrix.months, (month) => month.abbr),
+    ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+    '默认中文月份刻度为 1月…12月')
+  assert.deepEqual(
+    Array.from(HEAT_MONTH_ABBR),
+    ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    '英文缩写常量保留作英文回退')
+  const english = buildYearMatrix(days, 2026, HEAT_MONTH_ABBR)
+  assert.deepEqual(Array.from(english.months, (month) => month.abbr), Array.from(HEAT_MONTH_ABBR), '显式英文标签时月份刻度仍为英文')
   assert.deepEqual(Array.from(matrix.months, (month) => month.month), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
   assert.ok(matrix.months.every((month) => month.days.length === 31), '每月一行 31 格')
   assert.equal(matrix.months[1].days[27].dateKey, '2026-02-28')
@@ -2483,7 +2578,7 @@ test('客户端：全年矩阵为 12 月 × 31 格，月度条只统计有观测
   assert.equal(matrix.bars[2].activeMs, 0)
 })
 
-test('客户端：全年视图渲染 12 行月份矩阵与 12 个月度条', async () => {
+test('客户端：全年视图为 7 行 × 约 53 列周网格，中文月份刻度位于网格下方', async () => {
   const { renderDailyHeatmap } = await loadClientFunctions()
   const labels = {
     heatmapTitle: '每日时长', heatmapInfo: '每格代表一天', yearHeatTitle: '全年每日时长',
@@ -2495,7 +2590,7 @@ test('客户端：全年视图渲染 12 行月份矩阵与 12 个月度条', asy
   }
   const t = (key) => labels[key] ?? key
   const range = { from: new Date(2026, 0, 1).getTime(), to: new Date(2027, 0, 1).getTime() }
-  // 稀疏序列也能撑起完整全年矩阵；月度条高度只取决于真实观测。
+  // 稀疏序列也能撑起完整全年周网格；首屏月度条高度只取决于真实观测。
   const series = { range, days: [heatDay('2026-01-01', 3_600_000), heatDay('2026-02-28', 1_800_000)] }
   const shown = []
   const hoverTip = { tip: null, show(tip) { shown.push(tip) }, hide() { shown.push(null) } }
@@ -2507,24 +2602,54 @@ test('客户端：全年视图渲染 12 行月份矩阵与 12 个月度条', asy
   assert.equal(card.props['data-range'], 'year')
   assert.equal(card.props['data-layout'], 'year')
   assert.match(textOf(card), /全年每日时长/, '全年视图使用全年标题')
-  assert.equal(allOf(tree, byClass('heat-year-row')).length, 12, '12 行月份矩阵')
-  const labelsInGrid = allOf(tree, byClass('heat-year-label')).map((node) => textOf(node))
-  assert.deepEqual(labelsInGrid, ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'])
-  const yearGrid = allOf(tree, byClass('heat-year-grid'))[0]
-  const yearCells = findAll(yearGrid, (node) => hasClass(node, 'heat-cell'))
-  assert.equal(yearCells.length, 12 * 31, '12 × 31 的矩阵')
-  const dated = yearCells.filter((cell) => cell.props['data-date'] !== undefined)
-  assert.equal(dated.length, 365, '2026 年有 365 个真实日期格')
-  assert.equal(yearCells.filter((cell) => hasClass(cell, 'is-pad')).length, 7, '2 月与其它小月共 7 个补齐格')
-  const bars = allOf(tree, byClass('heat-month-bar'))
-  assert.equal(bars.length, 12, '下方 12 个月度条')
-  assert.match(String(bars[0].props['aria-label']), /Jan/)
-  assert.match(String(bars[0].props['aria-label']), /活跃/)
-  assert.match(String(bars[0].props['aria-label']), /\d+:\d{2}:\d{2}/, '月度条浮层含时长')
-  assert.equal(bars[0].props.style.height, '100%', '最高月份铺满柱高')
-  assert.equal(bars[1].props.style.height, '50%', '其余月份按当月活跃比例缩放')
-  assert.equal(bars[2].props.style.height, '0%', '无观测月份不撑高')
+
+  // 不再有 12 行 × 31 天矩阵，也不在主视图渲染 12 个月度条。
+  assert.equal(allOf(tree, byClass('heat-year-row')).length, 0, '不再渲染 12 行月份矩阵')
+  assert.equal(allOf(tree, byClass('heat-year-label')).length, 0, '不再渲染月份矩阵行标签')
+  assert.equal(allOf(tree, byClass('heat-year-grid')).length, 0, '不再渲染 31 列全年矩阵')
+  assert.equal(allOf(tree, byClass('heat-month-bar')).length, 0, '主视图不再渲染 12 个月度条')
   assert.equal(allOf(tree, byClass('heat-month-grid')).length, 0, '全年不渲染单月日历')
+
+  const heatBody = allOf(tree, byClass('heatmap-body'))[0]
+  assert.ok(heatBody, '存在周网格容器')
+  assert.ok(hasClass(heatBody, 'is-year'), '全年容器带 class heatmap-body is-year')
+  const heatPlot = findByClass(tree, 'heat-plot')
+  assert.ok(heatPlot, '全年与 3m/6m 共用 .heat-plot')
+  const plotChildren = heatPlot.children.filter(Boolean)
+  const monthRow = plotChildren.at(-1)
+  assert.ok(monthRow && hasClass(monthRow, 'heat-months'), '月份刻度是 .heat-plot 最后一个子节点（网格下方）')
+  assert.ok(!hasClass(plotChildren[0], 'heat-months'), '全年不在网格上方放月份刻度')
+
+  const weekgrid = allOf(tree, byClass('heat-weekgrid'))[0]
+  assert.ok(weekgrid, '全年与 3m/6m 共用 buildHeatGrid 周网格')
+  const cells = findAll(weekgrid, (node) => hasClass(node, 'heat-cell'))
+  const columns = cells.length / 7
+  assert.equal(columns, Math.round(columns), '7 行网格的格子总数是 7 的整数倍')
+  assert.ok(columns >= 52 && columns <= 54, `全年约 53 列，实际 ${columns} 列`)
+  const weekdayList = allOf(tree, byClass('heat-weekday-list'))[0]
+  assert.ok(weekdayList, '全年仍渲染星期刻度列')
+  assert.deepEqual(
+    textOf(weekdayList).trim().split(/\s+/),
+    ['一', '二', '三', '四', '五', '六', '日'],
+    '星期刻度为 7 行中文单字')
+
+  // 中文月份刻度 12 项，且与当月 1 日所在列严格对齐。
+  const monthSpans = findAll(monthRow, (node) => node.props?.['data-column'] !== undefined)
+  assert.equal(monthSpans.length, 12, '全年 12 个中文月份刻度')
+  assert.deepEqual(
+    monthSpans.map((span) => textOf(span)),
+    ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+    '月份刻度一律中文 1月…12月')
+  for (let month = 1; month <= 12; month += 1) {
+    const firstKey = `2026-${String(month).padStart(2, '0')}-01`
+    const index = cells.findIndex((cell) => cell.props['data-date'] === firstKey)
+    assert.ok(index >= 0, `${firstKey} 必须在网格内`)
+    assert.equal(Number(monthSpans[month - 1].props['data-column']), Math.floor(index / 7), `${month}月 刻度与当月 1 日所在列对齐`)
+  }
+
+  const dated = cells.filter((cell) => cell.props['data-date'] !== undefined)
+  assert.equal(dated.length, 365, '2026 年有 365 个真实日期格')
+  assert.equal(cells.filter((cell) => hasClass(cell, 'is-pad')).length, 6, '首尾 6 个补齐格')
   const jan1 = dated.find((cell) => cell.props['data-date'] === '2026-01-01')
   jan1.props.onMouseEnter(fakeEvent())
   assert.equal(shown[shown.length - 1].kind, 'heat', '全年格子仍可浮出单日明细')
@@ -2555,11 +2680,11 @@ test('客户端：单月视图为 7 列日历且汇总只统计本月', async ()
   const card = allOf(tree, byClass('cs-heatmap-card'))[0]
   assert.equal(card.props['data-range'], 8, '月份范围规范化为数字')
   assert.equal(card.props['data-layout'], 'month')
-  assert.match(textOf(card), /Aug每日时长/, '单月视图标题带英文月份缩写')
+  assert.match(textOf(card), /8月每日时长/, '单月标题的 {month} 占位替换成中文月份')
   assert.equal(allOf(tree, byClass('heat-year-grid')).length, 0, '单月不渲染全年矩阵')
   const weekdays = allOf(tree, byClass('heat-month-weekdays'))[0]
   assert.ok(weekdays, '单月顶部有星期刻度')
-  assert.deepEqual(textOf(weekdays).trim().split(/\s+/), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+  assert.deepEqual(textOf(weekdays).trim().split(/\s+/), ['一', '二', '三', '四', '五', '六', '日'], '单月星期刻度使用中文单字')
   const monthGrid = allOf(tree, byClass('heat-month-grid'))[0]
   const cells = findAll(monthGrid, (node) => hasClass(node, 'heat-cell'))
   assert.equal(cells.length, 42, '6 周 × 7 列')
@@ -2608,10 +2733,14 @@ test('客户端：热力图范围复用统一自定义下拉并一次展示 15 �
   const options = allOf(rendered, byClass('cs-opt'))
   assert.equal(options.length, 15, '一次渲染全部 15 项，不做滚动裁切')
   assert.equal(options.filter((option) => hasClass(option, 'is-span-2')).length, 3, '前三个跨度选项横跨两列')
-  assert.match(textOf(options.find((option) => textOf(option).includes('近3个月'))), /近3个月/)
-  assert.equal(textOf(options.find((option) => textOf(option).trim() === 'Jul')).trim(), 'Jul')
-  assert.equal(textOf(options.find((option) => textOf(option).trim() === 'Dec')).trim(), 'Dec')
-  options.find((option) => textOf(option).trim() === 'Jul').props.onClick()
+  assert.match(textOf(options[0]), /近3个月/, '范围菜单含「近3个月」')
+  assert.match(textOf(options[1]), /近半年/, '范围菜单含「近半年」')
+  assert.match(textOf(options[2]), /全年/, '范围菜单含「全年」')
+  assert.deepEqual(
+    options.slice(3).map((option) => textOf(option).trim()),
+    ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+    '范围菜单 15 项含「1月」，12 个月份一律中文')
+  options.find((option) => textOf(option).trim() === '7月').props.onClick()
   assert.deepEqual(picked, [7], '点击月份回传数字范围值')
 })
 
@@ -2630,9 +2759,11 @@ test('客户端：热力图范围复用统一下拉的向上两列菜单与自�
   assert.match(declarationsFor(css, '.cs-heatmap-card'), /overflow:\s*visible/)
   const card = declarationsFor(css, '.cs-heatmap-card')
   assert.match(card, /--cs-heat-cell:\s*clamp\(/, '周网格格子尺寸随可用宽度自适应')
-  const yearGrid = declarationsFor(css, '.heat-year-grid')
-  assert.match(yearGrid, /grid-template-columns:\s*48px\s+repeat\(31,\s*minmax\(0,\s*1fr\)\)/, '全年矩阵 31 列，左侧留出月份刻度')
-  assert.match(declarationsFor(css, '.heat-year .heat-cell'), /aspect-ratio:\s*1/, '全年格子随列宽保持正方形')
+  // 全年已改为 7 行周网格，容器带 is-year：间隙与格子尺寸收紧到 2px / 10–13px。
+  const yearBody = declarationsFor(css, '.heatmap-body.is-year')
+  assert.match(yearBody, /--cs-heat-gap:\s*2px/, '全年网格间隙 2px')
+  assert.match(yearBody, /--cs-heat-cell:\s*clamp\(10px,\s*0\.95vw,\s*13px\)/, '全年格子尺寸 10–13px')
+  assert.match(declarationsFor(css, '.heatmap-body.is-year .heat-plot'), /gap:\s*4px/, '全年月份刻度与网格之间留间距')
   const monthGrid = declarationsFor(css, '.heat-month-grid')
   assert.match(monthGrid, /grid-template-columns:\s*repeat\(7,\s*minmax\(0,\s*1fr\)\)/, '单月日历 7 列')
   assert.match(declarationsFor(css, '.heat-month .heat-cell'), /aspect-ratio:\s*1/, '单月格子随列宽保持正方形')
@@ -2654,7 +2785,7 @@ test('客户端：热力图首屏三种布局自适应且右侧统计与月度�
   assert.match(weekgrid, /width:\s*100%/, '3m/6m 周网格随卡片铺满')
   assert.match(weekgrid, /grid-auto-columns:\s*minmax\(0,\s*1fr\)/, '周网格列宽等比分配')
   assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-weekgrid .heat-cell'), /aspect-ratio:\s*1/, '格子在放大态保持正方形')
-  assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-year-grid'), /width:\s*100%/, '全年矩阵随卡片铺满')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-months'), /display:\s*grid/, '放大态月份刻度随周网格等比铺开')
   const month = declarationsFor(css, '.cs-heatmap-focus .heat-month')
   assert.match(month, /width:\s*100%/, '单月日历随卡片铺满')
   assert.match(month, /max-width:\s*none/, '单月不再固定最大宽度')
@@ -2698,4 +2829,76 @@ test('客户端：概览把范围值与切换回调透传给每日热力图', as
   assert.ok(picker.props.options.some((option) => option.value === 11), '概览里的选择器有 11 月选项')
   picker.props.onChange(11)
   assert.deepEqual(picked, [11], '切换范围回调从概览透传到页面状态')
+})
+
+test('客户端：英文界面仍显示英文月份/星期与 3 months/6 months/Year', async () => {
+  const { renderDailyHeatmap, heatRangeLabel, Select, React } = await loadClientFunctions()
+  const en = {
+    heatmapTitle: 'Daily time', heatmapInfo: 'Each cell is a day',
+    yearHeatTitle: 'Daily time · year', monthHeatTitle: 'Daily time · {month}',
+    heatRangeLabel: 'Range', heatRange3m: '3 months', heatRange6m: '6 months',
+    heatRangeYear: 'Year', heatRangeMonth: '{month}',
+    periodDay: 'Day', onlineLabel: 'Online', activeLabel: 'Active', taskLabel: 'Task',
+    noRecord: 'No record', heatDayTitle: '{month}/{day}',
+    heatSummary: 'Range active {active} · Active days {activeDays}/{observedDays}',
+    heatmapLoading: 'Loading…', heatmapEmpty: 'No daily records', monthBars: 'Monthly active',
+  }
+  const t = (key) => en[key] ?? key
+  assert.equal(t('periodDay'), 'Day', '英文界面 periodDay 不是「日」')
+  assert.equal(heatRangeLabel(7, t), 'Jul', '英文界面单月标签仍是 Jul')
+  assert.equal(heatRangeLabel(1, t), 'Jan')
+  assert.equal(heatRangeLabel('3m', t), '3m')
+  const zh = (key) => ({ periodDay: '日', heatRangeMonth: '{month}' })[key] ?? key
+  assert.equal(heatRangeLabel(7, zh), '7月', '中文界面单月标签为 7月')
+
+  const range = { from: new Date(2026, 7, 1).getTime(), to: new Date(2026, 8, 1).getTime() }
+  const series = { range, days: buildHeatDays(range.from, range.to) }
+  const common = {
+    series, status: 'ready', t, format: 'hms', nowMs: new Date(2026, 7, 15, 12).getTime(),
+    hoverTip: { tip: null, show() {}, hide() {} },
+  }
+  const weeks = renderDailyHeatmap(common)
+  assert.match(textOf(findByClass(weeks, 'heat-months')), /Aug/, '英文界面月份刻度仍为 Aug')
+  assert.deepEqual(
+    textOf(findByClass(weeks, 'heat-weekday-list')).trim().split(/\s+/),
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    '英文界面星期刻度仍为 Mon…Sun')
+
+  const month = renderDailyHeatmap({ ...common, rangeValue: '8' })
+  assert.match(textOf(month), /Daily time · Aug/, '英文界面单月标题仍用 Aug')
+  assert.deepEqual(
+    textOf(findByClass(month, 'heat-month-weekdays')).trim().split(/\s+/),
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    '英文界面单月星期刻度仍为 Mon…Sun')
+
+  const picker = allOf(weeks, (node) => node.type === Select)[0]
+  const rendered = React.render(Select, picker.props)
+  const options = allOf(rendered, byClass('cs-opt'))
+  assert.match(textOf(options[0]), /3 months/, '跨度显示 3 months')
+  assert.match(textOf(options[1]), /6 months/, '跨度显示 6 months')
+  assert.match(textOf(options[2]), /Year/, '跨度显示 Year')
+  const monthTexts = options.slice(3).map((node) => textOf(node).trim())
+  assert.ok(monthTexts.includes('Jan'), '英文界面月份选项含 Jan')
+  assert.ok(monthTexts.includes('Dec'), '英文界面月份选项含 Dec')
+})
+
+test('客户端：全年 Bento 跨行、范围选择器紧凑尺寸与顶栏图标按钮样式', async () => {
+  const css = await loadClientCss()
+  // 范围选择器只收窄触发器，弹出的两列 15 项菜单不变。
+  const rangeTrigger = declarationsFor(css, '.heat-range-select .cs-select-btn')
+  assert.match(rangeTrigger, /min-width:\s*88px/, '范围触发器最小宽度 88px')
+  assert.match(rangeTrigger, /min-height:\s*28px/, '范围触发器最小高度 28px')
+  assert.match(rangeTrigger, /padding:\s*4px 8px/, '范围触发器内边距 4px 8px')
+  // 全年范围在普通概览跨满整行，:has() 让 .cs-recent 一起拉宽；其它范围仍是第 3 列。
+  const yearPlacement = declarationsFor(css, '.cs-overview-grid > .cs-heatmap-card[data-range="year"]')
+  assert.match(yearPlacement, /grid-column:\s*1\s*\/\s*-1/, '全年热力图跨满整行')
+  assert.ok(
+    css.includes(':has(> .cs-heatmap-card[data-range="year"]) > .cs-recent'),
+    '有 :has() 规则让 .cs-recent 随全年范围拉宽')
+  assert.match(declarationsFor(css, '.cs-heatmap-card'), /grid-column:\s*3/, '其它范围热力图仍在第 3 列')
+  // 顶栏右侧拆成两个 group 加一条分隔线，配色改成单枚循环图标按钮。
+  assert.match(declarationsFor(css, '.cs-topbar-group'), /display:\s*inline-flex/, '顶栏右侧两个 cs-topbar-group')
+  assert.match(declarationsFor(css, '.cs-topbar-divider'), /width:\s*1px/, '顶栏两组之间有 1px 分隔线')
+  assert.match(css, /\.cs-icon-toggle\s*\{/, '配色与外观共用单枚循环图标按钮样式')
+  assert.doesNotMatch(css, /\.cs-palette-label/, '顶栏不再有配色下拉的标签')
 })
