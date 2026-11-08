@@ -69,6 +69,11 @@ async function loadClientFunctions(windowExtras = {}) {
       subscribeThemeChanged: typeof subscribeThemeChanged === 'function' ? subscribeThemeChanged : undefined,
       notifyThemeChanged: typeof notifyThemeChanged === 'function' ? notifyThemeChanged : undefined,
       renderSidebarEntry: typeof renderSidebarEntry === 'function' ? renderSidebarEntry : undefined,
+      renderSidebarRing: typeof renderSidebarRing === 'function' ? renderSidebarRing : undefined,
+      renderSidebarTip: typeof renderSidebarTip === 'function' ? renderSidebarTip : undefined,
+      SidebarTip: typeof SidebarTip === 'function' ? SidebarTip : undefined,
+      useDelayedSidebarTip: typeof useDelayedSidebarTip === 'function' ? useDelayedSidebarTip : undefined,
+      zoomIcon: typeof zoomIcon === 'function' ? zoomIcon : undefined,
       buildSidebarTip: typeof buildSidebarTip === 'function' ? buildSidebarTip : undefined,
       settingsDraft: typeof settingsDraft === 'function' ? settingsDraft : undefined,
       settingsPayload: typeof settingsPayload === 'function' ? settingsPayload : undefined,
@@ -605,6 +610,7 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与蓝派生�
   assert.match(css, /--cs-accent\s*:\s*var\(--cs-signal/)
   assert.match(css, /--cs-live\s*:\s*var\(--cs-signal\)/)
   assert.match(css, /--cs-task\s*:\s*color-mix\(/)
+  assert.match(css, /--cs-ring-track\s*:\s*color-mix\(/, '主页面也导出圆环轨道色')
   assert.match(css, /--cs-tone-faint\s*:/)
   assert.match(css, /--cs-tone-soft\s*:/)
   assert.match(css, /--cs-tone-other\s*:/)
@@ -986,11 +992,20 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(css, /html\[data-chronoscope-hide-name\] button\[aria-label="ChronoScope"\] > span \+ span/,
     '宿主名称行由根元素开关隐藏，折叠态唯一 span 不受影响')
   assert.match(declarationsFor(css, '.chronoscope-nav-entry.is-nameless .chronoscope-nav-time'),
-    /font-size:\s*12px/, '去掉名称后时间放大一档并居中')
+    /font-size:\s*15px/, '去掉名称后时间放大一档并居中')
   const entry = declarationsFor(css, '.chronoscope-nav-entry')
   assert.match(entry, /display:\s*inline-flex/)
   assert.match(entry, /flex-wrap:\s*nowrap/, '入口保持单行')
   assert.match(entry, /white-space:\s*nowrap/)
+  assert.match(declarationsFor(css, '.chronoscope-nav-time'), /font-size:\s*14px/, '时长与导航文字比例更协调')
+  assert.match(declarationsFor(css, '.chronoscope-nav-ring'), /width:\s*18px/, '构成环放大到 18px')
+  assert.match(declarationsFor(css, '.chronoscope-nav-ring-track'), /stroke-width:\s*2\.9/, '圆环线宽加粗')
+  assert.match(declarationsFor(css, '.chronoscope-nav-ring svg'), /transform:\s*rotate\(-90deg\)/, '圆环从 12 点方向起画')
+  assert.match(css, /@keyframes chronoscope-dot-pulse/, '任务进行中状态点向外扩散')
+  assert.match(css, /chronoscope-dot-pulse 3\.2s/, '扩散频率放慢到 3.2 秒一轮')
+  assert.match(css, /scale\(1\.65\)/, '扩散范围收窄')
+  assert.match(declarationsFor(css, '.chronoscope-nav-dot'), /border-radius:\s*999px\s*!important/, '状态点强制标准圆形，不被宿主方角覆盖')
+  assert.match(declarationsFor(css, '.chronoscope-nav-tip'), /position:\s*fixed/, '时长浮层固定定位')
   assert.match(declarationsFor(css, '.chronoscope-nav-name'), /text-overflow:\s*ellipsis/, '长名称省略而不撑破侧栏')
 })
 
@@ -1042,8 +1057,8 @@ test('客户端：配色/外观变更通过主题事件即时通知侧栏入口'
   assert.equal(calls.length, 1, '退订后不再收到通知')
 })
 
-test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬停不再弹出浮层', async () => {
-  const { renderSidebarEntry } = await loadClientFunctions()
+test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三项组成', async () => {
+  const { renderSidebarEntry, buildSidebarTip, renderSidebarTip } = await loadClientFunctions()
   const labels = {
     title: 'ChronoScope',
     onlineLabel: '在线时长',
@@ -1051,14 +1066,17 @@ test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬�
     taskLabel: '任务',
     live: '活跃中',
     idle: '空闲',
+    taskRunning: '任务进行中',
+    cycleToday: '今日',
     sidebarRingTitle: '今日在线、活跃与任务时长',
+    sidebarRingHint: '环的弧长按三项合计归一',
   }
   const t = (key) => labels[key] ?? key
   const shown = []
   const hidden = []
   const hover = {
     tip: null,
-    show: (tip, event) => shown.push({ tip, event }),
+    show: (tip, event, immediate) => shown.push({ tip, event, immediate }),
     hide: () => hidden.push(true),
   }
   const stats = {
@@ -1067,6 +1085,7 @@ test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬�
     activeMs: 3 * 3_600_000,
     taskMs: 3_600_000,
     activeRunning: true,
+    taskRunning: true,
     receivedAt: Date.now(),
   }
   const tree = renderSidebarEntry({
@@ -1082,24 +1101,38 @@ test('客户端：侧栏入口隐藏名称后仍保留时长与状态点，悬�
   assert.match(tree.props.className, /is-nameless/, '隐藏名称后入口进入居中的无名称布局')
   assert.equal(tree.props.tabIndex, 0, '入口可被键盘聚焦')
   assert.ok(findByClass(tree, 'chronoscope-nav-ring'), '迷你构成环存在')
+  assert.equal(findAll(tree, (node) => hasClass(node, 'chronoscope-nav-ring-seg')).length, 3, '标准圆环由三段 SVG 弧组成')
   assert.equal(findByClass(tree, 'chronoscope-nav-name'), undefined, '隐藏名称后不渲染名称节点')
   assert.equal(textOf(findByClass(tree, 'chronoscope-nav-time')), '3:00:00', '隐藏名称后时长仍在')
   const dot = findByClass(tree, 'chronoscope-nav-dot')
   assert.ok(dot, '隐藏名称后状态点仍在')
-  assert.match(dot.props.className, /is-live/, '活跃状态点按活跃状态着色')
-  assert.equal(dot.props['aria-label'], '活跃中')
+  assert.match(dot.props.className, /is-live/, '活跃或任务状态点着色')
+  assert.match(dot.props.className, /is-task/, '任务进行中带扩散环')
+  assert.equal(dot.props['aria-label'], '任务进行中')
 
-  assert.equal(tree.props.onMouseEnter, undefined, '入口不再绑定悬停浮层')
-  assert.equal(tree.props.onFocus, undefined, '入口不再绑定聚焦浮层')
-  assert.equal(shown.length, 0, '悬停与聚焦都不再触发浮层')
-  assert.equal(hidden.length, 0, '也不再触发浮层收起')
-  assert.equal(findAll(tree, (node) => hasClass(node, 'cs-hover-tip')).length, 0, '入口内不再渲染 HoverTip 节点')
+  assert.equal(typeof tree.props.onMouseEnter, 'function', '入口绑定悬停浮层')
+  assert.equal(typeof tree.props.onFocus, 'function', '入口保留键盘聚焦浮层')
+  tree.props.onMouseEnter({ currentTarget: {}, key: 'enter' })
+  tree.props.onFocus({ currentTarget: {}, key: 'focus' })
+  assert.equal(shown.length, 2, '悬停与聚焦都触发浮层请求')
+  assert.equal(shown[0].immediate, false, '鼠标悬停走延迟')
+  assert.equal(shown[1].immediate, true, '键盘聚焦立即出现')
+  assert.equal(shown[0].tip.rows.length, 3, '浮层包含三项时长')
+  assert.match(shown[0].tip.rows[0].share, /50%/, '在线时长占环上一半')
+  assert.equal(findAll(tree, (node) => hasClass(node, 'chronoscope-nav-tip')).length, 0, '未展示时入口内不渲染浮层节点')
   assert.match(tree.props['aria-label'], /在线时长 4:00:00/, '在线时长仍留在无障碍标签里')
   assert.match(tree.props['aria-label'], /活跃 3:00:00/, '活跃时长仍留在无障碍标签里')
   assert.match(tree.props['aria-label'], /任务 1:00:00/, '任务时长仍留在无障碍标签里')
+  assert.match(tree.props['aria-label'], /任务进行中/, '状态也进入无障碍标签')
+
+  const tip = buildSidebarTip(stats, t)
+  const tipTree = renderSidebarTip(tip, { left: 12, top: 20, placement: 'top' })
+  assert.equal(tipTree.props.id, 'chrono-scope-sidebar-tip')
+  assert.match(textOf(tipTree), /今日/, '浮层有今日角标')
+  assert.match(textOf(tipTree), /环的弧长按三项合计归一/, '浮层解释环的口径')
 
   const named = renderSidebarEntry({
-    stats: { ...stats, activeRunning: false },
+    stats: { ...stats, activeRunning: false, taskRunning: false },
     theme: { palette: 'stone', appearance: 'dark' },
     showName: true,
     t,
@@ -1463,7 +1496,7 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
     emptyDashboard: '暂无记录', recentSessions: '最近会话', recentSessionsHint: '按最近活动排序',
     unknownSession: '未命名会话', justNow: '刚刚', minutesAgo: '{n} 分钟前', hoursAgo: '{n} 小时前', daysAgo: '{n} 天前',
     trendSummary: '本周期概览', dailyAverageActive: '日均活跃', dailyAverageTask: '日均任务',
-    taskCountShort: '任务次数', peakActive: '峰值活跃', searchPlaceholder: '搜索工作区或会话',
+    taskCountShort: '任务次数', peakActive: '峰值活跃', activeShare: '活跃占比', searchPlaceholder: '搜索工作区或会话',
     workspaceTitle: '工作区明细', workspaceHint: '展开查看会话', colActive: '活跃', colTask: '任务',
     colLast: '最近活动', sessionsUnit: '个会话', expand: '展开会话', collapse: '收起会话',
     detailsEmpty: '没有匹配的工作区或会话', emptyWorkspace: '这个工作区还没有会话记录',
@@ -1491,6 +1524,8 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
     nowMs: now,
   })
   assert.equal(allOf(trend, byClass('cs-cycle')).length, 3, '趋势同样能切换日/周/月比较')
+  assert.equal(allOf(trend, byClass('cs-cycle-ring')).length, 3, '每张周期卡右侧都有活跃占比环，避免右侧留白')
+  assert.equal(allOf(trend, byClass('cs-cycle-ring-value')).length, 3, '占比环中心显示百分比')
   assert.ok(allOf(trend, byClass('cs-trend-card')).length >= 1, '趋势含趋势图卡')
   const summaryText = textOf(allOf(trend, byClass('cs-trend-summary'))[0])
   assert.match(summaryText, /日均活跃/)
@@ -1507,6 +1542,9 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
   const workspaceRow = allOf(details, byClass('cs-summary'))[0]
   assert.ok(workspaceRow, '明细含工作区行')
   assert.match(textOf(workspaceRow), /工作区一/)
+  assert.equal(allOf(details, byClass('cs-detail-stat')).length, 4, '明细顶部四项摘要铺开首屏')
+  assert.equal(allOf(details, byClass('cs-detail-session')).length, 1, '明细右侧列出最近会话')
+  assert.ok(allOf(details, byClass('cs-details-layout')).length === 1, '明细采用表格 + 最近会话双栏布局')
 
   const filtered = renderDetailsView({
     data, t, query: '不存在的关键词', onQueryChange() {}, durationFormat: 'hms', expanded: {}, onToggleRow() {},
@@ -1555,6 +1593,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     notices: [{ eventId: 'n1', kind: 'initial', tasksWritten: 130, completedAt: Date.now(), readAt: Date.now() }],
   })
   const calls = []
+  const appearanceCalls = []
   const settingsProps = {
     t, draft, phase: 'ready', message: '', noticeState: { status: 'ready', data: backfill },
     appearance: 'system', palette: 'clay', dataBusy: '', dataMessage: null, clearStep: false,
@@ -1562,7 +1601,8 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     onPatch: () => {}, onSelectFormat: (value) => calls.push(['format', value]),
     onSave: () => calls.push(['save']), onRetryLoad: () => {}, onExport: (value) => calls.push(['export', value]),
     onRequestClear: () => calls.push(['clear-request']), onCancelClear: () => {}, onClear: () => {},
-    onRecheckBackfill: () => {}, onCycleAppearance: () => {}, onChangePalette: () => {},
+    onRecheckBackfill: () => {}, onCycleAppearance: () => {},
+    onSelectAppearance: (value) => appearanceCalls.push(value), onChangePalette: () => {},
   }
   const tree = renderSettingsView(settingsProps)
   const text = textOf(tree)
@@ -1579,7 +1619,12 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     .map((node) => node.props.ariaLabel)
   assert.ok(selectLabels.includes('活跃判定阈值'), '空闲阈值下拉可用')
   assert.ok(selectLabels.includes('每周起始'), '每周起始下拉可用')
-  assert.equal(allOf(tree, byClass('cs-swatch-preview')).length, 3, '配色区改为三枚可预览色板')
+  assert.equal(allOf(tree, byClass('cs-palette-opt')).length, 3, '配色区保留三枚可预览色板')
+  const appearanceOptions = allOf(tree, byClass('cs-appearance-opt'))
+  assert.equal(appearanceOptions.length, 3, '外观区提供浅色、深色、跟随系统三个入口')
+  assert.equal(appearanceOptions.find((node) => node.props['aria-pressed'] === true)?.props['aria-label'], '跟随系统', '当前外观有按下态')
+  appearanceOptions[0].props.onClick()
+  assert.deepEqual(appearanceCalls, ['light'], '外观卡直接选择具体模式')
   assert.match(text, /累计回填 130 条/, '通知记录可回看')
   assert.equal(findAll(tree, (node) => node.props?.role === 'alertdialog').length, 0, '清空前不显示确认框')
   const exportButtons = findAll(tree, (node) => node.type === 'button' && /导出 JSON/.test(textOf(node)))
@@ -1962,6 +2007,12 @@ test('客户端：概览 Bento 网格声明三列三行，窄屏回落两列与�
 
 test('客户端：首屏缩放按钮与进度条样式无边框，并尊重减少动效', async () => {
   const css = await loadClientCss()
+  const { zoomIcon } = await loadClientFunctions()
+  const expandIcon = zoomIcon(false)
+  const restoreIcon = zoomIcon(true)
+  assert.equal((expandIcon.children[0].props.d.match(/M/g) || []).length, 2, '普通态只有左上与右下两个尖角')
+  assert.equal((restoreIcon.children[0].props.d.match(/M/g) || []).length, 2, '首屏态同样只有两个尖角')
+  assert.notEqual(expandIcon.children[0].props.d, restoreIcon.children[0].props.d, '放大与缩回图形可区分')
   const zoom = declarationsFor(css, '.cs-zoom-btn')
   assert.match(zoom, /position:\s*absolute/, '按钮固定在卡片右上角')
   assert.match(zoom, /background:\s*transparent/, '无填充')
@@ -2528,6 +2579,15 @@ test('客户端：概览趋势卡复用首屏缩放按钮，趋势视图不传�
 
   const plain = renderTrendCard(data, t, true, hoverTip, 'hms', 'day')
   assert.equal(allOf(plain, byClass('cs-zoom-btn')).length, 0, '趋势视图复用同一卡片时不显示按钮')
+})
+
+test('客户端：趋势页图表与右侧摘要同排，摘要纵向铺满', async () => {
+  const { chronoscopeCss } = await loadClientFunctions()
+  const css = chronoscopeCss()
+  assert.match(declarationsFor(css, '.cs-trend-layout > .cs-trend-card'), /grid-column:\s*1/, '图表卡固定在左栏')
+  assert.match(declarationsFor(css, '.cs-trend-layout > .cs-trend-summary'), /grid-column:\s*2/, '摘要卡固定在右栏，不再被全局概览网格规则挤到下一行')
+  assert.match(declarationsFor(css, '.cs-trend-summary .cs-stat-grid'), /flex-direction:\s*column/, '摘要四项纵向排列')
+  assert.match(declarationsFor(css, '.cs-trend-summary .cs-stat-box'), /flex:\s*1 1 0/, '四项均分摘要卡高度')
 })
 
 test('客户端：条状图首屏按可用高度铺开、悬停分组放大并尊重减少动效', async () => {
