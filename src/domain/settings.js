@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   durationFormat: DEFAULT_DURATION_FORMAT,
   // 侧栏入口是否显示名称；关闭后仍保留时长、状态点与今日构成环。
   sidebarShowName: true,
+  // 「近似数据」说明是否已被用户关闭；属于展示偏好，默认未关闭。
+  approximateNoticeDismissed: false,
 })
 
 /** 兼容既有导出名：领域服务旧构造参数以毫秒表达同一默认值。 */
@@ -55,6 +57,14 @@ function normalizeSidebarShowName(value) {
 }
 
 /**
+ * 近似数据说明的关闭开关只认布尔值：非布尔（含字符串、数字、null、undefined）
+ * 一律按未关闭处理，不沿用 showSubagents 那套「字符串 false」的宽松收敛。
+ */
+function normalizeApproximateNoticeDismissed(value) {
+  return value === true
+}
+
+/**
  * 把任意输入（含缺省、脏数据）收敛成完整、合法的设置对象。
  * 未知字段一律丢弃，避免把页面草稿或旧版本字段写进权威状态。
  */
@@ -66,6 +76,7 @@ export function normalizeSettings(value) {
     showSubagents: normalizeShowSubagents(source.showSubagents),
     durationFormat: normalizeDurationFormat(source.durationFormat),
     sidebarShowName: normalizeSidebarShowName(source.sidebarShowName),
+    approximateNoticeDismissed: normalizeApproximateNoticeDismissed(source.approximateNoticeDismissed),
   }
 }
 
@@ -84,6 +95,9 @@ export function mergeSettings(current, patch) {
     showSubagents: Object.hasOwn(incoming, 'showSubagents') ? incoming.showSubagents : base.showSubagents,
     durationFormat: Object.hasOwn(incoming, 'durationFormat') ? incoming.durationFormat : base.durationFormat,
     sidebarShowName: Object.hasOwn(incoming, 'sidebarShowName') ? incoming.sidebarShowName : base.sidebarShowName,
+    approximateNoticeDismissed: Object.hasOwn(incoming, 'approximateNoticeDismissed')
+      ? incoming.approximateNoticeDismissed
+      : base.approximateNoticeDismissed,
   })
 }
 

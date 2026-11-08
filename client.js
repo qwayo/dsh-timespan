@@ -35,13 +35,15 @@ window.__ModuleLoader__.load({
     const PAGE_REFRESH_MS = 10_000
     /** 每日时长热力图的默认范围：最近 3 个本地日历月；#13 再扩展范围切换。 */
     const HEAT_DEFAULT_RANGE = '3m'
-    /** 月份刻度固定英文缩写，与格子列严格对齐。 */
+    /** 月份刻度：中文界面用「1月…12月」，英文界面沿用英文缩写。 */
     const HEAT_MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    /** 星期刻度固定周一到周日，与热力图的七行一一对应。 */
+    const HEAT_MONTH_LABELS_ZH = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+    /** 星期刻度：中文界面用单字「一…日」，英文界面用 Mon…Sun，均与七行一一对应。 */
     const HEAT_WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    const HEAT_WEEKDAY_LABELS_ZH = ['一', '二', '三', '四', '五', '六', '日']
     /**
-     * 热力图范围菜单：最近 3 个月、近半年、全年，再按 Jan…Dec 选单月。
-     * 月份值用数字 1–12，标签固定英文缩写；跨度值保持字符串。
+     * 热力图范围菜单：最近 3 个月、近半年、全年，再按 1–12 月选单月。
+     * 月份值用数字 1–12；label 只作英文回退，展示文案由 heatRangeOptionLabel 按界面语言生成。
      */
     const HEAT_RANGE_OPTIONS = [
       { value: '3m', label: '3m' },
@@ -137,7 +139,7 @@ window.__ModuleLoader__.load({
       searchPlaceholder: '搜索工作区或会话',
       detailsEmpty: '没有匹配的工作区或会话',
       settingsPageTitle: '仪表盘设置',
-      settingsPageHint: '设置只保存在本机，保存后立即影响后续统计，重启后仍然生效。',
+      settingsPageHint: '改动即存本机并立即生效，重启后仍然生效。',
       settingsSectionAppearance: '外观与配色',
       settingsRecheck: '重新检查回填',
       settingsRechecking: '正在检查…',
@@ -241,7 +243,7 @@ window.__ModuleLoader__.load({
       subagentDetailHint: '{count} 条 · {duration}（不计入总计）',
       settingsNav: 'ChronoScope',
       settingsTitle: 'ChronoScope 设置',
-      settingsHint: '设置只保存在本机，保存后立即影响后续统计，重启后仍然生效。',
+      settingsHint: '改动即存本机并立即生效，重启后仍然生效。',
       settingsIdleLabel: '空闲阈值',
       settingsIdleHint: '页面可见且聚焦时，最后一次操作超过这个时长就不再计入活跃时长。',
       settingsIdleUnit: '分钟',
@@ -267,7 +269,7 @@ window.__ModuleLoader__.load({
       settingsSectionGeneral: '统计口径',
       settingsSectionDisplay: '明细展示',
       settingsSectionFormat: '数字格式',
-      settingsFormatHint: '选择后整页立即预览；点「保存设置」才写入 Host，刷新后仍使用已保存的格式。',
+      settingsFormatHint: '选择后整页立即预览并自动保存，刷新后沿用已保存的格式。',
       formatHintHms: '时:分:秒',
       formatHintShort: '紧凑单位',
       formatHintZh: '中文单位',
@@ -291,6 +293,21 @@ window.__ModuleLoader__.load({
       clearing: '正在清空…',
       clearError: '清空失败，请重试',
       cleared: '已清空，统计已重置',
+      approximateDismiss: '不再显示',
+      approximateShowAgain: '重新显示说明',
+      savedBadge: '已保存',
+      importData: '从备份文件恢复',
+      importHint: '选择此前导出的 JSON 备份；已有记录会按 ID 去重跳过。',
+      importInvalid: '这不是有效的 ChronoScope 备份（需要 format 为 chronoscope-export 且 version 为 1）。',
+      importPreviewTitle: '备份预览',
+      importIntervals: '时间区间',
+      importTasks: '任务',
+      importRestoreSettings: '同时恢复设置',
+      importConfirm: '确认恢复',
+      importCancel: '取消',
+      importSuccess: '恢复完成',
+      importReadFailed: '读取文件失败',
+      importFileHint: '未选择文件',
     }
 
     const en = {
@@ -497,7 +514,7 @@ window.__ModuleLoader__.load({
       settingsSectionGeneral: 'Counting rules',
       settingsSectionDisplay: 'Detail display',
       settingsSectionFormat: 'Number format',
-      settingsFormatHint: 'The whole page previews immediately; only “Save settings” writes to the Host, and the saved format survives refresh.',
+      settingsFormatHint: 'The whole page previews immediately and the choice is saved automatically; the saved format survives refresh.',
       formatHintHms: 'Hours:minutes:seconds',
       formatHintShort: 'Compact units',
       formatHintZh: 'Chinese units',
@@ -521,6 +538,21 @@ window.__ModuleLoader__.load({
       clearing: 'Clearing…',
       clearError: 'Clear failed; please retry',
       cleared: 'Cleared; statistics have been reset',
+      approximateDismiss: 'Dismiss',
+      approximateShowAgain: 'Show notice again',
+      savedBadge: 'Saved',
+      importData: 'Restore from backup',
+      importHint: 'Choose a JSON backup exported earlier; existing records are skipped by ID.',
+      importInvalid: 'This is not a valid ChronoScope backup (format must be chronoscope-export and version must be 1).',
+      importPreviewTitle: 'Backup preview',
+      importIntervals: 'Intervals',
+      importTasks: 'Tasks',
+      importRestoreSettings: 'Also restore settings',
+      importConfirm: 'Restore',
+      importCancel: 'Cancel',
+      importSuccess: 'Restore complete',
+      importReadFailed: 'Could not read file',
+      importFileHint: 'No file selected',
     }
 
     /** 每个页面实例一个 Client 标识；刷新后旧区间按最后心跳收口。 */
@@ -672,14 +704,29 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** 范围缩写：3m/6m/year，或 Jan…Dec；无效值按 3m 显示。 */
-    function heatRangeLabel(value) {
-      const normalized = normalizeHeatRangeValue(value)
-      if (normalized === '3m' || normalized === '6m' || normalized === 'year') return normalized
-      return HEAT_MONTH_ABBR[normalized - 1]
+    /** 界面语言判断：与 buildHeatTip 同口径，不额外注入依赖。 */
+    function isZhLocale(t) {
+      return typeof t === 'function' && t('periodDay') === '日'
     }
 
-    /** 布局类型：全年矩阵、单月日历或 3m/6m 的周网格。 */
+    /** 月份刻度按界面语言取文案：中文「1月」，英文 Jan。 */
+    function heatMonthLabels(t) {
+      return isZhLocale(t) ? HEAT_MONTH_LABELS_ZH : HEAT_MONTH_ABBR
+    }
+
+    /** 星期刻度按界面语言取文案：中文单字，英文 Mon…Sun。 */
+    function heatWeekdayLabels(t) {
+      return isZhLocale(t) ? HEAT_WEEKDAY_LABELS_ZH : HEAT_WEEKDAY_LABELS
+    }
+
+    /** 范围缩写：3m/6m/year 原样返回，单月按界面语言返回月份名；无效值按 3m 显示。 */
+    function heatRangeLabel(value, t) {
+      const normalized = normalizeHeatRangeValue(value)
+      if (normalized === '3m' || normalized === '6m' || normalized === 'year') return normalized
+      return heatMonthLabels(t)[normalized - 1]
+    }
+
+    /** 布局类型：全年与 3m/6m 共用周网格（data-layout 仍区分 year），单月用 7 列日历。 */
     function heatLayoutFor(value) {
       const normalized = normalizeHeatRangeValue(value)
       if (normalized === 'year') return 'year'
@@ -713,12 +760,12 @@ window.__ModuleLoader__.load({
      * 单月 7 列日历：周一开头，前后补齐为 null，只允许 range 所在月份进入格子。
      * 即使调用方传入相邻月份的 days，也只会按 dateKey 匹配本月日期。
      */
-    function buildMonthGrid(days, range) {
+    function buildMonthGrid(days, range, weekdayLabels = HEAT_WEEKDAY_LABELS_ZH) {
       const from = Number(range?.from)
       const to = Number(range?.to)
       const result = {
         weeks: [],
-        weekdayLabels: HEAT_WEEKDAY_LABELS.slice(),
+        weekdayLabels: weekdayLabels.slice(),
         daysInMonth: 0,
         year: null,
         month: null,
@@ -753,16 +800,16 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 全年 12 月 × 31 天矩阵：每月一行、超出当月天数的格子为 null；
-     * 月度条只累加该月 hasObservations 为 true 的日期，缺失日期不参与。
+     * 全年月度条数据：每月只累加 hasObservations 为 true 的日期。
+     * 主视图已改为 7 行 × 53 列周网格，这里只供首屏补充数值面板使用。
      */
-    function buildYearMatrix(days, year) {
+    function buildYearMatrix(days, year, monthLabels = HEAT_MONTH_LABELS_ZH) {
       const numeric = Number(year)
       const targetYear = Number.isFinite(numeric) && numeric > 0
         ? Math.trunc(numeric)
         : new Date().getFullYear()
       const byKey = heatDayMap(days)
-      const months = HEAT_MONTH_ABBR.map((abbr, month) => {
+      const months = monthLabels.map((abbr, month) => {
         const daysInMonth = new Date(targetYear, month + 1, 0).getDate()
         const cells = []
         for (let day = 1; day <= 31; day += 1) {
@@ -788,8 +835,11 @@ window.__ModuleLoader__.load({
       return { year: targetYear, months, bars }
     }
 
-    /** 菜单里的选项文案：跨度用本地化名称，月份一律英文缩写；缺翻译时回落缩写。 */
+    /** 菜单选项文案：跨度与月份都按界面语言生成；中文「近3个月/全年/1月…12月」，英文沿用原缩写。 */
     function heatRangeOptionLabel(option, t) {
+      if (typeof option.value === 'number') {
+        return heatMonthLabels(t)[option.value - 1] ?? option.label
+      }
       const key = option.value === '3m'
         ? 'heatRange3m'
         : option.value === '6m'
@@ -844,12 +894,13 @@ window.__ModuleLoader__.load({
     /**
      * 按周一对齐的每日网格。列是周，行是周一…周日；范围外补齐格为 null。
      * 月份刻度记录在当月 1 日（范围首月记在首日）所在的列，因此刻度与格子严格对齐。
+     * 月份与星期文案按界面语言注入：中文显示「1月…12月」与「一…日」，英文沿用缩写。
      */
-    function buildHeatGrid(days, range) {
+    function buildHeatGrid(days, range, monthLabels = HEAT_MONTH_LABELS_ZH, weekdayLabels = HEAT_WEEKDAY_LABELS_ZH) {
       const list = Array.isArray(days) ? days : []
       const from = Number(range?.from)
       const to = Number(range?.to)
-      const result = { weeks: [], months: [], weekdayLabels: HEAT_WEEKDAY_LABELS.slice() }
+      const result = { weeks: [], months: [], weekdayLabels: weekdayLabels.slice() }
       if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) return result
 
       const byKey = new Map()
@@ -893,7 +944,7 @@ window.__ModuleLoader__.load({
           const isFirst = firstInRange
           firstInRange = false
           if (at.getDate() === 1 || isFirst) {
-            const marker = { abbr: HEAT_MONTH_ABBR[at.getMonth()], column }
+            const marker = { abbr: monthLabels[at.getMonth()], column }
             const existing = months.findIndex((month) => month.column === column)
             if (existing >= 0) months[existing] = marker
             else months.push(marker)
@@ -1125,6 +1176,7 @@ window.__ModuleLoader__.load({
         showSubagents: value?.showSubagents !== false,
         durationFormat: normalizeDurationFormat(value?.durationFormat),
         sidebarShowName: value?.sidebarShowName !== false,
+        approximateNoticeDismissed: value?.approximateNoticeDismissed === true,
       }
     }
 
@@ -1136,6 +1188,7 @@ window.__ModuleLoader__.load({
         showSubagents: draft.showSubagents === true,
         durationFormat: normalizeDurationFormat(draft.durationFormat),
         sidebarShowName: draft.sidebarShowName !== false,
+        approximateNoticeDismissed: draft.approximateNoticeDismissed === true,
       }
     }
 
@@ -1434,7 +1487,9 @@ window.__ModuleLoader__.load({
       const tip = buildSidebarTip(stats, t, format)
       const activeMs = sidebarDisplayMs(stats)
       const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(activeMs, format)
-      const displayName = typeof workspaceTitle === 'string' && workspaceTitle.trim() !== '' ? workspaceTitle : t('title')
+      // 宿主侧栏已用 label 显示插件名；这里只在有工作区标题时补一行，避免重复出现两个名字。
+      const workspaceName = typeof workspaceTitle === 'string' ? workspaceTitle.trim() : ''
+      const displayName = workspaceName !== '' && workspaceName !== t('title') ? workspaceName : ''
       const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(finite(stats?.onlineMs), format)} · ${t('activeLabel')} ${formatDuration(activeMs, format)} · ${t('taskLabel')} ${formatDuration(finite(stats?.taskMs), format)}`
       const handlers = {
         onMouseEnter: (event) => hover?.show?.(tip, event),
@@ -1462,7 +1517,7 @@ window.__ModuleLoader__.load({
             className: `chronoscope-nav-time${stats?.activeRunning ? ' is-live' : ''}`,
           }, value)
         : null,
-      wide && showName
+      wide && showName && displayName !== ''
         ? h('span', { className: 'chronoscope-nav-name' }, displayName)
         : null,
       wide
@@ -1736,11 +1791,12 @@ window.__ModuleLoader__.load({
         (Array.isArray(data?.workspaces) && data.workspaces.some((row) => row.approximate === true))
     }
 
-    function renderApproximateNotice(t, visible) {
+    function renderApproximateNotice(t, visible, { onDismiss } = {}) {
       if (!visible) return null
       return h('div', { className: 'cs-backfill cs-approx', role: 'status' },
         h('span', { className: 'cs-approx-label' }, t('approximateTag')),
-        h('span', null, t('approximateNotice')))
+        h('span', null, t('approximateNotice')),
+        h('button', { type: 'button', className: 'cs-approx-dismiss', 'aria-label': t('approximateDismiss'), onClick: onDismiss }, '×'))
     }
 
     /**
@@ -1958,6 +2014,21 @@ window.__ModuleLoader__.load({
       }
       const hide = () => setTip(null)
       return { tip, show, hide }
+    }
+
+    /**
+     * 行内说明一律走统一 HoverTip（fixed 定位 + 视口夹取），不再使用原生 title 属性，
+     * 避免小字被容器裁切；同时保留键盘聚焦时的同等呈现。
+     */
+    function hoverTipProps(hoverTip, title, rows = []) {
+      if (!hoverTip || !title) return {}
+      const content = { title, rows }
+      return {
+        onMouseEnter: (event) => hoverTip.show?.(content, event),
+        onMouseLeave: () => hoverTip.hide?.(),
+        onFocus: (event) => hoverTip.show?.(content, event),
+        onBlur: () => hoverTip.hide?.(),
+      }
     }
 
     function buildTrendTip(bucket, period, t, isZh, format = 'hms') {
@@ -2185,35 +2256,67 @@ window.__ModuleLoader__.load({
           h('span', { className: 'cs-metric-value' }, formatDuration(cycle.taskMs, format))))
     }
 
-    /** 口径信息可悬浮、聚焦或点击查看；Escape 关闭，文字留在无障碍名称中。 */
+    /** 口径说明：点击展开的 popover，与图表浮层共用 fixed 定位与视口夹取，不再被容器裁切。 */
     function Info({ message }) {
       const [open, setOpen] = React.useState(false)
-      const [dismissed, setDismissed] = React.useState(false)
-      return h('span', { className: `cs-info${open ? ' is-open' : ''}${dismissed ? ' is-dismissed' : ''}` },
+      const [position, setPosition] = React.useState(null)
+      const anchorRef = React.useRef(null)
+      const tipRef = React.useRef(null)
+      const place = () => {
+        const anchor = anchorRef.current
+        const node = tipRef.current
+        if (!anchor || !node || typeof window === 'undefined') return
+        if (typeof anchor.getBoundingClientRect !== 'function') return
+        const rect = anchor.getBoundingClientRect()
+        setPosition(clampTipPosition(
+          { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+          { width: node.offsetWidth ?? 0, height: node.offsetHeight ?? 0 },
+          { width: window.innerWidth ?? 0, height: window.innerHeight ?? 0 },
+        ))
+      }
+      React.useEffect(() => {
+        if (!open) {
+          setPosition(null)
+          return undefined
+        }
+        place()
+        const outside = (event) => {
+          const target = event?.target
+          if (anchorRef.current?.contains?.(target) || tipRef.current?.contains?.(target)) return
+          setOpen(false)
+        }
+        const onKey = (event) => { if (event?.key === 'Escape') setOpen(false) }
+        if (typeof document !== 'undefined') {
+          document.addEventListener('pointerdown', outside, true)
+          document.addEventListener('keydown', onKey)
+        }
+        if (typeof window.addEventListener === 'function') window.addEventListener('resize', place)
+        return () => {
+          if (typeof document !== 'undefined') {
+            document.removeEventListener('pointerdown', outside, true)
+            document.removeEventListener('keydown', onKey)
+          }
+          if (typeof window.removeEventListener === 'function') window.removeEventListener('resize', place)
+        }
+      }, [open])
+      return h('span', { className: `cs-info${open ? ' is-open' : ''}` },
         h('button', {
+          ref: anchorRef,
           type: 'button', 'aria-label': message, 'aria-expanded': open,
-          onClick: () => {
-            if (open) {
-              setOpen(false)
-              setDismissed(true)
-            } else {
-              setDismissed(false)
-              setOpen(true)
-            }
-          },
-          onFocus: () => { setDismissed(false); setOpen(true) },
-          onBlur: () => { setOpen(false); setDismissed(false) },
-          onMouseLeave: () => setDismissed(false),
-          onKeyDown: (event) => {
-            if (event.key !== 'Escape') return
-            setOpen(false)
-            setDismissed(true)
-          },
+          onClick: () => setOpen((value) => !value),
         },
           h('svg', { viewBox: '0 0 20 20', width: 16, height: 16, fill: 'none', 'aria-hidden': true },
             h('circle', { cx: 10, cy: 10, r: 7.5, stroke: 'currentColor', strokeWidth: 1.4 }),
             h('path', { d: 'M10 9v4M10 6.5h.01', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' }))),
-        h('span', { className: 'cs-info-tip', role: 'tooltip' }, message))
+        h('span', {
+          ref: tipRef,
+          className: 'cs-info-tip',
+          role: 'tooltip',
+          'data-placement': position?.placement ?? 'top',
+          style: position
+            ? { left: `${position.left}px`, top: `${position.top}px` }
+            : { left: '0px', top: '0px', visibility: 'hidden' },
+        }, message))
     }
 
     function renderInfo(message) {
@@ -2330,21 +2433,30 @@ window.__ModuleLoader__.load({
     }
 
     /** 排名与占比沿用 Host 的工作区累计工时，不把并发任务相加当作实际占用。 */
-    function renderWorkspaceRanking(data, t, format = 'hms') {
+    function renderWorkspaceRanking(data, t, format = 'hms', hoverTip = null) {
       const rows = [...data.workspaces].filter((row) => row.taskMs > 0).sort((a, b) => b.taskMs - a.taskMs).slice(0, 5)
       return h('section', { className: 'cs-card cs-ranking' },
         h('div', { className: 'cs-card-head' }, h('div', { className: 'cs-card-heading' },
           h('h2', null, t('workspaceRanking')),
           renderInfo([t('sumFoot'), t('accumulated')].join('；')))),
         rows.length === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
-          : h('div', { className: 'cs-ranking-list' }, rows.map((row, index) =>
-              h('div', { className: 'cs-ranking-row', key: row.key, title: `${row.workspaceTitle ?? t('unassigned')} · ${t('taskLabel')} ${formatDuration(row.taskMs, format)} · ${t('colShare')} ${formatPercent(row.share)}` },
+          : h('div', { className: 'cs-ranking-list' }, rows.map((row, index) => {
+              const name = row.workspaceTitle ?? t('unassigned')
+              return h('div', {
+                className: 'cs-ranking-row',
+                key: row.key,
+                ...hoverTipProps(hoverTip, name, [
+                  { key: 'task', label: t('taskLabel'), value: formatDuration(row.taskMs, format) },
+                  { key: 'share', label: t('colShare'), value: formatPercent(row.share) },
+                ]),
+              },
                 h('span', { className: 'cs-rank-index' }, String(index + 1).padStart(2, '0')),
-                h('span', { className: 'cs-ranking-name', title: row.workspaceTitle ?? t('unassigned') }, row.workspaceTitle ?? t('unassigned')),
+                h('span', { className: 'cs-ranking-name' }, name),
                 h('span', { className: 'cs-ranking-bar', 'aria-hidden': true },
                   h('i', { style: { width: formatPercent(row.share) } })),
                 h('span', { className: 'cs-ranking-time' }, formatDuration(row.taskMs, format)),
-                h('span', { className: 'cs-ranking-share' }, formatPercent(row.share))))))
+                h('span', { className: 'cs-ranking-share' }, formatPercent(row.share)))
+            })))
     }
 
     /** 恢复票 03 的任务构成展示：四部分之和等于任务时长，历史任务显示「未拆分」。 */
@@ -2361,7 +2473,7 @@ window.__ModuleLoader__.load({
       return h('span', { className: 'cs-session-breakdown' }, parts.join(' · ') || t('notBroken'))
     }
 
-    function renderSessionRow(session, t, nowMs, subagentRows, format = 'hms') {
+    function renderSessionRow(session, t, nowMs, subagentRows, format = 'hms', hoverTip = null) {
       const subagents = subagentRows.length
       const subagentDuration = formatDuration(
         subagentRows.reduce((sum, row) => sum + row.durationMs, 0),
@@ -2369,9 +2481,9 @@ window.__ModuleLoader__.load({
       )
       const sessionTitle = session.sessionTitle ?? t('unknownSession')
       return h('div', { className: 'cs-session', key: session.sessionId },
-        h('span', { className: 'cs-session-title', title: sessionTitle }, sessionTitle),
+        h('span', { className: 'cs-session-title', ...hoverTipProps(hoverTip, sessionTitle) }, sessionTitle),
         session.taskRunning ? h('span', { className: 'cs-chip is-live' }, t('runningTag')) : null,
-        session.approximate ? h('span', { className: 'cs-chip', title: t('approximateHint') }, t('approximateTag')) : null,
+        session.approximate ? h('span', { className: 'cs-chip', ...hoverTipProps(hoverTip, t('approximateHint')) }, t('approximateTag')) : null,
         h('span', { className: 'cs-session-stat', 'data-label': t('activeLabel') }, `${t('activeLabel')} ${formatDuration(session.activeMs, format)}`),
         h('span', { className: 'cs-session-stat', 'data-label': t('taskLabel') }, `${t('taskLabel')} ${formatDuration(session.taskMs, format)}`),
         h('span', { className: 'cs-session-stat' }, `${session.taskCount} ${t('taskCountUnit')}`),
@@ -2381,14 +2493,14 @@ window.__ModuleLoader__.load({
         subagents > 0
           ? h('span', {
             className: 'cs-session-subagents',
-            title: subagentRows.map((row) => row.sessionTitle ?? row.sessionId).join('、'),
+            ...hoverTipProps(hoverTip, subagentRows.map((row) => row.sessionTitle ?? row.sessionId).join('、')),
           }, `${t('subagentDetail')} · ${t('subagentDetailHint')
             .replace('{count}', String(subagents))
             .replace('{duration}', subagentDuration)}`)
           : null)
     }
 
-    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms') {
+    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null) {
       const workspaceTitle = row.workspaceTitle ?? t('unassigned')
       return h('div', { className: 'cs-group', key: row.key },
         h('div', {
@@ -2406,7 +2518,7 @@ window.__ModuleLoader__.load({
           },
         },
           h('div', { className: 'cs-cell cs-name' },
-            h('span', { className: 'cs-name-text', title: workspaceTitle }, workspaceTitle),
+            h('span', { className: 'cs-name-text', ...hoverTipProps(hoverTip, workspaceTitle) }, workspaceTitle),
             h('span', { className: 'cs-name-sub' }, `${row.sessions.length} ${t('sessionsUnit')}`)),
           h('div', { className: 'cs-cell cs-active cs-num', 'data-label': t('colActive') }, formatDuration(row.activeMs, format)),
           h('div', { className: 'cs-cell cs-task cs-num', 'data-label': t('colTask') }, formatDuration(row.taskMs, format)),
@@ -2421,7 +2533,7 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'cs-sessions' }, row.sessions.length === 0
               ? h('div', { className: 'cs-empty is-small' }, t('emptyWorkspace'))
               : row.sessions.map((session) =>
-                renderSessionRow(session, t, nowMs, subagentByParent[session.sessionId] ?? [], format)))
+                renderSessionRow(session, t, nowMs, subagentByParent[session.sessionId] ?? [], format, hoverTip)))
           : null)
     }
 
@@ -2783,32 +2895,44 @@ window.__ModuleLoader__.load({
           return () => { active = false }
         }, [ctx, loadNonce])
 
-        const patch = (key, value) =>
-          setDraft((previous) => ({ ...(previous ?? settingsDraft(null)), [key]: value }))
-
-        // 选择格式只动草稿并广播即时预览；真正写 Host 仍要等「保存设置」。
-        const selectDurationFormat = (value) => {
-          const format = normalizeDurationFormat(value)
-          patch('durationFormat', format)
-          notifyDurationFormatPreview(format)
+        // 即点即存：与 Dashboard 设置页同一套行为，改动立刻写 Host。
+        const savedBadgeTimerRef = React.useRef(null)
+        const showSavedBadge = () => {
+          setMessage(t('savedBadge'))
+          setPhase('saved')
+          if (savedBadgeTimerRef.current !== null) window.clearTimeout(savedBadgeTimerRef.current)
+          savedBadgeTimerRef.current = window.setTimeout(() => {
+            savedBadgeTimerRef.current = null
+            setMessage('')
+          }, 1000)
         }
-
-        const onSave = async () => {
-          // 只有成功读到 Host 设置后才允许写入，避免用草稿覆盖未读到的真实值。
-          if (draft === null || phase === 'load-error') return
-          setPhase('saving')
-          setMessage('')
+        const autoSave = async (next) => {
           try {
-            const saved = await callHost(ctx, 'setSettings', settingsPayload(draft))
+            const saved = await callHost(ctx, 'setSettings', settingsPayload(next))
             setDraft(settingsDraft(saved))
-            setMessage(t('settingsSaved'))
-            setPhase('saved')
+            showSavedBadge()
             // 只广播「变了」，具体值由仪表盘重新向 Host 取。
             notifySettingsChanged()
           } catch {
             setMessage(t('settingsSaveError'))
             setPhase('error')
           }
+        }
+        const patch = (key, value) => {
+          if (draft === null || phase === 'load-error') return
+          const next = { ...draft, [key]: value }
+          setDraft(next)
+          setMessage('')
+          void autoSave(next)
+        }
+        const selectDurationFormat = (value) => {
+          const format = normalizeDurationFormat(value)
+          if (draft === null || phase === 'load-error') return
+          const next = { ...draft, durationFormat: format }
+          setDraft(next)
+          setMessage('')
+          notifyDurationFormatPreview(format)
+          void autoSave(next)
         }
 
         const idleOptions = Array.from({ length: 15 }, (_, index) => String(index + 1))
@@ -2878,9 +3002,6 @@ window.__ModuleLoader__.load({
                   ? h('p', { className: 'cs-notice-empty' }, t('loading'))
                   : renderBackfillNotices(noticeState.data, t)),
             h('div', { className: 'cs-settings-footer' },
-              h('button', {
-                type: 'button', className: 'cs-btn', disabled: busy, onClick: onSave,
-              }, phase === 'saving' ? t('settingsSaving') : t('settingsSave')),
               loadFailed
                 ? h('button', {
                     type: 'button', className: 'cs-btn', onClick: () => setLoadNonce((value) => value + 1),
@@ -3294,7 +3415,7 @@ window.__ModuleLoader__.load({
 
     /**
      * 每日时长热力图：每格一天，颜色只表示当天活跃时长深浅。
-     * 3m/6m 是周一开头的周网格，单月是 7 列日历，全年是 12 月 × 31 天矩阵加月度条；
+     * 全年、3m/6m 共用 7 行周网格，单月是 7 列日历；全年把月份刻度放在网格下方。
      * 三种布局共用同一套格子浮层，无观测格只显示「无记录」。
      * focusPage 为真时重排为首屏：左侧自适应网格 + 右侧六项范围统计 + 下方 12 个月度条。
      */
@@ -3304,6 +3425,9 @@ window.__ModuleLoader__.load({
         rangeValue = HEAT_DEFAULT_RANGE, onSelectRange,
         focus = null, onToggleFocus, focusPage = false,
       } = props
+      // 月份与星期文案按界面语言生成：中文全中文，英文界面沿用缩写。
+      const monthLabels = heatMonthLabels(t)
+      const weekdayLabels = heatWeekdayLabels(t)
       // 组件测试可能只传 series（范围在 series.range 里）；显式传了 rangeValue 才以它为准。
       const hasRangeValue = props.rangeValue !== undefined && props.rangeValue !== null
       const layout = heatLayoutFor(rangeValue)
@@ -3320,7 +3444,7 @@ window.__ModuleLoader__.load({
       const titleText = rawTitle === titleKey || rawTitle === ''
         ? fallbackTitle
         : layout === 'month' && !focusPage
-          ? rawTitle.replace('{month}', HEAT_MONTH_ABBR[month])
+          ? rawTitle.replace('{month}', monthLabels[month])
           : rawTitle
       const hasSeries = series !== null && series !== undefined && Array.isArray(series.days)
       const allDays = hasSeries ? series.days : []
@@ -3390,39 +3514,7 @@ window.__ModuleLoader__.load({
           .replace('{observedDays}', String(summary.observedDays))
         const summaryNode = h('div', { className: 'heat-summary' }, summaryText)
 
-        if (layout === 'year') {
-          const matrix = buildYearMatrix(scopedDays, year)
-          const rows = matrix.months.map((entry) => h('div', {
-            key: `year-${entry.month}`,
-            className: 'heat-year-row',
-          },
-            h('span', { className: 'heat-year-label' }, entry.abbr),
-            entry.days.map((cell, index) => (
-              cell === null
-                ? renderPad(`pad-${entry.month}-${index}`)
-                : renderCell(cell, `${entry.abbr}-${index}`)
-            ))))
-          body = [
-            h('div', { className: 'heat-year' },
-              h('div', { className: 'heat-year-grid' }, rows),
-              renderMonthBars(matrix.bars, t, format)),
-            ...(focusPage ? [] : [summaryNode]),
-          ]
-        } else if (layout === 'month') {
-          const grid = buildMonthGrid(scopedDays, resolved)
-          const cells = grid.weeks.flat().map((cell, index) => (
-            cell === null ? renderPad(`pad-${index}`) : renderCell(cell, cell.dateKey)
-          ))
-          body = [
-            h('div', { className: 'heat-month' },
-              h('div', { className: 'heat-month-weekdays' }, HEAT_WEEKDAY_LABELS.map((label) =>
-                h('span', { key: label }, label))),
-              h('div', { className: 'heat-month-grid' }, cells)),
-            ...(focusPage ? [] : [summaryNode]),
-          ]
-        } else {
-          const range = hasRangeValue ? resolved : (series.range ?? resolved)
-          const grid = buildHeatGrid(scopedDays, range)
+        const renderWeekCells = (grid) => {
           const cells = []
           for (const week of grid.weeks) {
             for (const cell of week) {
@@ -3433,8 +3525,11 @@ window.__ModuleLoader__.load({
               cells.push(renderCell(cell, cell.dateKey))
             }
           }
-          // 首屏网格宽度不再固定：月份刻度改用与格子相同的等比列，随卡片一起铺满。
-          const monthRow = h('div', {
+          return cells
+        }
+        const renderWeekLabels = (grid) => ({
+          // 首屏网格宽度不固定：月份刻度改用与格子相同的等比列，随卡片一起铺满。
+          monthRow: h('div', {
             className: `heat-months${focusPage ? ' is-focus' : ''}`,
             style: focusPage ? { gridTemplateColumns: `repeat(${grid.weeks.length}, minmax(0, 1fr))` } : undefined,
           }, grid.months.map((entry) =>
@@ -3444,17 +3539,39 @@ window.__ModuleLoader__.load({
               style: focusPage
                 ? { gridColumnStart: entry.column + 1 }
                 : { left: `calc(${entry.column} * (var(--cs-heat-cell) + var(--cs-heat-gap)))` },
-            }, entry.abbr)))
-          const weekdayRow = h('div', { className: 'heat-weekdays' },
+            }, entry.abbr))),
+          weekdayRow: h('div', { className: 'heat-weekdays' },
             h('span', { className: 'heat-weekdays-spacer', 'aria-hidden': true }),
-            h('div', { className: 'heat-weekday-list' }, HEAT_WEEKDAY_LABELS.map((label) =>
-              h('span', { key: label }, label))))
+            h('div', { className: 'heat-weekday-list' }, weekdayLabels.map((label) =>
+              h('span', { key: label }, label)))),
+        })
+
+        if (layout === 'month') {
+          const grid = buildMonthGrid(scopedDays, resolved, weekdayLabels)
+          const cells = grid.weeks.flat().map((cell, index) => (
+            cell === null ? renderPad(`pad-${index}`) : renderCell(cell, cell.dateKey)
+          ))
           body = [
-            h('div', { className: 'heatmap-body' },
+            h('div', { className: 'heat-month' },
+              h('div', { className: 'heat-month-weekdays' }, weekdayLabels.map((label) =>
+                h('span', { key: label }, label))),
+              h('div', { className: 'heat-month-grid' }, cells)),
+            ...(focusPage ? [] : [summaryNode]),
+          ]
+        } else {
+          // 全年与 3m/6m 共用 7 行周网格；全年把月份刻度移到网格下方，贴近参考图的扁宽比例。
+          const isYear = layout === 'year'
+          const range = hasRangeValue ? resolved : (series.range ?? resolved)
+          const grid = buildHeatGrid(scopedDays, range, monthLabels, weekdayLabels)
+          const cells = renderWeekCells(grid)
+          const { monthRow, weekdayRow } = renderWeekLabels(grid)
+          body = [
+            h('div', { className: `heatmap-body${isYear ? ' is-year' : ''}` },
               weekdayRow,
               h('div', { className: 'heat-plot' },
-                monthRow,
-                h('div', { className: 'heat-weekgrid' }, cells))),
+                isYear ? null : monthRow,
+                h('div', { className: 'heat-weekgrid' }, cells),
+                isYear ? monthRow : null)),
             ...(focusPage ? [] : [summaryNode]),
           ]
         }
@@ -3462,11 +3579,9 @@ window.__ModuleLoader__.load({
       let content = body
       if (focusPage) {
         const main = Array.isArray(body) ? body.slice() : [body]
-        // 3m/单月没有全年矩阵，也补一排 12 个月度条填充下方空白；全年沿用已有月度条。
-        if (layout !== 'year') {
-          const matrix = buildYearMatrix(scopedDays, year)
-          main.push(renderMonthBars(matrix.bars, t, format, 'heat-month-bars heat-focus-month-bars'))
-        }
+        // 主视图全年已改为周网格，12 个月月度条只保留在首屏作为补充数值面板。
+        const matrix = buildYearMatrix(scopedDays, year, monthLabels)
+        main.push(renderMonthBars(matrix.bars, t, format, 'heat-month-bars heat-focus-month-bars'))
         const peakDay = focusSummary.peakDay
         const peakDaySource = peakDay === null ? null : scopedDays.find((day) => day?.dateKey === peakDay.dateKey)
         const peakDayText = peakDay === null
@@ -3546,7 +3661,7 @@ window.__ModuleLoader__.load({
           renderCycles(data, t, period, onSelectPeriod, durationFormat),
           renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
           renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat),
-          renderWorkspaceRanking(data, t, durationFormat),
+          renderWorkspaceRanking(data, t, durationFormat, hoverTip),
           renderRecentSessions(data, t, nowMs, onOpenWorkspace, durationFormat),
           renderDailyHeatmap({
             series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
@@ -3612,7 +3727,7 @@ window.__ModuleLoader__.load({
     function renderDetailsView(props) {
       const {
         data, t, isZh, query, onQueryChange, durationFormat,
-        expanded, onToggleRow, nowMs, subagentByParent,
+        expanded, onToggleRow, nowMs, subagentByParent, hoverTip = null,
       } = props
       const rows = filterWorkspaces(data?.workspaces, query)
       const hasQuery = String(query ?? '').trim() !== ''
@@ -3644,7 +3759,7 @@ window.__ModuleLoader__.load({
             ? h('div', { className: 'cs-empty' }, t(hasQuery ? 'detailsEmpty' : 'emptyDashboard'))
             : h('div', { className: 'cs-table-body' }, rows.map((row) =>
                 renderWorkspaceRow(row, expanded?.[row.key] === true, () => onToggleRow?.(row.key),
-                  t, nowMs, subagentByParent ?? {}, durationFormat)))),
+                  t, nowMs, subagentByParent ?? {}, durationFormat, hoverTip)))),
       ]
     }
 
@@ -3652,17 +3767,39 @@ window.__ModuleLoader__.load({
      * Dashboard 内设置页：表单值来自 Host 草稿，外观/配色来自页面本地主题状态。
      * 纯渲染函数便于组成测试断言控件结构，数据加载与保存逻辑留在 createPage。
      */
+    /** 从备份记录里取最早/最晚观测时刻，给导入预览一行时间范围；无有效时刻时返回空串。 */
+    function importPreviewRange(payload) {
+      let min = Infinity
+      let max = -Infinity
+      for (const record of [...(payload?.intervals ?? []), ...(payload?.tasks ?? [])]) {
+        if (record === null || typeof record !== 'object') continue
+        const start = Number(record.start)
+        const end = Number(record.end ?? record.lastHeartbeat ?? record.lastEventAt ?? start)
+        if (Number.isFinite(start)) { min = Math.min(min, start); max = Math.max(max, start) }
+        if (Number.isFinite(end)) { min = Math.min(min, end); max = Math.max(max, end) }
+      }
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return ''
+      const day = (ms) => {
+        const date = new Date(ms)
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+      }
+      return `${day(min)} — ${day(max)}`
+    }
+
     function renderSettingsView(props) {
       const {
         t, draft, phase, message, noticeState, appearance, palette,
         dataBusy = '', dataMessage = null, clearStep = false, retrying = false, retryError = null,
-        onPatch, onSelectFormat, onSave, onRetryLoad, onExport, onRequestClear, onCancelClear, onClear,
+        importPreview = null, importRestoreSettings = false, importError = '',
+        onPatch, onSelectFormat, onRetryLoad, onExport, onRequestClear, onCancelClear, onClear,
+        onPickImportFile, onCancelImport, onImport, onToggleImportSettings, onShowApproximate,
         onRecheckBackfill, onCycleAppearance, onChangePalette,
       } = props
       const loadFailed = phase === 'load-error'
       const busy = phase === 'saving' || draft === null || loadFailed
       const idleOptions = Array.from({ length: 15 }, (_, index) => String(index + 1))
       const appearanceMode = normalizeAppearance(appearance)
+      const importRange = importPreview ? importPreviewRange(importPreview.payload) : ''
       return [h('div', { className: 'cs-settings cs-settings-board' },
         h('header', { className: 'cs-settings-hero' },
           h('h2', { className: 'cs-settings-title' }, t('settingsPageTitle')),
@@ -3688,16 +3825,17 @@ window.__ModuleLoader__.load({
             h('div', { className: 'cs-settings-row' },
               h('div', null, h('div', { className: 'cs-settings-label' }, t('paletteLabel'))),
               h('div', { className: 'cs-settings-control' },
-                h(Select, {
-                  value: palette,
-                  options: [
-                    { value: 'blue', label: t('paletteBlue') },
-                    { value: 'stone', label: t('paletteStone') },
-                    { value: 'clay', label: t('paletteClay') },
-                  ],
-                  ariaLabel: t('paletteLabel'),
-                  onChange: onChangePalette,
-                })))),
+                h('div', { className: 'cs-settings-swatches' },
+                  ['blue', 'stone', 'clay'].map((value) => {
+                    const labelKey = value === 'blue' ? 'paletteBlue' : value === 'stone' ? 'paletteStone' : 'paletteClay'
+                    return h('button', {
+                      key: value, type: 'button',
+                      className: `cs-swatch-preview cs-swatch-${value}${palette === value ? ' is-on' : ''}`,
+                      'aria-label': t(labelKey),
+                      'aria-pressed': palette === value,
+                      onClick: () => onChangePalette?.(value),
+                    }, h('span', { className: 'cs-swatch-dot', 'aria-hidden': true }), t(labelKey))
+                  }))))),
           h('section', { className: 'cs-settings-card' },
             h('h3', null, t('settingsSectionGeneral')),
             settingsRow(t, 'settingsIdleLabel', 'settingsIdleHint',
@@ -3768,11 +3906,46 @@ window.__ModuleLoader__.load({
                 type: 'button', className: 'cs-btn', disabled: dataBusy !== '',
                 onClick: () => onExport?.('csv'),
               }, dataBusy === 'csv' ? t('exporting') : t('exportCsv')),
+              h('label', { className: 'cs-btn cs-btn-file' },
+                t('importData'),
+                h('input', {
+                  type: 'file', accept: '.json,application/json', className: 'cs-file-input',
+                  'aria-label': t('importData'), disabled: dataBusy !== '',
+                  onChange: (event) => onPickImportFile?.(event),
+                })),
               h('span', { className: 'cs-data-spacer' }),
               h('button', {
                 type: 'button', className: 'cs-btn is-danger', disabled: dataBusy !== '',
                 onClick: () => onRequestClear?.(),
               }, t('clearData'))),
+            importPreview
+              ? h('div', { className: 'cs-import-preview' },
+                  h('strong', null, t('importPreviewTitle')),
+                  h('span', null, `${String(importPreview.filename ?? '')} · ${t('importIntervals')} ${importPreview.payload?.intervals?.length ?? 0} · ${t('importTasks')} ${importPreview.payload?.tasks?.length ?? 0}`),
+                  importRange ? h('span', { className: 'cs-settings-row-hint' }, importRange) : null,
+                  h('span', { className: 'cs-settings-row-hint' }, t('importHint')),
+                  h('label', { className: 'cs-settings-switch' },
+                    h('input', {
+                      type: 'checkbox', checked: importRestoreSettings === true,
+                      disabled: dataBusy !== '',
+                      onChange: (event) => onToggleImportSettings?.(event?.target?.checked === true),
+                    }),
+                    h('span', null, t('importRestoreSettings'))),
+                  h('div', { className: 'cs-clear-buttons' },
+                    h('button', {
+                      type: 'button', className: 'cs-btn', onClick: () => onCancelImport?.(),
+                    }, t('importCancel')),
+                    h('button', {
+                      type: 'button', className: 'cs-btn is-primary', disabled: dataBusy !== '',
+                      onClick: () => onImport?.(),
+                    }, dataBusy === 'import' ? t('loading') : t('importConfirm'))))
+              : null,
+            importError
+              ? h('div', { className: 'cs-data-status is-error', role: 'status' }, String(importError))
+              : null,
+            h('button', {
+              type: 'button', className: 'cs-text-link', onClick: () => onShowApproximate?.(),
+            }, t('approximateShowAgain')),
             clearStep
               ? h('div', { className: 'cs-clear-confirm', role: 'alertdialog', 'aria-label': t('clearStepTitle') },
                   h('strong', null, t('clearStepTitle')),
@@ -3794,9 +3967,6 @@ window.__ModuleLoader__.load({
                 }, dataMessage.text)
               : null)),
         h('div', { className: 'cs-settings-footer' },
-          h('button', {
-            type: 'button', className: 'cs-btn is-primary', disabled: busy, onClick: () => onSave?.(),
-          }, phase === 'saving' ? t('settingsSaving') : t('settingsSave')),
           loadFailed
             ? h('button', { type: 'button', className: 'cs-btn', onClick: () => onRetryLoad?.() }, t('settingsRetry'))
             : null,
@@ -3867,6 +4037,13 @@ window.__ModuleLoader__.load({
           catch { setPaletteSaveError(true) }
           notifyThemeChanged()
         }
+        // 配色与外观一样是单枚循环图标；只读 localStorage，不写 Host 统计设置。
+        const cyclePalette = () => {
+          const index = PALETTES.indexOf(normalizePalette(palette))
+          changePalette(PALETTES[(index + 1) % PALETTES.length])
+        }
+        const paletteNameKey = palette === 'stone' ? 'paletteStone' : palette === 'clay' ? 'paletteClay' : 'paletteBlue'
+        const paletteToggleLabel = `${t('paletteLabel')}：${t(paletteNameKey)}`
         const [expanded, setExpanded] = React.useState(() => {
           try {
             const value = JSON.parse(window.sessionStorage.getItem('chrono-scope.expanded') || '{}')
@@ -3894,6 +4071,15 @@ window.__ModuleLoader__.load({
         // 保存成功后 notifySettingsChanged 会触发一次重取；保留「已保存」反馈，
         // 不把设置页闪回加载态。重新进入设置页时再恢复正常加载态。
         const settingsSavedRef = React.useRef(false)
+        // 近似说明的关闭状态只存 Host；清空/恢复数据后自动重置为未关闭。
+        const [approxDismissed, setApproxDismissed] = React.useState(false)
+        React.useEffect(() => {
+          let active = true
+          callHost(ctx, 'getSettings', {}).then((value) => {
+            if (active) setApproxDismissed(value?.approximateNoticeDismissed === true)
+          }).catch(() => {})
+          return () => { active = false }
+        }, [ctx, settingsLoadNonce])
         const [noticeState, setNoticeState] = React.useState({ status: 'idle', data: null })
         const [noticeNonce, setNoticeNonce] = React.useState(0)
         const state = useDashboard(ctx, period, pollMs, refreshNonce)
@@ -3946,6 +4132,60 @@ window.__ModuleLoader__.load({
         const [clearStep, setClearStep] = React.useState(false)
         const [dataBusy, setDataBusy] = React.useState('')
         const [dataMessage, setDataMessage] = React.useState(null)
+        // 备份恢复：Client 只负责读文件与前置校验，预览确认后交给 Host importData 写库。
+        const [importPreview, setImportPreview] = React.useState(null)
+        const [importRestoreSettings, setImportRestoreSettings] = React.useState(false)
+        const [importError, setImportError] = React.useState('')
+        const rejectImport = (message) => {
+          setImportPreview(null)
+          setImportError(message)
+        }
+        const onPickImportFile = (event) => {
+          const file = event?.target?.files?.[0]
+          if (!file) return
+          setImportError('')
+          setDataMessage(null)
+          if (typeof FileReader === 'undefined') { rejectImport(t('importReadFailed')); return }
+          const reader = new FileReader()
+          reader.onload = () => {
+            let payload = null
+            try { payload = JSON.parse(String(reader.result ?? '')) } catch { rejectImport(t('importReadFailed')); return }
+            if (payload?.format !== 'chronoscope-export' || payload?.version !== 1 ||
+                !Array.isArray(payload.intervals) || !Array.isArray(payload.tasks)) {
+              rejectImport(t('importInvalid'))
+              return
+            }
+            setImportPreview({ payload, filename: String(file.name ?? '') })
+            setImportRestoreSettings(false)
+          }
+          reader.onerror = () => rejectImport(t('importReadFailed'))
+          try { reader.readAsText(file) } catch { rejectImport(t('importReadFailed')) }
+          // 允许连续选择同一个文件也重新触发 onChange。
+          if (event?.target) event.target.value = ''
+        }
+        const onCancelImport = () => { setImportPreview(null); setImportError('') }
+        const onImport = async () => {
+          if (importPreview === null || dataBusy !== '') return
+          setDataBusy('import')
+          setImportError('')
+          setDataMessage(null)
+          try {
+            await callHost(ctx, 'importData', {
+              ...importPreview.payload,
+              restoreSettings: importRestoreSettings === true,
+            })
+            setImportPreview(null)
+            setDataMessage({ text: t('importSuccess'), error: false })
+            // 导入产生了新的数据代次，近似说明重新显示。
+            setApproxDismissed(false)
+            await callHost(ctx, 'setSettings', { approximateNoticeDismissed: false }).catch(() => {})
+            notifySettingsChanged()
+          } catch (error) {
+            setImportError(String(error?.message ?? t('importReadFailed')))
+          } finally {
+            setDataBusy('')
+          }
+        }
 
         // 视图转场：旧视图先播 180ms viewOut，再换 view 播 300ms viewIn。
         // 减少动效偏好下直接到位；卸载时清掉未完成的计时器。
@@ -4017,31 +4257,44 @@ window.__ModuleLoader__.load({
           return () => { active = false }
         }, [ctx, settingsOpen, noticeNonce])
 
-        const patchSetting = (key, value) => {
-          setSettingsForm((previous) => previous === null ? previous : { ...previous, [key]: value })
-          setSettingsMessage('')
+        // 即点即存：任何设置控件改动都立刻写 Host，只给约 1 秒的轻量「已保存」角标。
+        const savedBadgeTimerRef = React.useRef(null)
+        const showSavedBadge = () => {
+          setSettingsMessage(t('savedBadge'))
+          setSettingsPhase('saved')
+          settingsSavedRef.current = true
+          if (savedBadgeTimerRef.current !== null) window.clearTimeout(savedBadgeTimerRef.current)
+          savedBadgeTimerRef.current = window.setTimeout(() => {
+            savedBadgeTimerRef.current = null
+            setSettingsMessage('')
+          }, 1000)
         }
-        const onSelectSettingsFormat = (value) => {
-          const format = normalizeDurationFormat(value)
-          setSettingsForm((previous) => previous === null ? previous : { ...previous, durationFormat: format })
-          setSettingsMessage('')
-          notifyDurationFormatPreview(format)
-        }
-        const onSaveSettings = async () => {
-          if (settingsForm === null || settingsPhase === 'saving') return
-          setSettingsPhase('saving')
-          setSettingsMessage('')
+        const autoSaveSettings = async (next) => {
           try {
-            const saved = await callHost(ctx, 'setSettings', settingsPayload(settingsForm))
+            const saved = await callHost(ctx, 'setSettings', settingsPayload(next))
             setSettingsForm(settingsDraft(saved))
-            setSettingsPhase('saved')
-            setSettingsMessage(t('settingsSaved'))
-            settingsSavedRef.current = true
+            showSavedBadge()
             notifySettingsChanged()
           } catch {
             setSettingsPhase('error')
             setSettingsMessage(t('settingsSaveError'))
           }
+        }
+        const patchSetting = (key, value) => {
+          if (settingsForm === null || settingsPhase === 'load-error') return
+          const next = { ...settingsForm, [key]: value }
+          setSettingsForm(next)
+          setSettingsMessage('')
+          void autoSaveSettings(next)
+        }
+        const onSelectSettingsFormat = (value) => {
+          const format = normalizeDurationFormat(value)
+          if (settingsForm === null || settingsPhase === 'load-error') return
+          const next = { ...settingsForm, durationFormat: format }
+          setSettingsForm(next)
+          setSettingsMessage('')
+          notifyDurationFormatPreview(format)
+          void autoSaveSettings(next)
         }
 
         const onExport = async (format) => {
@@ -4070,6 +4323,9 @@ window.__ModuleLoader__.load({
             await callHost(ctx, 'clearData', {})
             setClearStep(false)
             setDataMessage({ text: t('cleared'), error: false })
+            // 清空数据同样是新的数据代次，近似说明重新显示。
+            setApproxDismissed(false)
+            await callHost(ctx, 'setSettings', { approximateNoticeDismissed: false }).catch(() => {})
             // 广播而不把空状态写进本地：下一次取数由 Host 给出真实结果。
             notifySettingsChanged()
           } catch {
@@ -4146,7 +4402,25 @@ window.__ModuleLoader__.load({
                 h('span', null, t('retryHint')))))
         }
 
-        const hasApproximate = approximateNoticeVisible(data)
+        const hasApproximate = approximateNoticeVisible(data) && !approxDismissed
+        const onDismissApproximate = async () => {
+          setApproxDismissed(true)
+          try {
+            await callHost(ctx, 'setSettings', { approximateNoticeDismissed: true })
+            notifySettingsChanged()
+          } catch {
+            setApproxDismissed(false)
+          }
+        }
+        const onShowApproximate = async () => {
+          setApproxDismissed(false)
+          try {
+            await callHost(ctx, 'setSettings', { approximateNoticeDismissed: false })
+            notifySettingsChanged()
+          } catch {
+            setApproxDismissed(true)
+          }
+        }
         const renderView = () => {
           if (view === 'trend') {
             return renderTrendView({
@@ -4156,7 +4430,7 @@ window.__ModuleLoader__.load({
           if (view === 'details') {
             return renderDetailsView({
               data, t, isZh, query: detailsQuery, onQueryChange: setDetailsQuery,
-              durationFormat, expanded, onToggleRow, nowMs, subagentByParent,
+              durationFormat, expanded, onToggleRow, nowMs, subagentByParent, hoverTip,
             })
           }
           if (view === 'settings') {
@@ -4175,9 +4449,16 @@ window.__ModuleLoader__.load({
               retryError,
               onPatch: patchSetting,
               onSelectFormat: onSelectSettingsFormat,
-              onSave: onSaveSettings,
               onRetryLoad: () => setSettingsLoadNonce((value) => value + 1),
               onExport,
+              importPreview,
+              importRestoreSettings,
+              importError,
+              onPickImportFile,
+              onCancelImport,
+              onImport,
+              onToggleImportSettings: setImportRestoreSettings,
+              onShowApproximate,
               onRequestClear: () => { setClearStep(true); setDataMessage(null) },
               onCancelClear: () => setClearStep(false),
               onClear,
@@ -4205,33 +4486,34 @@ window.__ModuleLoader__.load({
                   h('h1', null, t('title')),
                   h('span', { className: 'cs-sub' }, t('subtitle')))),
               h('div', { className: 'cs-topbar-right' },
-                h('button', {
-                  type: 'button',
-                  className: 'cs-icon-toggle',
-                  title: appearanceToggleLabel,
-                  'aria-label': appearanceToggleLabel,
-                  onClick: cycleAppearanceMode,
-                }, h(AppearanceIcon, { mode: appearance })),
-                h('span', { className: 'cs-palette-label' }, t('paletteLabel'),
-                  h(Select, {
-                    value: palette,
-                    options: [
-                      { value: 'blue', label: t('paletteBlue') },
-                      { value: 'stone', label: t('paletteStone') },
-                      { value: 'clay', label: t('paletteClay') },
-                    ],
-                    ariaLabel: t('paletteLabel'),
-                    onChange: changePalette,
-                  })),
-                h('span', { className: `cs-live${data.activeRunning ? ' is-live' : ''}` },
-                  h('span', { className: 'cs-dot' }), t(data.activeRunning ? 'live' : 'idle')),
-                h('span', { className: `cs-live${data.taskRunning ? ' is-live' : ''}` },
-                  t(data.taskRunning ? 'taskRunning' : 'taskIdle')),
-                h('span', { className: 'cs-period-display' },
-                  h('span', null, t('currentPeriod')),
-                  h('strong', null, t(period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth'))))),
+                h('div', { className: 'cs-topbar-group' },
+                  h('span', { className: `cs-live${data.activeRunning ? ' is-live' : ''}` },
+                    h('span', { className: 'cs-dot' }), t(data.activeRunning ? 'live' : 'idle')),
+                  h('span', { className: `cs-live${data.taskRunning ? ' is-live' : ''}` },
+                    t(data.taskRunning ? 'taskRunning' : 'taskIdle')),
+                  h('span', { className: 'cs-period-display' },
+                    h('span', null, t('currentPeriod')),
+                    h('strong', null, t(period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth')))),
+                h('span', { className: 'cs-topbar-divider', 'aria-hidden': true }),
+                h('div', { className: 'cs-topbar-group' },
+                  h('button', {
+                    type: 'button',
+                    className: 'cs-icon-toggle',
+                    title: appearanceToggleLabel,
+                    'aria-label': appearanceToggleLabel,
+                    onClick: cycleAppearanceMode,
+                  }, h(AppearanceIcon, { mode: appearance })),
+                  h('button', {
+                    type: 'button',
+                    className: 'cs-icon-toggle cs-palette-toggle',
+                    title: paletteToggleLabel,
+                    'aria-label': paletteToggleLabel,
+                    onClick: cyclePalette,
+                  }, h('svg', { viewBox: '0 0 20 20', width: 16, height: 16, fill: 'none', 'aria-hidden': true },
+                    h('circle', { cx: 10, cy: 10, r: 7.5, stroke: 'currentColor', strokeWidth: 1.4 }),
+                    h('path', { d: 'M10 2.5a7.5 7.5 0 0 1 0 15z', fill: 'var(--cs-signal)', stroke: 'none' })))))),
             paletteSaveError ? h('div', { className: 'cs-alert', role: 'status' }, t('paletteSaveError')) : null,
-            renderApproximateNotice(t, hasApproximate),
+            renderApproximateNotice(t, hasApproximate, { onDismiss: onDismissApproximate }),
             state.status === 'error'
               ? h('div', { className: 'cs-alert' }, h('strong', null, t('errorTitle')), ` · ${t('retryHint')}`)
               : null,
@@ -4437,7 +4719,10 @@ window.__ModuleLoader__.load({
       .cs-brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
       .cs-brand-text h1 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 650; letter-spacing: -0.01em; }
       .cs-sub { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 16px; }
-      .cs-topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+      .cs-topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; min-width: 0; }
+      .cs-topbar-group { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+      .cs-topbar-divider { flex: none; width: 1px; height: 20px; background: var(--dsw-alias-border-l1); }
+      .cs-palette-toggle svg path { transition: fill 160ms ease; }
       .cs-live { display: inline-flex; align-items: center; gap: 6px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 16px; white-space: nowrap; }
       .cs-live.is-live { color: var(--dsw-alias-state-success-primary); }
       .cs-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dsw-alias-state-idle-primary); }
@@ -4461,11 +4746,24 @@ window.__ModuleLoader__.load({
         border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
       }
       .cs-backfill.is-running { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, var(--dsw-alias-border-l1)); }
-      .cs-approx {
+      /* 近似说明压成一行，长文案省略；关闭按钮只在悬停/聚焦时显色。 */
+      .cs-backfill.cs-approx {
+        display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 28%, var(--dsw-alias-border-l1));
         background: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, var(--dsw-alias-bg-layer-1));
       }
-      .cs-approx-label { font-weight: 650; color: var(--dsw-alias-brand-primary); }
+      .cs-approx-label { flex: none; font-weight: 650; color: var(--dsw-alias-brand-primary); }
+      .cs-approx .cs-approx-label + span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+      .cs-approx-dismiss {
+        appearance: none; flex: none; width: 22px; height: 22px; padding: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        margin-left: auto; border: 0; border-radius: 6px; background: transparent;
+        color: var(--dsw-alias-label-secondary); font: inherit; font-size: 15px; line-height: 1;
+        cursor: pointer; opacity: .5;
+      }
+      .cs-approx-dismiss:hover { opacity: 1; color: var(--dsw-alias-label-primary); background: color-mix(in srgb, var(--dsw-alias-label-secondary) 12%, transparent); }
+      .cs-approx-dismiss:focus-visible { opacity: 1; outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
       .cs-backfill.is-done {
         border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 30%, var(--dsw-alias-border-l1));
         background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 7%, var(--dsw-alias-bg-layer-1));
@@ -4571,7 +4869,8 @@ window.__ModuleLoader__.load({
       .cs-chevron { width: 7px; height: 7px; border-right: 1.5px solid var(--dsw-alias-label-secondary); border-bottom: 1.5px solid var(--dsw-alias-label-secondary); transform: rotate(45deg); transition: transform 0.15s ease; }
       .cs-chevron.is-open { transform: rotate(-135deg); }
       .cs-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-      .cs-sessions { display: flex; flex-direction: column; padding: 4px 0 8px 18px; border-bottom: 1px solid var(--dsw-alias-border-l1); background: color-mix(in srgb, var(--dsw-alias-bg-base) 45%, transparent); }
+      /* 会话明细改用同色系表面：整块圆角、左侧引导线，缩进与汇总行一致。 */
+      .cs-sessions { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 10px; border-left: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); }
       .cs-session { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 7px 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-session + .cs-session { border-top: 1px dashed var(--dsw-alias-border-l1); }
       .cs-session-title { color: var(--dsw-alias-label-primary); font-size: 12px; font-weight: 540; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
@@ -4592,7 +4891,7 @@ window.__ModuleLoader__.load({
       }
       @media (max-width: 860px) {
         .cs-topbar { flex-wrap: wrap; }
-        .cs-topbar-right { width: 100%; justify-content: space-between; }
+        .cs-topbar-right { width: 100%; justify-content: space-between; flex-wrap: wrap; }
         .cs-cycles { grid-template-columns: 1fr; gap: 10px; }
         .cs-cycle { padding: 10px 14px; }
         .cs-table-head { display: none; }
@@ -4690,11 +4989,9 @@ window.__ModuleLoader__.load({
       .cs-mark { width: 42px; height: 42px; border-radius: 13px; background: var(--dsw-alias-brand-primary); color: white; border: 0; }
       .cs-brand-text h1 { font-size: 20px; line-height: 26px; }
       .cs-sub { font-size: 12px; }
-      .cs-palette-label { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
-      .cs-palette-label .cs-select-btn { min-height: 34px; font-size: 12px; }
       .cs-icon-toggle {
         appearance: none; display: inline-flex; align-items: center; justify-content: center;
-        width: 34px; height: 34px; padding: 0; border-radius: 8px; cursor: pointer;
+        width: 30px; height: 30px; padding: 0; border-radius: 8px; cursor: pointer;
         color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-bg-layer-1);
         border: 1px solid var(--dsw-alias-border-l1);
         transition: color var(--cs-dur-tap) var(--cs-ease), border-color var(--cs-dur-tap) var(--cs-ease), background-color var(--cs-dur-tap) var(--cs-ease);
@@ -4721,12 +5018,10 @@ window.__ModuleLoader__.load({
       .cs-session { padding: 10px 0; }
       .cs-page button:focus-visible, .cs-summary:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 3px; }
       @media (max-width: 860px) { .cs-page { padding: 18px 16px 28px; } .cs-cycles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .cs-cycle { padding: 14px; } }
-      @media (max-width: 600px) { .cs-cycles { grid-template-columns: 1fr; } .cs-chart svg { height: 130px; } .cs-topbar-right { justify-content: flex-start; } }
+      @media (max-width: 600px) { .cs-cycles { grid-template-columns: 1fr; } .cs-chart svg { height: 130px; } .cs-topbar-right { justify-content: flex-start; flex-wrap: wrap; } }
 
-      /* 趋势与真实周期摘要并排；窄窗口保持阅读与操作空间。 */
+      /* 周期概览标题行可换行；右侧指标网格随卡片高度铺满。 */
       .cs-overview-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
-      .cs-insights { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(240px, 1fr); gap: 16px; align-items: stretch; }
-      .cs-period-summary { display: flex; flex-direction: column; gap: 12px; }
       .cs-summary-heading { display: flex; flex-direction: column; gap: 4px; }
       .cs-summary-heading h2 { font-size: 16px; line-height: 24px; margin: 0; }
       .cs-summary-feature { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 9px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 12px; }
@@ -4735,7 +5030,7 @@ window.__ModuleLoader__.load({
       .cs-summary-item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); padding-bottom: 9px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
       .cs-summary-item:last-child { border-bottom: 0; padding-bottom: 0; }
       .cs-summary-item strong { color: var(--dsw-alias-label-primary); font-size: 14px; font-variant-numeric: tabular-nums; }
-      .cs-card, .cs-cycle, .cs-segment, .cs-palette-label .cs-select-btn { transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
+      .cs-card, .cs-cycle, .cs-segment { transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease; }
       .cs-page { --cs-on-accent: #fff; }
       /* 深色外观：三档蓝按视觉深到浅翻转为浅/中/深，低值热力格仍可见。 */
       .cs-page.cs-appearance-dark {
@@ -4764,7 +5059,6 @@ window.__ModuleLoader__.load({
       .cs-mark, .cs-segment.is-active, .cs-cycle.is-current { color: var(--cs-on-accent); }
       .cs-appearance-dark .cs-cycle.is-current .cs-cycle-count, .cs-appearance-dark .cs-cycle.is-current .cs-metric-label, .cs-appearance-dark .cs-cycle.is-current .cs-cycle-metric.is-secondary .cs-metric-value { color: color-mix(in srgb, var(--cs-on-accent) 72%, var(--cs-surface)); }
       .cs-appearance-dark .cs-segment.is-active { color: var(--cs-on-accent); }
-      @media (max-width: 900px) { .cs-insights { grid-template-columns: 1fr; } }
       @media (prefers-reduced-motion: reduce) { .cs-page.cs-page *, .cs-page.cs-page *::before, .cs-page.cs-page *::after { transition-duration: 0s; animation-duration: 0s; } }
 
       /* 周期卡即入口，右上角只呈现当前选择。 */
@@ -4830,6 +5124,9 @@ window.__ModuleLoader__.load({
       .cs-ranking { grid-column: 1; grid-row: 3; }
       .cs-recent { grid-column: 2; grid-row: 3; }
       .cs-heatmap-card { grid-column: 3; grid-row: 3; }
+      /* 全年 7 行 × 53 列周网格需要整行宽度；最近会话顺势拉宽填满第 3 行，不留空列。 */
+      .cs-overview-grid > .cs-heatmap-card[data-range="year"] { grid-column: 1 / -1; grid-row: 4; }
+      .cs-overview-grid:has(> .cs-heatmap-card[data-range="year"]) > .cs-recent { grid-column: 2 / 4; }
       @media (max-width: 900px) {
         .cs-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .cs-hero { grid-column: 1; grid-row: 1; }
@@ -4839,12 +5136,16 @@ window.__ModuleLoader__.load({
         .cs-ranking { grid-column: 2; grid-row: 3; }
         .cs-recent { grid-column: 1; grid-row: 4; }
         .cs-heatmap-card { grid-column: 2; grid-row: 4; }
+        .cs-overview-grid > .cs-heatmap-card[data-range="year"] { grid-column: 1 / -1; grid-row: 5; }
+        .cs-overview-grid:has(> .cs-heatmap-card[data-range="year"]) > .cs-recent { grid-column: 1; grid-row: 4; }
       }
       @media (max-width: 600px) {
         .cs-overview-grid { grid-template-columns: 1fr; }
         .cs-hero, .cs-cycles, .cs-trend-card, .cs-composition, .cs-ranking, .cs-recent, .cs-heatmap-card {
           grid-column: 1; grid-row: auto;
         }
+        .cs-overview-grid > .cs-heatmap-card[data-range="year"] { grid-column: 1; grid-row: auto; }
+        .cs-overview-grid:has(> .cs-heatmap-card[data-range="year"]) > .cs-recent { grid-column: 1; grid-row: auto; }
       }
       .cs-analysis-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
       .cs-composition, .cs-ranking { min-height: 250px; display: flex; flex-direction: column; gap: 20px; }
@@ -4879,18 +5180,15 @@ window.__ModuleLoader__.load({
       .cs-axis { margin-left: 58px; }
       @media (max-width: 520px) { .cs-plot { padding-left: 50px; } .cs-y-axis { width: 43px; font-size: 9px; } .cs-axis { margin-left: 50px; } }
 
-      /* 解释性信息按需展开；聚焦和点击与悬浮同样可用。 */
+      /* 解释性信息只在点击后展开；与 HoverTip 共用 fixed 定位与视口夹取，不再被容器裁切。 */
       .cs-data-panels { display: flex; flex-direction: column; gap: 16px; }
       .cs-period-notice { padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
       .cs-info { position: relative; display: inline-flex; align-items: center; flex: none; }
       .cs-info button { appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
       .cs-info button:hover, .cs-info.is-open button, .cs-info button:focus-visible { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); }
       .cs-info button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
-      .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: absolute; z-index: 10; top: calc(100% + 5px); left: 0; width: max-content; max-width: min(260px, 65vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 5px 18px #0002; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: normal; transition: opacity var(--cs-dur-tap) var(--cs-ease), transform var(--cs-dur-tap) var(--cs-ease), visibility var(--cs-dur-tap) var(--cs-ease); }
-      .cs-info:hover .cs-info-tip, .cs-info:focus-within .cs-info-tip, .cs-info.is-open .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); }
-      .cs-info.is-dismissed .cs-info-tip { visibility: hidden; opacity: 0; }
-      .cs-section-head > .cs-info .cs-info-tip { left: auto; right: 0; }
-      .cs-overview-heading > .cs-info .cs-info-tip, .cs-foot > .cs-info .cs-info-tip { left: auto; right: 0; }
+      .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: fixed; z-index: 90; width: max-content; max-width: min(260px, 65vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 12px 30px #0003; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: normal; transition: opacity var(--cs-dur-tap) var(--cs-ease), transform var(--cs-dur-tap) var(--cs-ease), visibility var(--cs-dur-tap) var(--cs-ease); }
+      .cs-info.is-open .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); }
       .cs-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
       .cs-card:hover { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, var(--dsw-alias-border-l1)); }
       .cs-ranking-row { border-radius: 6px; transition: background-color 160ms ease; }
@@ -4933,11 +5231,27 @@ window.__ModuleLoader__.load({
       @media (max-width: 520px) { .cs-composition-body { flex-direction: column; align-items: center; } .cs-composition-list { width: 100%; } .cs-card-heading .cs-info-tip { left: -80px; width: 190px; max-width: calc(100vw - 100px); } }
 
       /* 数据管理：导出与清空。按钮沿用卡片体系，危险操作单独着色。 */
-      .cs-data-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .cs-data-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; }
+      .cs-btn-file { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+      .cs-settings-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+      .cs-swatch-preview { appearance: none; display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 5px 10px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+      .cs-swatch-preview.is-on { border-color: var(--cs-signal); box-shadow: 0 0 0 1px var(--cs-signal); }
+      .cs-swatch-preview:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
+      .cs-swatch-dot { width: 10px; height: 10px; border-radius: 50%; }
+      .cs-swatch-blue .cs-swatch-dot { background: #1F4E94; }
+      .cs-swatch-stone .cs-swatch-dot { background: #6B7280; }
+      .cs-swatch-clay .cs-swatch-dot { background: #B45309; }
+      .cs-file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+      .cs-import-preview { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-layer-2); font-size: 12px; }
+      .cs-import-preview strong { font-size: 13px; }
+      .cs-import-preview .cs-settings-switch { align-self: flex-start; }
+      .cs-text-link { appearance: none; align-self: flex-start; margin-top: 10px; padding: 0; border: 0; background: transparent; color: var(--dsw-alias-brand-primary); font: inherit; font-size: 12px; cursor: pointer; }
+      .cs-text-link:hover { text-decoration: underline; }
+      .cs-text-link:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
       .cs-data-spacer { flex: 1 1 auto; min-width: 8px; }
       .cs-btn {
         appearance: none; font: inherit; font-size: 12px; line-height: 18px;
-        padding: 6px 12px; border-radius: 8px; cursor: pointer;
+        min-height: 30px; padding: 5px 12px; border-radius: 8px; cursor: pointer;
         color: var(--dsw-alias-label-primary);
         border: 1px solid var(--dsw-alias-border-l1);
         background: var(--dsw-alias-bg-layer-1);
@@ -5041,9 +5355,9 @@ window.__ModuleLoader__.load({
       .cs-recent-workspace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--dsw-alias-label-secondary); }
       .cs-recent-time { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 11px; }
       .cs-recent-last { font-size: 11px; color: var(--dsw-alias-label-secondary); white-space: nowrap; text-align: right; }
-      .cs-trend-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; align-items: start; }
-      .cs-trend-summary { display: flex; flex-direction: column; gap: 10px; }
-      .cs-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .cs-trend-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; align-items: stretch; }
+      .cs-trend-summary { display: flex; flex-direction: column; gap: 10px; align-self: stretch; }
+      .cs-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: 1 1 auto; height: 100%; min-height: 0; align-content: space-between; }
       .cs-stat-box { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: var(--dsw-alias-bg-layer-2); min-width: 0; }
       .cs-stat-box span { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-stat-box b { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 15px; line-height: 22px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
@@ -5057,10 +5371,12 @@ window.__ModuleLoader__.load({
       .cs-settings-board { display: flex; flex-direction: column; gap: 14px; }
       .cs-settings-hero { display: flex; flex-direction: column; gap: 2px; }
       .cs-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
-      .cs-settings-card { min-width: 0; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); }
+      .cs-settings-card { min-width: 0; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); align-self: stretch; display: flex; flex-direction: column; }
       .cs-settings-card > h3 { margin: 0 0 4px; font-size: 13px; line-height: 20px; font-weight: 650; }
+      /* 卡片内容与高度一起铺开：外观卡片的两行均分多余留白。 */
+      .cs-settings-card > .cs-settings-row { flex: 1 1 auto; }
       .cs-settings-wide { grid-column: 1 / -1; }
-      .cs-settings-recheck { margin-top: 8px; justify-content: flex-start; }
+      .cs-settings-recheck { margin-top: auto; justify-content: flex-start; }
       .cs-btn.is-primary { color: #fff; background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); }
       .cs-btn.is-primary:hover:not(:disabled) { filter: brightness(1.05); }
       @media (max-width: 860px) {
@@ -5159,14 +5475,24 @@ window.__ModuleLoader__.load({
         .cs-trend-focus .cs-bar-group .cs-bar-pair { transition: none !important; }
       }
 
-      /* 票 11/#13：每日时长热力图。3m/6m 是周网格，单月是 7 列日历，全年是 12 × 31 矩阵。 */
+      /* 每日时长热力图：全年、3m/6m 共用 7 行周网格，单月是 7 列日历。 */
       .cs-heatmap-card {
         --cs-heat-cell: clamp(10px, 1.2vw, 18px); --cs-heat-gap: 3px;
         position: relative; overflow: visible;
         display: flex; flex-direction: column; gap: 12px;
       }
+      /* 范围选择器只收窄触发器；弹出的两列 15 项菜单保持完整，避免选项被裁切。 */
+      .heat-range-select .cs-select-btn { min-width: 88px; min-height: 28px; padding: 4px 8px; gap: 6px; }
       .heat-card-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
       .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+      /* 全年 53 列铺满整行：格子略收、间隙收紧、月份刻度随网格下方居中。 */
+      .heatmap-body.is-year {
+        --cs-heat-cell: clamp(10px, 0.95vw, 13px); --cs-heat-gap: 2px;
+        justify-content: center; width: 100%;
+      }
+      .heatmap-body.is-year .heat-plot { gap: 4px; }
+      .heatmap-body.is-year .heat-months { height: 16px; }
+      .heatmap-body.is-year .heat-months span { font-size: 10px; line-height: 16px; }
       .heat-weekdays { display: flex; flex-direction: column; flex: 0 0 auto; }
       .heat-weekdays-spacer { display: block; height: 14px; margin-bottom: 6px; }
       .heat-weekday-list { display: grid; grid-template-rows: repeat(7, var(--cs-heat-cell)); row-gap: var(--cs-heat-gap); }
@@ -5354,7 +5680,9 @@ window.__ModuleLoader__.load({
       .cs-format-preview span { font-size: 11px; color: var(--dsw-alias-label-secondary); }
       .cs-format-preview b { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 14px; }
       @media (max-width: 620px) { .cs-format-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-      .cs-settings-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+      /* 保存按钮组与上方内容拉开留白；独立挂载的设置页也统一 30–32px 按钮高度。 */
+      .cs-settings-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 12px; }
+      .cs-btn { min-height: 30px; padding: 5px 12px; }
       .cs-settings-status { font-size: 12px; color: var(--dsw-alias-brand-primary); }
       .cs-settings-status.is-error { color: var(--dsw-alias-state-error-primary); }
       /* 通知记录：已读后仍可回看；样式只做最小列表，不改变设置页版式。 */

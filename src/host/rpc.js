@@ -3,8 +3,8 @@
  *
  * Client 半通过它做几件事：每 15 秒上报一次 presence 心跳（可见性、窗口
  * 聚焦、前台会话与最近操作），按日/周/月读取统计与仪表盘明细（同一响应
- * 带回回填状态与子代理明细），读取按天三项时长序列，读写三项设置、导出
- * JSON/CSV，以及二次确认后清空全部统计；另有失败时的历史回填重试、回填
+ * 带回回填状态与子代理明细），读取按天三项时长序列，读写设置、导出
+ * JSON/CSV、导入 JSON 文件，以及二次确认后清空全部统计；另有失败时的历史回填重试、回填
  * 通知读取与「已读」锚点写入。这里沿用 DSH 的 connection.rpc 通道：Host 侧用
  * connection.fetch.register 挂一条 /api/chrono-scope 的精确路由，Client 用
  * connection.rpc.call('/api', 'chrono-scope', { method, payload }) 调用。
@@ -59,9 +59,9 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
 
   async function dispatch(method, payload) {
     // 任意一次客户端活动都兜底触发后台回填：Host 的服务在此时已挂载完毕，
-    // 不必赌一个固定启动延时，也不会拖慢本次请求的响应。清空是唯一例外：
-    // 它本身要把回填状态收口成 done，先触发只会让在飞回填抢写进度。
-    if (method !== 'clearData') ensureBackfillStarted()
+    // 不必赌一个固定启动延时，也不会拖慢本次请求的响应。清空与导入是例外：
+    // 它们本身要把回填状态收口成 done，先触发只会让在飞回填抢写进度。
+    if (method !== 'clearData' && method !== 'importData') ensureBackfillStarted()
     switch (method) {
       case 'presence':
         return reportPresence(payload)
@@ -83,6 +83,8 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
         return exportData(payload)
       case 'clearData':
         return clearData()
+      case 'importData':
+        return importData(payload)
       default:
         throw new Error(`未知的 ChronoScope 方法：${method}`)
     }
@@ -230,7 +232,7 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
   function setSettings(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('setSettings 载荷必须是对象')
     const patch = {}
-    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName']) {
+    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName', 'approximateNoticeDismissed']) {
       if (Object.hasOwn(payload, key)) patch[key] = payload[key]
     }
     return service.setSettings(patch)
@@ -239,6 +241,26 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
   function exportData(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('exportData 载荷必须是对象')
     return service.exportData({ format: payload.format })
+  }
+
+  /**
+   * 导入：入参是 Client 已读文件并 JSON.parse 好的导出对象（Host 不碰文件
+   * 系统），和 exportData 一样只做参数校验与字段白名单，格式/版本校验、去重、
+   * 收口规则全部留给领域服务。白名单只放行导出结构里出现过的字段与
+   * restoreSettings，其余字段不会进入领域层。导入后回填收口为 done，因此
+   * dispatch 里与 clearData 一样不触发 ensureBackfillStarted()。
+   */
+  function importData(payload) {
+    if (payload === null || typeof payload !== 'object') throw new Error('importData 载荷必须是对象')
+    return service.importData({
+      format: payload.format,
+      version: payload.version,
+      exportedAt: payload.exportedAt,
+      settings: payload.settings,
+      intervals: payload.intervals,
+      tasks: payload.tasks,
+      restoreSettings: payload.restoreSettings,
+    })
   }
 
   function clearData() {
