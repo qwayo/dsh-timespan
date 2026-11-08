@@ -64,6 +64,10 @@ window.__ModuleLoader__.load({
     const FOCUS_TRANSITION_MS = 240
     /** 条状图首屏的 SVG 视图高度；柱高与网格按它重新计算，而不是拉伸普通卡片。 */
     const TREND_FOCUS_HEIGHT = 360
+    /** 首屏主指标：五个可切换的时长项，持久化在浏览器本地设置；非法值回落今日活跃时长。 */
+    const HERO_METRIC_KEY = 'chrono-scope.heroMetric'
+    const HERO_METRIC_VALUES = ['active', 'online', 'task', 'week', 'month']
+    const HERO_METRIC_DEFAULT = 'active'
 
     const zh = {
       title: 'ChronoScope',
@@ -86,6 +90,9 @@ window.__ModuleLoader__.load({
       focusTodayActive: '今日活跃',
       focusWeekActive: '本周活跃',
       focusMonthActive: '本月活跃',
+      heroMetricWeekTitle: '本周活跃时长',
+      heroMetricMonthTitle: '本月活跃时长',
+      heroMetricGroup: '首屏主指标',
       sessionTasks: '会话任务',
       accumulated: '累计工时',
       noTasks: '今天还没有任务记录',
@@ -111,6 +118,7 @@ window.__ModuleLoader__.load({
       periodMonth: '月',
       periodLabel: '统计周期',
       paletteLabel: '配色',
+      paletteToggle: '配色：{name}，点击循环 {order}',
       appearanceLabel: '外观',
       appearanceLight: '浅色',
       appearanceDark: '深色',
@@ -296,18 +304,20 @@ window.__ModuleLoader__.load({
       approximateDismiss: '不再显示',
       approximateShowAgain: '重新显示说明',
       savedBadge: '已保存',
-      importData: '从备份文件恢复',
-      importHint: '选择此前导出的 JSON 备份；已有记录会按 ID 去重跳过。',
+      importData: '选择备份文件导入',
+      importHint: '仅支持此前导出的 JSON 备份；按 ID 去重合并，已有记录不会被覆盖。',
       importInvalid: '这不是有效的 ChronoScope 备份（需要 format 为 chronoscope-export 且 version 为 1）。',
-      importPreviewTitle: '备份预览',
+      importPreviewTitle: '待导入文件',
       importIntervals: '时间区间',
       importTasks: '任务',
-      importRestoreSettings: '同时恢复设置',
-      importConfirm: '确认恢复',
+      importRestoreSettings: '一并导入文件中的设置',
+      importConfirm: '确认导入',
       importCancel: '取消',
-      importSuccess: '恢复完成',
+      importSuccess: '导入完成',
+      importResult: '新增 {imported} 条，跳过重复 {skipped} 条',
       importReadFailed: '读取文件失败',
       importFileHint: '未选择文件',
+      importFilePicked: '已选择：',
     }
 
     const en = {
@@ -331,6 +341,9 @@ window.__ModuleLoader__.load({
       focusTodayActive: 'Active today',
       focusWeekActive: 'Active this week',
       focusMonthActive: 'Active this month',
+      heroMetricWeekTitle: 'Active this week',
+      heroMetricMonthTitle: 'Active this month',
+      heroMetricGroup: 'Focus metric',
       sessionTasks: 'Session tasks',
       accumulated: 'Accumulated',
       noTasks: 'No tasks recorded today',
@@ -356,6 +369,7 @@ window.__ModuleLoader__.load({
       periodMonth: 'Month',
       periodLabel: 'Period',
       paletteLabel: 'Colors',
+      paletteToggle: 'Colors: {name}; click to cycle {order}',
       appearanceLabel: 'Appearance',
       appearanceLight: 'Light',
       appearanceDark: 'Dark',
@@ -541,18 +555,20 @@ window.__ModuleLoader__.load({
       approximateDismiss: 'Dismiss',
       approximateShowAgain: 'Show notice again',
       savedBadge: 'Saved',
-      importData: 'Restore from backup',
-      importHint: 'Choose a JSON backup exported earlier; existing records are skipped by ID.',
+      importData: 'Choose backup file to import',
+      importHint: 'Only JSON backups exported earlier; merged by ID, existing records are never overwritten.',
       importInvalid: 'This is not a valid ChronoScope backup (format must be chronoscope-export and version must be 1).',
-      importPreviewTitle: 'Backup preview',
+      importPreviewTitle: 'File to import',
       importIntervals: 'Intervals',
       importTasks: 'Tasks',
-      importRestoreSettings: 'Also restore settings',
-      importConfirm: 'Restore',
+      importRestoreSettings: 'Also import settings from the file',
+      importConfirm: 'Import',
       importCancel: 'Cancel',
-      importSuccess: 'Restore complete',
+      importSuccess: 'Import complete',
+      importResult: 'Added {imported}, skipped {skipped} duplicates',
       importReadFailed: 'Could not read file',
       importFileHint: 'No file selected',
+      importFilePicked: 'Selected: ',
     }
 
     /** 每个页面实例一个 Client 标识；刷新后旧区间按最后心跳收口。 */
@@ -590,6 +606,18 @@ window.__ModuleLoader__.load({
 
     function AppearanceIcon({ mode }) {
       return APPEARANCE_ICONS[normalizeAppearance(mode)]()
+    }
+
+    /** 顶栏配色循环图标：与外观图标同用 16×16 线描；循环箭头表动作，中心点用当前套信号色表当前值。 */
+    function PaletteIcon() {
+      return h('svg', {
+        viewBox: '0 0 16 16', width: 15, height: 15, fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1.3,
+        strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
+      },
+        h('path', { d: 'M12.8 8a4.8 4.8 0 1 1-1.4-3.4' }),
+        h('path', { d: 'M11.4 2v2.6h2.6' }),
+        h('circle', { className: 'cs-palette-signal', cx: 8, cy: 8.4, r: 2.4, fill: 'var(--cs-signal)', stroke: 'none' }))
     }
 
     function appearanceLabelKey(mode) {
@@ -1129,6 +1157,18 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 宿主侧栏的 panelTitle 由注册时的 label 单独渲染，插件改不了它的文字；
+     * 这里用根元素上的开关让注入样式隐藏那一行，label 本身保持不变，
+     * 折叠态的可访问名与 tooltip 也照常留在宿主按钮上。
+     */
+    function applySidebarHostNameVisibility(visible) {
+      if (typeof document === 'undefined' || !document.documentElement) return
+      const root = document.documentElement
+      if (visible === false) root.setAttribute('data-chronoscope-hide-name', '')
+      else root.removeAttribute('data-chronoscope-hide-name')
+    }
+
+    /**
      * 数字格式即时预览事件：设置页选择卡片时只广播草稿值，不写 Host。
      * 页面与侧栏订阅后立即用同一格式重渲染；保存时 notifySettingsChanged
      * 让它们清掉预览、重新向 Host 取权威设置。
@@ -1492,10 +1532,12 @@ window.__ModuleLoader__.load({
       const foldName = (name) => String(name).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g, '')
       const displayName = workspaceName !== '' && foldName(workspaceName) !== foldName(t('title')) ? workspaceName : ''
       const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(finite(stats?.onlineMs), format)} · ${t('activeLabel')} ${formatDuration(activeMs, format)} · ${t('taskLabel')} ${formatDuration(finite(stats?.taskMs), format)}`
+      // 去掉名称后时间居中并放大一档；环与状态点仍留在两端。
+      const nameless = wide && showName === false
       // 侧栏入口不挂悬停/聚焦浮层：鼠标移上去不再弹出一大块数值，
-      // 三项时长保留在 aria-label 与仪表盘里；ⓘ 才用点击 popover。
+      // 三项时长保留在 aria-label 与仪表盘里；ⓘ 才用信息浮层。
       return h('span', {
-        className: `chronoscope-nav-entry ${themeClass}`,
+        className: `chronoscope-nav-entry ${themeClass}${nameless ? ' is-nameless' : ''}`,
         tabIndex: 0,
         'aria-label': summary,
       },
@@ -1574,7 +1616,9 @@ window.__ModuleLoader__.load({
             callHost(ctx, 'getSettings', {})
               .then((value) => {
                 if (!active) return
-                setShowName(value?.sidebarShowName !== false)
+                const visible = value?.sidebarShowName !== false
+                setShowName(visible)
+                applySidebarHostNameVisibility(visible)
               })
               .catch(() => {
                 // 读不到设置时保留默认显示，不拿默认值覆盖 Host。
@@ -1585,6 +1629,7 @@ window.__ModuleLoader__.load({
           return () => {
             active = false
             unsubscribe()
+            applySidebarHostNameVisibility(true)
           }
         }, [ctx])
 
@@ -1923,10 +1968,11 @@ window.__ModuleLoader__.load({
       return indices
     }
 
-    /** 统一浮层定位：优先放在锚点上方，空间不足翻到下方，左右按视口夹取。 */
+    /** 统一浮层定位：默认优先锚点上方；prefer:'bottom' 时紧贴图标下方，空间不足才翻到上方。 */
     function clampTipPosition(anchor, size, viewport, options = {}) {
       const gap = finite(options.gap) || 10
       const margin = finite(options.margin) || 8
+      const preferBottom = options.prefer === 'bottom'
       const width = Math.max(0, finite(size?.width))
       const height = Math.max(0, finite(size?.height))
       const viewportWidth = Math.max(0, finite(viewport?.width))
@@ -1939,8 +1985,14 @@ window.__ModuleLoader__.load({
       const maxTop = Math.max(margin, viewportHeight - height - margin)
       const left = Math.max(margin, Math.min(anchorLeft + anchorWidth / 2 - width / 2, maxLeft))
       const above = anchorTop - height - gap
-      if (above >= margin) return { left: Math.round(left), top: Math.round(above), placement: 'top' }
-      const top = Math.max(margin, Math.min(anchorTop + anchorHeight + gap, maxTop))
+      const below = anchorTop + anchorHeight + gap
+      const canTop = above >= margin
+      const canBottom = below + height <= viewportHeight - margin
+      if (!preferBottom && canTop) return { left: Math.round(left), top: Math.round(above), placement: 'top' }
+      if (preferBottom && canBottom) return { left: Math.round(left), top: Math.round(below), placement: 'bottom' }
+      // 底部贴边时优先翻到图标上方；上下都放不下才在视口内夹取，保证说明文字读得全。
+      if (preferBottom && canTop) return { left: Math.round(left), top: Math.round(above), placement: 'top' }
+      const top = Math.max(margin, Math.min(below, maxTop))
       return { left: Math.round(left), top: Math.round(top), placement: 'bottom' }
     }
 
@@ -2246,10 +2298,10 @@ window.__ModuleLoader__.load({
           h('span', { className: 'cs-metric-value' }, formatDuration(cycle.taskMs, format))))
     }
 
-    /** 口径说明：点击展开的 popover，与图表浮层共用 fixed 定位与视口夹取，不再被容器裁切。 */
+    /** 口径说明：鼠标悬浮或键盘聚焦即显示，紧贴图标下方；与 HoverTip 共用 fixed 定位与视口夹取。 */
     function Info({ message }) {
-      const [open, setOpen] = React.useState(false)
       const [position, setPosition] = React.useState(null)
+      const [escaped, setEscaped] = React.useState(false)
       const anchorRef = React.useRef(null)
       const tipRef = React.useRef(null)
       const place = () => {
@@ -2262,38 +2314,26 @@ window.__ModuleLoader__.load({
           { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
           { width: node.offsetWidth ?? 0, height: node.offsetHeight ?? 0 },
           { width: window.innerWidth ?? 0, height: window.innerHeight ?? 0 },
+          { gap: 4, prefer: 'bottom' },
         ))
       }
+      const show = () => { setEscaped(false); place() }
+      const hide = () => { setPosition(null); setEscaped(false) }
       React.useEffect(() => {
-        if (!open) {
-          setPosition(null)
-          return undefined
-        }
-        place()
-        const outside = (event) => {
-          const target = event?.target
-          if (anchorRef.current?.contains?.(target) || tipRef.current?.contains?.(target)) return
-          setOpen(false)
-        }
-        const onKey = (event) => { if (event?.key === 'Escape') setOpen(false) }
-        if (typeof document !== 'undefined') {
-          document.addEventListener('pointerdown', outside, true)
-          document.addEventListener('keydown', onKey)
-        }
+        // Esc 仍可收起当前这次悬浮/聚焦；移出或失焦后重新进入即可再看。
+        const onKey = (event) => { if (event?.key === 'Escape') setEscaped(true) }
+        if (typeof document !== 'undefined') document.addEventListener('keydown', onKey)
         if (typeof window.addEventListener === 'function') window.addEventListener('resize', place)
         return () => {
-          if (typeof document !== 'undefined') {
-            document.removeEventListener('pointerdown', outside, true)
-            document.removeEventListener('keydown', onKey)
-          }
+          if (typeof document !== 'undefined') document.removeEventListener('keydown', onKey)
           if (typeof window.removeEventListener === 'function') window.removeEventListener('resize', place)
         }
-      }, [open])
-      return h('span', { className: `cs-info${open ? ' is-open' : ''}` },
+      }, [])
+      return h('span', { className: `cs-info${escaped ? ' is-escaped' : ''}` },
         h('button', {
           ref: anchorRef,
-          type: 'button', 'aria-label': message, 'aria-expanded': open,
-          onClick: () => setOpen((value) => !value),
+          type: 'button', 'aria-label': message,
+          onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide,
         },
           h('svg', { viewBox: '0 0 20 20', width: 16, height: 16, fill: 'none', 'aria-hidden': true },
             h('circle', { cx: 10, cy: 10, r: 7.5, stroke: 'currentColor', strokeWidth: 1.4 }),
@@ -2302,7 +2342,8 @@ window.__ModuleLoader__.load({
           ref: tipRef,
           className: 'cs-info-tip',
           role: 'tooltip',
-          'data-placement': position?.placement ?? 'top',
+          'data-placement': position?.placement ?? 'bottom',
+          // 位置尚未量出时内联 hidden 压住 CSS 显示，避免在 (0,0) 闪一下。
           style: position
             ? { left: `${position.left}px`, top: `${position.top}px` }
             : { left: '0px', top: '0px', visibility: 'hidden' },
@@ -2701,6 +2742,8 @@ window.__ModuleLoader__.load({
       const [activeIndex, setActiveIndex] = React.useState(selectedIndex >= 0 ? selectedIndex : edgeSelectIndex(options, 'first'))
       const rootRef = React.useRef(null)
       const triggerRef = React.useRef(null)
+      const menuRef = React.useRef(null)
+      const [position, setPosition] = React.useState(null)
       const idRef = React.useRef(null)
       if (idRef.current === null) idRef.current = `cs-select-${++selectIdSequence}`
       const menuId = `${idRef.current}-menu`
@@ -2712,6 +2755,29 @@ window.__ModuleLoader__.load({
         document.addEventListener('pointerdown', handle, true)
         return () => document.removeEventListener('pointerdown', handle, true)
       }, [open])
+
+      // 菜单固定到视口：打开后量一次尺寸，按触发器位置夹取；上方空间不足时自动翻到下方。
+      React.useEffect(() => {
+        setPosition(null)
+        if (!open || typeof window === 'undefined') return undefined
+        const trigger = triggerRef.current
+        const menu = menuRef.current
+        if (!trigger || !menu || typeof trigger.getBoundingClientRect !== 'function') return undefined
+        const place = () => {
+          const rect = trigger.getBoundingClientRect()
+          setPosition(clampTipPosition(
+            { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+            { width: menu.offsetWidth ?? 0, height: menu.offsetHeight ?? 0 },
+            { width: window.innerWidth ?? 0, height: window.innerHeight ?? 0 },
+            { gap: 6, prefer: props.placement === 'top' ? 'top' : 'bottom' },
+          ))
+        }
+        place()
+        if (typeof window.addEventListener === 'function') window.addEventListener('resize', place)
+        return () => {
+          if (typeof window.removeEventListener === 'function') window.removeEventListener('resize', place)
+        }
+      }, [open, props.placement])
 
       const openMenu = () => {
         setActiveIndex(selectedIndex >= 0 ? selectedIndex : edgeSelectIndex(options, 'first'))
@@ -2781,10 +2847,16 @@ window.__ModuleLoader__.load({
         h('span', { className: 'cs-chev', 'aria-hidden': true })),
         h('div', {
           id: menuId,
+          ref: menuRef,
           className: `cs-select-menu${props.menuVariant === 'grid' ? ' is-grid' : ''}`,
           role: 'listbox',
           'aria-label': props.ariaLabel,
+          'data-placement': position?.placement ?? (props.placement === 'top' ? 'top' : 'bottom'),
           hidden: !open,
+          // 位置未量出时压住显示，避免菜单在 (0,0) 闪一下。
+          style: position
+            ? { left: `${position.left}px`, top: `${position.top}px` }
+            : { left: '0px', top: '0px', visibility: 'hidden' },
         }, options.map((option, index) => h('button', {
           key: option.key,
           id: optionId(index),
@@ -3062,6 +3134,33 @@ window.__ModuleLoader__.load({
       return reduced === true ? 0 : FOCUS_TRANSITION_MS
     }
 
+    /** 首屏主指标只认五个时长项；非法旧值、脏值一律回落今日活跃时长。 */
+    function normalizeHeroMetric(value) {
+      return HERO_METRIC_VALUES.includes(value) ? value : HERO_METRIC_DEFAULT
+    }
+
+    /** 读取首屏主指标；storage 缺省用 window.localStorage，测试可注入假存储。 */
+    function readStoredHeroMetric(storage) {
+      const store = storage === undefined ? defaultFocusStorage() : storage
+      if (store === null || store === undefined || typeof store.getItem !== 'function') return HERO_METRIC_DEFAULT
+      try {
+        return normalizeHeroMetric(store.getItem(HERO_METRIC_KEY))
+      } catch {
+        return HERO_METRIC_DEFAULT
+      }
+    }
+
+    /** 写回首屏主指标；写入失败只放弃持久化，页面内切换仍然生效。 */
+    function writeStoredHeroMetric(storage, value) {
+      const store = storage === undefined ? defaultFocusStorage() : storage
+      if (store === null || store === undefined) return
+      try {
+        if (typeof store.setItem === 'function') store.setItem(HERO_METRIC_KEY, normalizeHeroMetric(value))
+      } catch {
+        // 隐私模式或配额不足时静默放弃。
+      }
+    }
+
     /** ArrowLeft/Right 循环，Home/End 跳到首尾；其它按键保持当前索引。 */
     function nextTabIndex(currentIndex, key, count = VIEWS.length) {
       const size = Number.isInteger(count) && count > 0 ? count : VIEWS.length
@@ -3336,18 +3435,43 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 首屏放大页：不是把卡片拉大，而是重新排版成整页大数字、
-     * 在线/任务/占比/次数与日周月统计，并用进度条表示活跃占比。
+     * 首屏放大页：重新排版成左右两栏——左侧大数字与带可见标签的占比条，
+     * 右侧趋势迷你图；底部七项统计里五个时长项可点，点击切换大数字的主指标。
      */
     function renderHeroFocusPage(props) {
-      const { data, t, format = 'hms', focus = 'hero', onToggleFocus } = props
+      const {
+        data, t, isZh = true, period = 'day', format = 'hms', hoverTip,
+        focus = 'hero', onToggleFocus, heroMetric, onSelectHeroMetric,
+      } = props
       const day = data?.cycles?.day ?? {}
       const week = data?.cycles?.week ?? {}
       const month = data?.cycles?.month ?? {}
       const activeMs = finite(day.activeMs ?? data?.activeMs)
       const onlineMs = finite(day.onlineMs ?? data?.onlineMs)
       const taskMs = finite(day.taskMs ?? data?.taskMs)
+      const weekMs = finite(week.activeMs)
+      const monthMs = finite(month.activeMs)
       const share = activeSharePercent(activeMs, onlineMs)
+      const metric = normalizeHeroMetric(heroMetric)
+      const metricTable = {
+        active: { title: t('todayActive'), value: activeMs },
+        online: { title: t('todayOnline'), value: onlineMs },
+        task: { title: t('todayTask'), value: taskMs },
+        week: { title: t('heroMetricWeekTitle'), value: weekMs },
+        month: { title: t('heroMetricMonthTitle'), value: monthMs },
+      }
+      const current = metricTable[metric]
+      const metricButton = (key, label, value) => h('button', {
+        type: 'button',
+        className: `cs-fs-item cs-fs-button${key === metric ? ' is-current' : ''}`,
+        'aria-pressed': key === metric,
+        onClick: () => onSelectHeroMetric?.(key),
+      }, h('span', null, label), h('b', null, value))
+      const trend = Array.isArray(data?.trend) ? data.trend : []
+      const miniChart = trend.length > 0
+        ? renderTrendChart(trend, period, t, isZh, hoverTip?.tip,
+            { onHover: hoverTip?.show, onLeave: hoverTip?.hide, height: 220 }, format)
+        : h('div', { className: 'cs-empty' }, t('emptyDashboard'))
       return h('section', {
         className: 'cs-card cs-hero cs-hero-focus',
         'data-focus': 'hero',
@@ -3355,29 +3479,42 @@ window.__ModuleLoader__.load({
       },
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' },
-            h('h2', null, t('todayActive')),
+            h('h2', null, current.title),
             h('span', { className: 'cs-tag' }, t('focusSummary')),
             h('span', { className: 'cs-tag' }, t('actualOccupied'))),
           renderZoomButton({ t, focus, onToggleFocus })),
-        h('div', { className: 'cs-hero-num' }, formatDuration(activeMs, format)),
-        h('div', { className: 'cs-hero-meta' },
-          h('span', null, `${t('todayOnline')} ${formatDuration(onlineMs, format)}`)),
-        h('div', { className: 'cs-focus-panel' },
-          renderFocusStat(t('onlineLabel'), formatDuration(onlineMs, format)),
-          renderFocusStat(t('todayTask'), formatDuration(taskMs, format)),
-          renderFocusStat(t('activeShare'), `${share}%`),
-          renderFocusStat(t('taskCountShort'), String(finite(day.taskCount ?? data?.taskCount))),
-          renderFocusStat(t('focusTodayActive'), formatDuration(activeMs, format)),
-          renderFocusStat(t('focusWeekActive'), formatDuration(finite(week.activeMs), format)),
-          renderFocusStat(t('focusMonthActive'), formatDuration(finite(month.activeMs), format)),
-          h('div', {
-            className: 'cs-focus-bar',
-            role: 'progressbar',
-            'aria-label': t('activeShare'),
-            'aria-valuemin': 0,
-            'aria-valuemax': 100,
-            'aria-valuenow': share,
-          }, h('i', { style: { width: `${share}%` } }))))
+        h('div', { className: 'cs-hero-focus-body' },
+          h('div', { className: 'cs-hero-focus-primary' },
+            h('div', { className: 'cs-hero-num' }, formatDuration(current.value, format)),
+            h('div', { className: 'cs-hero-meta' },
+              h('span', null, `${t('todayOnline')} ${formatDuration(onlineMs, format)}`),
+              h('span', null, `${t('todayTask')} ${formatDuration(taskMs, format)}`),
+              h('span', null, `${t('taskCountShort')} ${String(finite(day.taskCount ?? data?.taskCount))}`)),
+            h('div', { className: 'cs-share-block' },
+              h('div', { className: 'cs-share-head' },
+                h('span', null, t('activeShare')),
+                h('b', null, `${share}%`)),
+              h('div', {
+                className: 'cs-focus-bar',
+                role: 'progressbar',
+                'aria-label': t('activeShare'),
+                'aria-valuemin': 0,
+                'aria-valuemax': 100,
+                'aria-valuenow': share,
+              }, h('i', { style: { width: `${share}%` } })),
+              h('div', { className: 'cs-share-foot' },
+                `${t('activeLabel')} ${formatDuration(activeMs, format)} / ${t('onlineLabel')} ${formatDuration(onlineMs, format)}`))),
+          h('div', { className: 'cs-hero-focus-aside' },
+            h('div', { className: 'cs-legend' },
+              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
+              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel'))),
+            h('div', { className: 'cs-hero-mini-chart' }, miniChart))),
+        h('div', { className: 'cs-focus-panel', role: 'group', 'aria-label': t('heroMetricGroup') },
+          metricButton('online', t('onlineLabel'), formatDuration(onlineMs, format)),
+          metricButton('task', t('todayTask'), formatDuration(taskMs, format)),
+          metricButton('active', t('focusTodayActive'), formatDuration(activeMs, format)),
+          metricButton('week', t('focusWeekActive'), formatDuration(weekMs, format)),
+          metricButton('month', t('focusMonthActive'), formatDuration(monthMs, format))))
     }
 
     /** 月度条：12 个月共用同一套高度比例；普通全年视图与首屏下方的填充条复用。 */
@@ -3587,7 +3724,16 @@ window.__ModuleLoader__.load({
         const main = Array.isArray(body) ? body.slice() : [body]
         // 主视图全年已改为周网格，12 个月月度条只保留在首屏作为补充数值面板。
         const matrix = buildYearMatrix(scopedDays, year, monthLabels)
-        main.push(renderMonthBars(matrix.bars, t, format, 'heat-month-bars heat-focus-month-bars'))
+        const peakBar = matrix.bars.reduce((best, bar) =>
+          finite(bar.activeMs) > finite(best?.activeMs) ? bar : best, matrix.bars[0] ?? null)
+        const peakActiveMs = finite(peakBar?.activeMs)
+        main.push(h('div', { className: 'heat-focus-bars' },
+          h('div', { className: 'heat-focus-bars-head' },
+            h('span', null, t('monthBars')),
+            h('span', null, peakActiveMs > 0 && peakBar
+              ? `${peakBar.abbr} · ${t('activeLabel')} ${formatDuration(peakActiveMs, format)}`
+              : t('noRecord'))),
+          renderMonthBars(matrix.bars, t, format, 'heat-month-bars heat-focus-month-bars')))
         const peakDay = focusSummary.peakDay
         const peakDaySource = peakDay === null ? null : scopedDays.find((day) => day?.dateKey === peakDay.dateKey)
         const peakDayText = peakDay === null
@@ -3639,10 +3785,14 @@ window.__ModuleLoader__.load({
         data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip, nowMs, onOpenWorkspace,
         focus = null, onToggleFocus, heatSeries, heatStatus,
         heatRangeValue = HEAT_DEFAULT_RANGE, onSelectHeatRange,
+        heroMetric, onSelectHeroMetric,
       } = props
       // 首屏态占据整个内容区：只保留重新排版后的独立页，其余概览卡片不渲染。
       if (focus === 'hero') {
-        return [renderHeroFocusPage({ data, t, format: durationFormat, focus, onToggleFocus })]
+        return [renderHeroFocusPage({
+          data, t, isZh, period, format: durationFormat, hoverTip, focus, onToggleFocus,
+          heroMetric, onSelectHeroMetric,
+        })]
       }
       if (focus === 'trend') {
         return [renderTrendFocusPage({
@@ -3924,12 +4074,17 @@ window.__ModuleLoader__.load({
                 type: 'button', className: 'cs-btn is-danger', disabled: dataBusy !== '',
                 onClick: () => onRequestClear?.(),
               }, t('clearData'))),
+            h('div', { className: 'cs-import-hint' },
+              h('span', null, t('importHint')),
+              h('span', { className: 'cs-import-file-state', role: 'status' },
+                importPreview
+                  ? `${t('importFilePicked')}${String(importPreview.filename ?? '')}`
+                  : t('importFileHint'))),
             importPreview
               ? h('div', { className: 'cs-import-preview' },
                   h('strong', null, t('importPreviewTitle')),
                   h('span', null, `${String(importPreview.filename ?? '')} · ${t('importIntervals')} ${importPreview.payload?.intervals?.length ?? 0} · ${t('importTasks')} ${importPreview.payload?.tasks?.length ?? 0}`),
                   importRange ? h('span', { className: 'cs-settings-row-hint' }, importRange) : null,
-                  h('span', { className: 'cs-settings-row-hint' }, t('importHint')),
                   h('label', { className: 'cs-settings-switch' },
                     h('input', {
                       type: 'checkbox', checked: importRestoreSettings === true,
@@ -3996,6 +4151,8 @@ window.__ModuleLoader__.load({
         })
         // 首屏放大态持久化在浏览器本地设置：退出页面再进入仍保持，非法旧值回落普通概览。
         const [focus, setFocus] = React.useState(() => readStoredFocus())
+        // 首屏主指标同样持久化：五个时长项切换后刷新、切视图、缩回再放大都保持。
+        const [heroMetric, setHeroMetric] = React.useState(() => readStoredHeroMetric())
         // 热力图范围只影响概览取数：3m/6m/year 或数字月份 1–12。
         const [heatRangeValue, setHeatRangeValue] = React.useState(HEAT_DEFAULT_RANGE)
         const [switchingView, setSwitchingView] = React.useState(false)
@@ -4049,7 +4206,8 @@ window.__ModuleLoader__.load({
           changePalette(PALETTES[(index + 1) % PALETTES.length])
         }
         const paletteNameKey = palette === 'stone' ? 'paletteStone' : palette === 'clay' ? 'paletteClay' : 'paletteBlue'
-        const paletteToggleLabel = `${t('paletteLabel')}：${t(paletteNameKey)}`
+        const paletteOrder = PALETTES.map((key) => t(key === 'stone' ? 'paletteStone' : key === 'clay' ? 'paletteClay' : 'paletteBlue')).join(' → ')
+        const paletteToggleLabel = t('paletteToggle').replace('{name}', t(paletteNameKey)).replace('{order}', paletteOrder)
         const [expanded, setExpanded] = React.useState(() => {
           try {
             const value = JSON.parse(window.sessionStorage.getItem('chrono-scope.expanded') || '{}')
@@ -4176,12 +4334,15 @@ window.__ModuleLoader__.load({
           setImportError('')
           setDataMessage(null)
           try {
-            await callHost(ctx, 'importData', {
+            const result = await callHost(ctx, 'importData', {
               ...importPreview.payload,
               restoreSettings: importRestoreSettings === true,
             })
+            const resultText = t('importResult')
+              .replace('{imported}', String(finite(result?.imported)))
+              .replace('{skipped}', String(finite(result?.skipped)))
             setImportPreview(null)
-            setDataMessage({ text: t('importSuccess'), error: false })
+            setDataMessage({ text: `${t('importSuccess')} · ${resultText}`, error: false })
             // 导入产生了新的数据代次，近似说明重新显示。
             setApproxDismissed(false)
             await callHost(ctx, 'setSettings', { approximateNoticeDismissed: false }).catch(() => {})
@@ -4386,6 +4547,12 @@ window.__ModuleLoader__.load({
             return next
           })
         }
+        // 点击统计面板里的时长项即切换首屏主指标；写入失败只放弃持久化。
+        const selectHeroMetric = (value) => {
+          const next = normalizeHeroMetric(value)
+          setHeroMetric(next)
+          writeStoredHeroMetric(undefined, next)
+        }
         const nowMs = Date.now()
         // 范围由页面状态解析成本地日历区间；跨午夜时 from/to 自然前移，页面无需额外状态。
         const heatRange = resolveHeatRange(heatRangeValue, nowMs)
@@ -4477,6 +4644,7 @@ window.__ModuleLoader__.load({
             data, t, isZh, period, onSelectPeriod: setPeriod, durationFormat, hoverTip, nowMs,
             onOpenWorkspace: openWorkspaceInDetails,
             focus, onToggleFocus: toggleFocus,
+            heroMetric, onSelectHeroMetric: selectHeroMetric,
             heatSeries: heatState.data, heatStatus: heatState.status,
             heatRangeValue, onSelectHeatRange: setHeatRangeValue,
           })
@@ -4515,9 +4683,7 @@ window.__ModuleLoader__.load({
                     title: paletteToggleLabel,
                     'aria-label': paletteToggleLabel,
                     onClick: cyclePalette,
-                  }, h('svg', { viewBox: '0 0 20 20', width: 16, height: 16, fill: 'none', 'aria-hidden': true },
-                    h('circle', { cx: 10, cy: 10, r: 7.5, stroke: 'currentColor', strokeWidth: 1.4 }),
-                    h('path', { d: 'M10 2.5a7.5 7.5 0 0 1 0 15z', fill: 'var(--cs-signal)', stroke: 'none' })))))),
+                  }, h(PaletteIcon))))),
             paletteSaveError ? h('div', { className: 'cs-alert', role: 'status' }, t('paletteSaveError')) : null,
             renderApproximateNotice(t, hasApproximate, { onDismiss: onDismissApproximate }),
             state.status === 'error'
@@ -4584,7 +4750,8 @@ window.__ModuleLoader__.load({
       }
       .cs-select-btn[aria-expanded="true"] .cs-chev { transform: rotate(-135deg) translateY(-2px); }
       .cs-select-menu {
-        position: absolute; z-index: 60; top: calc(100% + 6px); right: 0;
+        /* 固定到视口并交给 clampTipPosition 定位，不再受 .cs-page / 卡片的 overflow 裁切。 */
+        position: fixed; z-index: 90; left: 0; top: 0;
         min-width: 100%; max-height: 260px; overflow-y: auto;
         padding: 4px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px;
         background: var(--dsw-alias-bg-layer-1);
@@ -4592,7 +4759,8 @@ window.__ModuleLoader__.load({
         animation: cs-menu-in 180ms ease both;
       }
       .cs-select-menu[hidden] { display: none !important; }
-      .cs-select.is-top .cs-select-menu { top: auto; bottom: calc(100% + 6px); animation-name: cs-menu-in-top; }
+      /* 向上偏好只决定入场动画方向；实际上下由视口空间夹取决定。 */
+      .cs-select.is-top .cs-select-menu { animation-name: cs-menu-in-top; }
       .cs-select-menu.is-grid {
         display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px;
         min-width: 224px; max-height: none; overflow: visible; padding: 6px;
@@ -4685,6 +4853,15 @@ window.__ModuleLoader__.load({
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--cs-live) 18%, transparent);
       }
       .chronoscope-nav-entry:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
+      /* 关闭「显示名称」时连宿主 panelTitle 一起隐藏：只隐藏第二个 span，
+         折叠态只剩 panelGlyph 一个 span，不会被误隐藏；label 保留可访问名与 tooltip。 */
+      html[data-chronoscope-hide-name] button[aria-label="ChronoScope"] { gap: 0; }
+      html[data-chronoscope-hide-name] button[aria-label="ChronoScope"] > span + span { display: none; }
+      /* 名称去掉后，时间独占剩余空间并居中，字号从 11px 提到 12px。 */
+      .chronoscope-nav-entry.is-nameless { justify-content: center; }
+      .chronoscope-nav-entry.is-nameless .chronoscope-nav-time {
+        flex: 1 1 auto; text-align: center; font-size: 12px; letter-spacing: 0;
+      }
       @media (prefers-reduced-motion: reduce) {
         .chronoscope-nav-entry, .chronoscope-nav-entry * { transition-duration: 0s; animation-duration: 0s; }
       }
@@ -4728,7 +4905,9 @@ window.__ModuleLoader__.load({
       .cs-topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; min-width: 0; }
       .cs-topbar-group { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
       .cs-topbar-divider { flex: none; width: 1px; height: 20px; background: var(--dsw-alias-border-l1); }
-      .cs-palette-toggle svg path { transition: fill 160ms ease; }
+      /* 顶栏两枚循环图标成对：16×16 线描 currentColor；配色用循环箭头表动作、中心点表当前套，
+         当前配色名与循环顺序收进 title/aria-label，不再常显占顶栏。 */
+      .cs-palette-toggle svg .cs-palette-signal { transition: fill 160ms ease; }
       .cs-live { display: inline-flex; align-items: center; gap: 6px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 16px; white-space: nowrap; }
       .cs-live.is-live { color: var(--dsw-alias-state-success-primary); }
       .cs-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dsw-alias-state-idle-primary); }
@@ -5188,15 +5367,17 @@ window.__ModuleLoader__.load({
       .cs-axis { margin-left: 58px; }
       @media (max-width: 520px) { .cs-plot { padding-left: 50px; } .cs-y-axis { width: 43px; font-size: 9px; } .cs-axis { margin-left: 50px; } }
 
-      /* 解释性信息只在点击后展开；与 HoverTip 共用 fixed 定位与视口夹取，不再被容器裁切。 */
+      /* 解释性信息改为悬浮/聚焦即显示：位置由 JS 按视口夹取，fixed 定位不被卡片裁切。 */
       .cs-data-panels { display: flex; flex-direction: column; gap: 16px; }
       .cs-period-notice { padding: 8px 12px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
       .cs-info { position: relative; display: inline-flex; align-items: center; flex: none; }
       .cs-info button { appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
-      .cs-info button:hover, .cs-info.is-open button, .cs-info button:focus-visible { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); }
+      .cs-info button:hover, .cs-info:hover button, .cs-info:focus-within button, .cs-info button:focus-visible { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); }
       .cs-info button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
-      .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: fixed; z-index: 90; width: max-content; max-width: min(260px, 65vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 12px 30px #0003; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: normal; transition: opacity var(--cs-dur-tap) var(--cs-ease), transform var(--cs-dur-tap) var(--cs-ease), visibility var(--cs-dur-tap) var(--cs-ease); }
-      .cs-info.is-open .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); }
+      .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: fixed; z-index: 90; width: max-content; max-width: min(260px, 65vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 12px 30px #0003; font-size: 12px; font-weight: 400; line-height: 1.5; white-space: normal; transition: opacity 120ms var(--cs-ease), transform 120ms var(--cs-ease); }
+      .cs-info:hover .cs-info-tip,
+      .cs-info:focus-within .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); }
+      .cs-info.is-escaped .cs-info-tip { visibility: hidden !important; opacity: 0 !important; }
       .cs-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
       .cs-card:hover { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, var(--dsw-alias-border-l1)); }
       .cs-ranking-row { border-radius: 6px; transition: background-color 160ms ease; }
@@ -5236,7 +5417,7 @@ window.__ModuleLoader__.load({
         .cs-bar-group .cs-bar-pair, .cs-donut-seg, .cs-composition-row { transition: none; }
       }
       .cs-foot { font-size: 12px; line-height: 1.6; }
-      @media (max-width: 520px) { .cs-composition-body { flex-direction: column; align-items: center; } .cs-composition-list { width: 100%; } .cs-card-heading .cs-info-tip { left: -80px; width: 190px; max-width: calc(100vw - 100px); } }
+      @media (max-width: 520px) { .cs-composition-body { flex-direction: column; align-items: center; } .cs-composition-list { width: 100%; } }
 
       /* 数据管理：导出与清空。按钮沿用卡片体系，危险操作单独着色。 */
       .cs-data-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; }
@@ -5347,8 +5528,9 @@ window.__ModuleLoader__.load({
         transition: opacity var(--cs-dur-exit) ease;
       }
       .cs-curtain.is-on { opacity: .84; pointer-events: auto; }
-      @keyframes viewIn { from { opacity: .45; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes viewOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-4px); } }
+      /* 只动 opacity：保留 transform 会让 .cs-view 成为 fixed 浮层的包含块，导致定位错乱。 */
+      @keyframes viewIn { from { opacity: .45; } to { opacity: 1; } }
+      @keyframes viewOut { from { opacity: 1; } to { opacity: 0; } }
 
       .cs-recent-list { display: flex; flex-direction: column; }
       .cs-recent-row {
@@ -5420,11 +5602,55 @@ window.__ModuleLoader__.load({
         stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
       }
       .cs-hero-focus {
-        min-height: calc(100vh - 260px); padding: 26px 30px; gap: 6px;
-        justify-content: flex-start;
+        min-height: calc(100vh - 260px); padding: 26px 30px; gap: 16px;
+        display: flex; flex-direction: column;
         animation: cs-focus-in var(--cs-focus-ms, 240ms) var(--cs-ease) both;
       }
       .cs-hero-focus .cs-hero-num { font-size: clamp(56px, 8vw, 104px); margin-top: 18px; }
+      /* 首屏主指标：上半区左大数字 + 占比条，右趋势迷你图；下半区七项统计沉底。 */
+      .cs-hero-focus-body {
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 0.9fr);
+        gap: 20px; flex: 1 1 auto; min-height: 0; align-items: stretch;
+      }
+      .cs-hero-focus-primary { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+      .cs-hero-focus .cs-hero-meta { flex-direction: column; gap: 2px; }
+      .cs-share-block {
+        margin-top: auto; padding: 12px 14px;
+        border: 1px solid var(--cs-line); border-radius: var(--cs-radius-sm);
+        background: var(--cs-surface-2);
+      }
+      .cs-share-head {
+        display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+        font-size: 12px; line-height: 18px; color: var(--cs-ink-3);
+      }
+      .cs-share-head b {
+        font-family: var(--cs-mono); font-variant-numeric: tabular-nums;
+        font-size: 18px; line-height: 24px; color: var(--cs-ink);
+      }
+      .cs-share-foot { font-size: 11px; line-height: 16px; color: var(--cs-ink-3); font-variant-numeric: tabular-nums; }
+      .cs-hero-focus-aside { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
+      .cs-hero-mini-chart { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+      /* .cs-chart / .cs-plot 本身不是 flex 容器，必须显式补上，svg 才能吃到右栏剩余高度。 */
+      .cs-hero-mini-chart .cs-chart { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+      .cs-hero-mini-chart .cs-plot { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+      .cs-hero-mini-chart .cs-chart svg { flex: 1 1 auto; height: auto; min-height: 0; }
+      .cs-hero-focus .cs-focus-panel { margin-top: auto; }
+      .cs-fs-button {
+        cursor: pointer; text-align: left; font: inherit; color: inherit;
+        transition: border-color var(--cs-focus-ms, 240ms) var(--cs-ease),
+          background var(--cs-focus-ms, 240ms) var(--cs-ease);
+      }
+      .cs-fs-button:hover { border-color: var(--cs-signal-soft); }
+      .cs-fs-button:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
+      .cs-fs-button.is-current { border-color: var(--cs-signal); background: var(--cs-tone-faint); }
+      .cs-fs-button.is-current b { color: var(--cs-signal-deep); }
+      @media (max-width: 900px) {
+        .cs-hero-focus-body { grid-template-columns: 1fr; }
+        .cs-hero-focus-aside { min-height: 180px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-fs-button { transition: none !important; }
+      }
       /* 条状图首屏：整页重排为按可用高度铺开的图表，再点右上角缩回。 */
       .cs-trend-card.has-zoom { position: relative; }
       .cs-trend-card.has-zoom .cs-card-head { padding-right: 30px; }
@@ -5448,9 +5674,10 @@ window.__ModuleLoader__.load({
       .cs-trend-focus .cs-bar-group:focus-visible .cs-bar-pair {
         transform: scale(1.3, 1.06); filter: brightness(1.12);
       }
+      /* 只动 opacity：首屏入场时保留 transform 会让页内 position:fixed 的浮层相对首屏定位。 */
       @keyframes cs-focus-in {
-        from { opacity: 0; transform: translateY(8px); }
-        to { opacity: 1; transform: none; }
+        from { opacity: 0; }
+        to { opacity: 1; }
       }
       .cs-focus-panel { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
       .cs-fs-item {
@@ -5609,10 +5836,15 @@ window.__ModuleLoader__.load({
       .cs-heatmap-card.has-zoom .cs-card-head { padding-right: 30px; }
       .heat-focus-layout {
         display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 20px;
-        align-items: start; min-height: 0; flex: 1 1 auto;
+        align-items: stretch; min-height: 0; flex: 1 1 auto;
       }
       .heat-focus-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
-      .cs-heatmap-focus .heatmap-body { width: 100%; overflow: visible; align-items: stretch; }
+      /* 周网格按内容高度铺 53 列正方形格子；强行按行高拉伸会变成细长竖条。
+         剩余高度全部交给下方月度条区，不再让两块五五分。 */
+      .cs-heatmap-focus .heatmap-body {
+        width: 100%; align-items: stretch; flex: 0 1 auto; min-height: 0;
+      }
+      .cs-heatmap-focus .heatmap-body.is-year { overflow: visible; }
       .cs-heatmap-focus .heat-plot { flex: 1 1 auto; width: auto; min-width: 0; }
       .cs-heatmap-focus .heat-weekgrid {
         width: 100%; grid-auto-columns: minmax(0, 1fr); grid-template-rows: repeat(7, auto);
@@ -5621,15 +5853,21 @@ window.__ModuleLoader__.load({
         width: auto; height: auto; min-width: 0; aspect-ratio: 1;
       }
       .cs-heatmap-focus .heat-weekdays { align-self: stretch; }
-      .cs-heatmap-focus .heat-weekday-list { grid-template-rows: repeat(7, minmax(0, 1fr)); flex: 1 1 auto; }
+      .cs-heatmap-focus .heat-weekday-list { grid-template-rows: repeat(7, var(--cs-heat-cell)); flex: 0 0 auto; }
       .cs-heatmap-focus .heat-months { display: grid; gap: var(--cs-heat-gap); }
       .cs-heatmap-focus .heat-months span { position: static; }
       .cs-heatmap-focus .heat-year { flex: 1 1 auto; }
       .cs-heatmap-focus .heat-year-grid { width: 100%; }
       .cs-heatmap-focus .heat-month { width: 100%; max-width: none; }
       .cs-heatmap-focus .heat-month-grid { width: 100%; }
-      .heat-focus-panel { display: flex; flex-direction: column; gap: 2px; }
+      .heat-focus-panel { display: flex; flex-direction: column; gap: 8px; justify-content: space-between; min-height: 0; }
       .heat-focus-panel .cs-fs-item { flex: 0 0 auto; }
+      /* 月度条独占剩余高度；给它确定下界，避免矮视口把 12 根条压成短桩。 */
+      .heat-focus-bars { flex: 1 1 auto; min-height: 150px; display: flex; flex-direction: column; gap: 8px; }
+      .heat-focus-bars-head {
+        display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+        font-size: 11px; line-height: 16px; color: var(--cs-ink-3); font-variant-numeric: tabular-nums;
+      }
       .cs-heatmap-focus .heat-month-bars { height: auto; min-height: 130px; flex: 1 1 auto; }
       @media (max-width: 900px) {
         .heat-focus-layout { grid-template-columns: 1fr; }
@@ -5639,6 +5877,23 @@ window.__ModuleLoader__.load({
           animation: none !important; transition: none !important;
         }
       }
+
+      /* 整页滚轮滚动：根容器与 Bento 都按内容自然高度，不固定视口高度；
+         子模块不设内部竖滚，切全年时隐式第 4 行自然撑高，由整页滚动承载。 */
+      .cs-shell { gap: 8px; }
+      .cs-topbar { margin-bottom: 0; min-height: 46px; }
+      .cs-tabs { margin-bottom: 4px; min-height: 36px; }
+      .cs-composition, .cs-ranking { gap: 12px; }
+      .cs-donut { width: clamp(88px, 9vw, 140px); }
+      .cs-chart svg { height: clamp(90px, 13vh, 160px); }
+      .cs-summary { padding: 8px 12px; }
+      .cs-trend-card, .cs-table-card { gap: 10px; }
+      /* 设置页留白：卡片按自然高度排，不再把两行卡强行拉到四行卡的高度。 */
+      .cs-settings-grid { gap: 10px; align-content: start; }
+      .cs-settings-card { align-self: start; }
+      .cs-settings-card > .cs-settings-row { flex: 0 0 auto; }
+      .cs-import-hint { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      .cs-import-file-state { font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-primary); }
     `
 
     /** 设置页独立挂载在 settings.section，样式自成一套，不依赖仪表盘根节点。 */
