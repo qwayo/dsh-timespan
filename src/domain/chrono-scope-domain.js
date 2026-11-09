@@ -1522,8 +1522,12 @@ export function createChronoScopeDomain({ domain, clock }) {
     const totalTaskMs = rows.reduce((sum, group) => sum + group.taskMs, 0)
     for (const group of rows) {
       group.share = totalTaskMs > 0 ? group.taskMs / totalTaskMs : 0
+      // 会话列表按最近活动倒序；统计范围拉大后，旧会话不会仅因累计任务
+      // 时长更高而排到刚用过的会话前面。最近活动相同时再按任务时长兜底。
       group.sessions.sort(
-        (left, right) => right.taskMs - left.taskMs || String(left.sessionId).localeCompare(String(right.sessionId)),
+        (left, right) => right.lastActivityAt - left.lastActivityAt
+          || right.taskMs - left.taskMs
+          || String(left.sessionId).localeCompare(String(right.sessionId)),
       )
     }
     rows.sort(

@@ -6127,15 +6127,22 @@ window.__ModuleLoader__.load({
       .cs-sessions-count { font-size: 10.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
       .cs-session {
         position: relative; display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap;
-        padding: 8px 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary);
+        padding: 8px 12px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary);
         border-radius: 8px;
       }
       .cs-session + .cs-session { border-top: 1px dashed var(--dsw-alias-border-l1); }
-      /* 从最近会话跳转过来时给目标行留一段可见的定位高亮，随后自然淡出。 */
-      .cs-session.is-highlighted {
+      /* 从最近会话跳转过来时给目标行留一段可见的定位高亮，随后自然淡出。
+         高亮层比会话行左右各收 8px，不贴住内容两侧。 */
+      .cs-session.is-highlighted { scroll-margin-block: 28vh; }
+      .cs-session.is-highlighted::before {
+        content: '';
+        position: absolute;
+        inset: 1px 8px;
+        border-radius: 8px;
+        pointer-events: none;
         animation: cs-session-locate 3s ease-out both;
-        scroll-margin-block: 28vh;
       }
+      .cs-session.is-highlighted > * { position: relative; z-index: 1; }
       @keyframes cs-session-locate {
         0% {
           background: color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent);
@@ -6148,7 +6155,7 @@ window.__ModuleLoader__.load({
         100% { background: transparent; box-shadow: inset 0 0 0 1px transparent; }
       }
       @media (prefers-reduced-motion: reduce) {
-        .cs-session.is-highlighted { animation-duration: .01ms; }
+        .cs-session.is-highlighted::before { animation-duration: .01ms; }
       }
       .cs-session-title { color: var(--dsw-alias-label-primary); font-size: 12px; font-weight: 540; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
       .cs-session-status { width: 18px; height: 18px; justify-content: center; }
@@ -6306,7 +6313,7 @@ window.__ModuleLoader__.load({
       .cs-table-card { gap: 14px; }
       .cs-summary { padding: 13px 4px; }
       .cs-table-body { max-height: 400px; }
-      .cs-session { padding: 10px 0; }
+      .cs-session { padding: 10px 12px; }
       .cs-page button:focus-visible, .cs-summary:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 3px; }
       @media (max-width: 860px) { .cs-page { padding: 18px 16px 28px; } .cs-cycles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .cs-cycle { padding: 14px; } }
       @media (max-width: 600px) { .cs-cycles { grid-template-columns: 1fr; } .cs-chart svg { height: 130px; } .cs-topbar-right { justify-content: flex-start; flex-wrap: wrap; } }
@@ -6614,6 +6621,7 @@ window.__ModuleLoader__.load({
         .cs-summary .cs-share::before, .cs-summary .cs-last::before { display: none; }
         .cs-sessions { padding: 8px 16px; }
         .cs-session { gap: 6px 10px; padding: 10px 2px; }
+        .cs-session.is-highlighted::before { inset: 1px 0; }
         .cs-session-title { flex: 1 1 100%; max-width: 100%; }
         .cs-session-stat {
           display: inline-flex; align-items: center; gap: 4px;

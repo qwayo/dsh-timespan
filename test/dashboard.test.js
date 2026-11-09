@@ -237,6 +237,30 @@ test('工作区→会话明细：两种口径、占比、最近活动与会话�
   assert.equal(hourBucket.activeMs, 4 * MINUTE)
 })
 
+test('工作区明细：会话按最近活动倒序，旧的大任务会话不会压在刚用过的会话前面', async () => {
+  const t0 = localTime(2026, 11, 6, 9, 0)
+  const clock = createFakeClock(t0 + 3 * HOUR, 3 * HOUR)
+  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  await service.start()
+
+  const workspace = { workspaceId: 'workspace-1', workspaceTitle: '工作区一' }
+  await addTurn(service, 'session-old', 1, t0, t0 + 30 * MINUTE, {
+    ...workspace,
+    sessionTitle: '较早的大任务会话',
+  })
+  await addTurn(service, 'session-new', 1, t0 + 2 * HOUR, t0 + 2 * HOUR + 10 * MINUTE, {
+    ...workspace,
+    sessionTitle: '最近使用的会话',
+  })
+
+  const stats = service.queryStats({ period: 'day', view: 'details' })
+  assert.deepEqual(
+    stats.workspaces[0].sessions.map((session) => session.sessionId),
+    ['session-new', 'session-old'],
+    '统计范围扩大后仍按最近活动排序，而不是只按累计任务时长排序',
+  )
+})
+
 test('空数据：仪表盘返回空工作区与全零趋势，不抛错', async () => {
   const clock = createFakeClock(localTime(2026, 11, 4, 10, 0), 0)
   const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
