@@ -11,7 +11,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { createChronoScopeDomain } from '../src/domain/chrono-scope-domain.js'
+import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
 
 const MINUTE = 60_000
@@ -38,7 +38,7 @@ function events(...list) {
 
 function completedTurn(sessionId, turn, start, end, header = {}) {
   return {
-    session: { id: sessionId, cwd: '/repo/chrono-scope' },
+    session: { id: sessionId, cwd: '/repo/dsh-timespan' },
     inheritedEventCount: 0,
     header,
     events: events(
@@ -66,7 +66,7 @@ function expectedTurns(list) {
 test('真实历史会话日志：回填把每个已完成 turn 写进同一份任务数据', async () => {
   const lastTime = Math.max(...FIXTURE.events.map((event) => event.time))
   const clock = createFakeClock({ now: lastTime + 60_000, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   const snapshot = {
@@ -75,8 +75,8 @@ test('真实历史会话日志：回填把每个已完成 turn 写进同一份�
     header: {
       parentSessionId: null,
       origin: null,
-      workspaceId: 'ws-chrono-scope',
-      workspaceTitle: 'chrono-scope',
+      workspaceId: 'ws-dsh-timespan',
+      workspaceTitle: 'dsh-timespan',
       sessionTitle: null,
     },
     events: FIXTURE.events,
@@ -109,14 +109,14 @@ test('真实历史会话日志：回填把每个已完成 turn 写进同一份�
   const titles = FIXTURE.events.filter((event) => event.type === 'session/title')
   const lastTitle = titles[titles.length - 1].data.title
   assert.equal(stats.sessions[0].sessionTitle, lastTitle)
-  assert.equal(stats.sessions[0].workspaceTitle, 'chrono-scope')
+  assert.equal(stats.sessions[0].workspaceTitle, 'dsh-timespan')
 })
 
 test('假时钟：回填后的日/周/月任务时长立即出现，重复启动不重复计数', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0 + 2 * MINUTE, uptimeMs: 0 })
   const domain = createMemoryDomain()
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
 
   const snapshots = [
@@ -154,7 +154,7 @@ test('假时钟：回填后的日/周/月任务时长立即出现，重复启动
 
   // 进程重启：meta 持久化了 done，新服务不会重复扫描，任务数不变。
   const restartedClock = createFakeClock({ now: t0 + 5 * MINUTE, uptimeMs: 5_000 })
-  const restarted = createChronoScopeDomain({ domain, clock: restartedClock })
+  const restarted = createDshTimespanDomain({ domain, clock: restartedClock })
   await restarted.start()
   assert.equal(restarted.getBackfillStatus().status, 'done')
   assert.equal(await restarted.backfill(loadSessions).then((value) => value.status), 'done')
@@ -165,7 +165,7 @@ test('假时钟：回填后的日/周/月任务时长立即出现，重复启动
 test('fork 按位置切继承前缀，子代理只在父会话明细中可见', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0 + 10 * MINUTE, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   // seq 故意不连续（与真实日志被裁剪后的形状一致）：继承前缀必须按
@@ -225,7 +225,7 @@ test('回填失败可重试，进度持久化后重启仍读到完成状态', as
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0 + 10 * MINUTE, uptimeMs: 0 })
   const domain = createMemoryDomain()
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
 
   const failed = await service.backfill(async () => {
@@ -244,7 +244,7 @@ test('回填失败可重试，进度持久化后重启仍读到完成状态', as
   assert.equal(service.queryStats({ from: t0, to: t0 + 10 * MINUTE }).taskCount, 1)
 
   // 用重启后的服务读回 meta，验证进度被存储解析保留（不直接断言存储结构）。
-  const restarted = createChronoScopeDomain({
+  const restarted = createDshTimespanDomain({
     domain,
     clock: createFakeClock({ now: t0 + 12 * MINUTE, uptimeMs: 0 }),
   })
@@ -265,7 +265,7 @@ test('旧算法版本的 done 会失效重扫，迭代不再把历史永久锁�
     lastHeartbeat: null,
     backfill: { status: 'done', version: 0, scanned: 0, total: 0, tasksWritten: 0, error: null, updatedAt: 0 },
   })
-  const service = createChronoScopeDomain({ domain, clock: createFakeClock({ now: t0 + 10 * MINUTE }) })
+  const service = createDshTimespanDomain({ domain, clock: createFakeClock({ now: t0 + 10 * MINUTE }) })
   await service.start()
 
   let loads = 0
@@ -282,7 +282,7 @@ test('旧算法版本的 done 会失效重扫，迭代不再把历史永久锁�
 test('回填在后台执行时不阻塞实时记录：实时事件可在会话之间插队写入', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0 + 10 * MINUTE, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   let injected = false
@@ -323,7 +323,7 @@ test('回填在后台执行时不阻塞实时记录：实时事件可在会话�
 test('回填不重放未完成的历史任务：只有 turn/start 的 turn 不产出统计', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0 + 10 * MINUTE, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   const open = {
@@ -349,7 +349,7 @@ test('回填不重放未完成的历史任务：只有 turn/start 的 turn 不�
 test('回填只补任务时长，不伪造在线与活跃历史', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0 + 10 * MINUTE, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.backfill(async () => [completedTurn('session-a', 1, t0, t0 + 40_000)])
@@ -363,7 +363,7 @@ test('回填只补任务时长，不伪造在线与活跃历史', async () => {
 test('延迟读取会话：total 立即可知，单个不可读会话被跳过而不拖垮整次回填', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0 + 10 * MINUTE, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   const loads = []

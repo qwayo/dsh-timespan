@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { apply } from '../index.js'
-import { createChronoScopeDomain } from '../src/domain/chrono-scope-domain.js'
+import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
 
 const MINUTE = 60_000
@@ -72,7 +72,7 @@ async function addTurn(service, sessionId, turn, start, end, header = {}) {
 test('按天序列：跨午夜区间按 Host 本地自然日裁剪', async () => {
   const start = localTime(2026, 11, 3, 23, 0)
   const clock = createFakeClock(start, 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   await addTurn(service, 'session-1', 1, localTime(2026, 11, 3, 23, 30), localTime(2026, 11, 4, 0, 30))
 
@@ -110,7 +110,7 @@ test('按天序列：跨午夜区间按 Host 本地自然日裁剪', async () =>
 test('范围汇总：无观测日期标 false，日均活跃只按有观测的日期计算', async () => {
   const start = localTime(2026, 11, 2, 0, 0)
   const clock = createFakeClock(start, 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   // 11-02 活跃 30 分钟。每 30 秒一次心跳，维持同一条活跃区间。
@@ -161,7 +161,7 @@ test('范围汇总：无观测日期标 false，日均活跃只按有观测的�
 test('子代理任务：不进入按天三项时长与观测标记，顶层过滤语义不变', async () => {
   const now = localTime(2026, 11, 4, 12, 0)
   const clock = createFakeClock(now, 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await addTurn(service, 'session-1', 1, localTime(2026, 11, 2, 10, 0), localTime(2026, 11, 2, 10, 30), {
@@ -198,7 +198,7 @@ test('子代理任务：不进入按天三项时长与观测标记，顶层过�
 
 test('无观测范围：逐日全部 false，汇总为零且峰值为 null', async () => {
   const clock = createFakeClock(localTime(2026, 11, 10, 10, 0), 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   const series = service.queryDailySeries({
@@ -242,7 +242,7 @@ async function createRpcHarness() {
   })
   await apply(ctx)
   const call = async (method, payload) => {
-    const response = await route.fetch(new Request('http://isolated/api/chrono-scope', {
+    const response = await route.fetch(new Request('http://isolated/api/dsh-timespan', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ type: 'client-request', rpcId: 'daily-series-check', payload: { method, payload } }),

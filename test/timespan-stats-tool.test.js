@@ -1,5 +1,5 @@
 /**
- * 票 07：Agent 查询工具 chrono_stats 的对外行为测试。
+ * 票 07：Agent 查询工具 timespan_stats 的对外行为测试。
  *
  * 工具是领域服务 queryStats 的只读适配器：测试只通过工具定义本身
  * （parameters / output / execute）和领域服务的公共查询入口观察行为，
@@ -8,8 +8,8 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { registerChronoStatsTool } from '../src/host/tool.js'
-import { createChronoScopeDomain } from '../src/domain/chrono-scope-domain.js'
+import { registerTimespanStatsTool } from '../src/host/tool.js'
+import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
 
 const MINUTE = 60_000
@@ -65,7 +65,7 @@ async function addTurn(service, sessionId, turn, start, end, header = {}) {
 async function startedService(now, uptimeMs = 0) {
   const domain = createMemoryDomain()
   const clock = createFakeClock(now, uptimeMs)
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
   return { domain, clock, service }
 }
@@ -76,7 +76,7 @@ function renderText(definition, value, args = {}) {
 
 function createDefinition(service) {
   const registered = []
-  registerChronoStatsTool(
+  registerTimespanStatsTool(
     {
       tools: {
         register(definition) {
@@ -91,7 +91,7 @@ function createDefinition(service) {
   return registered[0]
 }
 
-test('注册：chrono_stats 暴露周期、日期、分组与筛选参数，并返回注销函数', () => {
+test('注册：timespan_stats 暴露周期、日期、分组与筛选参数，并返回注销函数', () => {
   const registered = []
   let disposed = 0
   const ctx = {
@@ -104,7 +104,7 @@ test('注册：chrono_stats 暴露周期、日期、分组与筛选参数，并�
       },
     },
   }
-  const dispose = registerChronoStatsTool(ctx, {
+  const dispose = registerTimespanStatsTool(ctx, {
     queryStats() {
       throw new Error('这个用例不应执行查询')
     },
@@ -112,7 +112,7 @@ test('注册：chrono_stats 暴露周期、日期、分组与筛选参数，并�
 
   assert.equal(registered.length, 1)
   const definition = registered[0]
-  assert.equal(definition.name, 'chrono_stats')
+  assert.equal(definition.name, 'timespan_stats')
   assert.match(definition.description, /只读/u)
   assert.equal(definition.parameters.type, 'object')
   assert.deepEqual(Object.keys(definition.parameters.properties).sort(), [
@@ -136,7 +136,7 @@ test('注册：chrono_stats 暴露周期、日期、分组与筛选参数，并�
   assert.equal(disposed, 1)
 })
 
-test('按周期汇总：chrono_stats 活跃、任务、次数与范围跟仪表盘完全一致', async () => {
+test('按周期汇总：timespan_stats 活跃、任务、次数与范围跟仪表盘完全一致', async () => {
   const t0 = localTime(2026, 11, 5, 9, 0)
   const { clock, service } = await startedService(t0)
 
@@ -184,7 +184,7 @@ test('按周期汇总：chrono_stats 活跃、任务、次数与范围跟仪表�
   assert.match(text, /30m 0s/u, '在线时长按共享的紧凑单位格式呈现')
 })
 
-test('数字格式：chrono_stats 文本跟随 Host 设置，与页面使用同一份格式定义', async () => {
+test('数字格式：timespan_stats 文本跟随 Host 设置，与页面使用同一份格式定义', async () => {
   const t0 = localTime(2026, 11, 5, 9, 0)
   const { clock, service } = await startedService(t0)
   await addTurn(service, 'session-1', 1, t0, t0 + 30 * MINUTE, {
@@ -469,7 +469,7 @@ test('只读：工具调用前后导出的原始区间、任务与设置完全�
   assert.deepEqual(after, before, '工具只读，不得修改区间、任务或设置')
 })
 
-test('Host 接线：apply 注册 chrono_stats', async () => {
+test('Host 接线：apply 注册 timespan_stats', async () => {
   const domain = createMemoryDomain()
   const registered = []
   let cleanup
@@ -497,7 +497,7 @@ test('Host 接线：apply 注册 chrono_stats', async () => {
   const { apply } = await import('../index.js')
   await apply(ctx)
   assert.equal(registered.length, 1)
-  assert.equal(registered[0].name, 'chrono_stats')
+  assert.equal(registered[0].name, 'timespan_stats')
   const value = await registered[0].execute({ period: 'day' })
   assert.equal(value.ok, true)
 

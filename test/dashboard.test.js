@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createChronoScopeDomain } from '../src/domain/chrono-scope-domain.js'
+import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
 
 const MINUTE = 60_000
@@ -72,7 +72,7 @@ function mondayOf(timestamp) {
 test('日周期：跨午夜的在线与任务区间按本地午夜裁剪', async () => {
   const now = localTime(2026, 11, 5, 0, 30)
   const clock = createFakeClock(now, 2 * HOUR)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   await addTurn(service, 'session-1', 1, localTime(2026, 11, 4, 23, 30), localTime(2026, 11, 5, 0, 30))
 
@@ -94,7 +94,7 @@ test('周周期：周一为周起始，跨周区间按周一零点裁剪', async
   const at = new Date(monday)
   const sunday = new Date(at.getFullYear(), at.getMonth(), at.getDate() - 1, 23, 0, 0, 0).getTime()
   const clock = createFakeClock(now, 2 * HOUR)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   await addTurn(service, 'session-1', 1, sunday, monday + HOUR)
 
@@ -116,7 +116,7 @@ test('周周期：周一为周起始，跨周区间按周一零点裁剪', async
 test('月周期：跨月区间按月初零点裁剪', async () => {
   const now = localTime(2026, 11, 1, 0, 30)
   const clock = createFakeClock(now, 3 * HOUR)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   await addTurn(service, 'session-1', 1, localTime(2026, 10, 31, 23, 0), localTime(2026, 11, 1, 1, 0))
 
@@ -135,7 +135,7 @@ test('月周期：跨月区间按月初零点裁剪', async () => {
 test('趋势桶：日按小时、周按天、月按当月天数，双系列与范围自洽', async () => {
   const now = localTime(2026, 11, 4, 10, 30)
   const clock = createFakeClock(now, 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   await addTurn(service, 'session-1', 1, localTime(2026, 11, 4, 3, 10), localTime(2026, 11, 4, 3, 40))
 
@@ -163,7 +163,7 @@ test('趋势桶：日按小时、周按天、月按当月天数，双系列与�
 test('工作区→会话明细：两种口径、占比、最近活动与会话展开自洽', async () => {
   const t0 = localTime(2026, 11, 4, 10, 0)
   const clock = createFakeClock(t0, 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   // 前 2 分钟归工作区一，之后 2 分钟归工作区二；每 30 秒一次心跳维持活跃。
@@ -240,7 +240,7 @@ test('工作区→会话明细：两种口径、占比、最近活动与会话�
 test('工作区明细：会话按最近活动倒序，旧的大任务会话不会压在刚用过的会话前面', async () => {
   const t0 = localTime(2026, 11, 6, 9, 0)
   const clock = createFakeClock(t0 + 3 * HOUR, 3 * HOUR)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   const workspace = { workspaceId: 'workspace-1', workspaceTitle: '工作区一' }
@@ -263,7 +263,7 @@ test('工作区明细：会话按最近活动倒序，旧的大任务会话不�
 
 test('空数据：仪表盘返回空工作区与全零趋势，不抛错', async () => {
   const clock = createFakeClock(localTime(2026, 11, 4, 10, 0), 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   const stats = service.queryStats({ period: 'day', view: 'dashboard' })
@@ -279,7 +279,7 @@ test('空数据：仪表盘返回空工作区与全零趋势，不抛错', async
 test('周期卡：一次查询同时给出今日/本周/本月三个周期的活跃与任务', async () => {
   const now = localTime(2026, 11, 4, 10, 30)
   const clock = createFakeClock(now, 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   await addTurn(service, 'session-1', 1, localTime(2026, 11, 4, 9, 0), localTime(2026, 11, 4, 9, 30))
   await addTurn(service, 'session-1', 2, localTime(2026, 11, 3, 9, 0), localTime(2026, 11, 3, 9, 40))
@@ -297,7 +297,7 @@ test('周期卡：一次查询同时给出今日/本周/本月三个周期的活
 
 test('summary 视图：侧边栏读取保持轻量，不携带趋势与工作区', async () => {
   const clock = createFakeClock(localTime(2026, 11, 4, 10, 0), 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   const stats = service.queryStats({ period: 'day' })
@@ -310,7 +310,7 @@ test('summary 视图：侧边栏读取保持轻量，不携带趋势与工作区
 test('details 视图：返回工作区与会话明细，跳过趋势和周期卡计算', async () => {
   const now = localTime(2026, 11, 4, 10, 30)
   const clock = createFakeClock(now, 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   await addTurn(service, 'session-1', 1, localTime(2026, 11, 4, 9, 0), localTime(2026, 11, 4, 9, 30), {
     workspaceId: 'workspace-1', workspaceTitle: '工作区一',
@@ -331,7 +331,7 @@ test('details 视图：返回工作区与会话明细，跳过趋势和周期卡
 test('只有活跃、没有任务的会话也出现在明细里，未归属活跃不被丢弃', async () => {
   const t0 = localTime(2026, 11, 4, 11, 0)
   const clock = createFakeClock(t0, 0)
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   // 没有选择会话时的前台活跃：会话与工作区都为空，且没有任何任务记录。

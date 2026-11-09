@@ -1,5 +1,5 @@
 /**
- * ChronoScope 的 Agent 只读查询工具 chrono_stats。
+ * dsh-timespan 的 Agent 只读查询工具 timespan_stats。
  *
  * 工具本身不统计任何数字：它只把模型参数归一化成 queryStats 的查询选项，
  * 再把结果投影成稳定的 JSON 值与人类可读文本。这样页面与对话里的数字来自
@@ -9,14 +9,14 @@
 import { DEFAULT_DURATION_FORMAT, DURATION_FORMATS, formatDurationByPreset, normalizeDurationFormat } from '../domain/duration-format.js'
 import { PERIODS, pad2 } from '../domain/periods.js'
 
-export const CHRONO_STATS_TOOL_NAME = 'chrono_stats'
+export const TIMESPAN_STATS_TOOL_NAME = 'timespan_stats'
 
 const GROUP_BY_VALUES = ['summary', 'workspace', 'session']
 
 const TOOL_DESCRIPTION =
-  '查询 ChronoScope 记录的 DSH 使用时长（只读）。按日/周/月或自定义起止日期统计，' +
+  '查询 dsh-timespan 记录的 DSH 使用时长（只读）。按日/周/月或自定义起止日期统计，' +
   '可按 summary/workspace/session 分组，并可按工作区或会话筛选；返回活跃时长、任务时长、' +
-  '任务次数与统计范围，数字与 ChronoScope 仪表盘一致。'
+  '任务次数与统计范围，数字与 dsh-timespan 仪表盘一致。'
 
 const PARAMETERS = {
   type: 'object',
@@ -195,44 +195,44 @@ const OUTPUT_SCHEMA = {
 }
 
 /**
- * @param {object} service ChronoScope 领域服务
+ * @param {object} service dsh-timespan 领域服务
  * @returns {object} DSH 原始 ToolDefinition（ctx.tools.register 可直接接收）
  */
-function createChronoStatsToolDefinition(service) {
+function createTimespanStatsToolDefinition(service) {
   if (service === undefined || service === null || typeof service.queryStats !== 'function') {
-    throw new Error('ChronoScope chrono_stats 需要 queryStats 领域操作')
+    throw new Error('dsh-timespan timespan_stats 需要 queryStats 领域操作')
   }
 
   return {
-    name: CHRONO_STATS_TOOL_NAME,
+    name: TIMESPAN_STATS_TOOL_NAME,
     description: TOOL_DESCRIPTION,
     parameters: PARAMETERS,
     output: {
       schema: OUTPUT_SCHEMA,
-      render: renderChronoStats,
+      render: renderTimespanStats,
     },
     isConcurrencySafe: () => true,
     async execute(args, exec) {
-      if (exec?.signal?.aborted) throw new Error('chrono_stats 已取消')
-      return executeChronoStats(service, args)
+      if (exec?.signal?.aborted) throw new Error('timespan_stats 已取消')
+      return executeTimespanStats(service, args)
     },
   }
 }
 
 /**
  * @param {object} ctx Host 插件上下文（需要已注入 tools 服务）
- * @param {object} service ChronoScope 领域服务
+ * @param {object} service dsh-timespan 领域服务
  * @returns {() => void} 注销函数
  */
-export function registerChronoStatsTool(ctx, service) {
+export function registerTimespanStatsTool(ctx, service) {
   const tools = ctx.tools
   if (tools === undefined || tools === null || typeof tools.register !== 'function') {
-    throw new Error('ChronoScope 需要 tools 服务才能注册 chrono_stats')
+    throw new Error('dsh-timespan 需要 tools 服务才能注册 timespan_stats')
   }
-  return tools.register(createChronoStatsToolDefinition(service))
+  return tools.register(createTimespanStatsToolDefinition(service))
 }
 
-async function executeChronoStats(service, rawArgs) {
+async function executeTimespanStats(service, rawArgs) {
   const args = rawArgs !== null && typeof rawArgs === 'object' && !Array.isArray(rawArgs) ? rawArgs : {}
   const period = args.period === undefined ? 'day' : args.period
   if (!PERIODS.includes(period)) {
@@ -379,12 +379,12 @@ function failure(code, message) {
   return { ok: false, error: { code, message } }
 }
 
-function renderChronoStats(_args, value) {
+function renderTimespanStats(_args, value) {
   if (value === null || typeof value !== 'object') {
-    return [{ type: 'text', text: 'ChronoScope 查询没有返回可读结果。' }]
+    return [{ type: 'text', text: 'dsh-timespan 查询没有返回可读结果。' }]
   }
   if (value.ok !== true) {
-    return [{ type: 'text', text: `ChronoScope 查询未完成：${value.error?.message ?? '未知原因'}` }]
+    return [{ type: 'text', text: `dsh-timespan 查询未完成：${value.error?.message ?? '未知原因'}` }]
   }
   const lines = []
   const format = normalizeDurationFormat(value.durationFormat)
@@ -394,7 +394,7 @@ function renderChronoStats(_args, value) {
   if (value.filters?.session) {
     lines.push(`筛选：会话「${value.filters.session.requested}」`)
   }
-  lines.push(`ChronoScope 统计（${value.range.label}）：`)
+  lines.push(`dsh-timespan 统计（${value.range.label}）：`)
   lines.push(`活跃时长 ${formatDurationByPreset(value.totals.activeMs, format)}；任务时长 ${formatDurationByPreset(value.totals.taskMs, format)}；任务次数 ${value.totals.taskCount}。`)
   if (value.filters === undefined) {
     lines.push(`在线时长 ${formatDurationByPreset(value.totals.onlineMs, format)}。`)

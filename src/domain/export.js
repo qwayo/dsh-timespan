@@ -12,6 +12,10 @@ import { localDayBounds, pad2 } from './periods.js'
 
 export const EXPORT_FORMATS = new Set(['json', 'csv'])
 
+/** 新导出格式；旧版 `chronoscope-export` 仍可导入，避免历史备份失效。 */
+export const EXPORT_FORMAT = 'dsh-timespan-export'
+export const LEGACY_EXPORT_FORMAT = 'chronoscope-export'
+
 /** 表头顺序即列顺序；字段名用中文，打开即可读，毫秒列保留机器可算的口径。 */
 export const CSV_COLUMNS = [
   '日期',
@@ -41,7 +45,7 @@ export function isExportFormat(value) {
 export function exportFilename(format, exportedAt) {
   const at = new Date(exportedAt)
   const stamp = `${localDayBounds(exportedAt).dateKey}-${pad2(at.getHours())}${pad2(at.getMinutes())}${pad2(at.getSeconds())}`
-  return `chronoscope-${stamp}.${format}`
+  return `dsh-timespan-${stamp}.${format}`
 }
 
 export function exportMimeType(format) {
@@ -55,7 +59,7 @@ export function exportMimeType(format) {
 export function buildJsonExport({ exportedAt, settings, intervals, tasks }) {
   return JSON.stringify(
     {
-      format: 'chronoscope-export',
+      format: EXPORT_FORMAT,
       version: 1,
       exportedAt,
       settings,

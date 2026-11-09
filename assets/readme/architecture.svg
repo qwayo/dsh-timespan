@@ -1,60 +1,84 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="356" viewBox="0 0 1200 356" role="img" aria-labelledby="arch-title arch-desc">
-  <title id="arch-title">ChronoScope 运行机制</title>
-  <desc id="arch-desc">ChronoScope 分成两半：Host 是随 DSH 一起运行的后台，负责记心跳、听会话事件、统一计算统计并把数据写进本机；Client 是页面上看到的部分，负责侧栏入口、仪表盘与设置页，并把发生了什么报给后台。</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">dsh-timespan 运行机制</title>
+  <desc id="arch-desc">dsh-timespan 分成两半：Host 是随 DSH 一起运行的后台，负责记在线心跳、听会话事件、统一计算统计、写入本机存储并注册 timespan_stats 只读工具；Client 是页面上看到的部分，负责侧栏入口、presence 心跳、概览/趋势/明细与设置页，只把发生了什么报给后台。</desc>
 
-  <rect width="1200" height="356" rx="24" fill="#f7f8f9"/>
-  <rect x="0.75" y="0.75" width="1198.5" height="354.5" rx="23.25" fill="none" stroke="#e2e4e6" stroke-width="1.5"/>
+  <rect width="1200" height="440" rx="24" fill="#151718"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="438.5" rx="23.25" fill="none" stroke="#2b3033" stroke-width="1.5"/>
 
   <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
 
+    <!-- 眉题 -->
+    <g transform="translate(72 42)">
+      <circle cx="10" cy="10" r="8" fill="none" stroke="#303435" stroke-width="2.2"/>
+      <g transform="rotate(-90 10 10)">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="#3f6ba8" stroke-width="2.2"
+                pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>
+        <circle cx="10" cy="10" r="8" fill="none" stroke="#79B3F9" stroke-width="2.2"
+                pathLength="100" stroke-dasharray="30 70" stroke-dashoffset="-50"/>
+        <circle cx="10" cy="10" r="8" fill="none" stroke="#C29BE8" stroke-width="2.2"
+                pathLength="100" stroke-dasharray="20 80" stroke-dashoffset="-80"/>
+      </g>
+      <text x="28" y="15" font-size="15" letter-spacing="2.4" fill="#8a9090"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">运行机制 · HOST + CLIENT</text>
+    </g>
+
     <!-- ===== 后台：DSH Host ===== -->
     <g id="host-box">
-      <rect x="64" y="48" width="1072" height="90" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
-      <circle cx="96" cy="74" r="6" fill="#133463"/>
-      <text x="114" y="81" font-size="22" font-weight="700" fill="#242729"
+      <rect x="72" y="70" width="1056" height="132" rx="16" fill="#202324" stroke="#414647" stroke-width="1.5"/>
+      <circle cx="98" cy="101" r="7" fill="#79B3F9"/>
+      <text x="116" y="110" font-size="25" font-weight="700" fill="#f1f2f1"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Host</text>
-      <text x="248" y="80" font-size="16" fill="#8a9095">插件的后台，随 DSH 一起运行</text>
-      <g font-size="16" fill="#565b5e" text-anchor="middle">
-        <rect x="88" y="92" width="192" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
-        <text x="184" y="113">每 30 秒记一次在线心跳</text>
-        <rect x="304" y="92" width="216" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
-        <text x="412" y="113">听会话事件，切出任务时段</text>
-        <rect x="544" y="92" width="136" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
-        <text x="612" y="113">统一算统计口径</text>
-        <rect x="704" y="92" width="184" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
-        <text x="796" y="113">写入本机存储，不上传</text>
+      <text x="252" y="109" font-size="18" fill="#8a9090">随 DSH 一起运行的后台，统计只在这里计算</text>
+
+      <g font-size="18" fill="#b1b6b5" text-anchor="middle">
+        <rect x="96" y="136" width="184" height="40" rx="20" fill="#303435"/>
+        <text x="188" y="161">30 秒在线心跳</text>
+        <rect x="292" y="136" width="190" height="40" rx="20" fill="#303435"/>
+        <text x="387" y="161">监听会话事件</text>
+        <rect x="494" y="136" width="166" height="40" rx="20" fill="#303435"/>
+        <text x="577" y="161">统一计算口径</text>
+        <rect x="672" y="136" width="214" height="40" rx="20" fill="#303435"/>
+        <text x="779" y="161">写入本机 · 不上传</text>
+        <rect x="898" y="136" width="206" height="40" rx="20" fill="#303435"/>
+        <text x="1001" y="161">注册 timespan_stats 工具</text>
       </g>
     </g>
 
     <!-- ===== 双向通道 ===== -->
     <g id="channel">
-      <line x1="440" y1="180" x2="440" y2="148" stroke="#8a9095" stroke-width="2"/>
-      <path d="M435 152 440 144 445 152" fill="none" stroke="#8a9095" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <text x="452" y="167" font-size="16" fill="#8a9095">页面告诉后台发生了什么</text>
-      <line x1="790" y1="148" x2="790" y2="180" stroke="#1F4E94" stroke-width="2"/>
-      <path d="M785 176 790 184 795 176" fill="none" stroke="#1F4E94" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <text x="802" y="167" font-size="16" fill="#8a9095">后台把算好的结果给页面</text>
+      <line x1="300" y1="274" x2="300" y2="210" stroke="#79B3F9" stroke-width="2"/>
+      <path d="M294 216 300 206 306 216" fill="none" stroke="#79B3F9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="322" y="242" font-size="16" fill="#b1b6b5">上报事实：可见、聚焦、任务起止</text>
+
+      <line x1="790" y1="208" x2="790" y2="274" stroke="#a9cffa" stroke-width="2"/>
+      <path d="M784 268 790 278 796 268" fill="none" stroke="#a9cffa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="812" y="242" font-size="16" fill="#b1b6b5">返回结果：与 timespan_stats 同源</text>
+
+      <rect x="598" y="221" width="140" height="28" rx="14" fill="#182430" stroke="#2e4a66" stroke-width="1"/>
+      <text x="668" y="240" text-anchor="middle" font-size="12" fill="#8fbfe9"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">包内 RPC</text>
     </g>
 
     <!-- ===== 页面：DSH Web Client ===== -->
     <g id="client-box">
-      <rect x="64" y="186" width="1072" height="90" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
-      <circle cx="96" cy="212" r="6" fill="#79B3F9"/>
-      <text x="114" y="219" font-size="22" font-weight="700" fill="#242729"
+      <rect x="72" y="278" width="1056" height="112" rx="16" fill="#202324" stroke="#414647" stroke-width="1.5"/>
+      <circle cx="98" cy="309" r="7" fill="#a9cffa"/>
+      <text x="116" y="318" font-size="25" font-weight="700" fill="#f1f2f1"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Web Client</text>
-      <text x="304" y="218" font-size="16" fill="#8a9095">你在页面上看到的部分</text>
-      <g font-size="16" fill="#565b5e" text-anchor="middle">
-        <rect x="88" y="230" width="200" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
-        <text x="188" y="251">侧栏入口，显示今日活跃</text>
-        <rect x="312" y="230" width="208" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
-        <text x="416" y="251">每 15 秒报一次「我开着」</text>
-        <rect x="544" y="230" width="136" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
-        <text x="612" y="251">仪表盘与设置页</text>
-        <rect x="704" y="230" width="208" height="32" rx="16" fill="#f7f8f9" stroke="#e2e4e6" stroke-width="1.5"/>
-        <text x="808" y="251">chrono_stats 只读查询</text>
+      <text x="338" y="317" font-size="18" fill="#8a9090">你在页面上看到的部分，只负责上报事实与展示结果</text>
+
+      <g font-size="18" fill="#b1b6b5" text-anchor="middle">
+        <rect x="96" y="334" width="214" height="36" rx="18" fill="#303435"/>
+        <text x="203" y="357">侧栏入口 · 今日在线</text>
+        <rect x="322" y="334" width="190" height="36" rx="18" fill="#303435"/>
+        <text x="417" y="357">每 15 秒 presence</text>
+        <rect x="524" y="334" width="198" height="36" rx="18" fill="#303435"/>
+        <text x="623" y="357">概览 / 趋势 / 明细</text>
+        <rect x="734" y="334" width="214" height="36" rx="18" fill="#303435"/>
+        <text x="841" y="357">设置与配色仅存本机</text>
       </g>
     </g>
 
-    <text x="600" y="316" text-anchor="middle" font-size="20" fill="#565b5e">页面只负责上报事实；怎么算、算多久、存在哪，都由 Host 统一处理，数据不出本机。</text>
+    <text x="600" y="426" text-anchor="middle" font-size="18" fill="#b1b6b5">页面只负责上报事实；怎么算、算多久、存在哪，都由 Host 统一处理，数据不出本机。</text>
   </g>
 </svg>

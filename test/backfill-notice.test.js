@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createChronoScopeDomain } from '../src/domain/chrono-scope-domain.js'
+import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
 
 const MINUTE = 60_000
@@ -28,7 +28,7 @@ function createFakeClock({ now, uptimeMs = 0 }) {
 
 function completedTurn(sessionId, turn, start, end) {
   return {
-    session: { id: sessionId, cwd: '/repo/chrono-scope' },
+    session: { id: sessionId, cwd: '/repo/dsh-timespan' },
     inheritedEventCount: 0,
     header: {},
     events: [
@@ -40,7 +40,7 @@ function completedTurn(sessionId, turn, start, end) {
 
 async function startedService({ domain = createMemoryDomain(), now } = {}) {
   const clock = createFakeClock({ now })
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
   return { domain, clock, service }
 }
@@ -102,7 +102,7 @@ test('点「知道了」写入已读锚点，重启后同一事件仍保持已�
   assert.equal(stale.readEventId, done.eventId)
 
   // 重启后从同一个存储域读回：事件与已读状态都持久化，且不会重扫。
-  const restarted = createChronoScopeDomain({ domain, clock: createFakeClock({ now: t0 + 13 * MINUTE }) })
+  const restarted = createDshTimespanDomain({ domain, clock: createFakeClock({ now: t0 + 13 * MINUTE }) })
   await restarted.start()
   const persisted = restarted.getBackfillStatus()
   assert.equal(persisted.eventId, done.eventId)

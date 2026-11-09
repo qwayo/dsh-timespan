@@ -9,7 +9,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createChronoScopeDomain } from '../src/domain/chrono-scope-domain.js'
+import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
 
 const SECOND = 1000
@@ -58,7 +58,7 @@ test('重启恢复：在线悬空区间按最后心跳收口并标记近似，�
   const t0 = Date.UTC(2026, 10, 5, 2, 0, 0)
   const domain = createMemoryDomain()
   const firstClock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
-  const first = createChronoScopeDomain({ domain, clock: firstClock })
+  const first = createDshTimespanDomain({ domain, clock: firstClock })
   await first.start()
 
   // 第一次运行在 t0+30s 留下最后一次在线心跳，t0+60s 时进程崩溃。
@@ -68,7 +68,7 @@ test('重启恢复：在线悬空区间按最后心跳收口并标记近似，�
 
   // 新进程在 t0+5min 启动，uptime 2s 说明应用启动时刻是 t0+4min58s。
   const secondClock = createFakeClock({ now: t0 + 5 * MINUTE, uptimeMs: 2 * SECOND })
-  const second = createChronoScopeDomain({ domain, clock: secondClock })
+  const second = createDshTimespanDomain({ domain, clock: secondClock })
   await second.start()
 
   const stats = second.queryStats({ from: t0 - 3 * MINUTE, to: t0 + 6 * MINUTE })
@@ -84,7 +84,7 @@ test('重启恢复：活跃悬空区间按最后心跳收口并标记近似，�
   const t0 = Date.UTC(2026, 10, 5, 3, 0, 0)
   const domain = createMemoryDomain()
   const firstClock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
-  const first = createChronoScopeDomain({ domain, clock: firstClock })
+  const first = createDshTimespanDomain({ domain, clock: firstClock })
   await first.start()
 
   await first.recordPresence(foregroundPresence(t0))
@@ -94,7 +94,7 @@ test('重启恢复：活跃悬空区间按最后心跳收口并标记近似，�
 
   // 浏览器与 Host 一起失联，30 分钟后才重启。
   const secondClock = createFakeClock({ now: t0 + 30 * MINUTE, uptimeMs: 2 * SECOND })
-  const second = createChronoScopeDomain({ domain, clock: secondClock })
+  const second = createDshTimespanDomain({ domain, clock: secondClock })
   await second.start()
 
   const stats = second.queryStats({ from: t0, to: t0 + 30 * MINUTE, view: 'dashboard' })
@@ -107,7 +107,7 @@ test('重启恢复：未结束任务按最后事件时间收口并标记中断�
   const t0 = Date.UTC(2026, 10, 5, 4, 0, 0)
   const domain = createMemoryDomain()
   const firstClock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
-  const first = createChronoScopeDomain({ domain, clock: firstClock })
+  const first = createDshTimespanDomain({ domain, clock: firstClock })
   await first.start()
 
   await addTurnStart(first, 'session-1', 1, t0)
@@ -119,7 +119,7 @@ test('重启恢复：未结束任务按最后事件时间收口并标记中断�
 
   // 任务在 t0+10s 后再无事件；进程一小时后才重启。
   const secondClock = createFakeClock({ now: t0 + HOUR, uptimeMs: 2 * SECOND })
-  const second = createChronoScopeDomain({ domain, clock: secondClock })
+  const second = createDshTimespanDomain({ domain, clock: secondClock })
   await second.start()
 
   const stats = second.queryStats({ from: t0, to: t0 + 2 * HOUR })
@@ -137,7 +137,7 @@ test('多次重启：已收口的区间与任务不重复收口、不重复计�
   const t0 = Date.UTC(2026, 10, 5, 5, 0, 0)
   const domain = createMemoryDomain()
   const firstClock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
-  const first = createChronoScopeDomain({ domain, clock: firstClock })
+  const first = createDshTimespanDomain({ domain, clock: firstClock })
   await first.start()
   await first.recordPresence(foregroundPresence(t0))
   firstClock.nowMs = t0 + 30 * SECOND
@@ -146,14 +146,14 @@ test('多次重启：已收口的区间与任务不重复收口、不重复计�
   await addTurnStart(first, 'session-1', 1, t0)
 
   const secondClock = createFakeClock({ now: t0 + 5 * MINUTE, uptimeMs: 2 * SECOND })
-  const second = createChronoScopeDomain({ domain, clock: secondClock })
+  const second = createDshTimespanDomain({ domain, clock: secondClock })
   await second.start()
   // 固定窗口截止到第二次启动时刻，排除第三次启动新增的在线时间。
   const window = { from: t0 - 3 * MINUTE, to: t0 + 5 * MINUTE }
   const before = second.queryStats(window)
 
   const thirdClock = createFakeClock({ now: t0 + 10 * MINUTE, uptimeMs: 2 * SECOND })
-  const third = createChronoScopeDomain({ domain, clock: thirdClock })
+  const third = createDshTimespanDomain({ domain, clock: thirdClock })
   await third.start()
   const after = third.queryStats(window)
 
@@ -170,7 +170,7 @@ test('多次重启：已收口的区间与任务不重复收口、不重复计�
 test('时钟回拨：心跳不倒退，已观测任务不被缩短成负数或零', async () => {
   const t0 = Date.UTC(2026, 10, 5, 6, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   clock.nowMs = t0 + 60 * SECOND
@@ -214,7 +214,7 @@ test('时钟回拨：心跳不倒退，已观测任务不被缩短成负数或�
 test('时钟向前跳跃：在线与任务时长不出现异常巨大值', async () => {
   const t0 = Date.UTC(2026, 10, 5, 7, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   clock.nowMs = t0 + 10 * SECOND
@@ -251,7 +251,7 @@ test('时钟向前跳跃：在线与任务时长不出现异常巨大值', async
 test('正常休眠：墙钟与 uptime 同步前进，在线时长不被切断', async () => {
   const t0 = Date.UTC(2026, 10, 5, 8, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   clock.nowMs = t0 + 2 * HOUR

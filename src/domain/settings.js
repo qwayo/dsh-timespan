@@ -1,5 +1,5 @@
 /**
- * ChronoScope 设置项的纯规则模块。
+ * dsh-timespan 设置项的纯规则模块。
  *
  * 设置是「业务状态的唯一权威副本」：只存在 Host 存储域的 meta 里，由领域服务
  * 读写；Client 不缓存、不落 localStorage、不参与判定。这里只做归一化与默认值，

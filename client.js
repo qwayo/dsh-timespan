@@ -1,9 +1,9 @@
 /**
- * ChronoScope 的 Client 半。
+ * dsh-timespan 的 Client 半。
  *
  * 四件事：在侧边栏注册常驻入口并显示所选时长；在 frame-wide overlay 上
  * 挂载 presence 心跳（每 15 秒上报页面可见性、窗口聚焦、前台会话与最近操作）；
- * 在 main 的 chrono-scope 键下渲染日/周/月仪表盘（含导出与二次确认清空）；
+ * 在 main 的 dsh-timespan 键下渲染日/周/月仪表盘（含导出与二次确认清空）；
  * 在 settings.section 下渲染统计与侧栏显示设置。页面只负责渲染与交互，
  * 周期边界、跨午夜裁剪、并发并集、会话求和、设置归一化与文件序列化全部由
  * Host 领域服务计算；Client 不缓存业务状态，刷新后所有数字都重新从 Host 读取。
@@ -17,12 +17,15 @@
  */
 
 window.__ModuleLoader__.load({
-  id: '@local/chrono-scope',
+  id: '@local/dsh-timespan',
   factory(require) {
     const React = require('react')
     const h = React.createElement
 
-    const NS = 'chrono-scope'
+    const NS = 'dsh-timespan'
+    /** 新导出格式；旧版 chronoscope-export 仍允许导入。 */
+    const EXPORT_FORMAT = 'dsh-timespan-export'
+    const LEGACY_EXPORT_FORMAT = 'chronoscope-export'
     /** 三套配色；blue 为默认。旧值（mono/green/warm）一律回落到 blue。 */
     const PALETTES = ['blue', 'stone', 'clay']
     /** 外观三态按用户确认的顺序循环：浅色 → 深色 → 跟随系统。 */
@@ -79,18 +82,18 @@ window.__ModuleLoader__.load({
     const VIEW_ENTER_MS = 300
     const VIEW_EXIT_MS = 180
     /** 首屏放大态：只认三种区块，状态持久化在浏览器本地设置，供 #14/#15 共用。 */
-    const FOCUS_KEY = 'chrono-scope.focus'
+    const FOCUS_KEY = 'dsh-timespan.focus'
     const FOCUS_VALUES = ['hero', 'trend', 'heatmap']
     const FOCUS_TRANSITION_MS = 240
     /** 条状图首屏的 SVG 视图高度；柱高与网格按它重新计算，而不是拉伸普通卡片。 */
     const TREND_FOCUS_HEIGHT = 360
     /** 首屏主指标：五个可切换的时长项，持久化在浏览器本地设置；非法值回落今日活跃时长。 */
-    const HERO_METRIC_KEY = 'chrono-scope.heroMetric'
+    const HERO_METRIC_KEY = 'dsh-timespan.heroMetric'
     const HERO_METRIC_VALUES = ['active', 'online', 'task', 'week', 'month']
     const HERO_METRIC_DEFAULT = 'active'
 
     const zh = {
-      title: 'ChronoScope',
+      title: 'dsh-timespan',
 
       todayActive: '今日活跃时长',
       todayOnline: '今日在线时长',
@@ -131,7 +134,7 @@ window.__ModuleLoader__.load({
       error: '暂时无法读取时长统计，正在自动重试',
       sinceBoot: '活跃：页面可见、窗口聚焦且有键鼠操作时计入。',
       localOnly: '数据仅保存在本机',
-      navTooltip: 'ChronoScope · 在线、活跃与任务时长',
+      navTooltip: 'dsh-timespan · 在线、活跃与任务时长',
       periodDay: '日',
       periodWeek: '周',
       periodMonth: '月',
@@ -149,7 +152,7 @@ window.__ModuleLoader__.load({
       tabTrend: '趋势',
       tabDetails: '明细',
       tabSettings: '设置',
-      tabsLabel: 'ChronoScope 页面',
+      tabsLabel: 'dsh-timespan 页面',
       recentSessions: '最近会话',
       recentSessionsHint: '按最近活动时间排序',
       recentSessionsEmpty: '当前周期还没有会话记录',
@@ -289,8 +292,8 @@ window.__ModuleLoader__.load({
       backfillNoticeUnavailable: '暂时无法读取通知记录',
       subagentDetail: '子代理任务',
       subagentDetailHint: '共 {count} 条，合计 {duration}（不计入总计）',
-      settingsNav: 'ChronoScope',
-      settingsTitle: 'ChronoScope 设置',
+      settingsNav: 'dsh-timespan',
+      settingsTitle: 'dsh-timespan 设置',
       settingsHint: '改动即存本机并立即生效，重启后仍然生效。',
       settingsIdleLabel: '空闲阈值',
       settingsIdleHint: '页面可见且聚焦时，最后一次操作超过这个时长就不再计入活跃时长。',
@@ -343,7 +346,7 @@ window.__ModuleLoader__.load({
       settingsResetError: '恢复初始设置失败，请重试',
       settingsSectionNotices: '通知记录',
       dataTitle: '数据管理',
-      dataHint: '导出包含原始区间、任务与设置；清空只删除 ChronoScope 统计记录，不影响会话日志。',
+      dataHint: '导出包含原始区间、任务与设置；清空只删除 dsh-timespan 统计记录，不影响会话日志。',
       exportJson: '导出 JSON',
       exportCsv: '导出 CSV',
       exporting: '正在导出…',
@@ -352,7 +355,7 @@ window.__ModuleLoader__.load({
       exportError: '导出失败，请重试',
       clearData: '清空全部数据',
       clearStepTitle: '确认清空？',
-      clearStepHint: '这会删除本机全部 ChronoScope 在线、活跃与任务记录，且无法撤销；会话日志不受影响，设置会保留。',
+      clearStepHint: '这会删除本机全部 dsh-timespan 在线、活跃与任务记录，且无法撤销；会话日志不受影响，设置会保留。',
       clearConfirm: '确认清空',
       clearCancel: '取消',
       clearing: '正在清空…',
@@ -363,7 +366,7 @@ window.__ModuleLoader__.load({
       savedBadge: '已保存',
       importData: '选择备份文件导入',
       importHint: '仅支持此前导出的 JSON 备份；按 ID 去重合并，已有记录不会被覆盖。',
-      importInvalid: '这不是有效的 ChronoScope 备份（需要 format 为 chronoscope-export 且 version 为 1）。',
+      importInvalid: '这不是有效的 dsh-timespan 备份（需要 format 为 dsh-timespan-export 或 chronoscope-export 且 version 为 1）。',
       importPreviewTitle: '待导入文件',
       importIntervals: '时间区间',
       importTasks: '任务',
@@ -378,7 +381,7 @@ window.__ModuleLoader__.load({
     }
 
     const en = {
-      title: 'ChronoScope',
+      title: 'dsh-timespan',
 
       todayActive: 'Active today',
       todayOnline: 'Online today',
@@ -419,7 +422,7 @@ window.__ModuleLoader__.load({
       error: 'Unable to read time statistics. Retrying automatically.',
       sinceBoot: 'Active: counted while the page is visible, the window is focused and there is input.',
       localOnly: 'Data stays on this device',
-      navTooltip: 'ChronoScope · online, active and task time',
+      navTooltip: 'dsh-timespan · online, active and task time',
       periodDay: 'Day',
       periodWeek: 'Week',
       periodMonth: 'Month',
@@ -437,7 +440,7 @@ window.__ModuleLoader__.load({
       tabTrend: 'Trend',
       tabDetails: 'Details',
       tabSettings: 'Settings',
-      tabsLabel: 'ChronoScope pages',
+      tabsLabel: 'dsh-timespan pages',
       recentSessions: 'Recent sessions',
       recentSessionsHint: 'Ordered by last activity',
       recentSessionsEmpty: 'No sessions in this period yet',
@@ -577,8 +580,8 @@ window.__ModuleLoader__.load({
       backfillNoticeUnavailable: 'Notification records are temporarily unavailable',
       subagentDetail: 'Subagent tasks',
       subagentDetailHint: '{count} tasks · {duration} total (excluded from totals)',
-      settingsNav: 'ChronoScope',
-      settingsTitle: 'ChronoScope settings',
+      settingsNav: 'dsh-timespan',
+      settingsTitle: 'dsh-timespan settings',
       settingsHint: 'Settings stay on this device, apply to later statistics immediately and survive restarts.',
       settingsIdleLabel: 'Idle threshold',
       settingsIdleHint: 'While visible and focused, activity stops counting once the last input is older than this.',
@@ -631,7 +634,7 @@ window.__ModuleLoader__.load({
       settingsResetError: 'Could not restore initial settings; please retry',
       settingsSectionNotices: 'Notifications',
       dataTitle: 'Data',
-      dataHint: 'Exports include raw intervals, tasks and settings; clearing removes only ChronoScope records, not session logs.',
+      dataHint: 'Exports include raw intervals, tasks and settings; clearing removes only dsh-timespan records, not session logs.',
       exportJson: 'Export JSON',
       exportCsv: 'Export CSV',
       exporting: 'Exporting…',
@@ -640,7 +643,7 @@ window.__ModuleLoader__.load({
       exportError: 'Export failed; please retry',
       clearData: 'Clear all data',
       clearStepTitle: 'Clear everything?',
-      clearStepHint: 'This deletes all local ChronoScope online, active and task records and cannot be undone. Session logs are untouched and settings are kept.',
+      clearStepHint: 'This deletes all local dsh-timespan online, active and task records and cannot be undone. Session logs are untouched and settings are kept.',
       clearConfirm: 'Confirm clear',
       clearCancel: 'Cancel',
       clearing: 'Clearing…',
@@ -651,7 +654,7 @@ window.__ModuleLoader__.load({
       savedBadge: 'Saved',
       importData: 'Choose backup file to import',
       importHint: 'Only JSON backups exported earlier; merged by ID, existing records are never overwritten.',
-      importInvalid: 'This is not a valid ChronoScope backup (format must be chronoscope-export and version must be 1).',
+      importInvalid: 'This is not a valid dsh-timespan backup (format must be dsh-timespan-export or chronoscope-export and version must be 1).',
       importPreviewTitle: 'File to import',
       importIntervals: 'Intervals',
       importTasks: 'Tasks',
@@ -675,10 +678,10 @@ window.__ModuleLoader__.load({
       return `client_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`
     }
 
-    function ChronoIcon(props) {
+    function DshTimespanIcon(props) {
       const size = typeof props?.size === 'number' ? props.size : 16
       return h('svg', {
-        className: 'chronoscope-nav-icon', width: size, height: size,
+        className: 'dsh-timespan-nav-icon', width: size, height: size,
         viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true,
       },
       h('circle', { cx: 12, cy: 12, r: 8.5, stroke: 'currentColor', strokeWidth: 2.2,
@@ -1288,8 +1291,8 @@ window.__ModuleLoader__.load({
     function resetStoredTheme() {
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.setItem('chrono-scope.palette', 'blue')
-          window.localStorage.setItem('chrono-scope.appearance', 'system')
+          window.localStorage.setItem('dsh-timespan.palette', 'blue')
+          window.localStorage.setItem('dsh-timespan.appearance', 'system')
         }
       } catch {
         // 隐私模式下写不进去时仍广播，让当前页面按内存值回到默认视觉。
@@ -1303,8 +1306,8 @@ window.__ModuleLoader__.load({
       let appearance = 'system'
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
-          palette = normalizePalette(window.localStorage.getItem('chrono-scope.palette'))
-          appearance = normalizeAppearance(window.localStorage.getItem('chrono-scope.appearance'))
+          palette = normalizePalette(window.localStorage.getItem('dsh-timespan.palette'))
+          appearance = normalizeAppearance(window.localStorage.getItem('dsh-timespan.appearance'))
         }
       } catch {
         // 隐私模式或禁用存储时回落默认主题，入口仍可渲染。
@@ -1322,7 +1325,7 @@ window.__ModuleLoader__.load({
       if (connection === undefined || connection === null || !connection.rpc || typeof connection.rpc.call !== 'function') {
         throw new Error('connection 服务不可用')
       }
-      const result = await connection.rpc.call('/api', 'chrono-scope', { method, payload })
+      const result = await connection.rpc.call('/api', 'dsh-timespan', { method, payload })
       if (result !== null && typeof result === 'object' && result.ok === true) return result.value
       const message = result?.error?.message ? String(result.error.message) : 'RPC 调用失败'
       throw new Error(message)
@@ -1355,8 +1358,8 @@ window.__ModuleLoader__.load({
     function applySidebarHostNameVisibility(visible) {
       if (typeof document === 'undefined' || !document.documentElement) return
       const root = document.documentElement
-      if (visible === false) root.setAttribute('data-chronoscope-hide-name', '')
-      else root.removeAttribute('data-chronoscope-hide-name')
+      if (visible === false) root.setAttribute('data-dsh-timespan-hide-name', '')
+      else root.removeAttribute('data-dsh-timespan-hide-name')
     }
 
     /**
@@ -1389,7 +1392,7 @@ window.__ModuleLoader__.load({
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = file?.filename ?? `chronoscope.${file?.format ?? 'json'}`
+      anchor.download = file?.filename ?? `dsh-timespan.${file?.format ?? 'json'}`
       anchor.style.display = 'none'
       document.body.appendChild(anchor)
       anchor.click()
@@ -1729,10 +1732,10 @@ window.__ModuleLoader__.load({
     function renderSidebarRing(segments) {
       const visible = segments.filter((segment) => segment.ms > 0)
       const gap = visible.length > 1 ? 1.4 : 0
-      return h('span', { className: 'chronoscope-nav-ring', 'aria-hidden': true },
+      return h('span', { className: 'dsh-timespan-nav-ring', 'aria-hidden': true },
         h('svg', { viewBox: '0 0 20 20', width: 18, height: 18, role: 'presentation', focusable: 'false' },
           h('circle', {
-            className: 'chronoscope-nav-ring-track',
+            className: 'dsh-timespan-nav-ring-track',
             cx: 10, cy: 10, r: 8, pathLength: 100, fill: 'none',
           }),
           visible.map((segment, index) => {
@@ -1740,7 +1743,7 @@ window.__ModuleLoader__.load({
             const offset = -(segment.from * 100 + (index === 0 ? 0 : gap / 2))
             return h('circle', {
               key: segment.key,
-              className: `chronoscope-nav-ring-seg is-${segment.key}`,
+              className: `dsh-timespan-nav-ring-seg is-${segment.key}`,
               cx: 10, cy: 10, r: 8, pathLength: 100, fill: 'none',
               stroke: `var(${segment.color})`,
               strokeDasharray: `${roundRingPercent(dash)} ${roundRingPercent(100 - dash)}`,
@@ -1757,19 +1760,19 @@ window.__ModuleLoader__.load({
         : { left: '0px', top: '0px', visibility: 'hidden' }
       return h('span', {
         ref,
-        id: 'chrono-scope-sidebar-tip',
-        className: 'chronoscope-nav-tip',
+        id: 'dsh-timespan-sidebar-tip',
+        className: 'dsh-timespan-nav-tip',
         role: 'tooltip',
         style,
         'data-placement': position?.placement ?? 'top',
       },
-      h('span', { className: 'chronoscope-nav-tip-rows' }, (tip.rows || []).map((row) => h('span', {
-        className: 'chronoscope-nav-tip-row', key: row.key ?? row.label,
+      h('span', { className: 'dsh-timespan-nav-tip-rows' }, (tip.rows || []).map((row) => h('span', {
+        className: 'dsh-timespan-nav-tip-row', key: row.key ?? row.label,
       },
-      h('i', { className: 'chronoscope-nav-tip-swatch', style: { background: `var(${row.color})` }, 'aria-hidden': true }),
-      h('span', { className: 'chronoscope-nav-tip-label' }, row.label),
-      h('span', { className: 'chronoscope-nav-tip-value' }, row.value),
-      h('span', { className: 'chronoscope-nav-tip-share' }, row.share)))))
+      h('i', { className: 'dsh-timespan-nav-tip-swatch', style: { background: `var(${row.color})` }, 'aria-hidden': true }),
+      h('span', { className: 'dsh-timespan-nav-tip-label' }, row.label),
+      h('span', { className: 'dsh-timespan-nav-tip-value' }, row.value),
+      h('span', { className: 'dsh-timespan-nav-tip-share' }, row.share)))))
     }
 
     /** 量一次浮层尺寸再定位，保证贴边时也完整可读。 */
@@ -1860,28 +1863,28 @@ window.__ModuleLoader__.load({
         onKeyDown: (event) => { if (event?.key === 'Escape') hover.hide?.() },
       }
       return h('span', {
-        className: `chronoscope-nav-entry ${themeClass}${nameless ? ' is-nameless' : ''}`,
+        className: `dsh-timespan-nav-entry ${themeClass}${nameless ? ' is-nameless' : ''}`,
         tabIndex: 0,
         'aria-label': summary,
-        ...(hover?.tip ? { 'aria-describedby': 'chrono-scope-sidebar-tip' } : {}),
+        ...(hover?.tip ? { 'aria-describedby': 'dsh-timespan-sidebar-tip' } : {}),
         ...hoverProps,
       },
-      h('style', null, CHRONOSCOPE_SIDEBAR_CSS),
+      h('style', null, DSH_TIMESPAN_SIDEBAR_CSS),
       renderSidebarRing(segments),
       wide
         ? h('span', {
             key: `nav-time-${format}`,
-            className: `chronoscope-nav-time${selectedLive ? ' is-live' : ''}`,
+            className: `dsh-timespan-nav-time${selectedLive ? ' is-live' : ''}`,
             'data-format': format,
             'data-metric': selectedMetric,
           }, value)
         : null,
       wide && showName
-        ? h('span', { className: `chronoscope-nav-status${statusClass}` }, statusLabel)
+        ? h('span', { className: `dsh-timespan-nav-status${statusClass}` }, statusLabel)
         : null,
       wide
         ? h('span', {
-            className: `chronoscope-nav-dot${active || task ? ' is-live' : ''}${active ? ' is-active' : ''}${task ? ' is-task' : ''}`,
+            className: `dsh-timespan-nav-dot${active || task ? ' is-live' : ''}${active ? ' is-active' : ''}${task ? ' is-task' : ''}`,
             role: 'img',
             'aria-label': statusLabel,
           })
@@ -1891,7 +1894,7 @@ window.__ModuleLoader__.load({
 
     /** 侧边栏常驻入口：今日构成环 + 所选时长 + 可隐藏状态文字 + 状态点。 */
     function createSidebarEntry(ctx, t) {
-      return function ChronoScopeSidebarEntry(props) {
+      return function DshTimespanSidebarEntry(props) {
         const [previewFormat, setPreviewFormat] = React.useState(null)
         const [refreshNonce, setRefreshNonce] = React.useState(0)
         const stats = useTodayStats(ctx, SIDEBAR_REFRESH_MS, refreshNonce)
@@ -1976,7 +1979,7 @@ window.__ModuleLoader__.load({
      * 被取消固定或折叠时组件可能卸载，但活跃采集必须随页面一直存在。
      */
     function createPresenceReporter(ctx) {
-      return function ChronoScopePresenceReporter(props) {
+      return function DshTimespanPresenceReporter(props) {
         usePresenceReporter(props, ctx)
         return null
       }
@@ -2391,7 +2394,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 挂载后量一次浮层尺寸再定位，避免贴边溢出；减少动效由 CSS 媒体查询处理。 */
-    function HoverTip({ tip, id = 'chrono-scope-hover-tip' }) {
+    function HoverTip({ tip, id = 'dsh-timespan-hover-tip' }) {
       const ref = React.useRef(null)
       const [position, setPosition] = React.useState(null)
       React.useEffect(() => {
@@ -3434,7 +3437,7 @@ window.__ModuleLoader__.load({
      * 保存后以 Host 返回值为准，不写 localStorage、不缓存任何业务状态。
      */
     function createSettingsSection(ctx) {
-      return function ChronoScopeSettingsSection(props) {
+      return function DshTimespanSettingsSection(props) {
         const t = props?.t ?? ((key) => key)
         const [draft, setDraft] = React.useState(null)
         const [phase, setPhase] = React.useState('loading')
@@ -3544,7 +3547,7 @@ window.__ModuleLoader__.load({
         const statusClass = `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`
 
         return h('div', { className: 'cs-settings' },
-          h('style', null, CHRONOSCOPE_SETTINGS_CSS),
+          h('style', null, DSH_TIMESPAN_SETTINGS_CSS),
           h('div', { className: 'cs-settings-inner' },
             h('header', null,
               h('h2', { className: 'cs-settings-title' }, t('settingsTitle')),
@@ -4967,15 +4970,15 @@ window.__ModuleLoader__.load({
     }
 
     function createPage(ctx) {
-      return function ChronoPage(props) {
+      return function DshTimespanPage(props) {
         const t = props?.t ?? ((key) => key)
         const isZh = t('periodDay') === '日'
         const [period, setPeriod] = React.useState(() => {
-          try { const value = window.sessionStorage.getItem('chrono-scope.period'); return ['day', 'week', 'month'].includes(value) ? value : 'day' }
+          try { const value = window.sessionStorage.getItem('dsh-timespan.period'); return ['day', 'week', 'month'].includes(value) ? value : 'day' }
           catch { return 'day' }
         })
         const [view, setView] = React.useState(() => {
-          try { return normalizeView(window.sessionStorage.getItem('chrono-scope.view')) }
+          try { return normalizeView(window.sessionStorage.getItem('dsh-timespan.view')) }
           catch { return 'overview' }
         })
         // 首屏放大态持久化在浏览器本地设置：退出页面再进入仍保持，非法旧值回落普通概览。
@@ -4988,11 +4991,11 @@ window.__ModuleLoader__.load({
         const switchingTimerRef = React.useRef(null)
         const viewsRef = React.useRef(null)
         const [palette, setPalette] = React.useState(() => {
-          try { return normalizePalette(window.localStorage.getItem('chrono-scope.palette')) }
+          try { return normalizePalette(window.localStorage.getItem('dsh-timespan.palette')) }
           catch { return 'blue' }
         })
         const [appearance, setAppearance] = React.useState(() => {
-          try { return normalizeAppearance(window.localStorage.getItem('chrono-scope.appearance')) }
+          try { return normalizeAppearance(window.localStorage.getItem('dsh-timespan.appearance')) }
           catch { return 'system' }
         })
         const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
@@ -5018,7 +5021,7 @@ window.__ModuleLoader__.load({
         const applyAppearance = (value) => {
           const next = normalizeAppearance(value)
           setAppearance(next)
-          try { window.localStorage.setItem('chrono-scope.appearance', next); setPaletteSaveError(false) }
+          try { window.localStorage.setItem('dsh-timespan.appearance', next); setPaletteSaveError(false) }
           catch { setPaletteSaveError(true) }
           notifyThemeChanged()
         }
@@ -5026,7 +5029,7 @@ window.__ModuleLoader__.load({
         const changePalette = (value) => {
           const normalized = normalizePalette(value)
           setPalette(normalized)
-          try { window.localStorage.setItem('chrono-scope.palette', normalized); setPaletteSaveError(false) }
+          try { window.localStorage.setItem('dsh-timespan.palette', normalized); setPaletteSaveError(false) }
           catch { setPaletteSaveError(true) }
           notifyThemeChanged()
         }
@@ -5040,7 +5043,7 @@ window.__ModuleLoader__.load({
         const paletteToggleLabel = t('paletteToggle').replace('{name}', t(paletteNameKey)).replace('{order}', paletteOrder)
         const [expanded, setExpanded] = React.useState(() => {
           try {
-            const value = JSON.parse(window.sessionStorage.getItem('chrono-scope.expanded') || '{}')
+            const value = JSON.parse(window.sessionStorage.getItem('dsh-timespan.expanded') || '{}')
             return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
           } catch { return {} }
         })
@@ -5052,9 +5055,9 @@ window.__ModuleLoader__.load({
         // 顶部周期变化时把明细范围同步到语义相近的预设；手动选择后保持到下次周期切换。
         React.useEffect(() => { setDetailsRange(detailsRangeForPeriod(period)) }, [period])
         React.useEffect(() => { setDetailsVisibleCounts({}) }, [detailsRange])
-        React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.period', period) } catch {} }, [period])
-        React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.view', view) } catch {} }, [view])
-        React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
+        React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.period', period) } catch {} }, [period])
+        React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.view', view) } catch {} }, [view])
+        React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
         const [pollMs, setPollMs] = React.useState(PAGE_REFRESH_MS)
         const [refreshNonce, setRefreshNonce] = React.useState(0)
         // 设置页选择格式后的即时预览；保存/取消后清空，回到 Host 的已保存值。
@@ -5163,7 +5166,7 @@ window.__ModuleLoader__.load({
           reader.onload = () => {
             let payload = null
             try { payload = JSON.parse(String(reader.result ?? '')) } catch { rejectImport(t('importReadFailed')); return }
-            if (payload?.format !== 'chronoscope-export' || payload?.version !== 1 ||
+            if ((payload?.format !== EXPORT_FORMAT && payload?.format !== LEGACY_EXPORT_FORMAT) || payload?.version !== 1 ||
                 !Array.isArray(payload.intervals) || !Array.isArray(payload.tasks)) {
               rejectImport(t('importInvalid'))
               return
@@ -5465,7 +5468,7 @@ window.__ModuleLoader__.load({
         const heatState = useDailySeries(ctx, heatRange, PAGE_REFRESH_MS, refreshNonce, view === 'overview')
         if (state.status === 'loading' && data === null) {
           return h('div', { className: pageClassName },
-            h('style', null, CHRONOSCOPE_CSS),
+            h('style', null, DSH_TIMESPAN_CSS),
             h('div', { className: 'cs-shell' },
               h('div', { className: 'cs-loading' },
                 h('span', { className: 'cs-spinner' }),
@@ -5474,7 +5477,7 @@ window.__ModuleLoader__.load({
         }
         if (state.status === 'error' && data === null) {
           return h('div', { className: pageClassName },
-            h('style', null, CHRONOSCOPE_CSS),
+            h('style', null, DSH_TIMESPAN_CSS),
             h('div', { className: 'cs-shell' },
               h('div', { className: 'cs-loading is-error' },
                 h('strong', null, t('errorTitle')),
@@ -5568,11 +5571,11 @@ window.__ModuleLoader__.load({
         }
 
         return h('div', { className: pageClassName },
-          h('style', null, CHRONOSCOPE_CSS),
+          h('style', null, DSH_TIMESPAN_CSS),
           h('div', { className: 'cs-shell' },
             h('header', { className: 'cs-topbar' },
               h('div', { className: 'cs-brand' },
-                h('span', { className: 'cs-mark' }, h(ChronoIcon, { size: 36, active: true })),
+                h('span', { className: 'cs-mark' }, h(DshTimespanIcon, { size: 36, active: true })),
                 h('div', { className: 'cs-brand-text' },
                   h('h1', null, t('title')))),
               h('div', { className: 'cs-topbar-right' },
@@ -5625,7 +5628,7 @@ window.__ModuleLoader__.load({
                 'aria-labelledby': `cs-tab-${view}`,
                 'data-view': view,
               },
-                view === 'settings' ? h('style', null, CHRONOSCOPE_SETTINGS_CSS) : null,
+                view === 'settings' ? h('style', null, DSH_TIMESPAN_SETTINGS_CSS) : null,
                 ...renderView())),
             h('footer', { className: 'cs-foot' },
               h('span', null, `${t('todayActive')} ${formatDuration(data.cycles.day.activeMs, durationFormat)} · ${t('todayOnline')} ${formatDuration(data.cycles.day.onlineMs, durationFormat)}`),
@@ -5723,8 +5726,8 @@ window.__ModuleLoader__.load({
      * 因此在这里按 cs-palette-* / cs-appearance-* 重新声明三档蓝，并给任务段
      * 指定与活跃段明显区分的紫罗兰辅助色；不使用宿主的 success 绿。
      */
-    const CHRONOSCOPE_SIDEBAR_CSS = `
-      .chronoscope-nav-entry {
+    const DSH_TIMESPAN_SIDEBAR_CSS = `
+      .dsh-timespan-nav-entry {
         --cs-signal-deep: #133463;
         --cs-signal: #1F4E94;
         --cs-signal-soft: #79B3F9;
@@ -5745,67 +5748,67 @@ window.__ModuleLoader__.load({
         border-radius: 6px;
         outline: none;
       }
-      .chronoscope-nav-entry.cs-palette-blue {
+      .dsh-timespan-nav-entry.cs-palette-blue {
         --cs-signal-deep: #133463; --cs-signal: #1F4E94; --cs-signal-soft: #79B3F9;
       }
-      .chronoscope-nav-entry.cs-palette-stone {
+      .dsh-timespan-nav-entry.cs-palette-stone {
         --cs-signal-deep: #2b3033; --cs-signal: #4a5155; --cs-signal-soft: #aeb6b9;
       }
-      .chronoscope-nav-entry.cs-palette-clay {
+      .dsh-timespan-nav-entry.cs-palette-clay {
         --cs-signal-deep: #6b3b26; --cs-signal: #a35a37; --cs-signal-soft: #e2ac86;
       }
-      .chronoscope-nav-entry.cs-appearance-dark {
+      .dsh-timespan-nav-entry.cs-appearance-dark {
         --cs-signal-deep: #a9cffa; --cs-signal: #79B3F9; --cs-signal-soft: #3f6ba8;
         --cs-task: #C29BE8;
       }
-      .chronoscope-nav-entry.cs-appearance-dark.cs-palette-stone {
+      .dsh-timespan-nav-entry.cs-appearance-dark.cs-palette-stone {
         --cs-signal-deep: #d9dee0; --cs-signal: #aeb6b9; --cs-signal-soft: #6c7477;
       }
-      .chronoscope-nav-entry.cs-appearance-dark.cs-palette-clay {
+      .dsh-timespan-nav-entry.cs-appearance-dark.cs-palette-clay {
         --cs-signal-deep: #f0c0a4; --cs-signal: #e2ac86; --cs-signal-soft: #8a5a40;
       }
-      .chronoscope-nav-ring {
+      .dsh-timespan-nav-ring {
         width: 18px; height: 18px; flex: 0 0 18px;
         display: inline-flex; align-items: center; justify-content: center;
       }
-      .chronoscope-nav-ring svg { display: block; width: 18px; height: 18px; transform: rotate(-90deg); overflow: visible; }
-      .chronoscope-nav-ring-track { stroke: var(--cs-ring-track); stroke-width: 2.9; }
-      .chronoscope-nav-ring-seg { stroke-width: 2.9; }
-      .chronoscope-nav-time {
+      .dsh-timespan-nav-ring svg { display: block; width: 18px; height: 18px; transform: rotate(-90deg); overflow: visible; }
+      .dsh-timespan-nav-ring-track { stroke: var(--cs-ring-track); stroke-width: 2.9; }
+      .dsh-timespan-nav-ring-seg { stroke-width: 2.9; }
+      .dsh-timespan-nav-time {
         font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         font-size: 14px; line-height: 20px; font-weight: 650; color: var(--cs-entry-ink);
         letter-spacing: -0.015em; white-space: nowrap; flex: 0 0 auto;
         display: inline-block;
-        animation: chronoscope-time-swap 160ms ease-out both;
+        animation: dsh-timespan-time-swap 160ms ease-out both;
       }
-      .chronoscope-nav-time.is-live { color: var(--cs-entry-ink); }
+      .dsh-timespan-nav-time.is-live { color: var(--cs-entry-ink); }
       /* 纯透明度淡入：不做模糊、位移和缩放，切换数字格式时安静利落。 */
-      @keyframes chronoscope-time-swap {
+      @keyframes dsh-timespan-time-swap {
         from { opacity: 0; }
         to { opacity: 1; }
       }
       @media (prefers-reduced-motion: reduce) {
-        .chronoscope-nav-time { animation: none !important; }
+        .dsh-timespan-nav-time { animation: none !important; }
       }
-      .chronoscope-nav-status {
+      .dsh-timespan-nav-status {
         font-size: 11px; line-height: 18px; font-weight: 600; color: var(--cs-entry-muted);
         flex: 0 0 auto; white-space: nowrap;
       }
-      .chronoscope-nav-status.is-active { color: var(--cs-live); }
-      .chronoscope-nav-status.is-task { color: var(--cs-task); }
-      .chronoscope-nav-dot {
+      .dsh-timespan-nav-status.is-active { color: var(--cs-live); }
+      .dsh-timespan-nav-status.is-task { color: var(--cs-task); }
+      .dsh-timespan-nav-dot {
         position: relative; display: block; width: 8px; height: 8px;
         border-radius: 999px !important; flex: 0 0 8px;
         margin-left: 2px;
         background: var(--cs-entry-muted); opacity: .55;
         transition: background-color 180ms ease, opacity 180ms ease;
       }
-      .chronoscope-nav-dot.is-live {
+      .dsh-timespan-nav-dot.is-live {
         background: var(--cs-live); opacity: 1;
         /* 核心点保持干净的实心色；不再叠加静态 box-shadow，避免被误看成第二个内环。 */
       }
       /* 任务中优先：同一时刻即使也在活跃，点与扩散环都使用紫色。 */
-      .chronoscope-nav-dot.is-task {
+      .dsh-timespan-nav-dot.is-task {
         background: var(--cs-task); opacity: 1;
       }
       /*
@@ -5813,21 +5816,21 @@ window.__ModuleLoader__.load({
        * 时间保持不可见；下一轮从中心出现时，上一轮已经彻底消失。活跃或任务
        * 进行中都会脉冲，鼠标移开也不会留下静态光环。
        */
-      .chronoscope-nav-dot.is-live::before {
+      .dsh-timespan-nav-dot.is-live::before {
         content: ''; position: absolute; inset: -2px; border-radius: 50%;
         border: 1.5px solid color-mix(in srgb, var(--cs-live) 58%, transparent);
-        animation: chronoscope-dot-pulse 3.6s cubic-bezier(.2, .55, .25, 1) infinite;
+        animation: dsh-timespan-dot-pulse 3.6s cubic-bezier(.2, .55, .25, 1) infinite;
         will-change: transform, opacity;
       }
-      .chronoscope-nav-dot.is-task::before {
+      .dsh-timespan-nav-dot.is-task::before {
         border-color: color-mix(in srgb, var(--cs-task) 58%, transparent);
       }
-      @keyframes chronoscope-dot-pulse {
+      @keyframes dsh-timespan-dot-pulse {
         0% { transform: scale(.48); opacity: .58; }
         52%, 100% { transform: scale(2.15); opacity: 0; }
       }
       /* 悬浮 / 聚焦一段时间后出现的今日构成浮层；固定定位，避免被侧栏滚动容器裁切。 */
-      .chronoscope-nav-tip {
+      .dsh-timespan-nav-tip {
         --cs-tip-bg: var(--dsw-alias-bg-layer-1, #26272b);
         position: fixed; z-index: 95; display: flex; flex-direction: column;
         min-width: 214px; max-width: 276px; padding: 10px 12px;
@@ -5835,55 +5838,55 @@ window.__ModuleLoader__.load({
         background: var(--cs-tip-bg); color: var(--dsw-alias-label-primary, currentColor);
         box-shadow: 0 12px 32px rgba(0, 0, 0, .28), 0 2px 8px rgba(0, 0, 0, .16);
         pointer-events: none; backdrop-filter: blur(12px);
-        animation: chronoscope-tip-in 160ms ease both;
+        animation: dsh-timespan-tip-in 160ms ease both;
       }
-      .chronoscope-nav-tip::after {
+      .dsh-timespan-nav-tip::after {
         content: ''; position: absolute; left: calc(50% - 5px); bottom: -5px;
         width: 9px; height: 9px; background: var(--cs-tip-bg);
         border-right: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, .14));
         border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, .14));
         transform: rotate(45deg);
       }
-      .chronoscope-nav-tip[data-placement="bottom"]::after {
+      .dsh-timespan-nav-tip[data-placement="bottom"]::after {
         top: -5px; bottom: auto;
         border: 0; border-left: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, .14));
         border-top: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, .14));
       }
-      @keyframes chronoscope-tip-in { from { opacity: 0; } to { opacity: 1; } }
-      .chronoscope-nav-tip-rows {
+      @keyframes dsh-timespan-tip-in { from { opacity: 0; } to { opacity: 1; } }
+      .dsh-timespan-nav-tip-rows {
         display: flex; flex-direction: column; gap: 5px;
       }
-      .chronoscope-nav-tip-row {
+      .dsh-timespan-nav-tip-row {
         display: grid; grid-template-columns: 7px minmax(0, 1fr) auto auto; gap: 7px;
         align-items: center; font-size: 12px; line-height: 17px;
       }
-      .chronoscope-nav-tip-swatch { display: block; width: 7px; height: 7px; border-radius: 50%; }
-      .chronoscope-nav-tip-label { color: var(--cs-entry-muted); }
-      .chronoscope-nav-tip-value {
+      .dsh-timespan-nav-tip-swatch { display: block; width: 7px; height: 7px; border-radius: 50%; }
+      .dsh-timespan-nav-tip-label { color: var(--cs-entry-muted); }
+      .dsh-timespan-nav-tip-value {
         color: var(--cs-entry-ink); font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         font-variant-numeric: tabular-nums; font-weight: 650;
       }
-      .chronoscope-nav-tip-share { min-width: 32px; text-align: right; color: var(--cs-entry-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
-      .chronoscope-nav-entry:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
+      .dsh-timespan-nav-tip-share { min-width: 32px; text-align: right; color: var(--cs-entry-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+      .dsh-timespan-nav-entry:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
       /* 关闭「显示名称」时连宿主 panelTitle 一起隐藏：只隐藏第二个 span，
          折叠态只剩 panelGlyph 一个 span，不会被误隐藏；label 保留可访问名与 tooltip。 */
-      html[data-chronoscope-hide-name] button[aria-label="ChronoScope"] { gap: 0; }
-      html[data-chronoscope-hide-name] button[aria-label="ChronoScope"] > span + span { display: none; }
+      html[data-dsh-timespan-hide-name] button[aria-label="dsh-timespan"] { gap: 0; }
+      html[data-dsh-timespan-hide-name] button[aria-label="dsh-timespan"] > span + span { display: none; }
       /* 名称去掉后，时间独占剩余空间并居中，字号再放大一档。 */
-      .chronoscope-nav-entry.is-nameless { justify-content: center; }
-      .chronoscope-nav-entry.is-nameless .chronoscope-nav-time {
+      .dsh-timespan-nav-entry.is-nameless { justify-content: center; }
+      .dsh-timespan-nav-entry.is-nameless .dsh-timespan-nav-time {
         flex: 1 1 auto; text-align: center; font-size: 15px; letter-spacing: 0;
       }
       @media (prefers-reduced-motion: reduce) {
-        .chronoscope-nav-entry, .chronoscope-nav-entry * { transition-duration: 0s; animation-duration: 0s; }
-        .chronoscope-nav-dot.is-live::before {
+        .dsh-timespan-nav-entry, .dsh-timespan-nav-entry * { transition-duration: 0s; animation-duration: 0s; }
+        .dsh-timespan-nav-dot.is-live::before {
           animation: none; opacity: .35; transform: scale(1.55);
         }
-        .chronoscope-nav-tip { animation: none; }
+        .dsh-timespan-nav-tip { animation: none; }
       }
     `
 
-    const CHRONOSCOPE_CSS = `
+    const DSH_TIMESPAN_CSS = `
       ${CS_SELECT_CSS}
       .cs-page {
         box-sizing: border-box;
@@ -7329,7 +7332,7 @@ window.__ModuleLoader__.load({
     `
 
     /** 设置页独立挂载在 settings.section，样式自成一套，不依赖仪表盘根节点。 */
-    const CHRONOSCOPE_SETTINGS_CSS = `
+    const DSH_TIMESPAN_SETTINGS_CSS = `
       ${CS_SELECT_CSS}
       .cs-settings { box-sizing: border-box; color: var(--dsw-alias-label-primary); font-family: inherit; }
       .cs-settings *, .cs-settings *::before, .cs-settings *::after { box-sizing: border-box; }
@@ -7547,19 +7550,19 @@ window.__ModuleLoader__.load({
     `
 
     /** 测试出口：主页面样式串，后续票据复用同一份设计 token。 */
-    function chronoscopeCss() {
-      return CHRONOSCOPE_CSS
+    function dshTimespanCss() {
+      return DSH_TIMESPAN_CSS
     }
 
     /** 测试出口：侧栏入口的独立主题作用域样式串。 */
-    function chronoscopeSidebarCss() {
-      return CHRONOSCOPE_SIDEBAR_CSS
+    function dshTimespanSidebarCss() {
+      return DSH_TIMESPAN_SIDEBAR_CSS
     }
 
     return {
       inject: ['connection', 'slots', 'locale'],
       apply(ctx) {
-        ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'chrono-scope: dictionaries')
+        ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-timespan: dictionaries')
         const t = ctx.locale.bind(NS)
 
         // 活跃采集不依赖侧边栏入口是否固定；放在始终挂载的 frame-wide overlay。
@@ -7567,7 +7570,7 @@ window.__ModuleLoader__.load({
           ctx.slots.register(
             {
               name: 'shell.overlay',
-              id: 'chrono-scope-presence',
+              id: 'dsh-timespan-presence',
             },
             createPresenceReporter(ctx),
           ),
@@ -7577,7 +7580,7 @@ window.__ModuleLoader__.load({
           ctx.slots.register(
             {
               name: 'sidebar.panellist',
-              id: 'chrono-scope',
+              id: 'dsh-timespan',
               order: 20,
               label: () => t('title'),
               locale: NS,
@@ -7590,7 +7593,7 @@ window.__ModuleLoader__.load({
           ctx.slots.register(
             {
               name: 'main',
-              key: 'chrono-scope',
+              key: 'dsh-timespan',
               locale: NS,
               inject: () => ({ t }),
             },
@@ -7604,7 +7607,7 @@ window.__ModuleLoader__.load({
           ctx.slots.register(
             {
               name: 'settings.section',
-              id: 'chrono-scope',
+              id: 'dsh-timespan',
               order: 40,
               label: () => t('settingsNav'),
               locale: NS,

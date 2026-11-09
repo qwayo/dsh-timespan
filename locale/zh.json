@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "ChronoScope",
+    "title": "dsh-timespan",
     "description": "记录 DSH 的在线时长、活跃时长与任务时长，可按日、周、月以及工作区、会话查看。所有数据只保存在本机。"
   }
 }
