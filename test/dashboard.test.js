@@ -283,6 +283,27 @@ test('summary 视图：侧边栏读取保持轻量，不携带趋势与工作区
   assert.equal(stats.workspaces, undefined)
 })
 
+test('details 视图：返回工作区与会话明细，跳过趋势和周期卡计算', async () => {
+  const now = localTime(2026, 11, 4, 10, 30)
+  const clock = createFakeClock(now, 0)
+  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  await service.start()
+  await addTurn(service, 'session-1', 1, localTime(2026, 11, 4, 9, 0), localTime(2026, 11, 4, 9, 30), {
+    workspaceId: 'workspace-1', workspaceTitle: '工作区一',
+  })
+  await addTurn(service, 'session-1', 2, localTime(2026, 10, 15, 9, 0), localTime(2026, 10, 15, 9, 20))
+
+  const details = service.queryStats({ from: localTime(2026, 11, 4, 0, 0), view: 'details' })
+  assert.equal(details.range.from, localTime(2026, 11, 4, 0, 0))
+  assert.equal(details.range.to, now)
+  assert.equal(details.taskCount, 1, '只统计今天这一段任务')
+  assert.equal(details.workspaces.length, 1)
+  assert.equal(details.workspaces[0].sessions.length, 1)
+  assert.equal(details.trend, undefined, '明细不计算趋势桶')
+  assert.equal(details.cycles, undefined, '明细不计算周期卡')
+  assert.ok(Array.isArray(details.subagentTasks), '明细仍带子代理任务摘要')
+})
+
 test('只有活跃、没有任务的会话也出现在明细里，未归属活跃不被丢弃', async () => {
   const t0 = localTime(2026, 11, 4, 11, 0)
   const clock = createFakeClock(t0, 0)

@@ -123,6 +123,13 @@ async function loadClientFunctions(windowExtras = {}) {
       HEAT_MONTH_ABBR: typeof HEAT_MONTH_ABBR !== 'undefined' ? HEAT_MONTH_ABBR : undefined,
       resolveHeatRange: typeof resolveHeatRange === 'function' ? resolveHeatRange : undefined,
       heatRangeLabel: typeof heatRangeLabel === 'function' ? heatRangeLabel : undefined,
+      normalizeDetailsRange: typeof normalizeDetailsRange === 'function' ? normalizeDetailsRange : undefined,
+      detailsRangeForPeriod: typeof detailsRangeForPeriod === 'function' ? detailsRangeForPeriod : undefined,
+      resolveDetailsRange: typeof resolveDetailsRange === 'function' ? resolveDetailsRange : undefined,
+      renderDetailsRangePicker: typeof renderDetailsRangePicker === 'function' ? renderDetailsRangePicker : undefined,
+      DETAILS_RANGE_OPTIONS: typeof DETAILS_RANGE_OPTIONS !== 'undefined' ? DETAILS_RANGE_OPTIONS : undefined,
+      DETAILS_SESSION_INITIAL: typeof DETAILS_SESSION_INITIAL === 'number' ? DETAILS_SESSION_INITIAL : undefined,
+      DETAILS_SESSION_STEP: typeof DETAILS_SESSION_STEP === 'number' ? DETAILS_SESSION_STEP : undefined,
       heatLayoutFor: typeof heatLayoutFor === 'function' ? heatLayoutFor : undefined,
       buildMonthGrid: typeof buildMonthGrid === 'function' ? buildMonthGrid : undefined,
       buildYearMatrix: typeof buildYearMatrix === 'function' ? buildYearMatrix : undefined,
@@ -950,6 +957,12 @@ test('客户端：明细样式补右内边距，窄屏保留紧凑图标单元',
   assert.match(declarationsFor(css, '.cs-detail-meta'), /cursor:\s*help/, '图标单元悬停显示解释')
   assert.match(declarationsFor(css, '.cs-session-metrics'), /display:\s*inline-flex/, '会话指标保持紧凑成组')
   assert.match(declarationsFor(css, '.cs-session-status'), /width:\s*18px/, '状态图标使用固定小尺寸')
+  const runningIcon = declarationsFor(css, '.cs-detail-meta.is-running .cs-detail-glyph')
+  assert.match(runningIcon, /color:\s*var\(--cs-task\)/, '运行中会话圆环改用紫色')
+  assert.doesNotMatch(runningIcon, /var\(--cs-live\)/, '运行中图标不再沿用活跃蓝')
+  const recentStatus = declarationsFor(css, '.cs-recent-status')
+  assert.match(recentStatus, /width:\s*14px/, '最近会话状态槽位不会挤动标题列')
+  assert.match(recentStatus, /color:\s*var\(--cs-task\)/, '最近会话的运行中圆环同样使用紫色')
   const last = declarationsFor(css, '.cs-last')
   assert.match(last, /text-align:\s*right/, '相对时间与数字列右对齐')
   assert.match(last, /padding-right:\s*\d+px/, '相对时间与操作列之间保留固定槽位')
@@ -1443,6 +1456,8 @@ test('客户端：设置草稿包含数字格式，五档紧凑选项条与预�
   const checked = optionButtons.filter((button) => button.props['aria-checked'] === true)
   assert.equal(checked.length, 1, '只有一个格式处于选中态')
   assert.match(textOf(checked[0]), /2 小时 48 分/, '中文单位卡片给出真实样例')
+  assert.equal(allOf(section, byClass('cs-format-divider')).length, 5, '每张格式卡在数字与中文说明之间都有竖线分隔')
+  assert.equal(allOf(checked[0], byClass('cs-format-divider')).length, 1, '选中卡片同样保留竖线')
   assert.match(textOf(allOf(section, byClass('cs-format-preview'))[0]), /预览 · 2:48:16 显示为\s*2 小时 48 分/, '预览行跟随当前草稿')
   assert.equal(allOf(section, byClass('cs-format-preview-value'))[0].props['data-format'], 'zh', '预览时间标记当前格式，切换时重新播放换字动画')
   optionButtons[0].props.onClick()
@@ -1456,6 +1471,14 @@ test('客户端：设置草稿包含数字格式，五档紧凑选项条与预�
   unsubscribe()
   notifyDurationFormatPreview('sec')
   assert.deepEqual(received, ['short', 'short'], '退订后不再收到预览')
+})
+
+test('客户端：数字格式选项用竖线分隔数字与中文说明', async () => {
+  const css = await loadSettingsCss()
+  const divider = declarationsFor(css, '.cs-format-divider')
+  assert.match(divider, /width:\s*1px/, '竖线只有 1px 宽')
+  assert.match(divider, /height:\s*11px/, '竖线高度与选项文字匹配')
+  assert.match(divider, /background:\s*color-mix\(in srgb,\s*var\(--dsw-alias-label-secondary\)/, '竖线使用次级文字色淡化')
 })
 
 test('客户端：初始化设置按钮先进入二次确认，再回调恢复', async () => {
@@ -1719,9 +1742,8 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
   assert.equal(allOf(trend, byClass('cs-cycle-share')).length, 3, '每张周期卡头部保留活跃占比文字')
   assert.match(textOf(allOf(trend, byClass('cs-cycle-share'))[0]), /活跃占比 \d+%/, '占比以文字常显而不挤在圆环里')
   assert.equal(allOf(trend, byClass('cs-cycle-ring')).length, 0, '窄窗不再使用会被裁切的占比环')
-  assert.equal(allOf(trend, byClass('cs-cycle-foot')).length, 3, '每张周期卡底部补任务时长与次数')
-  assert.match(textOf(allOf(trend, byClass('cs-cycle-foot'))[0]), /任务/, '周期卡底部显示任务时长')
-  assert.match(textOf(allOf(trend, byClass('cs-cycle-foot'))[0]), /次任务/, '周期卡底部显示任务次数')
+  assert.equal(allOf(trend, byClass('cs-cycle-foot')).length, 0, '周期卡不再补充底部小字')
+  assert.equal(allOf(trend, byClass('cs-cycle-track')).length, 3, '周期卡保留整宽占比横条并贴底')
   assert.ok(allOf(trend, byClass('cs-trend-card')).length >= 1, '趋势含趋势图卡')
   const summaryText = textOf(allOf(trend, byClass('cs-trend-summary'))[0])
   assert.match(summaryText, /日均活跃/)
@@ -1758,6 +1780,146 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
     nowMs: now, subagentByParent: {},
   })
   assert.match(textOf(filtered), /没有匹配的工作区或会话/, '本地过滤无结果时给出空状态')
+})
+
+test('客户端：明细统计范围预设解析为本地自然日，并覆盖今天到全部', async () => {
+  const {
+    normalizeDetailsRange, detailsRangeForPeriod, resolveDetailsRange,
+    renderDetailsRangePicker, DETAILS_RANGE_OPTIONS, DETAILS_SESSION_INITIAL, DETAILS_SESSION_STEP,
+  } = await loadClientFunctions()
+  assert.deepEqual(Array.from(DETAILS_RANGE_OPTIONS, (option) => option.value), ['today', '3d', '7d', '30d', 'all'])
+  assert.equal(DETAILS_SESSION_INITIAL, 8)
+  assert.equal(DETAILS_SESSION_STEP, 8)
+  assert.equal(normalizeDetailsRange('7d'), '7d')
+  for (const invalid of ['', 'week', null, undefined, 7]) {
+    assert.equal(normalizeDetailsRange(invalid), 'today', `非法范围 ${JSON.stringify(invalid)} 回落到今天`)
+  }
+  assert.equal(detailsRangeForPeriod('day'), 'today')
+  assert.equal(detailsRangeForPeriod('week'), '7d')
+  assert.equal(detailsRangeForPeriod('month'), '30d')
+  assert.equal(detailsRangeForPeriod('unknown'), 'today')
+
+  const now = new Date(2026, 10, 9, 12, 34, 56).getTime()
+  assert.deepEqual({ ...resolveDetailsRange('today', now) }, {
+    value: 'today', from: new Date(2026, 10, 9, 0, 0, 0, 0).getTime(),
+  })
+  assert.deepEqual({ ...resolveDetailsRange('3d', now) }, {
+    value: '3d', from: new Date(2026, 10, 7, 0, 0, 0, 0).getTime(),
+  }, '近 3 天含今天与之前两天')
+  assert.deepEqual({ ...resolveDetailsRange('7d', now) }, {
+    value: '7d', from: new Date(2026, 10, 3, 0, 0, 0, 0).getTime(),
+  })
+  assert.deepEqual({ ...resolveDetailsRange('30d', now) }, {
+    value: '30d', from: new Date(2026, 9, 11, 0, 0, 0, 0).getTime(),
+  })
+  assert.deepEqual({ ...resolveDetailsRange('all', now) }, { value: 'all', from: 0 }, '全部从最早记录查询')
+
+  const labels = {
+    rangeLabel: '统计范围', detailsRangeLabel: '明细统计范围', detailsRangeToday: '今天',
+    detailsRange3d: '近3天', detailsRange7d: '最近一周', detailsRange30d: '近30天', detailsRangeAll: '全部',
+  }
+  const t = (key) => labels[key] ?? key
+  const picked = []
+  const picker = renderDetailsRangePicker({ value: '7d', t, onSelect: (value) => picked.push(value) })
+  const select = allOf(picker, (node) => typeof node.type === 'function' && node.props?.options?.length === 5)[0]
+  assert.ok(select, '明细范围使用统一的自定义下拉')
+  assert.equal(select.props.value, '7d')
+  assert.deepEqual(Array.from(select.props.options, (option) => option.label), ['今天', '近3天', '最近一周', '近30天', '全部'])
+  assert.equal(textOf(picker).trim(), '统计范围', '下拉左侧保留统计范围标签')
+  select.props.onChange('all')
+  assert.deepEqual(picked, ['all'])
+})
+
+test('客户端：明细「全部」范围按批次渐进展开会话', async () => {
+  const { renderDetailsView } = await loadClientFunctions()
+  const labels = {
+    workspaceTitle: '工作区明细', sumFoot: '明细按会话逐条累加', colWorkspace: '工作区', colActive: '活跃',
+    colTask: '任务', colShare: '任务占比', colLast: '最近活动', sessionsUnit: '个会话', activeShare: '活跃占比',
+    rangeLabel: '统计范围', detailsRangeLabel: '明细统计范围', detailsRangeToday: '今天', detailsRange3d: '近3天',
+    detailsRange7d: '最近一周', detailsRange30d: '近30天', detailsRangeAll: '全部',
+    detailsShowMore: '再显示 {count} 个会话', detailsShownCount: '已显示 {shown}/{total}',
+    recentSessions: '最近会话', recentSessionsHint: '按最近活动排序',
+    unknownSession: '未命名会话', unassigned: '未归属', justNow: '刚刚',
+    minutesAgo: '{n} 分钟前', hoursAgo: '{n} 小时前', daysAgo: '{n} 天前',
+    activeLabel: '活跃', taskLabel: '任务', taskCountUnit: '次任务', compositionTitle: '任务时长构成',
+    subagentDetail: '含子代理任务', approximateHint: '近似', emptyWorkspace: '这个工作区还没有会话记录',
+    detailsEmpty: '没有匹配的工作区或会话', emptyDashboard: '暂无数据',
+  }
+  const t = (key) => labels[key] ?? key
+  const now = Date.now()
+  const sessions = Array.from({ length: 20 }, (_, index) => ({
+    sessionId: `many-${index}`,
+    sessionTitle: `会话${index + 1}`,
+    activeMs: 60_000,
+    taskMs: 30_000,
+    taskCount: 1,
+    taskRunning: false,
+    approximate: false,
+    hasBreakdown: false,
+    modelMs: 0,
+    toolMs: 0,
+    waitMs: 0,
+    otherMs: 0,
+    lastActivityAt: now - index * 60_000,
+  }))
+  const data = sampleDashboardData()
+  data.workspaces = [{
+    ...data.workspaces[0],
+    key: 'ws-many',
+    workspaceTitle: '大工作区',
+    sessions,
+  }]
+  const common = {
+    data, t, query: '', onQueryChange() {}, durationFormat: 'hms', expanded: { 'ws-many': true },
+    onToggleRow() {}, nowMs: now, subagentByParent: {}, detailsRange: 'all',
+    progressiveSessions: true, onSelectDetailsRange() {},
+  }
+  const clicked = []
+  const first = renderDetailsView({
+    ...common,
+    visibleSessionCounts: {},
+    onShowMoreSessions: (key, total) => clicked.push([key, total]),
+  })
+  assert.equal(allOf(first, byClass('cs-session')).length, 8, '首批只渲染 8 个会话')
+  const more = allOf(first, byClass('cs-sessions-more'))[0]
+  assert.ok(more, '还有更多会话时显示二次展开入口')
+  assert.match(textOf(more), /再显示 8 个会话/)
+  assert.match(textOf(more), /已显示 8\/20/)
+  findAll(more, (node) => node.type === 'button' && /再显示/.test(textOf(node)))[0].props.onClick()
+  assert.deepEqual(clicked, [['ws-many', 20]], '点二次展开时把工作区与总数交给页面累加')
+
+  const second = renderDetailsView({ ...common, visibleSessionCounts: { 'ws-many': 16 } })
+  assert.equal(allOf(second, byClass('cs-session')).length, 16, '再次展开后累计到 16 个')
+  assert.match(textOf(allOf(second, byClass('cs-sessions-more'))[0]), /再显示 4 个会话/)
+  assert.match(textOf(allOf(second, byClass('cs-sessions-more'))[0]), /已显示 16\/20/)
+
+  const done = renderDetailsView({ ...common, visibleSessionCounts: { 'ws-many': 24 } })
+  assert.equal(allOf(done, byClass('cs-session')).length, 20, '累计超过总数时显示全部')
+  assert.equal(allOf(done, byClass('cs-sessions-more')).length, 0, '全部显示后不再出现展开入口')
+
+  const fixedRange = renderDetailsView({ ...common, detailsRange: '7d', progressiveSessions: false })
+  assert.equal(allOf(fixedRange, byClass('cs-session')).length, 20, '非「全部」范围一次显示全部会话')
+  assert.equal(allOf(fixedRange, byClass('cs-sessions-more')).length, 0, '非「全部」范围不做渐进展开')
+})
+
+test('客户端：概览最近会话在标题左侧显示运行中图标', async () => {
+  const { renderRecentSessions } = await loadClientFunctions()
+  const labels = {
+    recentSessions: '最近会话', recentSessionsHint: '按最近活动排序', recentSessionsEmpty: '暂无会话',
+    unknownSession: '未命名会话', unassigned: '未归属', runningTag: '运行中',
+    justNow: '刚刚', minutesAgo: '{n} 分钟前', hoursAgo: '{n} 小时前', daysAgo: '{n} 天前',
+  }
+  const t = (key) => labels[key] ?? key
+  const data = sampleDashboardData()
+  data.workspaces[0].sessions[0].taskRunning = true
+  const tree = renderRecentSessions(data, t, Date.now(), () => {}, 'hms')
+  const status = allOf(tree, byClass('cs-recent-status'))[0]
+  assert.ok(status, '最近会话每行左侧保留状态槽位')
+  assert.match(status.props.className, /is-running/)
+  assert.equal(status.props['aria-label'], '运行中')
+  assert.equal(status.children[0]?.props?.name, 'running', '运行中会话显示圆环图标')
+  const row = allOf(tree, byClass('cs-recent-row'))[0]
+  assert.equal(row.children[0], status, '图标位于标题左侧的第一个位置')
 })
 
 test('客户端：Dashboard 设置页包含格式、外观、统计、通知、导出与二次确认清空', async () => {
@@ -2021,6 +2183,7 @@ test('客户端：首屏放大页重新排版为大数字、多项统计与活�
     data: heroSampleData(), t, format: 'hms', onToggleFocus: (value) => calls.push(value),
   })
   assert.equal(allOf(page, byClass('cs-hero-focus')).length, 1, '放大态是独立首屏页')
+  assert.doesNotMatch(textOf(page), /首屏概览/, '放大页标题右侧不再显示「首屏概览」小字')
   assert.equal(textOf(allOf(page, byClass('cs-hero-num'))[0]).trim(), '2:48:16', '大数字沿用统一格式')
   const panelText = textOf(allOf(page, byClass('cs-focus-panel'))[0])
   for (const expected of ['在线时长', '任务时长', '今日活跃', '本周活跃', '本月活跃']) {
@@ -2144,7 +2307,7 @@ test('客户端：概览在首屏状态只渲染放大页，普通状态同时�
     focusSummary: '首屏概览', todayOnline: '今日在线时长', todayTask: '今日任务时长',
     onlineLabel: '在线时长', activeShare: '活跃占比', taskCountShort: '任务次数',
     focusTodayActive: '今日活跃', focusWeekActive: '本周活跃', focusMonthActive: '本月活跃',
-    peakActive: '峰值活跃', peakPeriod: '最活跃时段', trendFocusTitle: '条状图首屏',
+    peakActive: '峰值活跃', peakPeriod: '最活跃时段', trendFocusTitle: '活跃与任务趋势',
   })[key] ?? key
   const data = sampleDashboardData()
   const hoverTip = { tip: null, show() {}, hide() {} }
@@ -2184,9 +2347,10 @@ test('客户端：概览在首屏状态只渲染放大页，普通状态同时�
   assert.equal(allOf(trendFocus, byClass('cs-trend-card')).length, 0, '趋势首屏不渲染普通趋势卡')
   assert.equal(allOf(trendFocus, byClass('cs-composition')).length, 0, '趋势首屏不渲染构成卡')
   const trendText = textOf(trendFocus)
-  for (const expected of ['条状图首屏', '峰值活跃', '最活跃时段', '活跃占比', '75%']) {
+  for (const expected of ['活跃与任务趋势', '峰值活跃', '最活跃时段', '活跃占比', '75%']) {
     assert.match(trendText, new RegExp(expected), `趋势首屏包含「${expected}」`)
   }
+  assert.doesNotMatch(trendText, /首屏概览|条状图首屏/, '趋势首屏不再显示「首屏概览」或字面 UI 标签')
 
   const heatmapFocus = renderOverviewView({ ...common, focus: 'heatmap' })
   assert.equal(allOf(heatmapFocus, byClass('cs-heatmap-focus-page')).length, 1, '热力图首屏只留独立页')
@@ -2286,10 +2450,8 @@ test('客户端：周期卡选中态的占比横条与纯色背景保持可分�
   const fill = declarationsFor(css, '.cs-cycle.is-current .cs-cycle-track i')
   assert.match(fill, /background:\s*var\(--cs-on-accent\)/, '填充改用反色，不再与纯色背景混在一起')
   assert.match(declarationsFor(css, '.cs-cycle'), /justify-content:\s*space-between/, '周期卡内容纵向均布，消除底部大片空白')
-  const foot = declarationsFor(css, '.cs-cycle-foot')
-  assert.match(foot, /display:\s*flex/, '周期卡底部为一行紧凑信息')
-  assert.match(foot, /justify-content:\s*space-between/, '任务时长与次数分列两端')
-  assert.match(foot, /font-size:\s*11px/, '底部信息不抢主数字')
+  assert.doesNotMatch(css, /\.cs-cycle-foot/, '周期卡不再保留底部小字样式')
+  assert.match(declarationsFor(css, '.cs-cycle-value'), /clamp\(30px,\s*3vw,\s*40px\)/, '周期卡主数字放大，填满卡片视觉重心')
 })
 
 /** 构造一段连续的每日序列；每三天有一整天无观测，用来验证「无记录」与汇总口径。 */
@@ -2503,7 +2665,7 @@ test('客户端：热力图汇总优先复用 Host summary 且对外字段不变
 test('客户端：热力图全范围复用 Host summary，过滤范围仍按 scopedDays 计算', async () => {
   const { renderDailyHeatmap, renderHeatmapFocusPage } = await loadClientFunctions()
   const labels = {
-    heatmapTitle: '每日时长', heatmapInfo: '每格代表一天', heatmapFocusTitle: '热力图首屏',
+    heatmapTitle: '每日时长', heatmapInfo: '每格代表一天', heatmapFocusTitle: '每日活跃热力图',
     heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
     heatRangeMonth: '{month}', periodDay: '日', onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务',
     noRecord: '无记录', heatDayTitle: '{month}月{day}日',
@@ -2559,7 +2721,7 @@ test('客户端：热力图全范围复用 Host summary，过滤范围仍按 sco
 test('客户端：热力图首屏独立页给出六项范围统计、12 个月度条与退出按钮', async () => {
   const { renderHeatmapFocusPage, Select } = await loadClientFunctions()
   const labels = {
-    heatmapTitle: '每日时长', heatmapFocusTitle: '热力图首屏', heatmapInfo: '每格代表一天',
+    heatmapTitle: '每日时长', heatmapFocusTitle: '每日活跃热力图', heatmapInfo: '每格代表一天',
     heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
     heatRangeMonth: '{month}', monthBars: '月度活跃', periodDay: '日',
     onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务', noRecord: '无记录',
@@ -2597,7 +2759,8 @@ test('客户端：热力图首屏独立页给出六项范围统计、12 个月�
   assert.equal(page.props['data-focus'], 'heatmap', '首屏语义为 heatmap')
   assert.equal(allOf(page, byClass('cs-heatmap-focus-page')).length, 1, '独立首屏页外壳')
   assert.equal(allOf(page, byClass('cs-heatmap-focus')).length, 1, '热力图卡片进入放大态')
-  assert.match(textOf(page), /热力图首屏/, '首屏页使用专属标题')
+  assert.match(textOf(page), /每日活跃热力图/, '首屏页使用描述图表含义的标题')
+  assert.doesNotMatch(textOf(page), /首屏概览|热力图首屏/, '热力图首屏不显示「首屏概览」或字面 UI 标签')
   const panel = allOf(page, byClass('heat-focus-panel'))[0]
   assert.ok(panel, '右侧统计栏存在')
   const panelText = textOf(panel)
@@ -2781,7 +2944,7 @@ test('客户端：条状图首屏独立成页，按可用高度重排并给出�
   const { renderTrendFocusPage, TREND_FOCUS_HEIGHT } = await loadClientFunctions()
   assert.equal(TREND_FOCUS_HEIGHT, 360, '首屏图形使用独立高度')
   const labels = {
-    trendFocusTitle: '条状图首屏', focusSummary: '首屏概览', trendInfo: '活跃与任务独立统计',
+    trendFocusTitle: '活跃与任务趋势', focusSummary: '首屏概览', trendInfo: '活跃与任务独立统计',
     activeLabel: '活跃', taskLabel: '任务', peakActive: '峰值活跃', peakPeriod: '最活跃时段',
     activeShare: '活跃占比', focusSet: '设为首屏', focusUnset: '退出首屏', emptyDashboard: '暂无记录',
   }

@@ -59,6 +59,18 @@ window.__ModuleLoader__.load({
       { value: 'year', label: 'year' },
       ...HEAT_MONTH_ABBR.map((abbr, index) => ({ value: index + 1, label: abbr })),
     ]
+    /** 明细统计范围：今天、近 3 天、最近一周、近 30 天与全部历史。 */
+    const DETAILS_RANGE_OPTIONS = [
+      { value: 'today', labelKey: 'detailsRangeToday', days: 1 },
+      { value: '3d', labelKey: 'detailsRange3d', days: 3 },
+      { value: '7d', labelKey: 'detailsRange7d', days: 7 },
+      { value: '30d', labelKey: 'detailsRange30d', days: 30 },
+      { value: 'all', labelKey: 'detailsRangeAll', days: null },
+    ]
+    const DETAILS_RANGE_DEFAULT = 'today'
+    /** 「全部」下每个工作区首批展开的会话数与每次追加数。 */
+    const DETAILS_SESSION_INITIAL = 8
+    const DETAILS_SESSION_STEP = 8
     /** 回填进行时加快轮询，让进度与完成后的数字尽快出现，无需刷新页面。 */
     const BACKFILL_REFRESH_MS = 2_000
     /** 四个同级视图；tab 顺序即键盘左右方向键的顺序。 */
@@ -155,8 +167,8 @@ window.__ModuleLoader__.load({
       trendInsightConcentration: '前三集中度',
       trendInsightTaskRatio: '任务/在线',
       trendInsightNote: '前三集中度按活跃时长最高的三个时段计算。',
-      trendFocusTitle: '条状图首屏',
-      heatmapFocusTitle: '热力图首屏',
+      trendFocusTitle: '活跃与任务趋势',
+      heatmapFocusTitle: '每日活跃热力图',
       rangeOnline: '范围在线',
       rangeActive: '范围活跃',
       rangeTask: '范围任务',
@@ -242,6 +254,14 @@ window.__ModuleLoader__.load({
       hoursAgo: '{n} 小时前',
       daysAgo: '{n} 天前',
       rangeLabel: '统计范围',
+      detailsRangeLabel: '明细统计范围',
+      detailsRangeToday: '今天',
+      detailsRange3d: '近3天',
+      detailsRange7d: '最近一周',
+      detailsRange30d: '近30天',
+      detailsRangeAll: '全部',
+      detailsShowMore: '再显示 {count} 个会话',
+      detailsShownCount: '已显示 {shown}/{total}',
       expand: '展开会话',
       collapse: '收起会话',
       unionFoot: '实际占用：多会话重叠时段只计一次',
@@ -437,8 +457,8 @@ window.__ModuleLoader__.load({
       trendInsightConcentration: 'Top-3 concentration',
       trendInsightTaskRatio: 'Task / online',
       trendInsightNote: 'Top-3 concentration is computed from the three buckets with the most active time.',
-      trendFocusTitle: 'Trend focus view',
-      heatmapFocusTitle: 'Heatmap focus',
+      trendFocusTitle: 'Active and task trend',
+      heatmapFocusTitle: 'Daily activity heatmap',
       rangeOnline: 'Online in range',
       rangeActive: 'Active in range',
       rangeTask: 'Task in range',
@@ -524,6 +544,14 @@ window.__ModuleLoader__.load({
       hoursAgo: '{n} h ago',
       daysAgo: '{n} d ago',
       rangeLabel: 'Range',
+      detailsRangeLabel: 'Details range',
+      detailsRangeToday: 'Today',
+      detailsRange3d: 'Last 3 days',
+      detailsRange7d: 'Last week',
+      detailsRange30d: 'Last 30 days',
+      detailsRangeAll: 'All time',
+      detailsShowMore: 'Show {count} more sessions',
+      detailsShownCount: '{shown}/{total} shown',
       expand: 'Expand sessions',
       collapse: 'Collapse sessions',
       unionFoot: 'Actual occupied: overlapping sessions count once',
@@ -2144,15 +2172,23 @@ window.__ModuleLoader__.load({
      * 不会把已渲染的仪表盘闪回 loading。回填进行时缩短间隔，完成后由
      * refreshNonce 立刻补一次，数字因此无需刷新页面就能出现。
      */
-    function useDashboard(ctx, period, refreshMs, refreshNonce) {
+    function useDashboard(ctx, period, refreshMs, refreshNonce, options = {}) {
+      const enabled = options.enabled !== false
+      const view = options.view === 'details' ? 'details' : 'dashboard'
+      const rangeFrom = Number(options.range?.from)
+      const from = Number.isFinite(rangeFrom) ? rangeFrom : null
       const [state, setState] = React.useState({ status: 'loading', data: null, receivedAt: 0 })
       const loadRef = React.useRef(null)
       React.useEffect(() => {
+        if (!enabled) return undefined
         let active = true
         setState((previous) => ({ ...previous, status: 'loading' }))
         const load = async () => {
           try {
-            const value = await callHost(ctx, 'queryStats', { period, view: 'dashboard' })
+            const payload = { period, view }
+            // 明细预设范围只传起点，终点由 Host 取当前时刻；「全部」的起点是 0。
+            if (from !== null) payload.from = from
+            const value = await callHost(ctx, 'queryStats', payload)
             if (!active) return
             setState({ status: 'ready', data: normalizeDashboard(value), receivedAt: Date.now() })
           } catch {
@@ -2167,15 +2203,15 @@ window.__ModuleLoader__.load({
           active = false
           loadRef.current = null
         }
-      }, [ctx, period])
+      }, [ctx, period, view, from, enabled])
       React.useEffect(() => {
-        if (typeof loadRef.current !== 'function') return undefined
+        if (!enabled || typeof loadRef.current !== 'function') return undefined
         loadRef.current()
         const timer = setInterval(() => {
           if (typeof loadRef.current === 'function') loadRef.current()
         }, refreshMs)
         return () => clearInterval(timer)
-      }, [ctx, period, refreshMs, refreshNonce])
+      }, [ctx, period, view, from, refreshMs, refreshNonce, enabled])
       return state
     }
 
@@ -2248,6 +2284,37 @@ window.__ModuleLoader__.load({
       }
       const prefix = `${t('rangeLabel')} `
       return period === 'day' ? prefix + day(range.from) : `${prefix}${day(range.from)} – ${day(range.to)}`
+    }
+
+    /** 明细范围值归一化；未知值一律回到「今天」。 */
+    function normalizeDetailsRange(value) {
+      return DETAILS_RANGE_OPTIONS.some((option) => option.value === value)
+        ? value
+        : DETAILS_RANGE_DEFAULT
+    }
+
+    /** 顶部周期切到日/周/月时，明细跟随到语义相近的预设范围。 */
+    function detailsRangeForPeriod(period) {
+      if (period === 'week') return '7d'
+      if (period === 'month') return '30d'
+      return 'today'
+    }
+
+    /**
+     * 明细预设范围的起点：按本地自然日回溯，终点不传，交给 Host 一直算到当前时刻。
+     * 「全部」从 0 开始，复用领域服务的从最早记录至今语义。
+     */
+    function resolveDetailsRange(value, nowMs) {
+      const normalized = normalizeDetailsRange(value)
+      if (normalized === 'all') return { value: normalized, from: 0 }
+      const numeric = Number(nowMs)
+      const at = new Date(Number.isFinite(numeric) ? numeric : Date.now())
+      const option = DETAILS_RANGE_OPTIONS.find((item) => item.value === normalized)
+      const days = option?.days ?? 1
+      return {
+        value: normalized,
+        from: new Date(at.getFullYear(), at.getMonth(), at.getDate() - (days - 1)).getTime(),
+      }
     }
 
     function bucketLabel(bucket, period, isZh) {
@@ -2594,17 +2661,13 @@ window.__ModuleLoader__.load({
     function renderCycleCard(t, period, cycle, isCurrent, onSelect, format = 'hms') {
       const titleKey = period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth'
       const share = activeSharePercent(cycle.activeMs, cycle.onlineMs)
-      const taskCount = finite(cycle.taskCount)
       return h('button', { key: period, type: 'button', className: `cs-cycle${isCurrent ? ' is-current' : ''}`, 'aria-pressed': isCurrent, onClick: onSelect },
         h('span', { className: 'cs-cycle-head' },
           h('span', { className: 'cs-cycle-title' }, t(titleKey)),
           h('span', { className: 'cs-cycle-share' }, `${t('activeShare')} ${share}%`)),
         h('span', { className: 'cs-cycle-value' }, formatDuration(cycle.activeMs, format)),
         h('span', { className: 'cs-cycle-track', 'aria-hidden': true },
-          h('i', { style: { width: `${share}%` } })),
-        h('span', { className: 'cs-cycle-foot' },
-          h('span', { className: 'cs-cycle-task' }, `${t('taskLabel')} ${formatDuration(cycle.taskMs, format)}`),
-          h('span', { className: 'cs-cycle-count' }, `${taskCount}${t('taskCountUnit')}`)))
+          h('i', { style: { width: `${share}%` } })))
     }
 
     /** 热力图图例：只用当前主题的六档热力色从左到右排成低→高色带，不再重复解释文字。 */
@@ -2937,8 +3000,16 @@ window.__ModuleLoader__.load({
         }))
     }
 
-    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null, highlightSessionId = null) {
+    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null, highlightSessionId = null, sessionPaging = null) {
       const workspaceTitle = row.workspaceTitle ?? t('unassigned')
+      const sessions = Array.isArray(row.sessions) ? row.sessions : []
+      const paging = sessionPaging?.enabled === true
+      const visibleCount = Math.max(
+        DETAILS_SESSION_INITIAL,
+        Math.min(sessions.length, Math.floor(finite(sessionPaging?.visibleCount ?? DETAILS_SESSION_INITIAL))),
+      )
+      const shownSessions = paging ? sessions.slice(0, visibleCount) : sessions
+      const hiddenCount = Math.max(0, sessions.length - shownSessions.length)
       return h('div', { className: 'cs-group', key: row.key },
         h('div', {
           className: 'cs-row cs-summary',
@@ -2974,13 +3045,27 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-cell cs-toggle' },
             h('span', { className: `cs-chevron${isOpen ? ' is-open' : ''}`, 'aria-hidden': true }))),
         isOpen
-          ? h('div', { className: 'cs-sessions' }, row.sessions.length === 0
+          ? h('div', { className: 'cs-sessions' }, sessions.length === 0
               ? h('div', { className: 'cs-empty is-small' }, t('emptyWorkspace'))
-              : row.sessions.map((session) =>
-                renderSessionRow(
-                  session, t, nowMs, subagentByParent[session.sessionId] ?? [], format, hoverTip,
-                  session.sessionId === highlightSessionId,
-                )))
+              : [
+                  ...shownSessions.map((session) =>
+                    renderSessionRow(
+                      session, t, nowMs, subagentByParent[session.sessionId] ?? [], format, hoverTip,
+                      session.sessionId === highlightSessionId,
+                    )),
+                  paging && hiddenCount > 0
+                    ? h('div', { className: 'cs-sessions-more', key: 'show-more' },
+                        h('button', {
+                          type: 'button',
+                          className: 'cs-text-link',
+                          onClick: () => sessionPaging?.onShowMore?.(),
+                        }, t('detailsShowMore').replace('{count}', String(Math.min(DETAILS_SESSION_STEP, hiddenCount)))),
+                        h('span', { className: 'cs-sessions-count' },
+                          t('detailsShownCount')
+                            .replace('{shown}', String(shownSessions.length))
+                            .replace('{total}', String(sessions.length))))
+                    : null,
+                ])
           : null)
     }
 
@@ -3324,6 +3409,7 @@ window.__ModuleLoader__.load({
             onClick: () => options.onSelect?.(format),
           },
           h('b', null, formatDuration(DURATION_FORMAT_SAMPLE_MS, format)),
+          h('i', { className: 'cs-format-divider', 'aria-hidden': true }),
           h('span', null, t(durationFormatHintKey(format))))
         })),
         h('p', { className: 'cs-format-shared' }, t('settingsFormatShared')))
@@ -4084,7 +4170,6 @@ window.__ModuleLoader__.load({
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' },
             h('h2', null, t('trendFocusTitle')),
-            h('span', { className: 'cs-tag' }, t('focusSummary')),
             renderInfo(t('trendInfo'))),
           h('div', { className: 'cs-legend' },
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
@@ -4131,7 +4216,6 @@ window.__ModuleLoader__.load({
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' },
             h('h2', null, current.title),
-            h('span', { className: 'cs-tag' }, t('focusSummary')),
             h('span', { className: 'cs-tag' }, heroMetricTag(t, metric))),
           renderZoomButton({ t, focus, onToggleFocus })),
         h('div', { className: 'cs-hero-focus-body' },
@@ -4507,6 +4591,12 @@ window.__ModuleLoader__.load({
                 className: 'cs-recent-row',
                 onClick: () => onOpenSession?.(session),
               },
+                h('span', {
+                  className: `cs-recent-status${session.taskRunning === true ? ' is-running' : ''}`,
+                  ...(session.taskRunning === true
+                    ? { role: 'img', 'aria-label': t('runningTag'), title: t('runningTag') }
+                    : { 'aria-hidden': true }),
+                }, session.taskRunning === true ? h(DetailGlyph, { name: 'running', size: 13 }) : null),
                 h('span', { className: 'cs-recent-title' }, session.sessionTitle ?? t('unknownSession')),
                 h('span', { className: 'cs-recent-workspace' }, session.workspaceTitle ?? t('unassigned')),
                 h('span', { className: 'cs-recent-time' }, formatDuration(session.taskMs, format)),
@@ -4552,12 +4642,32 @@ window.__ModuleLoader__.load({
       ]
     }
 
+    /** 明细右上角的统计范围下拉：预设范围直接映射成本地自然日区间。 */
+    function renderDetailsRangePicker({ value, t, onSelect }) {
+      const options = DETAILS_RANGE_OPTIONS.map((option) => ({
+        value: option.value,
+        label: t(option.labelKey),
+        key: `details-range-${option.value}`,
+      }))
+      return h('div', { className: 'cs-details-range' },
+        h('span', { className: 'cs-range' }, t('rangeLabel')),
+        h(Select, {
+          value: normalizeDetailsRange(value),
+          options,
+          ariaLabel: t('detailsRangeLabel'),
+          className: 'cs-details-range-select',
+          onChange: onSelect,
+        }))
+    }
+
     /** 明细：本地搜索、工作区行与渐进展开会话，空状态区分「无匹配」与「无数据」。 */
     function renderDetailsView(props) {
       const {
         data, t, isZh, query, onQueryChange, durationFormat,
         expanded, onToggleRow, nowMs, subagentByParent, hoverTip = null,
         highlightSessionId = null,
+        detailsRange = DETAILS_RANGE_DEFAULT, onSelectDetailsRange = null,
+        progressiveSessions = false, visibleSessionCounts = {}, onShowMoreSessions = null,
       } = props
       const rows = filterWorkspaces(data?.workspaces, query)
       const hasQuery = String(query ?? '').trim() !== ''
@@ -4584,7 +4694,7 @@ window.__ModuleLoader__.load({
             onChange: (event) => onQueryChange?.(event?.target?.value ?? ''),
           }),
           h('span', { className: 'cs-tag' }, t('sumTag')),
-          h('span', { className: 'cs-range' }, formatRangeLabel(data?.range, data?.period ?? 'day', t, isZh))),
+          renderDetailsRangePicker({ value: detailsRange, t, onSelect: onSelectDetailsRange })),
         h('div', { className: 'cs-details-stats' }, detailStats.map(([label, value, hint]) =>
           h('div', { className: 'cs-detail-stat', key: label },
             h('span', { className: 'cs-detail-stat-label' }, label),
@@ -4607,7 +4717,14 @@ window.__ModuleLoader__.load({
               ? h('div', { className: 'cs-empty' }, t(hasQuery ? 'detailsEmpty' : 'emptyDashboard'))
               : h('div', { className: 'cs-table-body' }, rows.map((row) =>
                   renderWorkspaceRow(row, expanded?.[row.key] === true, () => onToggleRow?.(row.key),
-                    t, nowMs, subagentByParent ?? {}, durationFormat, hoverTip, highlightSessionId)))),
+                    t, nowMs, subagentByParent ?? {}, durationFormat, hoverTip, highlightSessionId,
+                    progressiveSessions
+                      ? {
+                          enabled: true,
+                          visibleCount: visibleSessionCounts?.[row.key] ?? DETAILS_SESSION_INITIAL,
+                          onShowMore: () => onShowMoreSessions?.(row.key, Array.isArray(row.sessions) ? row.sessions.length : 0),
+                        }
+                      : null)))),
           h('aside', { className: 'cs-details-side' },
             h('section', { className: 'cs-card cs-details-side-card' },
               h('div', { className: 'cs-card-head' },
@@ -4911,8 +5028,13 @@ window.__ModuleLoader__.load({
           } catch { return {} }
         })
         const [detailsQuery, setDetailsQuery] = React.useState('')
+        const [detailsRange, setDetailsRange] = React.useState(() => detailsRangeForPeriod(period))
+        const [detailsVisibleCounts, setDetailsVisibleCounts] = React.useState({})
         const [detailHighlight, setDetailHighlight] = React.useState(null)
         const detailHighlightTimerRef = React.useRef(null)
+        // 顶部周期变化时把明细范围同步到语义相近的预设；手动选择后保持到下次周期切换。
+        React.useEffect(() => { setDetailsRange(detailsRangeForPeriod(period)) }, [period])
+        React.useEffect(() => { setDetailsVisibleCounts({}) }, [detailsRange])
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.period', period) } catch {} }, [period])
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.view', view) } catch {} }, [view])
         React.useEffect(() => { try { window.sessionStorage.setItem('chrono-scope.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
@@ -4947,6 +5069,20 @@ window.__ModuleLoader__.load({
         const [noticeState, setNoticeState] = React.useState({ status: 'idle', data: null })
         const [noticeNonce, setNoticeNonce] = React.useState(0)
         const state = useDashboard(ctx, period, pollMs, refreshNonce)
+        const detailsRangeBounds = resolveDetailsRange(detailsRange, Date.now())
+        const detailsState = useDashboard(ctx, 'day', pollMs, refreshNonce, {
+          view: 'details',
+          range: detailsRangeBounds,
+          enabled: view === 'details',
+        })
+        const showMoreDetailsSessions = (workspaceKey, total) => {
+          setDetailsVisibleCounts((previous) => {
+            const current = Number.isFinite(previous[workspaceKey])
+              ? previous[workspaceKey]
+              : DETAILS_SESSION_INITIAL
+            return { ...previous, [workspaceKey]: Math.min(total, current + DETAILS_SESSION_STEP) }
+          })
+        }
         const hoverTip = useHoverTip()
         React.useEffect(() => { hoverTip.hide() }, [period])
         const [, setTick] = React.useState(0)
@@ -5359,9 +5495,13 @@ window.__ModuleLoader__.load({
           }
           if (view === 'details') {
             return renderDetailsView({
-              data, t, isZh, query: detailsQuery, onQueryChange: setDetailsQuery,
+              data: detailsState.data ?? data, t, isZh, query: detailsQuery, onQueryChange: setDetailsQuery,
               durationFormat, expanded, onToggleRow, nowMs, subagentByParent, hoverTip,
               highlightSessionId: detailHighlight?.sessionId ?? null,
+              detailsRange, onSelectDetailsRange: setDetailsRange,
+              progressiveSessions: detailsRange === 'all',
+              visibleSessionCounts: detailsVisibleCounts,
+              onShowMoreSessions: showMoreDetailsSessions,
             })
           }
           if (view === 'settings') {
@@ -5888,21 +6028,13 @@ window.__ModuleLoader__.load({
       }
       .cs-cycle-value {
         font-family: var(--cs-mono); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
-        font-size: clamp(27px, 2.7vw, 36px); line-height: 1.08; font-weight: 650; letter-spacing: -0.045em;
+        font-size: clamp(30px, 3vw, 40px); line-height: 1.06; font-weight: 650; letter-spacing: -0.045em;
       }
       .cs-cycle-track {
-        display: block; height: 3px; border-radius: 999px; overflow: hidden;
+        display: block; height: 4px; border-radius: 999px; overflow: hidden;
         background: var(--cs-tone-faint);
       }
       .cs-cycle-track i { display: block; height: 100%; border-radius: inherit; background: var(--cs-signal); }
-      .cs-cycle-foot {
-        display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
-        font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary);
-        font-variant-numeric: tabular-nums; white-space: nowrap;
-      }
-      .cs-cycle-task { overflow: hidden; text-overflow: ellipsis; }
-      .cs-cycle-count { flex: none; }
-      .cs-cycle.is-current .cs-cycle-foot { color: color-mix(in srgb, var(--cs-on-accent) 72%, transparent); }
       .cs-cycle.is-current {
         border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 48%, var(--dsw-alias-border-l1));
         background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-brand-primary) 8%, var(--dsw-alias-bg-layer-1)), var(--dsw-alias-bg-layer-1));
@@ -5931,7 +6063,7 @@ window.__ModuleLoader__.load({
       .cs-detail-meta-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
       .cs-detail-meta.is-active .cs-detail-glyph { color: var(--cs-live); }
       .cs-detail-meta.is-task .cs-detail-glyph { color: var(--cs-task); }
-      .cs-detail-meta.is-running .cs-detail-glyph { color: var(--cs-live); }
+      .cs-detail-meta.is-running .cs-detail-glyph { color: var(--cs-task); }
       .cs-detail-meta.is-warning .cs-detail-glyph { color: var(--dsw-alias-state-error-primary); }
       .cs-chart { position: relative; width: 100%; min-width: 0; }
       .cs-chart svg { display: block; width: 100%; height: 138px; }
@@ -5971,6 +6103,12 @@ window.__ModuleLoader__.load({
       .cs-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
       /* 会话明细改用同色系表面：整块圆角、左侧引导线，缩进与汇总行一致。 */
       .cs-sessions { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 10px; border-left: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1); }
+      .cs-sessions-more {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        margin-top: 2px; padding: 9px 0 2px; border-top: 1px dashed var(--dsw-alias-border-l1);
+      }
+      .cs-sessions-more .cs-text-link { margin-top: 0; font-size: 11.5px; }
+      .cs-sessions-count { font-size: 10.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
       .cs-session {
         position: relative; display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap;
         padding: 8px 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary);
@@ -6497,13 +6635,15 @@ window.__ModuleLoader__.load({
 
       .cs-recent-list { display: flex; flex-direction: column; }
       .cs-recent-row {
-        display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto;
-        align-items: center; gap: 12px; padding: 9px 2px; border: 0;
+        display: grid; grid-template-columns: 14px minmax(0, 2fr) minmax(0, 1fr) auto auto;
+        align-items: center; gap: 10px; padding: 9px 2px; border: 0;
         border-top: 1px solid var(--dsw-alias-border-l1); background: transparent;
         font: inherit; color: inherit; text-align: left; cursor: pointer;
       }
       .cs-recent-row:first-child { border-top: 0; }
       .cs-recent-row:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, transparent); }
+      .cs-recent-status { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; color: var(--cs-task); }
+      .cs-recent-status.is-running .cs-detail-glyph { color: var(--cs-task); }
       .cs-recent-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
       .cs-recent-workspace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--dsw-alias-label-secondary); }
       .cs-recent-time { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 11px; }
@@ -6609,6 +6749,13 @@ window.__ModuleLoader__.load({
         .cs-trend-insight-row { padding: 9px 10px; }
       }
       .cs-details-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .cs-details-range { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+      .cs-details-range .cs-select-btn {
+        min-width: 100px; min-height: 30px; padding: 4px 9px;
+        font-size: 11.5px; line-height: 17px; border-radius: 7px;
+      }
+      .cs-details-range .cs-select-menu { min-width: 116px; padding: 3px; }
+      .cs-details-range .cs-opt { padding: 5px 9px; font-size: 11.5px; line-height: 17px; }
       .cs-search {
         flex: 1 1 260px; min-width: 180px; appearance: none; font: inherit; font-size: 12px;
         padding: 7px 12px; border-radius: 9px; color: var(--dsw-alias-label-primary);
@@ -7307,6 +7454,10 @@ window.__ModuleLoader__.load({
       .cs-format-opt b {
         font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; white-space: nowrap;
+      }
+      .cs-format-divider {
+        display: block; width: 1px; height: 11px; flex: 0 0 1px;
+        background: color-mix(in srgb, var(--dsw-alias-label-secondary) 42%, transparent);
       }
       .cs-format-opt span { font-size: 10px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
       .cs-format-preview-value { display: inline-block; animation: cs-format-time-swap 160ms ease-out both; }

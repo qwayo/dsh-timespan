@@ -198,6 +198,27 @@ test('回填 RPC：getBackfillStatus 返回事件与通知，markBackfillRead �
   }
 })
 
+test('回填 RPC：queryStats details 接受自定义 from 并跳过趋势与周期卡', async (t) => {
+  const now = Date.now()
+  const dayStart = new Date().setHours(0, 0, 0, 0)
+  const nextDay = new Date(dayStart)
+  nextDay.setDate(nextDay.getDate() + 1)
+  if (now - dayStart < 3000 || nextDay.getTime() - now < 3000) return t.skip('跨日边界等待下一次运行')
+  const harness = await createBackfillRpcHarness()
+  try {
+    await harness.waitDone()
+    const details = await harness.call('queryStats', { from: dayStart, view: 'details' })
+    assert.equal(details.view, 'details')
+    assert.equal(details.from, dayStart)
+    assert.ok(details.to >= dayStart)
+    assert.ok(Array.isArray(details.workspaces), '明细响应包含工作区会话来支撑页面展开')
+    assert.equal(details.trend, undefined, '明细响应不带趋势桶')
+    assert.equal(details.cycles, undefined, '明细响应不带周期卡')
+  } finally {
+    await harness.close()
+  }
+})
+
 test('回填 RPC：markBackfillRead 拒绝缺少 eventId 的载荷', async () => {
   let route
   let cleanup
