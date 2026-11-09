@@ -15,7 +15,7 @@
 
 1. 包名统一为 `@qwayo/dsh-timespan`。选带 scope 的版本，是为了和仓库 `qwayo/dsh-timespan` 视觉一致，并且 scope 不会被他人抢注。
 2. 身份字符串仍然成套修改，规则与 ADR-0007 相同：`package.json` 的 `name`、`cordis.patch.yml` 的 `name`、`client.js` 的模块 id 三处必须同时改；README 与 `assets/readme/structure*.svg` 里出现的包名一并跟上。
-3. 先保持 `"private": true`。包名已经就位，但在正式发布之前仍然禁止 npm publish，作为误发布的保险。
+3. 先保持 `"private": true`。包名已经就位，但在正式发布之前仍然禁止 npm publish，作为误发布的保险。首次发布时改为 `"private": false`（2026-11-09 执行）。
 4. 存储域继续保留 `chrono_scope`，不随包名变化——里面是用户的真实统计与设置，`storageDomain` 没有 rename/migrate。
 
 ## 后果
