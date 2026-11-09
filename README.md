@@ -6,15 +6,15 @@
   <kbd>简体中文</kbd> · <a href="./README.en.md">English</a>
 </p>
 
-**dsh-timespan** 是一个同时包含 Host 与 Client 两半的 DSH bundle，记录并展示你在 DSH 里的三种时长。所有数据只保存在本机 DSH 的存储域中，不上传。
+> **dsh-timespan** 是一个 DSH 插件，记录并展示你在 DSH 里的在线、活跃和任务时长。数据只保存在本机，不上传。
 
 ## 三种时长
 
-- **在线**：DSH 进程从启动到退出之间的墙钟时间。
-- **活跃**：页面可见、窗口聚焦，且在空闲阈值内有操作，或前台会话正在运行任务的时间。
-- **任务**：一次任务从 `turn/start` 到 `turn/end` 的墙钟时间，并拆分为模型请求、工具执行、等待用户和其他四部分。
+- **在线**：DSH 从启动到退出的全部时间，包括你不在电脑前的时间。
+- **活跃**：页面可见、窗口聚焦，并且你在空闲阈值内有过操作，或者前台会话正在跑任务的时间。
+- **任务**：一次任务从 `turn/start` 到 `turn/end` 的耗时，分成模型请求、工具执行、等待用户和其他四部分。
 
-口径边界：不统计空闲时长，不把任务时长当作活跃时长的子集；启用后的历史回填只补任务时长，不伪造在线/活跃历史。
+统计范围：没有单独的「空闲时长」指标，任务时长也不算活跃时长的一部分。启用后只回填历史任务时长，不会补出在线和活跃的历史记录。
 
 ## 界面一览
 
@@ -22,13 +22,13 @@
   <img src="./assets/readme/dashboard.svg" width="100%" alt="dsh-timespan 周期概览界面示意（示例数据）：侧栏在线时长入口、今日活跃时长主数字、今日/本周/本月周期卡、今日 24 小时、任务时长构成、工作区任务排行、最近会话与每日活跃热力图">
 </p>
 
-- 侧边栏常驻入口，实时显示所选时长（默认在线时长）与今日构成环，悬浮说明约 200ms 出现。
-- 日/周/月仪表盘：概览、趋势、明细、设置四个同级视图；活跃主数字、趋势、热力图均可放大为首屏独立页；趋势页附时段分布与趋势洞察。
-- 工作区 → 会话明细：活跃时长、任务时长、最近活动与当前计时状态；统计范围可切换今天、近3天、最近一周、近30天或全部，全部范围按批次渐进展开会话。
-- Agent 只读工具 `timespan_stats`：在对话中按日/周/月或自定义日期查询，与仪表盘共用同一份 Host 统计。
-- 设置：界面语言（默认中文，可切英文，只影响本插件文案）、空闲阈值（1–15 分钟）、周起始（周一/周日）、外观（默认跟随系统）与配色、数字格式（默认紧凑单位，如 `2h 48m`）、是否显示子代理明细、侧栏状态文字与侧栏常驻时长（默认在线时长）。
-- 导出 JSON / CSV，备份文件按 ID 去重导入；新导出格式为 `dsh-timespan-export`，旧版 `chronoscope-export` 备份仍可导入；清空数据等破坏性操作保留二次确认。
-- 首次启用自动回填已有历史会话的任务时长。
+- 侧边栏有常驻入口，实时显示你选定的时长（默认在线）和今日构成环；悬停约 200ms 会显示说明。
+- 日/周/月仪表盘分概览、趋势、明细、设置四个视图；活跃主数字、趋势图和热力图都能放大成独立页（首屏）；趋势页还会显示时段分布和趋势分析。
+- 工作区 → 会话明细：显示活跃时长、任务时长、最近活动和当前计时状态。统计范围可选今天、近 3 天、最近一周、近 30 天或全部；选全部时会分批加载会话。
+- Agent 只读工具 `timespan_stats`：在对话里按日/周/月或自定义日期查询，数据与仪表盘同源。
+- 设置：界面语言（默认中文，可切英文，只影响本插件文案）、空闲阈值（1–15 分钟）、周起始（周一/周日）、外观与配色（默认跟随系统）、数字格式（默认紧凑单位，如 `2h 48m`）、子代理明细开关，以及侧栏是否显示状态文字和常驻时长（默认在线时长）。
+- 支持导出 JSON / CSV，导入备份时按 ID 去重。新格式是 `dsh-timespan-export`，旧的 `chronoscope-export` 备份也能导入。清空数据等破坏性操作会二次确认。
+- 首次启用时，自动回填已有历史会话的任务时长。
 
 ## 运行机制
 
@@ -36,13 +36,13 @@
   <img src="./assets/readme/architecture.svg" width="100%" alt="dsh-timespan 运行机制：Host 是随 DSH 一起运行的后台，记在线心跳、听会话事件、统一计算统计并写入本机存储；Client 是页面上看到的部分，负责侧栏入口、仪表盘与设置页，并把发生了什么报给后台">
 </p>
 
-dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client** 是你在页面上看到的部分。页面只把「发生了什么」报给后台——界面还开着、页面是否可见、会话什么时候开始和结束跑任务；至于今天算多久、一周算多久、活跃怎么判定，全部由后台统一计算，算完写进本机的存储域，不上传。
+dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client** 是你在页面上看到的部分。页面只负责告诉后台发生了什么：界面开着、窗口是否可见、会话什么时候开始和结束跑任务。今天算多久、一周算多久、活跃怎么判定，都由后台统一计算，再写进本机存储，不上传。
 
-页面刷新后重新从后台读结果。所以在仪表盘里看到的数字，和在对话里问 `timespan_stats` 拿到的答案，永远是同一份。
+刷新页面后，数据会重新从后台读取。所以仪表盘里的数字，和对话里问 `timespan_stats` 得到的答案，始终是同一份。
 
 ## 安装
 
-前置条件：装好 DSH（DSH Desktop 或带 Web profile 的环境），会话里能用 `plugin_manager` 工具——Standard 和 Creator 预设默认开启。插件运行时没有第三方依赖，也没有构建步骤；本仓库用 Node.js 24.16.0 开发和测试。
+前置条件：装好 DSH（DSH Desktop 或带 Web profile 的环境），并且会话里能用 `plugin_manager` 工具。Standard 和 Creator 预设默认开启它。插件运行时没有第三方依赖，也不需要构建；本仓库用 Node.js 24.16.0 开发和测试。
 
 > 安装、更新、卸载都交给 `plugin_manager` 处理。不要手动改 profile 的 `package.json`，也不要自己跑 pnpm——这些由它统一处理，失败时它会自动恢复原状。
 
@@ -52,7 +52,7 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 
 > 帮我装插件 @qwayo/dsh-timespan
 
-`plugin_manager` 会从 registry 拉取最新版本、安装并默认启用。想钉住版本就把名字换成 `@qwayo/dsh-timespan@0.1.1`。提示需要重启时，重启 DSH 即可。
+`plugin_manager` 会从 registry 拉取最新版本，安装并默认启用。想固定版本就换成 `@qwayo/dsh-timespan@0.1.1`。提示需要重启时，重启 DSH 即可。
 
 ### 方式二：安装 GitHub 仓库
 
@@ -64,7 +64,7 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 
 ### 方式三：安装本地目录
 
-想改源码或做本地开发，把本地目录以 `link:` 方式接入当前 profile，改完代码重启就能生效，不用重新安装：
+想改源码或做本地开发，可以把本地目录以 `link:` 方式接进当前 profile。改完代码重启就能生效，不用重新安装：
 
 1. 把本仓库放在一个固定的本地路径，下文记作 `<仓库本地路径>`（例如 Windows 上的 `C:\path\to\dsh-timespan`）。
 2. 在会话里对 Agent 说：
@@ -75,7 +75,7 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 
 ### 装好后核对
 
-- 左侧栏出现 **dsh-timespan** 入口，默认显示今日在线时长（可在设置中切换为活跃或任务时长；首次安装默认不显示状态文字，可在设置里打开「侧栏显示状态」，开启后显示空闲、活跃中或任务中）。
+- 左侧栏出现 **dsh-timespan** 入口，默认显示今日在线时长，可在设置里切换成活跃或任务时长。状态文字默认关闭，在设置里打开「侧栏显示状态」后，会显示空闲、活跃中或任务中。
 - 设置页出现 **dsh-timespan** 分区。
 - 对 Agent 说「用 timespan_stats 查一下今天的时长」，能返回统计结果。
 - 需要时用 `plugin_manager` 的 `list_bundles` / `list_plugins` 核对：bundle `@qwayo/dsh-timespan` 和插件行 `dsh-timespan` 处于启用状态。
@@ -94,7 +94,7 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 - 安装时如果 Agent 请求授权，确认一次即可。
 - 安装本质是跑一次 pnpm。如果返回的错误提示 pnpm 不可用，先安装 pnpm，或在配置里指定 `pnpmCommand`。
 - 有 HMR 的环境里，安装完立即生效；没有 HMR 时会返回 `restart-required`，重启后生效。
-- 安装失败时，`plugin_manager` 会自动恢复 profile 的 `package.json` 和 `pnpm-lock.yaml`，把错误信息留给 Agent 排查即可。
+- 安装失败时，`plugin_manager` 会自动恢复 profile 的 `package.json` 和 `pnpm-lock.yaml`，并把错误信息留给 Agent 排查。
 - 只改了本仓库源码时不需要重新安装：重启 DSH（或重新加载插件）就能加载新的模块。
 
 </details>
@@ -154,8 +154,8 @@ dsh-timespan/
 
 | 文件 | 作用 |
 | --- | --- |
-| `index.js` | Host 半入口：打开 `chrono_scope` v1 存储域（历史键，保持兼容），注册 30 秒心跳、`session/event` 监听、包内 RPC 与 `timespan_stats` 工具。 |
-| `client.js` | Client 半入口：`sidebar.panellist` 侧栏入口、`shell.overlay` presence 心跳、`main` 仪表盘、`settings.section` 设置页。 |
+| `index.js` | Host 侧入口：打开 `chrono_scope` v1 存储域（历史键，保持兼容），注册 30 秒心跳、`session/event` 监听、包内 RPC 与 `timespan_stats` 工具。 |
+| `client.js` | Client 侧入口：`sidebar.panellist` 侧栏入口、`shell.overlay` presence 心跳、`main` 仪表盘、`settings.section` 设置页。 |
 | `src/domain/dsh-timespan-domain.js` | 全部业务规则的核心：在线/活跃/任务区间、任务四段构成、归属、并集/求和、查询与数据操作。 |
 | `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`queryDailySeries`、`getSettings`、`setSettings`、`resetSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill`。 |
 | `src/host/tool.js` | 把 `timespan_stats` 参数转为 `queryStats` 查询，不另算一套数字。 |
@@ -163,12 +163,12 @@ dsh-timespan/
 
 </details>
 
-> 存储域内部仍使用 `chrono_scope` 作为持久化键，以免已有统计与设置失联；这是历史兼容名，对外的项目名是 **dsh-timespan**。
+> 存储域内部仍用 `chrono_scope` 作为持久化键，这样已有的统计和设置不会丢；这是历史遗留的名字，对外的项目名是 **dsh-timespan**。
 
 <details>
 <summary>位图版配图（供插件市场抓取）</summary>
 
-插件市场的截图门禁只接受 PNG / WebP / JPG，SVG 会被直接丢弃，所以这里另放一套 2 倍位图给它抓；正文里的配图仍使用矢量 SVG。改 SVG 后需要重新导出同名 PNG。
+插件市场只接受 PNG / WebP / JPG 截图，SVG 会被直接丢掉。所以这里另外放了一套 2 倍位图，正文里的配图仍用 SVG。改完 SVG 后要重新导出同名 PNG。
 
 <img src="./assets/readme/dashboard.png" width="100%" alt="dsh-timespan 周期概览界面示意（示例数据）">
 <img src="./assets/readme/architecture.png" width="100%" alt="dsh-timespan 运行机制：Host 与 Client 两半">
