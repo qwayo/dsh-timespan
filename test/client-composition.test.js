@@ -1034,7 +1034,7 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(declarationsFor(css, '.chronoscope-nav-time'), /animation:\s*chronoscope-time-swap 160ms ease-out/, '切换数字格式时侧栏时间播放短促淡入')
   assert.match(css, /@keyframes chronoscope-time-swap/, '换字动画关键帧存在')
   const navSwapStart = css.indexOf('@keyframes chronoscope-time-swap')
-  const navSwap = css.slice(navSwapStart, css.indexOf('.chronoscope-nav-name', navSwapStart))
+  const navSwap = css.slice(navSwapStart, css.indexOf('.chronoscope-nav-status', navSwapStart))
   assert.doesNotMatch(navSwap, /translate|scale\(|blur\(/, '换字动画不做位移、缩放或模糊，避免夸张')
   assert.match(navSwap, /from\s*\{\s*opacity:\s*0/, '从透明淡入')
   assert.match(navSwap, /to\s*\{\s*opacity:\s*1/, '以完全不透明收尾')
@@ -1048,8 +1048,13 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(css, /52%, 100% \{ transform: scale\(2\.15\); opacity: 0; \}/, '扩散结束后留出不可见的空档再开始下一轮')
   assert.doesNotMatch(css, /\.chronoscope-nav-dot\.is-task::after/, '只保留单圈扩散，旧环未结束不会叠出第二圈')
   assert.match(declarationsFor(css, '.chronoscope-nav-dot'), /border-radius:\s*999px\s*!important/, '状态点强制标准圆形，不被宿主方角覆盖')
+  assert.match(declarationsFor(css, '.chronoscope-nav-dot.is-task'), /background:\s*var\(--cs-task\)/, '任务态状态点使用紫色')
+  assert.match(css, /\.chronoscope-nav-dot\.is-task::before\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--cs-task\) 58%, transparent\)/, '任务态扩散环改为紫色并覆盖活跃环')
   assert.match(declarationsFor(css, '.chronoscope-nav-tip'), /position:\s*fixed/, '时长浮层固定定位')
-  assert.match(declarationsFor(css, '.chronoscope-nav-name'), /text-overflow:\s*ellipsis/, '长名称省略而不撑破侧栏')
+  assert.match(declarationsFor(css, '.chronoscope-nav-status'), /font-size:\s*11px/, '状态文字与侧栏次级文字同档')
+  assert.match(declarationsFor(css, '.chronoscope-nav-status.is-active'), /color:\s*var\(--cs-live\)/, '活跃中文字使用蓝色')
+  assert.match(declarationsFor(css, '.chronoscope-nav-status.is-task'), /color:\s*var\(--cs-task\)/, '任务中文字使用紫色')
+  assert.doesNotMatch(css, /\.chronoscope-nav-name\s*\{/, '侧栏不再渲染工作区名称')
 })
 
 test('客户端：侧栏构成环按今日在线/活跃/任务三项毫秒分段', async () => {
@@ -1084,6 +1089,9 @@ test('客户端：首次安装与恢复初始设置的外观都跟随系统', as
   resetStoredTheme()
   assert.equal(store.get('chrono-scope.appearance'), 'system', '恢复初始设置写入跟随系统')
   assert.equal(store.get('chrono-scope.palette'), 'blue', '配色仍恢复默认蓝')
+  const source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
+  assert.match(source, /applyAppearance\('system'\)/, '仪表盘内恢复初始设置也回到跟随系统')
+  assert.doesNotMatch(source, /applyAppearance\('light'\)/, '恢复初始设置不得再写死浅色')
 })
 
 test('客户端：侧栏主题跟随 localStorage 的配色与外观，system 解析为实际明暗', async () => {
@@ -1124,7 +1132,7 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
     taskLabel: '任务',
     live: '活跃中',
     idle: '空闲',
-    taskRunning: '任务进行中',
+    taskRunning: '任务中',
     cycleToday: '今日',
     navTooltip: 'ChronoScope · 在线、活跃与任务时长',
     sidebarRingTitle: '在线、活跃与任务时长',
@@ -1177,7 +1185,7 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
   assert.ok(dot, '隐藏名称后状态点仍在')
   assert.match(dot.props.className, /is-live/, '活跃或任务状态点着色')
   assert.match(dot.props.className, /is-task/, '任务进行中带扩散环')
-  assert.equal(dot.props['aria-label'], '任务进行中')
+  assert.equal(dot.props['aria-label'], '任务中')
 
   assert.equal(typeof tree.props.onMouseEnter, 'function', '入口绑定悬停浮层')
   assert.equal(typeof tree.props.onFocus, 'function', '入口保留键盘聚焦浮层')
@@ -1192,7 +1200,7 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
   assert.match(tree.props['aria-label'], /在线时长 4h 0m/, '在线时长仍留在无障碍标签里')
   assert.match(tree.props['aria-label'], /活跃 3h 0m/, '活跃时长仍留在无障碍标签里')
   assert.match(tree.props['aria-label'], /任务 1h 0m/, '任务时长仍留在无障碍标签里')
-  assert.match(tree.props['aria-label'], /任务进行中/, '状态也进入无障碍标签')
+  assert.match(tree.props['aria-label'], /任务中/, '状态也进入无障碍标签')
   assert.match(tree.props['aria-label'], /在线、活跃与任务时长/, '无障碍标签使用不带「今日」的浮层标题')
   assert.doesNotMatch(tree.props['aria-label'], /今日/, '无障碍标签不再保留「今日」角标')
 
@@ -1211,8 +1219,9 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
     t,
     hover,
   })
-  assert.equal(findByClass(named, 'chronoscope-nav-name'), undefined, '无工作区标题时不再渲染名称，避免与宿主 label 重复')
-  assert.doesNotMatch(named.props.className, /is-nameless/, '显示名称时保持原有左对齐布局')
+  assert.equal(textOf(findByClass(named, 'chronoscope-nav-status')), '空闲', '开启后显示当前状态文字')
+  assert.equal(findByClass(named, 'chronoscope-nav-name'), undefined, '不再渲染工作区名称，避免与宿主 label 重复')
+  assert.doesNotMatch(named.props.className, /is-nameless/, '显示状态时保持原有左对齐布局')
   assert.doesNotMatch(findByClass(named, 'chronoscope-nav-dot').props.className, /is-live/, '空闲状态点不点亮')
 
   const activeOnly = renderSidebarEntry({
@@ -1244,46 +1253,57 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
   assert.equal(textOf(findByClass(taskMetric, 'chronoscope-nav-time')), '1h 0m', '选择任务时长后大数字切换口径')
 })
 
-test('客户端：侧栏名称只显示工作区标题，空值不回落插件名，隐藏时都不渲染', async () => {
+test('客户端：侧栏状态文字跟随状态点，任务中优先于活跃中，隐藏时都不渲染', async () => {
   const { renderSidebarEntry } = await loadClientFunctions()
   const t = (key) => ({
     title: 'ChronoScope',
     onlineLabel: '在线',
     activeLabel: '活跃',
     taskLabel: '任务',
+    live: '活跃中',
+    idle: '空闲',
+    taskRunning: '任务中',
     sidebarRingTitle: '今日在线、活跃与任务时长',
+    navTooltip: 'ChronoScope · 在线、活跃与任务时长',
   })[key] ?? key
   const base = {
-    stats: { status: 'ready', onlineMs: 3_600_000, activeMs: 1_800_000, taskMs: 600_000 },
+    stats: { status: 'ready', onlineMs: 3_600_000, activeMs: 1_800_000, taskMs: 600_000, activeRunning: false, taskRunning: false },
     theme: { palette: 'blue', appearance: 'light' },
+    showName: true,
     t,
     hover: { show() {}, hide() {} },
   }
-  const named = renderSidebarEntry({ ...base, workspaceTitle: '项目甲' })
-  assert.equal(textOf(findByClass(named, 'chronoscope-nav-name')), '项目甲', '有工作区时显示工作区名')
+  const idle = renderSidebarEntry({ ...base, workspaceTitle: '项目甲' })
+  const idleStatus = findByClass(idle, 'chronoscope-nav-status')
+  assert.equal(textOf(idleStatus), '空闲', '没有运行任务且未活跃时显示空闲')
+  assert.match(idleStatus.props.className, /is-idle/)
+  assert.equal(findByClass(idle, 'chronoscope-nav-name'), undefined, '不再渲染工作区名称')
 
-  const fallback = renderSidebarEntry({ ...base, workspaceTitle: '   ' })
-  assert.equal(findByClass(fallback, 'chronoscope-nav-name'), undefined, '空白工作区名不再回落插件名')
-  const missing = renderSidebarEntry(base)
-  assert.equal(findByClass(missing, 'chronoscope-nav-name'), undefined, '没有工作区名时不再渲染名称')
-  const sameAsPlugin = renderSidebarEntry({ ...base, workspaceTitle: 'ChronoScope' })
-  assert.equal(findByClass(sameAsPlugin, 'chronoscope-nav-name'), undefined, '工作区名与插件名相同时也不重复渲染')
-  for (const variant of ['chrono-scope', 'CHRONO-SCOPE', 'Chrono Scope', 'chrono_scope']) {
-    const folded = renderSidebarEntry({ ...base, workspaceTitle: variant })
-    assert.equal(findByClass(folded, 'chronoscope-nav-name'), undefined,
-      `工作区名「${variant}」忽略大小写与分隔符后与插件名等价，不重复渲染`)
-  }
+  const active = renderSidebarEntry({ ...base, stats: { ...base.stats, activeRunning: true } })
+  const activeStatus = findByClass(active, 'chronoscope-nav-status')
+  assert.equal(textOf(activeStatus), '活跃中', '用户操作 DSH 时显示活跃中')
+  assert.match(activeStatus.props.className, /is-active/)
 
-  const hiddenWorkspace = renderSidebarEntry({ ...base, workspaceTitle: '项目甲', showName: false })
-  assert.equal(findByClass(hiddenWorkspace, 'chronoscope-nav-name'), undefined, '隐藏名称时工作区名不渲染')
-  const hiddenFallback = renderSidebarEntry({ ...base, showName: false })
-  assert.equal(findByClass(hiddenFallback, 'chronoscope-nav-name'), undefined, '隐藏名称时插件名也不渲染')
+  const task = renderSidebarEntry({ ...base, stats: { ...base.stats, taskRunning: true } })
+  const taskStatus = findByClass(task, 'chronoscope-nav-status')
+  assert.equal(textOf(taskStatus), '任务中', '任务运行时显示任务中')
+  assert.match(taskStatus.props.className, /is-task/)
+
+  const both = renderSidebarEntry({ ...base, stats: { ...base.stats, activeRunning: true, taskRunning: true } })
+  const bothStatus = findByClass(both, 'chronoscope-nav-status')
+  assert.equal(textOf(bothStatus), '任务中', '任务中优先于活跃中')
+  assert.match(bothStatus.props.className, /is-task/)
+  assert.doesNotMatch(bothStatus.props.className, /is-active/, '任务态不再叠加活跃态样式')
+
+  const hidden = renderSidebarEntry({ ...base, showName: false })
+  assert.equal(findByClass(hidden, 'chronoscope-nav-status'), undefined, '隐藏状态后不渲染状态文字')
+  assert.match(hidden.props.className, /is-nameless/, '隐藏状态后入口进入无名称紧凑布局')
 })
 
-test('客户端：侧栏名称与时长进入设置草稿、保存载荷与设置页控件', async () => {
+test('客户端：侧栏状态与时长进入设置草稿、保存载荷与设置页控件', async () => {
   const { settingsDraft, settingsPayload, createSettingsSection, React, Select } = await loadClientFunctions()
   assert.equal(settingsDraft({ sidebarShowName: true }).sidebarShowName, true)
-  assert.equal(settingsDraft({}).sidebarShowName, false, '缺省时隐藏名称')
+  assert.equal(settingsDraft({}).sidebarShowName, false, '缺省时隐藏状态文字')
   assert.equal(settingsDraft({}).sidebarDuration, 'online', '缺省时侧栏显示在线时长')
   assert.equal(settingsDraft({ sidebarDuration: 'task' }).sidebarDuration, 'task')
   assert.equal(settingsDraft({ sidebarDuration: 'bogus' }).sidebarDuration, 'online', '非法侧栏时长回落在线时长')
@@ -1301,15 +1321,15 @@ test('客户端：侧栏名称与时长进入设置草稿、保存载荷与设�
     sidebarShowName: false,
     sidebarDuration: 'task',
     approximateNoticeDismissed: false,
-  }), '保存时提交侧栏名称、侧栏时长与数字格式')
+  }), '保存时提交侧栏状态、侧栏时长与数字格式')
 
   const labels = {
     settingsSectionDisplay: '明细展示',
     settingsSectionBasics: '统计与显示',
     settingsBasicsHint: '统计口径与侧栏入口',
-    settingsSidebarNameLabel: '侧栏显示名称',
-    settingsSidebarNameOn: '显示名称',
-    settingsSidebarNameOff: '隐藏名称',
+    settingsSidebarNameLabel: '侧栏显示状态',
+    settingsSidebarNameOn: '显示状态',
+    settingsSidebarNameOff: '隐藏状态',
     settingsSidebarDurationLabel: '侧栏显示时长',
     settingsSidebarDurationHint: '选择侧栏常驻时长',
     sidebarDurationOnline: '在线时长',
@@ -1318,10 +1338,10 @@ test('客户端：侧栏名称与时长进入设置草稿、保存载荷与设�
   }
   const t = (key) => labels[key] ?? key
   const tree = React.render(createSettingsSection({}), { t })
-  const checkbox = findAll(tree, (node) => node.type === 'input' && node.props?.['aria-label'] === '侧栏显示名称')[0]
-  assert.ok(checkbox, '设置页存在侧栏名称开关')
+  const checkbox = findAll(tree, (node) => node.type === 'input' && node.props?.['aria-label'] === '侧栏显示状态')[0]
+  assert.ok(checkbox, '设置页存在侧栏状态开关')
   assert.equal(checkbox.props.type, 'checkbox')
-  assert.equal(checkbox.props.checked, false, '首次安装默认隐藏名称')
+  assert.equal(checkbox.props.checked, false, '首次安装默认隐藏状态')
   const durationSelect = findAll(tree, (node) => node.type === Select && node.props?.ariaLabel === '侧栏显示时长')[0]
   assert.ok(durationSelect, '设置页存在侧栏显示时长下拉')
   assert.equal(durationSelect.props.value, 'online', '侧栏时长默认在线时长')
@@ -1699,6 +1719,9 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
   assert.equal(allOf(trend, byClass('cs-cycle-share')).length, 3, '每张周期卡头部保留活跃占比文字')
   assert.match(textOf(allOf(trend, byClass('cs-cycle-share'))[0]), /活跃占比 \d+%/, '占比以文字常显而不挤在圆环里')
   assert.equal(allOf(trend, byClass('cs-cycle-ring')).length, 0, '窄窗不再使用会被裁切的占比环')
+  assert.equal(allOf(trend, byClass('cs-cycle-foot')).length, 3, '每张周期卡底部补任务时长与次数')
+  assert.match(textOf(allOf(trend, byClass('cs-cycle-foot'))[0]), /任务/, '周期卡底部显示任务时长')
+  assert.match(textOf(allOf(trend, byClass('cs-cycle-foot'))[0]), /次任务/, '周期卡底部显示任务次数')
   assert.ok(allOf(trend, byClass('cs-trend-card')).length >= 1, '趋势含趋势图卡')
   const summaryText = textOf(allOf(trend, byClass('cs-trend-summary'))[0])
   assert.match(summaryText, /日均活跃/)
@@ -1757,8 +1780,8 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     settingsIdleUnit: '分钟', settingsIdleRange: '可选 1–15 分钟', settingsWeekLabel: '每周起始',
     settingsWeekHint: '决定本周边界', settingsWeekMonday: '周一', settingsWeekSunday: '周日',
     settingsSectionDisplay: '明细展示', settingsSubagentLabel: '显示子代理明细', settingsSubagentHint: '开关子代理',
-    settingsSubagentOn: '显示', settingsSubagentOff: '隐藏', settingsSidebarNameLabel: '侧栏显示名称',
-    settingsSidebarNameHint: '侧栏名称开关', settingsSidebarNameOn: '显示名称', settingsSidebarNameOff: '隐藏名称',
+    settingsSubagentOn: '显示', settingsSubagentOff: '隐藏', settingsSidebarNameLabel: '侧栏显示状态',
+    settingsSidebarNameHint: '侧栏状态文字开关', settingsSidebarNameOn: '显示状态', settingsSidebarNameOff: '隐藏状态',
     settingsSidebarDurationLabel: '侧栏显示时长', settingsSidebarDurationHint: '选择侧栏常驻时长',
     sidebarDurationOnline: '在线时长', sidebarDurationActive: '活跃时长', sidebarDurationTask: '任务时长',
     settingsResetTitle: '初始化设置', settingsResetHint: '恢复首次安装默认值，不删除统计数据。',
@@ -1801,7 +1824,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   const text = textOf(tree)
   assert.match(allOf(tree, byClass('cs-settings-list'))[0]?.props?.className ?? '', /is-split/, '统计与显示在仪表盘宽卡里排成两列')
   assert.match(text, /侧栏、概览、趋势、明细与导出共用这一格式/, '数字格式卡底部说明共用范围')
-  for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示名称', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '选择备份文件导入', '重新显示说明', '清空全部数据']) {
+  for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示状态', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '选择备份文件导入', '重新显示说明', '清空全部数据']) {
     assert.match(text, new RegExp(expected), `设置页包含「${expected}」`)
   }
   assert.match(text, /未选择文件/, '未选择文件时常显导入状态')
@@ -1810,9 +1833,9 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   assert.doesNotMatch(text, /保存设置/, '即点即存后不再有「保存设置」按钮')
   assert.equal(allOf(tree, byClass('cs-format-opt')).length, 5, '五个数字格式选项')
   const checkboxes = findAll(tree, (node) => node.type === 'input' && node.props?.type === 'checkbox')
-  assert.equal(checkboxes.length, 2, '子代理与侧栏名称两个开关')
-  const sidebarNameCheckbox = checkboxes.find((node) => node.props?.['aria-label'] === '侧栏显示名称')
-  assert.equal(sidebarNameCheckbox?.props?.checked, false, '侧栏名称默认不勾选')
+  assert.equal(checkboxes.length, 2, '子代理与侧栏状态两个开关')
+  const sidebarNameCheckbox = checkboxes.find((node) => node.props?.['aria-label'] === '侧栏显示状态')
+  assert.equal(sidebarNameCheckbox?.props?.checked, false, '侧栏状态默认不勾选')
   const selectLabels = findAll(tree, (node) => typeof node.props?.ariaLabel === 'string')
     .map((node) => node.props.ariaLabel)
   assert.ok(selectLabels.includes('活跃判定阈值'), '空闲阈值下拉可用')
@@ -2262,6 +2285,11 @@ test('客户端：周期卡选中态的占比横条与纯色背景保持可分�
   assert.match(track, /--cs-on-accent/, '轨道改用与强调底色相反的文字色半透明')
   const fill = declarationsFor(css, '.cs-cycle.is-current .cs-cycle-track i')
   assert.match(fill, /background:\s*var\(--cs-on-accent\)/, '填充改用反色，不再与纯色背景混在一起')
+  assert.match(declarationsFor(css, '.cs-cycle'), /justify-content:\s*space-between/, '周期卡内容纵向均布，消除底部大片空白')
+  const foot = declarationsFor(css, '.cs-cycle-foot')
+  assert.match(foot, /display:\s*flex/, '周期卡底部为一行紧凑信息')
+  assert.match(foot, /justify-content:\s*space-between/, '任务时长与次数分列两端')
+  assert.match(foot, /font-size:\s*11px/, '底部信息不抢主数字')
 })
 
 /** 构造一段连续的每日序列；每三天有一整天无观测，用来验证「无记录」与汇总口径。 */
@@ -2608,10 +2636,10 @@ test('客户端：热力图首屏独立页给出六项范围统计、12 个月�
   }
 })
 
-test('客户端：热力图卡片含月份刻度、星期标签与浮层，且无图例和单日明细', async () => {
-  const { renderDailyHeatmap, renderOverviewView } = await loadClientFunctions()
+test('客户端：热力图卡片含月份刻度、星期标签与色带浮层，且无图例和单日明细', async () => {
+  const { renderDailyHeatmap, renderOverviewView, Info } = await loadClientFunctions()
   const labels = {
-    heatmapTitle: '每日时长', heatmapInfo: '每格代表一天',
+    heatmapTitle: '每日时长', heatmapInfo: '每格代表一天', heatLegendLow: '低', heatLegendHigh: '高',
     periodDay: '日', onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务',
     noRecord: '无记录', heatDayTitle: '{month}月{day}日',
     heatSummary: '范围活跃 {active} · 活跃天数 {activeDays}/{observedDays}',
@@ -2627,8 +2655,14 @@ test('客户端：热力图卡片含月份刻度、星期标签与浮层，且�
     nowMs: new Date(2026, 7, 15, 12).getTime(), hoverTip,
   })
   assert.equal(allOf(tree, byClass('cs-heatmap-card')).length, 1, '概览中的每日热力图卡片')
-  assert.equal(allOf(tree, byClass('heat-legend')).length, 0, '没有深浅图例')
+  assert.equal(allOf(tree, byClass('heat-legend')).length, 0, '没有旧版深浅图例')
   assert.equal(allOf(tree, byClass('heat-detail')).length, 0, '没有下方重复的单日明细')
+  const legendInfo = findAll(tree, (node) => node.type === Info)
+    .find((node) => findByClass(node.props?.content, 'cs-heat-legend'))
+  assert.ok(legendInfo, 'ⓘ 悬浮层改为热力色带')
+  assert.equal(legendInfo.props.message, '每格代表一天', '无障碍说明仍保留原文')
+  assert.equal(findAllByClass(legendInfo.props.content, 'cs-heat-legend-swatch').length, 6, '色带覆盖六个热力等级')
+  assert.doesNotMatch(textOf(legendInfo.props.content), /每格代表一天|说明/, '悬浮层不再显示说明文字')
 
   const monthRow = allOf(tree, byClass('heat-months'))[0]
   assert.ok(monthRow, '存在月份刻度行')
@@ -3271,6 +3305,14 @@ test('客户端：任务时长构成行的时长不撑出卡片边框', async ()
   assert.match(declarationsFor(css, '.cs-composition-label'), /text-overflow:\s*ellipsis/, '过长标签省略')
   assert.match(declarationsFor(css, '.cs-composition-time, .cs-ranking-time'), /text-overflow:\s*ellipsis/, '过长时长省略而不溢出边框')
   assert.match(declarationsFor(css, '.cs-composition-body'), /gap:\s*16px/, '给列表留出更多宽度')
+  assert.match(declarationsFor(css, '.cs-donut'), /width:\s*clamp\(118px/, '圆环最小宽度回到 118px')
+  assert.doesNotMatch(css, /\.cs-donut\s*\{[^}]*width:\s*clamp\(88px/, '不再缩到 88px 导致中心数字拥挤')
+  const donutNumber = declarationsFor(css, '.cs-donut-center strong')
+  assert.match(donutNumber, /font-size:\s*clamp\(14px/, '中心数字随圆环尺寸缩放')
+  assert.match(donutNumber, /text-overflow:\s*ellipsis/, '极窄时数字省略而不压出圆环')
+  assert.match(donutNumber, /white-space:\s*nowrap/, '中心数字保持单行')
+  assert.match(mediaBlocks(css, 1100), /\.cs-donut\s*\{[^}]*width:\s*132px/, '中等窗口圆环固定 132px')
+  assert.match(mediaBlocks(css, 520), /\.cs-donut\s*\{[^}]*width:\s*118px/, '窄窗圆环回落到 118px')
 })
 
 test('客户端：热力图首屏上半区整幅热力图、下半区统计与月度条分层', async () => {
@@ -3431,9 +3473,11 @@ test('客户端：全年 Bento 跨行、范围选择器紧凑尺寸与顶栏图�
   const css = await loadClientCss()
   // 范围选择器只收窄触发器，弹出的两列 15 项菜单不变。
   const rangeTrigger = declarationsFor(css, '.heat-range-select .cs-select-btn')
-  assert.match(rangeTrigger, /min-width:\s*88px/, '范围触发器最小宽度 88px')
+  assert.match(rangeTrigger, /width:\s*78px/, '范围触发器收窄到 78px')
+  assert.match(rangeTrigger, /min-width:\s*78px/, '范围触发器最小宽度 78px')
+  assert.match(rangeTrigger, /max-width:\s*78px/, '范围触发器最大宽度 78px')
   assert.match(rangeTrigger, /min-height:\s*28px/, '范围触发器最小高度 28px')
-  assert.match(rangeTrigger, /padding:\s*4px 8px/, '范围触发器内边距 4px 8px')
+  assert.match(rangeTrigger, /padding:\s*4px 7px/, '范围触发器内边距 4px 7px')
   // 全年范围在普通概览跨满整行，:has() 让 .cs-recent 一起拉宽；其它范围仍是第 3 列。
   const yearPlacement = declarationsFor(css, '.cs-overview-grid > .cs-heatmap-card[data-range="year"]')
   assert.match(yearPlacement, /grid-column:\s*1\s*\/\s*-1/, '全年热力图跨满整行')
@@ -3445,7 +3489,8 @@ test('客户端：全年 Bento 跨行、范围选择器紧凑尺寸与顶栏图�
   assert.match(declarationsFor(css, '.cs-topbar'), /justify-content:\s*space-between/, '品牌与右侧控制分列两端，品牌左对齐')
   assert.doesNotMatch(css, /\.cs-brand\s*\{[^}]*justify-self:\s*center/, '品牌不再居中')
   assert.doesNotMatch(css, /\.cs-sub\s*\{/, '标题下方的 DSH 时长统计副标题已移除')
-  assert.match(css, /\.cs-live\.is-live \.cs-dot::before\s*\{[^}]*animation:\s*cs-status-dot-pulse/, '顶栏活跃状态点复用向外扩散效果')
+  assert.match(css, /\.cs-live\.is-live\.is-active \.cs-dot::before,[^{]*\{[^}]*animation:\s*cs-status-dot-pulse/, '顶栏活跃状态点复用向外扩散效果')
+  assert.match(css, /\.cs-live\.is-live\.is-task \.cs-dot::before\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--cs-task\) 58%, transparent\)/, '顶栏任务态扩散环使用紫色')
   assert.match(declarationsFor(css, '.cs-topbar-group'), /display:\s*inline-flex/, '顶栏右侧两个 cs-topbar-group')
   assert.match(declarationsFor(css, '.cs-topbar-divider'), /width:\s*1px/, '顶栏两组之间有 1px 分隔线')
   assert.match(css, /\.cs-icon-toggle\s*\{/, '配色与外观共用单枚循环图标按钮样式')

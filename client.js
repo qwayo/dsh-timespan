@@ -87,7 +87,7 @@ window.__ModuleLoader__.load({
       idle: '空闲',
       onlineLive: '正在记录',
       onlinePaused: '已暂停',
-      taskRunning: '任务进行中',
+      taskRunning: '任务中',
       taskIdle: '无运行任务',
       taskCountLabel: '任务数',
       actualOccupied: '实际占用',
@@ -178,6 +178,8 @@ window.__ModuleLoader__.load({
       trendInfo: '活跃与任务时长分别统计，可能重叠；悬停柱形可查看具体时长。',
       heatmapTitle: '每日时长',
       heatmapInfo: '每格代表一天，颜色越深表示当天活跃时长越长。悬停或聚焦任意格子，查看当天的在线、活跃与任务时长。',
+      heatLegendLow: '低',
+      heatLegendHigh: '高',
       heatDayTitle: '{month}月{day}日',
       noRecord: '无记录',
       heatSummary: '范围活跃 {active} · 活跃天数 {activeDays}/{observedDays}',
@@ -284,10 +286,10 @@ window.__ModuleLoader__.load({
       settingsSubagentHint: '关闭后父会话下不再列出子代理任务；总计口径不受影响。',
       settingsSubagentOn: '显示',
       settingsSubagentOff: '隐藏',
-      settingsSidebarNameLabel: '侧栏显示名称',
-      settingsSidebarNameHint: '关闭后侧栏入口只保留时长、状态点与今日构成环，仍保持单行紧凑。',
-      settingsSidebarNameOn: '显示名称',
-      settingsSidebarNameOff: '隐藏名称',
+      settingsSidebarNameLabel: '侧栏显示状态',
+      settingsSidebarNameHint: '开启后侧栏入口在时长旁显示状态文字：空闲、活跃中或任务中；关闭后只保留时长、状态点与今日构成环。',
+      settingsSidebarNameOn: '显示状态',
+      settingsSidebarNameOff: '隐藏状态',
       settingsSidebarDurationLabel: '侧栏显示时长',
       settingsSidebarDurationHint: '选择侧栏入口常驻展示的时长类型；今日构成环仍按在线、活跃、任务三项显示。',
       sidebarDurationOnline: '在线时长',
@@ -313,10 +315,10 @@ window.__ModuleLoader__.load({
       formatHintPadded: '补零时钟',
       formatPreviewLabel: '预览 · 2:48:16 显示为',
       settingsResetTitle: '初始化设置',
-      settingsResetHint: '把侧栏名称与显示时长、数字格式、外观配色与统计偏好恢复为首次安装时的默认值；不会删除任何统计数据。',
+      settingsResetHint: '把侧栏状态显示与显示时长、数字格式、外观配色与统计偏好恢复为首次安装时的默认值；不会删除任何统计数据。',
       settingsResetButton: '恢复初始设置',
       settingsResetConfirmTitle: '恢复初始设置？',
-      settingsResetConfirmHint: '名称、侧栏显示时长、数字格式、外观配色、空闲阈值、周起始与子代理显示都会回到默认值；统计记录不受影响。',
+      settingsResetConfirmHint: '侧栏状态显示、侧栏显示时长、数字格式、外观配色、空闲阈值、周起始与子代理显示都会回到默认值；统计记录不受影响。',
       settingsResetConfirm: '确认恢复',
       settingsResetCancel: '取消',
       settingsResetDone: '已恢复初始设置',
@@ -367,7 +369,7 @@ window.__ModuleLoader__.load({
       idle: 'Idle',
       onlineLive: 'Recording',
       onlinePaused: 'Paused',
-      taskRunning: 'Task running',
+      taskRunning: 'In task',
       taskIdle: 'No running task',
       taskCountLabel: 'Tasks',
       actualOccupied: 'Actual occupied',
@@ -458,6 +460,8 @@ window.__ModuleLoader__.load({
       trendInfo: 'Active and task time are measured independently and may overlap. Hover a bar for its value.',
       heatmapTitle: 'Daily time',
       heatmapInfo: 'Each cell is one day; darker means more active time that day. Hover or focus a cell to see online, active and task time.',
+      heatLegendLow: 'Less',
+      heatLegendHigh: 'More',
       heatDayTitle: '{month} {day}',
       noRecord: 'No record',
       heatSummary: 'Active in range {active} · Active days {activeDays}/{observedDays}',
@@ -564,10 +568,10 @@ window.__ModuleLoader__.load({
       settingsSubagentHint: 'Hides subagent tasks under parent sessions when off; totals are unaffected.',
       settingsSubagentOn: 'Shown',
       settingsSubagentOff: 'Hidden',
-      settingsSidebarNameLabel: 'Show sidebar name',
-      settingsSidebarNameHint: 'When off, the sidebar entry keeps the duration, status dot and today ring, staying on one compact line.',
-      settingsSidebarNameOn: 'Show name',
-      settingsSidebarNameOff: 'Hide name',
+      settingsSidebarNameLabel: 'Show sidebar status',
+      settingsSidebarNameHint: 'When on, the sidebar entry shows the current status next to the duration: Idle, Active or In task; when off, it keeps only the duration, status dot and today ring.',
+      settingsSidebarNameOn: 'Show status',
+      settingsSidebarNameOff: 'Hide status',
       settingsSidebarDurationLabel: 'Sidebar duration',
       settingsSidebarDurationHint: 'Choose which duration the sidebar entry shows. The today ring still shows online, active and task.',
       sidebarDurationOnline: 'Online',
@@ -593,10 +597,10 @@ window.__ModuleLoader__.load({
       formatHintPadded: 'Padded clock',
       formatPreviewLabel: 'Preview · 2:48:16 shows as',
       settingsResetTitle: 'Initial settings',
-      settingsResetHint: 'Restore the sidebar name and duration, number format, colors and counting preferences to their first-install defaults. Statistics are never deleted.',
+      settingsResetHint: 'Restore the sidebar status display and duration, number format, colors and counting preferences to their first-install defaults. Statistics are never deleted.',
       settingsResetButton: 'Restore initial settings',
       settingsResetConfirmTitle: 'Restore initial settings?',
-      settingsResetConfirmHint: 'Name, sidebar duration, number format, colors, idle threshold, week start and subagent display return to defaults. Statistics are unaffected.',
+      settingsResetConfirmHint: 'Sidebar status display, sidebar duration, number format, colors, idle threshold, week start and subagent display return to defaults. Statistics are unaffected.',
       settingsResetConfirm: 'Restore',
       settingsResetCancel: 'Cancel',
       settingsResetDone: 'Initial settings restored',
@@ -1803,20 +1807,15 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 侧栏入口的纯渲染层：主题、名称显隐与三项数值都可从外部注入，
+     * 侧栏入口的纯渲染层：主题、状态显隐与三项数值都可从外部注入，
      * 便于在隔离上下文断言结构；真实组件只负责轮询与订阅。
      */
-    function renderSidebarEntry({ stats, theme, showName = true, workspaceTitle, t, size, format = DEFAULT_DURATION_FORMAT, sidebarMetric = SIDEBAR_DURATION_DEFAULT, hover = null }) {
+    function renderSidebarEntry({ stats, theme, showName = true, t, size, format = DEFAULT_DURATION_FORMAT, sidebarMetric = SIDEBAR_DURATION_DEFAULT, hover = null }) {
       const wide = typeof size !== 'number' || size !== 18
       const themeClass = sidebarThemeClass(theme?.palette, theme?.appearance, theme?.systemDark === true)
       const segments = sidebarRingSegments(stats)
       const selectedMetric = normalizeSidebarDuration(sidebarMetric)
       const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(sidebarDisplayMs(stats, selectedMetric), format)
-      // 宿主侧栏已用 label 显示插件名；工作区名与之等价（忽略大小写与分隔符）时不再重复渲染，
-      // 避免「ChronoScope」与「chrono-scope」这类同名字样并排出现两次。
-      const workspaceName = typeof workspaceTitle === 'string' ? workspaceTitle.trim() : ''
-      const foldName = (name) => String(name).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g, '')
-      const displayName = workspaceName !== '' && foldName(workspaceName) !== foldName(t('title')) ? workspaceName : ''
       const active = stats?.activeRunning === true
       const task = stats?.taskRunning === true
       const selectedLive = selectedMetric === 'active'
@@ -1824,7 +1823,9 @@ window.__ModuleLoader__.load({
         : selectedMetric === 'task'
           ? task
           : stats?.running === true
+      // 任务中优先于活跃中：只要任务在跑，状态点与文字都固定为紫色任务态。
       const statusLabel = task ? t('taskRunning') : active ? t('live') : t('idle')
+      const statusClass = task ? ' is-task' : active ? ' is-active' : ' is-idle'
       const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(sidebarDisplayMs(stats, 'online'), format)} · ${t('activeLabel')} ${formatDuration(sidebarDisplayMs(stats, 'active'), format)} · ${t('taskLabel')} ${formatDuration(sidebarDisplayMs(stats, 'task'), format)} · ${statusLabel}`
       // 去掉名称后时间居中并放大一档；环与状态点仍留在两端。
       const nameless = wide && showName === false
@@ -1853,8 +1854,8 @@ window.__ModuleLoader__.load({
             'data-metric': selectedMetric,
           }, value)
         : null,
-      wide && showName && displayName !== ''
-        ? h('span', { className: 'chronoscope-nav-name' }, displayName)
+      wide && showName
+        ? h('span', { className: `chronoscope-nav-status${statusClass}` }, statusLabel)
         : null,
       wide
         ? h('span', {
@@ -1866,7 +1867,7 @@ window.__ModuleLoader__.load({
       hover === null ? null : h(SidebarTip, { tip: hover.tip }))
     }
 
-    /** 侧边栏常驻入口：今日构成环 + 所选时长 + 可隐藏名称 + 状态点。 */
+    /** 侧边栏常驻入口：今日构成环 + 所选时长 + 可隐藏状态文字 + 状态点。 */
     function createSidebarEntry(ctx, t) {
       return function ChronoScopeSidebarEntry(props) {
         const [previewFormat, setPreviewFormat] = React.useState(null)
@@ -1875,16 +1876,10 @@ window.__ModuleLoader__.load({
         const hover = useDelayedSidebarTip(SIDEBAR_TIP_DELAY_MS)
         const [theme, setTheme] = React.useState(readStoredTheme)
         const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
-        // 首次安装默认隐藏名称；设置读取完成前也保持隐藏，避免先闪出一行名称。
+        // 首次安装默认隐藏状态文字；设置读取完成前也保持隐藏，避免先闪出一行状态。
         const [showName, setShowName] = React.useState(false)
         // 侧栏显示哪种时长；Host 设置读回前先按默认在线时长渲染，避免布局闪动。
         const [sidebarDuration, setSidebarDuration] = React.useState(SIDEBAR_DURATION_DEFAULT)
-        // 侧栏名称跟随当前前台会话所属工作区；空值不回落插件名，避免与宿主 label 重复。
-        const currentSessionId = useStandardValue(props?.useSessions, (state) => sessionOf(state)?.id ?? null, null)
-        const workspaceTitle = useStandardValue(props?.useWorkspaces, (state) => {
-          const workspace = workspaceOf(state, currentSessionId)
-          return workspace?.title ?? workspace?.path ?? null
-        }, null)
 
         // 设置页选择格式时侧栏也立即预览；保存或取消后回到 Host 的已保存值。
         React.useEffect(() => subscribeDurationFormatPreview((value) => setPreviewFormat(value)), [])
@@ -1915,7 +1910,7 @@ window.__ModuleLoader__.load({
           }
         }, [])
 
-        // 名称显隐是 Host 设置；设置页保存后按同一事件重读，不缓存第二份业务状态。
+        // 状态文字显隐是 Host 设置；设置页保存后按同一事件重读，不缓存第二份业务状态。
         React.useEffect(() => {
           let active = true
           const load = () => {
@@ -1925,7 +1920,8 @@ window.__ModuleLoader__.load({
                 const visible = value?.sidebarShowName === true
                 setShowName(visible)
                 setSidebarDuration(normalizeSidebarDuration(value?.sidebarDuration))
-                applySidebarHostNameVisibility(visible)
+                // 入口内已渲染时长（以及可选的状态文字），宿主 panelTitle 始终隐藏，避免多出插件名。
+                applySidebarHostNameVisibility(false)
               })
               .catch(() => {
                 // 读不到设置时保持默认隐藏，不拿默认值覆盖 Host。
@@ -1944,7 +1940,6 @@ window.__ModuleLoader__.load({
           stats,
           theme: { ...theme, systemDark },
           showName,
-          workspaceTitle,
           t,
           size: props?.size,
           format: normalizeDurationFormat(previewFormat ?? stats.durationFormat),
@@ -2599,17 +2594,34 @@ window.__ModuleLoader__.load({
     function renderCycleCard(t, period, cycle, isCurrent, onSelect, format = 'hms') {
       const titleKey = period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth'
       const share = activeSharePercent(cycle.activeMs, cycle.onlineMs)
+      const taskCount = finite(cycle.taskCount)
       return h('button', { key: period, type: 'button', className: `cs-cycle${isCurrent ? ' is-current' : ''}`, 'aria-pressed': isCurrent, onClick: onSelect },
         h('span', { className: 'cs-cycle-head' },
           h('span', { className: 'cs-cycle-title' }, t(titleKey)),
           h('span', { className: 'cs-cycle-share' }, `${t('activeShare')} ${share}%`)),
         h('span', { className: 'cs-cycle-value' }, formatDuration(cycle.activeMs, format)),
         h('span', { className: 'cs-cycle-track', 'aria-hidden': true },
-          h('i', { style: { width: `${share}%` } })))
+          h('i', { style: { width: `${share}%` } })),
+        h('span', { className: 'cs-cycle-foot' },
+          h('span', { className: 'cs-cycle-task' }, `${t('taskLabel')} ${formatDuration(cycle.taskMs, format)}`),
+          h('span', { className: 'cs-cycle-count' }, `${taskCount}${t('taskCountUnit')}`)))
+    }
+
+    /** 热力图图例：只用当前主题的六档热力色从左到右排成低→高色带，不再重复解释文字。 */
+    function renderHeatLegend(t) {
+      return h('span', { className: 'cs-heat-legend' },
+        h('span', { className: 'cs-heat-legend-label' }, t('heatLegendLow')),
+        h('span', { className: 'cs-heat-legend-scale', 'aria-hidden': true },
+          ...[0, 1, 2, 3, 4, 5].map((level) => h('i', {
+            key: level,
+            className: 'cs-heat-legend-swatch',
+            style: { background: `var(--cs-heat-${level})` },
+          }))),
+        h('span', { className: 'cs-heat-legend-label' }, t('heatLegendHigh')))
     }
 
     /** 口径说明：鼠标悬浮或键盘聚焦即显示，紧贴图标下方；与 HoverTip 共用 fixed 定位与视口夹取。 */
-    function Info({ message }) {
+    function Info({ message, content = null }) {
       const [position, setPosition] = React.useState(null)
       const [escaped, setEscaped] = React.useState(false)
       const anchorRef = React.useRef(null)
@@ -2650,18 +2662,18 @@ window.__ModuleLoader__.load({
             h('path', { d: 'M10 9v4M10 6.5h.01', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' }))),
         h('span', {
           ref: tipRef,
-          className: 'cs-info-tip',
+          className: `cs-info-tip${content === null ? '' : ' cs-info-tip-legend'}`,
           role: 'tooltip',
           'data-placement': position?.placement ?? 'bottom',
           // 位置尚未量出时内联 hidden 压住 CSS 显示，避免在 (0,0) 闪一下。
           style: position
             ? { left: `${position.left}px`, top: `${position.top}px` }
             : { left: '0px', top: '0px', visibility: 'hidden' },
-        }, message))
+        }, content === null ? message : content))
     }
 
-    function renderInfo(message) {
-      return h(Info, { message })
+    function renderInfo(message, content = null) {
+      return h(Info, { message, content })
     }
 
     /** 按会话累计任务构成；扇区与右侧列表共享悬停/聚焦状态，历史缺失拆分计入未拆分。 */
@@ -4234,7 +4246,7 @@ window.__ModuleLoader__.load({
       const head = h('div', { className: 'cs-card-head' },
         h('div', { className: 'cs-card-heading' },
           h('h2', null, titleText),
-          renderInfo(t('heatmapInfo'))),
+          renderInfo(t('heatmapInfo'), renderHeatLegend(t))),
         h('div', { className: 'heat-card-actions' },
           renderHeatRangePicker({ value: normalizedValue, t, onSelectRange }),
           zoomable ? renderZoomButton({ t, focus, onToggleFocus, value: 'heatmap' }) : null))
@@ -5179,7 +5191,7 @@ window.__ModuleLoader__.load({
             const saved = await callHost(ctx, 'resetSettings', {})
             setSettingsForm(settingsDraft(saved))
             setPreviewFormat(null)
-            applyAppearance('light')
+            applyAppearance('system')
             changePalette('blue')
             setSettingsResetStep(false)
             setSettingsPhase('saved')
@@ -5412,10 +5424,11 @@ window.__ModuleLoader__.load({
                   h('h1', null, t('title')))),
               h('div', { className: 'cs-topbar-right' },
                 h('div', { className: 'cs-topbar-group' },
-                  h('span', { className: `cs-live cs-live-active${data.activeRunning ? ' is-live' : ''}` },
-                    h('span', { className: 'cs-dot' }), t(data.activeRunning ? 'live' : 'idle')),
-                  h('span', { className: `cs-live cs-live-task${data.taskRunning ? ' is-live is-task' : ''}` },
-                    h('span', { className: 'cs-dot' }), t(data.taskRunning ? 'taskRunning' : 'taskIdle')),
+                  h('span', {
+                    className: `cs-live cs-live-status${data.taskRunning ? ' is-live is-task' : data.activeRunning ? ' is-live is-active' : ' is-idle'}`,
+                  },
+                    h('span', { className: 'cs-dot' }),
+                    t(data.taskRunning ? 'taskRunning' : data.activeRunning ? 'live' : 'idle')),
                   h('span', { className: 'cs-period-display' },
                     h('span', null, t('currentPeriod')),
                     h('strong', null, t(period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth')))),
@@ -5618,11 +5631,12 @@ window.__ModuleLoader__.load({
       @media (prefers-reduced-motion: reduce) {
         .chronoscope-nav-time { animation: none !important; }
       }
-      .chronoscope-nav-name {
-        font-size: 11px; line-height: 18px; color: var(--cs-entry-muted);
-        min-width: 0; max-width: 132px; flex: 0 1 auto;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      .chronoscope-nav-status {
+        font-size: 11px; line-height: 18px; font-weight: 600; color: var(--cs-entry-muted);
+        flex: 0 0 auto; white-space: nowrap;
       }
+      .chronoscope-nav-status.is-active { color: var(--cs-live); }
+      .chronoscope-nav-status.is-task { color: var(--cs-task); }
       .chronoscope-nav-dot {
         position: relative; display: block; width: 8px; height: 8px;
         border-radius: 999px !important; flex: 0 0 8px;
@@ -5634,6 +5648,10 @@ window.__ModuleLoader__.load({
         background: var(--cs-live); opacity: 1;
         /* 核心点保持干净的实心色；不再叠加静态 box-shadow，避免被误看成第二个内环。 */
       }
+      /* 任务中优先：同一时刻即使也在活跃，点与扩散环都使用紫色。 */
+      .chronoscope-nav-dot.is-task {
+        background: var(--cs-task); opacity: 1;
+      }
       /*
        * 只保留一个扩散环：3.6s 一轮，约 2s 扩散到 2.15 倍并完全淡出，剩余
        * 时间保持不可见；下一轮从中心出现时，上一轮已经彻底消失。活跃或任务
@@ -5644,6 +5662,9 @@ window.__ModuleLoader__.load({
         border: 1.5px solid color-mix(in srgb, var(--cs-live) 58%, transparent);
         animation: chronoscope-dot-pulse 3.6s cubic-bezier(.2, .55, .25, 1) infinite;
         will-change: transform, opacity;
+      }
+      .chronoscope-nav-dot.is-task::before {
+        border-color: color-mix(in srgb, var(--cs-task) 58%, transparent);
       }
       @keyframes chronoscope-dot-pulse {
         0% { transform: scale(.48); opacity: .58; }
@@ -5752,19 +5773,21 @@ window.__ModuleLoader__.load({
       }
       .cs-palette-toggle svg .cs-palette-signal { transition: fill 160ms ease; }
       .cs-live { display: inline-flex; align-items: center; gap: 6px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 16px; white-space: nowrap; }
-      .cs-live.is-live { color: var(--dsw-alias-state-success-primary); }
-      .cs-live.is-task.is-live { color: var(--cs-task); }
+      /* 顶栏与侧栏共用同一套状态语义：活跃中蓝色、任务中紫色；任务中优先。 */
+      .cs-live.is-live.is-active { color: var(--cs-live); }
+      .cs-live.is-live.is-task { color: var(--cs-task); }
       .cs-dot { position: relative; display: inline-block; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--dsw-alias-state-idle-primary); }
-      .cs-live.is-live .cs-dot { background: var(--dsw-alias-state-success-primary); }
-      .cs-live.is-task.is-live .cs-dot { background: var(--cs-task); }
+      .cs-live.is-live.is-active .cs-dot { background: var(--cs-live); }
+      .cs-live.is-live.is-task .cs-dot { background: var(--cs-task); }
       /* 与侧栏入口一致：活跃/任务进行中时只做一圈向外扩散的呼吸环。 */
-      .cs-live.is-live .cs-dot::before {
+      .cs-live.is-live.is-active .cs-dot::before,
+      .cs-live.is-live.is-task .cs-dot::before {
         content: ''; position: absolute; inset: -2px; border-radius: 50%;
-        border: 1.5px solid color-mix(in srgb, var(--dsw-alias-state-success-primary) 58%, transparent);
+        border: 1.5px solid color-mix(in srgb, var(--cs-live) 58%, transparent);
         animation: cs-status-dot-pulse 3.6s cubic-bezier(.2, .55, .25, 1) infinite;
         will-change: transform, opacity;
       }
-      .cs-live.is-task.is-live .cs-dot::before {
+      .cs-live.is-live.is-task .cs-dot::before {
         border-color: color-mix(in srgb, var(--cs-task) 58%, transparent);
       }
       @keyframes cs-status-dot-pulse {
@@ -5852,7 +5875,7 @@ window.__ModuleLoader__.load({
       .cs-tag { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); padding: 2px 9px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l1); white-space: nowrap; }
       .cs-cycles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
       .cs-cycle {
-        display: flex; flex-direction: column; gap: 9px; min-width: 0;
+        display: flex; flex-direction: column; justify-content: space-between; gap: 9px; min-width: 0;
         padding: 15px 18px 16px; border-radius: 14px;
         border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
         color: inherit; font: inherit; text-align: left; cursor: pointer;
@@ -5872,6 +5895,14 @@ window.__ModuleLoader__.load({
         background: var(--cs-tone-faint);
       }
       .cs-cycle-track i { display: block; height: 100%; border-radius: inherit; background: var(--cs-signal); }
+      .cs-cycle-foot {
+        display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+        font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary);
+        font-variant-numeric: tabular-nums; white-space: nowrap;
+      }
+      .cs-cycle-task { overflow: hidden; text-overflow: ellipsis; }
+      .cs-cycle-count { flex: none; }
+      .cs-cycle.is-current .cs-cycle-foot { color: color-mix(in srgb, var(--cs-on-accent) 72%, transparent); }
       .cs-cycle.is-current {
         border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 48%, var(--dsw-alias-border-l1));
         background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-brand-primary) 8%, var(--dsw-alias-bg-layer-1)), var(--dsw-alias-bg-layer-1));
@@ -6254,9 +6285,15 @@ window.__ModuleLoader__.load({
       .cs-composition-body { display: flex; align-items: center; gap: 16px; flex: 1; }
       .cs-donut { position: relative; width: clamp(118px, 12vw, 168px); aspect-ratio: 1; flex: none; }
       .cs-donut svg { display: block; width: 100%; height: 100%; }
-      .cs-donut-center { position: absolute; inset: 22%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
-      .cs-donut-center strong { font-size: 19px; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
-      .cs-donut-center span { font-size: 11px; color: var(--dsw-alias-label-secondary); }
+      .cs-donut-center {
+        position: absolute; inset: 18%; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 2px; min-width: 0; text-align: center;
+      }
+      .cs-donut-center strong {
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        font-size: clamp(14px, 1.3vw, 19px); line-height: 1.12; font-variant-numeric: tabular-nums; letter-spacing: -.025em;
+      }
+      .cs-donut-center span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 1.15; color: var(--dsw-alias-label-secondary); }
       .cs-composition-list, .cs-ranking-list { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
       /* 时长可长可短（中文格式「2 小时 48 分」最宽）：标签列吸收收缩，时长列按内容但允许省略，绝不撑出卡片。 */
       .cs-composition-row { display: grid; grid-template-columns: 10px minmax(0,1fr) 38px minmax(0,max-content); align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
@@ -6295,6 +6332,15 @@ window.__ModuleLoader__.load({
       .cs-info:hover .cs-info-tip,
       .cs-info:focus-within .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); }
       .cs-info.is-escaped .cs-info-tip { visibility: hidden !important; opacity: 0 !important; }
+      .cs-info-tip.cs-info-tip-legend { padding: 8px 10px; }
+      /* 热力图说明只展示低→高六档色带，颜色直接取自当前主题变量。 */
+      .cs-heat-legend { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+      .cs-heat-legend-label { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      .cs-heat-legend-scale { display: inline-flex; align-items: center; gap: 2px; }
+      .cs-heat-legend-swatch {
+        display: block; width: 15px; height: 10px; border-radius: 2.5px;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cs-ink) 8%, transparent);
+      }
       .cs-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
       .cs-card:hover { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, var(--dsw-alias-border-l1)); }
       .cs-ranking-row { border-radius: 6px; transition: background-color 160ms ease; }
@@ -6827,7 +6873,11 @@ window.__ModuleLoader__.load({
         display: flex; flex-direction: column; gap: 12px;
       }
       /* 范围选择器只收窄触发器；弹出的三列 15 项菜单保持完整，避免选项被裁切。 */
-      .heat-range-select .cs-select-btn { min-width: 88px; min-height: 28px; padding: 4px 8px; gap: 6px; }
+      .heat-range-select .cs-select-btn {
+        width: 78px; min-width: 78px; max-width: 78px;
+        min-height: 28px; padding: 4px 7px; gap: 5px;
+      }
+      .heat-range-select .cs-select-val { font-size: 11.5px; }
       .heat-card-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
       .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
       /* 全年 53 列压进卡片可用宽度：列宽等比分配、格子用 aspect-ratio 保持正方形，
@@ -7071,7 +7121,17 @@ window.__ModuleLoader__.load({
       .cs-topbar { margin-bottom: 0; min-height: 46px; }
       .cs-tabs { margin-bottom: 4px; min-height: 36px; }
       .cs-composition, .cs-ranking { gap: 12px; }
-      .cs-donut { width: clamp(88px, 9vw, 140px); }
+      .cs-donut { width: clamp(118px, 10vw, 150px); }
+      @media (max-width: 1100px) {
+        .cs-donut { width: 132px; }
+        .cs-donut-center { inset: 17%; }
+        .cs-donut-center strong { font-size: 16px; }
+      }
+      @media (max-width: 520px) {
+        .cs-donut { width: 118px; }
+        .cs-donut-center { inset: 18%; }
+        .cs-donut-center strong { font-size: 14px; }
+      }
       .cs-chart svg { height: clamp(90px, 13vh, 160px); }
       .cs-summary { padding: 8px 12px; }
       .cs-trend-card, .cs-table-card { gap: 10px; }
