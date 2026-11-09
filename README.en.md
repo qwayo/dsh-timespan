@@ -6,7 +6,7 @@
   <a href="./README.md">简体中文</a> · <kbd>English</kbd>
 </p>
 
-> **dsh-timespan** is a DSH plugin that records and shows your online, active and task time in DSH. All data stays on this device and is never uploaded.
+> **dsh-timespan** is a DSH plugin that records and shows your online, active and task time in DSH.
 
 ## Three kinds of time
 

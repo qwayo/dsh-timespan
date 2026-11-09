@@ -6,7 +6,7 @@
   <kbd>简体中文</kbd> · <a href="./README.en.md">English</a>
 </p>
 
-> **dsh-timespan** 是一个 DSH 插件，记录并展示你在 DSH 里的在线、活跃和任务时长。数据只保存在本机，不上传。
+> **dsh-timespan** 是一个 DSH 插件，记录并展示你在 DSH 里的在线、活跃和任务时长。
 
 ## 三种时长
 
