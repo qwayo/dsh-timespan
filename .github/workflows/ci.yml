@@ -1,0 +1,45 @@
+name: CI
+
+# 每次 push 到 master 与每个 PR 都跑同一组门禁。
+# 这个仓库零依赖、零构建：不需要 npm install，不需要 lockfile，也不需要缓存。
+# 不要加 `npm ci`（没有 lockfile，会直接失败）或 `actions/setup-node` 的 `cache: npm`（同理）。
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: check + test + audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.16.0'
+
+      # 语法检查覆盖 index.js、client.js、src/ 与 test/ 下的每个 .js
+      - name: Syntax check
+        run: npm run check
+
+      # 207 个测试，0.9 秒；测试一律按本地时间构造，显式钉 UTC 避免跑在别的时区上行为漂移
+      - name: Test
+        run: npm test
+        env:
+          TZ: UTC
+
+      # 守住「错了不会报错、只会静默漂移」的不变量：
+      # bundle 清单、身份字符串三处一致、测试/语法清单覆盖、双语 README 对应、
+      # RPC 契约表、ADR 清单、配图成套，以及配图里写死的版本号与测试数。
+      - name: Quality gate audit
+        run: npm run audit

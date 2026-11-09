@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="struct-title struct-desc">
   <title id="struct-title">dsh-timespan bundle structure</title>
-  <desc id="struct-desc">The dsh-timespan bundle: package.json and cordis.patch.yml make up the bundle; index.js and client.js are the Host and Client halves. The Host half carries src/domain with seven modules and src/host with two modules; the Client half mounts the host's four page points. Alongside sit test with twelve test files, docs/adr with eight architecture decision records, locale with Chinese and English display metadata, and assets/readme with the artwork.</desc>
+  <desc id="struct-desc">The dsh-timespan bundle: package.json and cordis.patch.yml make up the bundle; index.js and client.js are the Host and Client halves. The Host half carries src/domain with seven modules and src/host with two modules; the Client half mounts the host's four page points. Alongside sit test files, docs/adr architecture decision records, locale with Chinese and English display metadata, and assets/readme with the artwork.</desc>
 
   <rect width="1200" height="480" rx="24" fill="#151718"/>
   <rect x="0.75" y="0.75" width="1198.5" height="478.5" rx="23.25" fill="none" stroke="#2b3033" stroke-width="1.5"/>
@@ -94,7 +94,7 @@
       <rect x="340" y="386" width="252" height="58" rx="10" fill="#202324" stroke="#414647" stroke-width="1.2"/>
       <text x="356" y="409" font-size="17" font-weight="700" fill="#f1f2f1"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">docs/adr/</text>
-      <text x="356" y="430" font-size="14" fill="#8a9090">8 decision records</text>
+      <text x="356" y="430" font-size="14" fill="#8a9090">9 decision records</text>
 
       <rect x="608" y="386" width="252" height="58" rx="10" fill="#202324" stroke="#414647" stroke-width="1.2"/>
       <text x="624" y="409" font-size="17" font-weight="700" fill="#f1f2f1"

@@ -1,0 +1,133 @@
+name: Publish to npm
+
+# 手动触发（Actions 页面 Run workflow 或 `gh workflow run publish.yml`）。
+#
+# 为什么不用 push 自动发：npm 同名版本一旦发布就**不能覆盖**，只能 deprecate。
+# 这一步是整条链上唯一不可回滚的动作，必须有人按。参照 dsh-whale-widget 的取舍，
+# 它正是从「push 即发」改成了手动触发。
+#
+# 前置（只需配置一次，在 npmjs.com 包设置里）：
+#   把本仓库的这条 workflow 登记为 Trusted Publisher，之后靠 OIDC 换临时凭证，
+#   仓库里不需要存 NPM_TOKEN。
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '只演练：跑全部门禁并核对版本，但不发布、不建 Release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # 建 tag 与 GitHub Release
+  id-token: write   # npm Trusted Publishing（OIDC）
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # 手动触发时 GitHub 允许选分支；从非 master 发版会把「那个分支的版本」发出去。
+      - name: Guard — must run on master
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/master" ]; then
+            echo "::error::发布只允许在 master 上触发（当前 ${GITHUB_REF}）。请在 Run workflow 里把 Use workflow from 选成 master。"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # 需要 tag 历史来判断版本是否已经发过
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.16.0'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false   # 发布构建永远不缓存
+
+      # npm >= 11.5.1 才支持 OIDC 自动换取发布凭证
+      - name: Upgrade npm for OIDC
+        run: npm install -g npm@latest
+
+      # 发布前必须再跑一遍与 CI 相同的门禁：不允许在审计不通过时发布
+      - name: Syntax check
+        run: npm run check
+
+      - name: Test
+        run: npm test
+        env:
+          TZ: UTC
+
+      - name: Quality gate audit
+        run: npm run audit
+
+      - name: Guard — package must be publishable
+        run: |
+          node -e "
+            const pkg = require('./package.json')
+            if (pkg.private === true) {
+              console.error('::error::package.json 还是 private: true，npm 会拒绝发布。')
+              process.exit(1)
+            }
+            if (!pkg.name || pkg.name.startsWith('@local/')) {
+              console.error('::error::包名 ' + pkg.name + ' 不是可发布的 npm 名，先完成改名再发。')
+              process.exit(1)
+            }
+            if (!pkg.license) {
+              console.error('::error::package.json 缺少 license 字段。')
+              process.exit(1)
+            }
+            console.log('package OK: ' + pkg.name + '@' + pkg.version)
+          "
+
+      # 版本号没动就发不出去，也说明这次触发是误触
+      - name: Guard — version must be new
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "::error::tag v${VERSION} 已存在，说明 package.json 的版本号没有前进。"
+            exit 1
+          fi
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$(node -p "require('./package.json').name")/${VERSION}")
+          if [ "$CODE" = "200" ]; then
+            echo "::error::${VERSION} 已经发布在 npm 上，不能重复发布。"
+            exit 1
+          fi
+          echo "版本 ${VERSION} 未发布过，继续。"
+
+      - name: Publish to npm
+        if: ${{ !inputs.dry_run }}
+        run: npm publish --access public
+
+      - name: Create tag and GitHub Release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          {
+            echo "## What's Changed"
+            echo
+            PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+            if [ -n "$PREV_TAG" ]; then
+              git log --no-merges --format='- %s' "${PREV_TAG}..HEAD" | head -100
+              echo
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...v${VERSION}"
+            else
+              git log --no-merges --format='- %s' | head -100
+            fi
+          } > release_notes.md
+          gh release create "v${VERSION}" --target "$GITHUB_SHA" --title "v${VERSION}" --notes-file release_notes.md
+
+      - name: Dry-run summary
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "### 演练结束（未发布、未建 Release）" >> "$GITHUB_STEP_SUMMARY"
+          echo "版本 ${{ steps.version.outputs.version }} 通过全部门禁，正式发布请去掉 dry_run 再跑一次。" >> "$GITHUB_STEP_SUMMARY"

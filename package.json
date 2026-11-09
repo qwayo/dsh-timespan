@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "description": "dsh-timespan：记录并展示 DSH 的在线时长与任务时长",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qwayo/dsh-timespan.git"
+  },
   "type": "module",
   "exports": {
     ".": "./index.js",
@@ -19,8 +27,9 @@
     "icon.svg"
   ],
   "scripts": {
-    "test": "node --test test/domain.test.js test/duration-format.test.js test/dashboard.test.js test/daily-series.test.js test/backfill.test.js test/backfill-notice.test.js test/backfill-rpc.test.js test/client-composition.test.js test/restart-recovery.test.js test/settings-export-clear.test.js test/settings-import.test.js test/timespan-stats-tool.test.js",
-    "check": "node --check index.js && node --check client.js && node --check src/domain/dsh-timespan-domain.js && node --check src/domain/domain-spec.js && node --check src/domain/settings.js && node --check src/domain/duration-format.js && node --check src/domain/export.js && node --check src/domain/backfill.js && node --check src/domain/periods.js && node --check src/host/rpc.js && node --check src/host/tool.js && node --check test/domain.test.js && node --check test/duration-format.test.js && node --check test/dashboard.test.js && node --check test/daily-series.test.js && node --check test/backfill.test.js && node --check test/backfill-notice.test.js && node --check test/backfill-rpc.test.js && node --check test/client-composition.test.js && node --check test/restart-recovery.test.js && node --check test/settings-export-clear.test.js && node --check test/settings-import.test.js && node --check test/timespan-stats-tool.test.js"
+    "test": "node --test \"test/*.test.js\"",
+    "check": "node --check index.js && node --check client.js && node --check src/domain/dsh-timespan-domain.js && node --check src/domain/domain-spec.js && node --check src/domain/settings.js && node --check src/domain/duration-format.js && node --check src/domain/export.js && node --check src/domain/backfill.js && node --check src/domain/periods.js && node --check src/host/rpc.js && node --check src/host/tool.js && node --check test/domain.test.js && node --check test/duration-format.test.js && node --check test/dashboard.test.js && node --check test/daily-series.test.js && node --check test/backfill.test.js && node --check test/backfill-notice.test.js && node --check test/backfill-rpc.test.js && node --check test/client-composition.test.js && node --check test/restart-recovery.test.js && node --check test/settings-export-clear.test.js && node --check test/settings-import.test.js && node --check test/timespan-stats-tool.test.js && node --check test/helpers/memory-domain.js && node --check tools/ci-audit.mjs",
+    "audit": "node tools/ci-audit.mjs"
   },
   "dsh": {
     "bundle": {

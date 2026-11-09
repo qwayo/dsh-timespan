@@ -3,3 +3,16 @@ node_modules/
 .scratch
 skills-lock.json
 .agents
+
+# 凭据与密钥：任何情况下都不进仓库
+.env
+.env.*
+!.env.example
+.npmrc
+*.pem
+*.key
+*.p12
+
+# 操作系统与编辑器残留
+Thumbs.db
+.DS_Store

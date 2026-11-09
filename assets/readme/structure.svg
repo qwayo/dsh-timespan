@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="480" viewBox="0 0 1200 480" role="img" aria-labelledby="struct-title struct-desc">
   <title id="struct-title">dsh-timespan bundle 结构树</title>
-  <desc id="struct-desc">dsh-timespan 的 bundle 结构：package.json 与 cordis.patch.yml 组成 bundle；index.js 与 client.js 分为 Host、Client 两半；Host 半带 src/domain 领域层七个模块与 src/host 适配层两个模块，Client 半挂载宿主的四个页面点位；配套 test 十二个测试文件、docs/adr 八篇架构决策记录、locale 中英展示元数据与 assets/readme 视觉素材。</desc>
+  <desc id="struct-desc">dsh-timespan 的 bundle 结构：package.json 与 cordis.patch.yml 组成 bundle；index.js 与 client.js 分为 Host、Client 两半；Host 半带 src/domain 领域层七个模块与 src/host 适配层两个模块，Client 半挂载宿主的四个页面点位；配套 test 测试文件、docs/adr 架构决策记录、locale 中英展示元数据与 assets/readme 视觉素材。</desc>
 
   <rect width="1200" height="480" rx="24" fill="#151718"/>
   <rect x="0.75" y="0.75" width="1198.5" height="478.5" rx="23.25" fill="none" stroke="#2b3033" stroke-width="1.5"/>
@@ -94,7 +94,7 @@
       <rect x="340" y="386" width="252" height="58" rx="10" fill="#202324" stroke="#414647" stroke-width="1.2"/>
       <text x="356" y="409" font-size="17" font-weight="700" fill="#f1f2f1"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">docs/adr/</text>
-      <text x="356" y="430" font-size="14" fill="#8a9090">8 篇架构决策记录</text>
+      <text x="356" y="430" font-size="14" fill="#8a9090">9 篇架构决策记录</text>
 
       <rect x="608" y="386" width="252" height="58" rx="10" fill="#202324" stroke="#414647" stroke-width="1.2"/>
       <text x="624" y="409" font-size="17" font-weight="700" fill="#f1f2f1"
