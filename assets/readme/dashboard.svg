@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="648" viewBox="0 0 1200 648" role="img" aria-labelledby="dash-title dash-desc">
   <title id="dash-title">ChronoScope 周期概览界面示意</title>
-  <desc id="dash-desc">ChronoScope 周期概览界面示意（真实数据）：页眉显示插件名与运行状态，左侧 DSH 深色侧栏中的今日活跃时长入口，右侧为今日活跃时长主数字、今日/本周/本月周期卡、本周每日趋势、任务时长构成、工作区任务排行、最近会话与每日时长热力图。</desc>
+  <desc id="dash-desc">ChronoScope 周期概览界面示意（真实数据）：页眉显示插件名与运行状态，左侧 DSH 深色侧栏中的今日活跃时长入口，右侧为今日活跃时长主数字、今日/本周/本月周期卡、本周每日趋势、任务时长构成、工作区任务排行、最近会话与每日活跃热力图。</desc>
 
   <!-- 画布 -->
   <rect width="1200" height="648" rx="24" fill="#f7f8f9"/>
@@ -10,8 +10,7 @@
 
     <!-- ===== 插件页眉：插件名与运行状态 ===== -->
     <g id="page-header">
-      <text x="222" y="68" font-size="16" font-weight="700" fill="#242729">ChronoScope</text>
-      <text x="222" y="87" font-size="12" fill="#8a9095">DSH 时长统计</text>
+      <text x="222" y="74" font-size="16" font-weight="700" fill="#242729">ChronoScope</text>
       <circle cx="800" cy="70" r="4" fill="#1F4E94"/>
       <text x="810" y="75" font-size="14" fill="#565b5e">活跃中</text>
       <text x="860" y="75" font-size="14" fill="#8a9095">任务进行中</text>
@@ -68,10 +67,8 @@
     <!-- ===== 顶栏 ===== -->
     <g id="topbar" transform="translate(0 48)">
       <text x="190" y="76" font-size="20" font-weight="700" fill="#242729">周期概览</text>
-      <rect x="284" y="58" width="72" height="24" rx="12" fill="#eceef0"/>
-      <text x="320" y="75" text-anchor="middle" font-size="14" fill="#565b5e">实际占用</text>
-      <circle cx="372" cy="70" r="7.5" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
-      <text x="372" y="74" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
+      <circle cx="300" cy="70" r="7.5" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
+      <text x="300" y="74" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
       <text x="1168" y="577" text-anchor="end" font-size="14" fill="#b3b8bc">界面示意</text>
     </g>
 
@@ -91,39 +88,31 @@
     <g id="period-today" transform="translate(0 48)">
       <rect x="642" y="100" width="155" height="120" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
       <text x="658" y="130" font-size="18" font-weight="700" fill="#242729">今日</text>
-      <text x="781" y="129" text-anchor="end" font-size="12" fill="#8a9095">32 次任务</text>
-      <text x="658" y="163" font-size="14" fill="#8a9095">活跃</text>
-      <text x="781" y="164" text-anchor="end" font-size="15" font-weight="700" fill="#242729"
+      <text x="658" y="171" font-size="28" font-weight="700" fill="#242729"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">01:13:32</text>
-      <text x="658" y="193" font-size="14" fill="#8a9095">任务</text>
-      <text x="781" y="194" text-anchor="end" font-size="15" font-weight="700" fill="#242729"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">05:48:53</text>
+      <text x="781" y="197" text-anchor="end" font-size="10" fill="#8a9095">活跃占比 15%</text>
+      <rect x="658" y="204" width="123" height="4" rx="2" fill="#eceef0"/>
+      <rect x="658" y="204" width="18.45" height="4" rx="2" fill="#1F4E94"/>
     </g>
 
     <g id="period-week" transform="translate(0 48)">
       <rect x="809" y="100" width="185" height="120" rx="14" fill="#133463"/>
       <text x="825" y="130" font-size="18" font-weight="700" fill="#ffffff">本周</text>
-      <rect x="865" y="112" width="38" height="21" rx="10.5" fill="none" stroke="#7d97bd" stroke-width="1.2"/>
-      <text x="884" y="127" text-anchor="middle" font-size="12" fill="#cfe0f5">当前</text>
-      <text x="978" y="128" text-anchor="end" font-size="12" fill="#b8cbe4">136 次任务</text>
-      <text x="825" y="163" font-size="14" fill="#b8cbe4">活跃</text>
-      <text x="978" y="164" text-anchor="end" font-size="15" font-weight="700" fill="#ffffff"
+      <text x="825" y="171" font-size="28" font-weight="700" fill="#ffffff"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">09:38:59</text>
-      <text x="825" y="193" font-size="14" fill="#b8cbe4">任务</text>
-      <text x="978" y="194" text-anchor="end" font-size="15" font-weight="700" fill="#ffffff"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">20:43:04</text>
+      <text x="978" y="197" text-anchor="end" font-size="10" fill="#cfe0f5">活跃占比 31%</text>
+      <rect x="825" y="204" width="153" height="4" rx="2" fill="#3f5c82"/>
+      <rect x="825" y="204" width="47.43" height="4" rx="2" fill="#ffffff"/>
     </g>
 
     <g id="period-month" transform="translate(0 48)">
       <rect x="1006" y="100" width="162" height="120" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
       <text x="1022" y="130" font-size="18" font-weight="700" fill="#242729">本月</text>
-      <text x="1152" y="129" text-anchor="end" font-size="12" fill="#8a9095">136 次任务</text>
-      <text x="1022" y="163" font-size="14" fill="#8a9095">活跃</text>
-      <text x="1152" y="164" text-anchor="end" font-size="15" font-weight="700" fill="#242729"
+      <text x="1022" y="171" font-size="28" font-weight="700" fill="#242729"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">09:38:59</text>
-      <text x="1022" y="193" font-size="14" fill="#8a9095">任务</text>
-      <text x="1152" y="194" text-anchor="end" font-size="15" font-weight="700" fill="#242729"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">20:43:04</text>
+      <text x="1152" y="197" text-anchor="end" font-size="10" fill="#8a9095">活跃占比 27%</text>
+      <rect x="1022" y="204" width="130" height="4" rx="2" fill="#eceef0"/>
+      <rect x="1022" y="204" width="35.1" height="4" rx="2" fill="#1F4E94"/>
     </g>
 
     <!-- ===== 第二行：本周每日 + 任务时长构成 ===== -->
@@ -212,7 +201,7 @@
       </g>
     </g>
 
-    <!-- ===== 第三行：工作区排行 + 最近会话 + 每日时长 ===== -->
+    <!-- ===== 第三行：工作区排行 + 最近会话 + 每日活跃 ===== -->
     <g id="workspace-rank-card" transform="translate(0 48)">
       <rect x="190" y="412" width="360" height="140" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
       <text x="214" y="440" font-size="18" font-weight="700" fill="#242729">工作区任务排行</text>
@@ -279,7 +268,7 @@
 
     <g id="daily-heatmap-card" transform="translate(0 48)">
       <rect x="874" y="412" width="294" height="140" rx="14" fill="#ffffff" stroke="#e2e4e6" stroke-width="1.5"/>
-      <text x="898" y="440" font-size="18" font-weight="700" fill="#242729">每日时长</text>
+      <text x="898" y="440" font-size="18" font-weight="700" fill="#242729">每日活跃</text>
       <circle cx="982" cy="435" r="7.5" fill="none" stroke="#b3b8bc" stroke-width="1.5"/>
       <text x="982" y="439" text-anchor="middle" font-size="10" font-style="italic" font-weight="700" fill="#8a9095" font-family="Georgia, serif">i</text>
       <rect x="1052" y="424" width="92" height="24" rx="12" fill="#eceef0"/>

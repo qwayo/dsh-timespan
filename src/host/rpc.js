@@ -229,7 +229,7 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
   }
 
   /**
-   * 每日时长热力图的只读数据源：只接受 `{ from, to }` 两个有限数字，
+   * 每日活跃热力图的只读数据源：只接受 `{ from, to }` 两个有限数字，
    * 其余规则（自然日切桶、裁剪与三项口径）全部由领域服务决定。
    */
   function queryDailySeries(payload) {
