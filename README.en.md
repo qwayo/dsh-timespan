@@ -1,9 +1,9 @@
 <p align="center">
-  <a href="./README.md">简体中文</a> · <kbd>English</kbd>
+  <img src="./assets/readme/hero.en.svg" width="100%" alt="dsh-timespan: records online, active and task time in DSH; data stays on this device">
 </p>
 
 <p align="center">
-  <img src="./assets/readme/hero.en.svg" width="100%" alt="dsh-timespan: records online, active and task time in DSH; data stays on this device">
+  <a href="./README.md">简体中文</a> · <kbd>English</kbd>
 </p>
 
 **dsh-timespan** is a DSH bundle with both a Host half and a Client half. It records and shows three kinds of time in DSH. Everything stays in this device's DSH storage domain; nothing is uploaded.

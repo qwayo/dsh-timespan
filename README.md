@@ -1,9 +1,9 @@
 <p align="center">
-  <kbd>简体中文</kbd> · <a href="./README.en.md">English</a>
+  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-timespan：记录 DSH 的在线、活跃与任务时长，数据只留在本机">
 </p>
 
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-timespan：记录 DSH 的在线、活跃与任务时长，数据只留在本机">
+  <kbd>简体中文</kbd> · <a href="./README.en.md">English</a>
 </p>
 
 **dsh-timespan** 是一个同时包含 Host 与 Client 两半的 DSH bundle，记录并展示你在 DSH 里的三种时长。所有数据只保存在本机 DSH 的存储域中，不上传。
