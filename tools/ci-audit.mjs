@@ -10,10 +10,11 @@
  *   5. 双语 README：两版二级标题数量一致，且「相关文档」链接逐条对应
  *   6. RPC 契约表：双语 README 列出的方法与 src/host/rpc.js 的 case 完全一致
  *   7. 文档清单：docs/adr/*.md 全部出现在 README 的相关文档里
- *   8. 配图成套：assets/readme 下四张图都有 .en.svg 英文版
+ *   8. 配图成套：assets/readme 下四张图都有 .en.svg 英文版与两张 2 倍 PNG
  *   9. 配图版本号：structure 图里的版本号与 package.json 一致
  *  10. 配图测试数：structure 图里的测试文件数量与磁盘一致
  *  11. 配图 ADR 数：structure 图里的架构决策记录数量与 docs/adr 一致
+ *  12. README 配图：引用的文件存在，且是 PNG（插件市场丢弃 SVG）
  *
  * 运行：node tools/ci-audit.mjs
  * 退出码：0 = 全部通过，1 = 有不变量被破坏（逐条打印原因）
@@ -175,6 +176,11 @@ const readmeAssets = exists('assets/readme')
 for (const asset of readmeAssets) {
   const english = asset.replace(/\.svg$/, '.en.svg')
   if (!exists(`assets/readme/${english}`)) fail('assets-pair', `assets/readme/${asset} 缺少英文版 ${english}`)
+  for (const exportName of [asset.replace(/\.svg$/, '.png'), asset.replace(/\.svg$/, '.en.png')]) {
+    if (!exists(`assets/readme/${exportName}`)) {
+      fail('assets-pair', `assets/readme/${asset} 缺少 2 倍位图 ${exportName}（插件市场只认位图，SVG 会被丢弃）`)
+    }
+  }
 }
 
 // ── 9 & 10. 配图里的写死事实 ──────────────────────────────────────
@@ -202,11 +208,24 @@ for (const [svg, template] of [
   }
 }
 
+// ── 12. README 配图可被插件市场抓取 ───────────────────────────────
+for (const readme of ['README.md', 'README.en.md']) {
+  const sources = [...read(readme).matchAll(/<img\s+src="([^"]+)"/g)].map((match) => match[1])
+  if (sources.length === 0) fail('readme-images', `${readme} 里没有任何 <img> 配图`)
+  for (const source of sources) {
+    const path = source.replace(/^\.\//, '')
+    if (!exists(path)) fail('readme-images', `${readme} 引用的 ${source} 不存在`)
+    if (path.endsWith('.svg')) {
+      fail('readme-images', `${readme} 引用的是 SVG（${source}）；插件市场的截图门禁会直接丢弃 SVG，请改引 2 倍 PNG`)
+    }
+  }
+}
+
 // ── 汇总 ─────────────────────────────────────────────────────────
 const rules = [
   'manifest', 'identity', 'syntax-coverage', 'test-discovery',
   'readme-pair', 'rpc-table', 'adr-list', 'assets-pair',
-  'asset-version', 'asset-test-count', 'asset-adr-count',
+  'asset-version', 'asset-test-count', 'asset-adr-count', 'readme-images',
 ]
 
 if (failures.length === 0) {

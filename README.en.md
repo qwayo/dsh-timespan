@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.en.svg" width="100%" alt="dsh-timespan: records online, active and task time in DSH; data stays on this device">
+  <img src="./assets/readme/hero.en.png" width="100%" alt="dsh-timespan: records online, active and task time in DSH; data stays on this device">
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@ Scope: idle time is never counted, and task time is not treated as a subset of a
 ## What you see
 
 <p align="center">
-  <img src="./assets/readme/dashboard.en.svg" width="100%" alt="dsh-timespan period overview (sample data): sidebar online entry, today's active headline, today/week/month cards, today's 24 hours, task time breakdown, workspace task ranking, recent sessions and the daily active heatmap">
+  <img src="./assets/readme/dashboard.en.png" width="100%" alt="dsh-timespan period overview (sample data): sidebar online entry, today's active headline, today/week/month cards, today's 24 hours, task time breakdown, workspace task ranking, recent sessions and the daily active heatmap">
 </p>
 
 - A permanent sidebar entry showing the selected duration live (online by default) plus today's ring; its tooltip appears in about 200 ms.
@@ -33,7 +33,7 @@ Scope: idle time is never counted, and task time is not treated as a subset of a
 ## How it works
 
 <p align="center">
-  <img src="./assets/readme/architecture.en.svg" width="100%" alt="dsh-timespan architecture: the Host runs in the background with DSH, recording the online heartbeat, listening to session events, computing every statistic and writing to local storage; the Client is what the page shows — the sidebar entry, the dashboard and the settings page — and only reports what happened to the background half">
+  <img src="./assets/readme/architecture.en.png" width="100%" alt="dsh-timespan architecture: the Host runs in the background with DSH, recording the online heartbeat, listening to session events, computing every statistic and writing to local storage; the Client is what the page shows — the sidebar entry, the dashboard and the settings page — and only reports what happened to the background half">
 </p>
 
 dsh-timespan is split in two: the **Host** runs in the background alongside DSH, and the **Client** is what you see on the page. The page only reports what happened — the interface is open, whether the page is visible, when a session starts and stops running a task. How long today counts, how long a week counts, how active time is decided: the Host computes all of it in one place, then writes it to this device's storage domain. Nothing is uploaded.
@@ -104,7 +104,7 @@ Tests use `node:test` and need no external framework. The repo has no dependenci
 ## Project structure
 
 <p align="center">
-  <img src="./assets/readme/structure.en.svg" width="100%" alt="dsh-timespan bundle structure: package.json and cordis.patch.yml make up the bundle; index.js and client.js are the Host and Client halves; src/domain holds seven domain modules, src/host two adapter modules, and the Client half mounts four host page points; with test, docs/adr, locale and assets/readme alongside">
+  <img src="./assets/readme/structure.en.png" width="100%" alt="dsh-timespan bundle structure: package.json and cordis.patch.yml make up the bundle; index.js and client.js are the Host and Client halves; src/domain holds seven domain modules, src/host two adapter modules, and the Client half mounts four host page points; with test, docs/adr, locale and assets/readme alongside">
 </p>
 
 <details>
@@ -121,7 +121,7 @@ dsh-timespan/
 ├─ GLOSSARY.md                   # domain vocabulary
 ├─ README.md                     # Chinese README (default)
 ├─ README.en.md                  # this English README
-├─ assets/readme/                # README artwork, Chinese and English variants
+├─ assets/readme/                # README artwork: *.svg sources and 2x *.png exports (the plugin market only takes raster)
 ├─ locale/
 │  ├─ zh.json                    # Chinese display metadata
 │  └─ en.json                    # English display metadata
