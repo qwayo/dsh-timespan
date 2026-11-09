@@ -8,8 +8,6 @@
 
 **dsh-timespan** 是一个同时包含 Host 与 Client 两半的 DSH bundle，记录并展示你在 DSH 里的三种时长。所有数据只保存在本机 DSH 的存储域中，不上传。
 
-> Time tracking for DSH — online, active, and task time, all stored locally.
-
 ## 三种时长
 
 - **在线**：DSH 进程从启动到退出之间的墙钟时间。
