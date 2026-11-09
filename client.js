@@ -21,7 +21,7 @@
  */
 
 window.__ModuleLoader__.load({
-  id: '@local/dsh-timespan',
+  id: '@qwayo/dsh-timespan',
   factory(require) {
     const React = require('react')
     const h = React.createElement
