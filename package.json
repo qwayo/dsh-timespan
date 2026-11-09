@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "description": "dsh-timespan：记录并展示 DSH 的在线时长与任务时长",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "cordis",
+    "time-tracking",
+    "timespan",
+    "dashboard"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=24"
