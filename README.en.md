@@ -96,9 +96,10 @@ To change the source or develop locally, link the local directory into the curre
 ```bash
 npm test         # Node's built-in test runner: domain statistics, period clipping, concurrent union/sum, backfill, restart recovery, settings/export/clear, client composition, the timespan_stats tool
 npm run check    # syntax check across all source and tests
+npm run audit    # quality gate: bundle manifest, identity strings, bilingual README, RPC contract table, ADR list and README assets
 ```
 
-Tests use `node:test` and need no external framework.
+Tests use `node:test` and need no external framework. The repo has no dependencies and no build step, so CI never runs `npm install`; pushes to `master` and every pull request run all three commands above.
 
 ## Project structure
 
@@ -148,7 +149,7 @@ Core files:
 | `index.js` | Host entry: opens the `chrono_scope` v1 storage domain (legacy key, kept compatible), registers the 30-second heartbeat, the `session/event` listener, the in-package RPC and the `timespan_stats` tool. |
 | `client.js` | Client entry: the `sidebar.panellist` sidebar entry, the `shell.overlay` presence heartbeat, the `main` dashboard and the `settings.section` settings page. |
 | `src/domain/dsh-timespan-domain.js` | The core of every business rule: online/active/task intervals, the four-part task breakdown, attribution, union/sum, queries and data operations. |
-| `src/host/rpc.js` | The private channel between Client and Host: `presence`, `queryStats`, `getSettings`, `setSettings`, `resetSettings`, `exportData`, `importData`, `clearData`, `getBackfillStatus`, `markBackfillRead`, `retryBackfill`. |
+| `src/host/rpc.js` | The private channel between Client and Host: `presence`, `queryStats`, `queryDailySeries`, `getSettings`, `setSettings`, `resetSettings`, `exportData`, `importData`, `clearData`, `getBackfillStatus`, `markBackfillRead`, `retryBackfill`. |
 | `src/host/tool.js` | Turns `timespan_stats` arguments into a `queryStats` query; it never computes a second set of numbers. |
 | `package.json` | Declares the package name, version, `exports` and the published file list; `dsh.bundle.patch` points at `cordis.patch.yml` and `dsh.client` declares how the Web client loads it. |
 
@@ -158,6 +159,7 @@ Core files:
 
 ## Related documents
 
+- [README.md](README.md): the Chinese original of this page, kept in step section by section.
 - [DESIGN.md](DESIGN.md): page design spec (Chinese).
 - [GLOSSARY.md](GLOSSARY.md): domain vocabulary — online, active, task, actual occupied, accumulated time (Chinese).
 - Architecture decision records ([docs/adr/](docs/adr/)), all in Chinese:
@@ -169,3 +171,4 @@ Core files:
   - [0006 Info overlay](docs/adr/0006-信息浮层反转回悬浮与聚焦触发.md): the info overlay moved back to hover, triggered by focus.
   - [0007 Rename to dsh-timespan](docs/adr/0007-rename-to-dsh-timespan.md): the rename scope and the compatibility decisions for the storage domain and backup format.
   - [0008 Interface language](docs/adr/0008-界面语言改为插件设置项.md): interface language as a plugin setting, Chinese by default with English available.
+  - [0009 Quality gates and release flow](docs/adr/0009-质量门禁与发布流程.md): the scope and limits of CI, the audit invariants, and the manual release flow.
