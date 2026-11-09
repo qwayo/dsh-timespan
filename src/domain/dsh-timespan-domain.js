@@ -1,5 +1,5 @@
 /**
- * ChronoScope 的 Host 领域服务。
+ * dsh-timespan 的 Host 领域服务。
  *
  * 这是整个插件唯一的业务入口，也是唯一的测试缝：它只依赖一个存储域句柄与
  * 一个时钟接口。生产环境注入 DSH 的 storageDomain 与系统时钟；测试注入
@@ -25,6 +25,8 @@ import { DEFAULT_SETTINGS, mergeSettings, normalizeSettings, settingsToIdleMs } 
 import {
   buildCsvExport,
   buildJsonExport,
+  EXPORT_FORMAT,
+  LEGACY_EXPORT_FORMAT,
   exportFilename,
   exportMimeType,
   isExportFormat,
@@ -79,9 +81,9 @@ const EMPTY_ATTRIBUTION = Object.freeze({
  * @param {object} options.domain 由 storageDomain.open() 返回的 Domain 句柄
  * @param {{ now: () => number, uptimeMs: () => number }} options.clock
  */
-export function createChronoScopeDomain({ domain, clock }) {
-  if (domain === undefined || domain === null) throw new Error('ChronoScope 领域服务缺少存储域')
-  if (clock === undefined || clock === null) throw new Error('ChronoScope 领域服务缺少时钟')
+export function createDshTimespanDomain({ domain, clock }) {
+  if (domain === undefined || domain === null) throw new Error('dsh-timespan 领域服务缺少存储域')
+  if (clock === undefined || clock === null) throw new Error('dsh-timespan 领域服务缺少时钟')
 
   const intervals = domain.table('intervals')
   const tasks = domain.table('tasks')
@@ -588,7 +590,7 @@ export function createChronoScopeDomain({ domain, clock }) {
   async function touchOnline(at) {
     const { meta, bootId, interval } = currentInterval()
     if (!isOpen(interval)) {
-      throw new Error('ChronoScope 领域服务尚未 start()：找不到当前启动的在线区间')
+      throw new Error('dsh-timespan 领域服务尚未 start()：找不到当前启动的在线区间')
     }
     if (!Number.isFinite(at) || at <= interval.lastHeartbeat) {
       return { bootId, at: interval.lastHeartbeat, skipped: true }
@@ -769,7 +771,7 @@ export function createChronoScopeDomain({ domain, clock }) {
   /**
    * 查询给定时间窗口内的在线、活跃与任务时长，以及仪表盘需要的分组与趋势。
    *
-   * 这是唯一的统计入口：页面、侧边栏与后续的 chrono_stats 工具都从同一份
+   * 这是唯一的统计入口：页面、侧边栏与后续的 timespan_stats 工具都从同一份
    * 结果取数。传 period 时按 Host 本地时区派生日/周/月窗口，传 from/to 时按
    * 显式范围查询；view='dashboard' 额外返回工作区→会话明细与趋势桶。开放
    * 区间一律以 min(窗口上界, 当前时刻) 收口，页面刷新时数字连续增长。
@@ -782,7 +784,7 @@ export function createChronoScopeDomain({ domain, clock }) {
     const requestedPeriod = isPeriod(period) ? period : null
     // 未显式指定时以 Host 设置为准：设置一改，周窗口、周期卡与趋势桶同步换边界。
     const weekStart = normalizeWeekStart(weekStartsOn ?? currentSettings().weekStartsOn)
-    // 显式起止日期优先于周期（供 chrono_stats 的自定义范围使用）；period
+    // 显式起止日期优先于周期（供 timespan_stats 的自定义范围使用）；period
     // 仍然决定趋势桶的粒度。只给 from 或只给 to 也按「截至现在 / 从最早开始」处理。
     const hasFrom = Number.isFinite(from)
     const hasTo = Number.isFinite(to)
@@ -1260,7 +1262,7 @@ export function createChronoScopeDomain({ domain, clock }) {
       if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
         throw importValidationError('invalid-payload', '导入载荷必须是对象')
       }
-      if (payload.format !== 'chronoscope-export') {
+      if (payload.format !== EXPORT_FORMAT && payload.format !== LEGACY_EXPORT_FORMAT) {
         throw importValidationError('invalid-format', `导入文件格式不合法：${String(payload.format)}`)
       }
       if (payload.version !== 1) {
@@ -2098,7 +2100,7 @@ function unionDuration(intervals, type, from, to, openEnd) {
  */
 function importValidationError(code, message) {
   const error = new Error(message)
-  error.name = 'ChronoScopeImportError'
+  error.name = 'DshTimespanImportError'
   error.code = code
   return error
 }

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { apply } from '../index.js'
 import { BACKFILL_VERSION } from '../src/domain/backfill.js'
-import { createChronoScopeDomain } from '../src/domain/chrono-scope-domain.js'
+import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
 import { DEFAULT_SETTINGS, mergeSettings, normalizeSettings } from '../src/domain/settings.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
 
@@ -39,7 +39,7 @@ function createFakeClock({ now, uptimeMs = 0 }) {
 async function startedService(now, uptimeMs = 0) {
   const domain = createMemoryDomain()
   const clock = createFakeClock({ now, uptimeMs })
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
   return { domain, clock, service }
 }
@@ -126,7 +126,7 @@ function task(id, at, overrides = {}) {
 /** 构造一份合法导出对象；非法场景用 overrides 覆盖对应字段。 */
 function makePayload(overrides = {}) {
   return {
-    format: 'chronoscope-export',
+    format: 'dsh-timespan-export',
     version: 1,
     exportedAt: localTime(2026, 11, 4, 10, 0),
     settings: { ...DEFAULT_SETTINGS },
@@ -174,6 +174,18 @@ test('导入：合法导出对象写入 intervals/tasks 并返回可断言统计
   assert.ok(taskIds.includes('task-1'), '任务一落库')
   assert.ok(taskIds.includes('task-2'), '任务二落库')
   assert.equal(after.tasks.find((row) => row.id === 'task-1').start, t0, '记录内容原样保留')
+})
+
+test('导入：旧版 chronoscope-export 备份仍可导入', async () => {
+  const t0 = localTime(2026, 11, 4, 10, 0)
+  const { service } = await startedService(t0)
+  const result = await service.importData(makePayload({
+    format: 'chronoscope-export',
+    intervals: [onlineInterval('legacy-iv-1', t0)],
+  }))
+  assert.deepEqual(result.imported, { intervals: 1, tasks: 0 })
+  const after = await exported(service)
+  assert.ok(after.intervals.some((row) => row.id === 'legacy-iv-1'), '旧格式备份仍能落库')
 })
 
 test('导入：重复 ID 跳过且不覆盖已有记录', async () => {
@@ -265,7 +277,7 @@ test('导入：非法 format / version / 非数组载荷被结构化错误拒绝
       () => service.importData(payload),
       (error) => {
         assert.ok(error instanceof Error)
-        assert.equal(error.name, 'ChronoScopeImportError')
+        assert.equal(error.name, 'DshTimespanImportError')
         assert.equal(error.code, code)
         assert.match(error.message, message, '错误信息用中文')
         return true
@@ -352,7 +364,7 @@ test('导入：空数据在全新空域导入后重开一条在线区间', async
   // 刻意不调用 start()：域里没有任何区间，用来触发「合并后 intervals 为空」。
   const domain = createMemoryDomain()
   const clock = createFakeClock({ now: t0 })
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
 
   const result = await service.importData(makePayload())
   assert.deepEqual(result.imported, { intervals: 0, tasks: 0 })
@@ -403,7 +415,7 @@ test('设置：approximateNoticeDismissed 可保存、读回并在重启后保�
   const partial = await service.setSettings({ idleThresholdMinutes: 9 })
   assert.equal(partial.approximateNoticeDismissed, true, '局部更新保留')
 
-  const restarted = createChronoScopeDomain({ domain, clock: createFakeClock({ now: t0 }) })
+  const restarted = createDshTimespanDomain({ domain, clock: createFakeClock({ now: t0 }) })
   await restarted.start()
   assert.equal(restarted.getSettings().approximateNoticeDismissed, true, '重启后保留')
 })
@@ -431,7 +443,7 @@ test('导入：导出→导入往返数据一致，重复导入幂等', async ()
   assert.equal(payload.tasks.length, 1)
 
   // 往返一：导入到全新空域，得到同一批 intervals / tasks / settings。
-  const freshService = createChronoScopeDomain({
+  const freshService = createDshTimespanDomain({
     domain: createMemoryDomain(),
     clock: createFakeClock({ now: t0 }),
   })
@@ -507,7 +519,7 @@ async function createRpcHarness() {
 
   await apply(ctx)
   const call = async (method, payload = {}) => {
-    const response = await route.fetch(new Request('http://isolated/api/chrono-scope', {
+    const response = await route.fetch(new Request('http://isolated/api/dsh-timespan', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ type: 'client-request', rpcId: 'isolated-check', payload: { method, payload } }),

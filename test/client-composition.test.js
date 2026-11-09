@@ -37,7 +37,7 @@ function createTestReact() {
 // windowExtras 只用于给隔离上下文补 localStorage / matchMedia 等浏览器表面。
 async function loadClientFunctions(windowExtras = {}) {
   let source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
-  const anchor = '    const CHRONOSCOPE_CSS = `'
+  const anchor = '    const DSH_TIMESPAN_CSS = `'
   assert.ok(source.includes(anchor), '客户端测试入口不存在')
   source = source.replace(anchor,
     `    window.__testFunctions = {
@@ -62,8 +62,8 @@ async function loadClientFunctions(windowExtras = {}) {
       renderDurationFormatSection: typeof renderDurationFormatSection === 'function' ? renderDurationFormatSection : undefined,
       subscribeDurationFormatPreview: typeof subscribeDurationFormatPreview === 'function' ? subscribeDurationFormatPreview : undefined,
       notifyDurationFormatPreview: typeof notifyDurationFormatPreview === 'function' ? notifyDurationFormatPreview : undefined,
-      chronoscopeCss: typeof chronoscopeCss === 'function' ? chronoscopeCss : undefined,
-      chronoscopeSidebarCss: typeof chronoscopeSidebarCss === 'function' ? chronoscopeSidebarCss : undefined,
+      dshTimespanCss: typeof dshTimespanCss === 'function' ? dshTimespanCss : undefined,
+      dshTimespanSidebarCss: typeof dshTimespanSidebarCss === 'function' ? dshTimespanSidebarCss : undefined,
       sidebarRingSegments: typeof sidebarRingSegments === 'function' ? sidebarRingSegments : undefined,
       sidebarRingGradient: typeof sidebarRingGradient === 'function' ? sidebarRingGradient : undefined,
       sidebarThemeClass: typeof sidebarThemeClass === 'function' ? sidebarThemeClass : undefined,
@@ -211,7 +211,7 @@ function hasClass(node, name) {
 
 async function loadClientCss() {
   const source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
-  const start = source.indexOf('const CHRONOSCOPE_CSS = `')
+  const start = source.indexOf('const DSH_TIMESPAN_CSS = `')
   assert.ok(start >= 0, '客户端样式入口不存在')
   const end = source.indexOf('\n    `', start)
   assert.ok(end > start, '客户端样式结束标记不存在')
@@ -220,7 +220,7 @@ async function loadClientCss() {
 
 async function loadSettingsCss() {
   const source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
-  const start = source.indexOf('const CHRONOSCOPE_SETTINGS_CSS = `')
+  const start = source.indexOf('const DSH_TIMESPAN_SETTINGS_CSS = `')
   assert.ok(start >= 0, '设置页样式入口不存在')
   const end = source.indexOf('\n    `', start)
   assert.ok(end > start, '设置页样式结束标记不存在')
@@ -623,9 +623,9 @@ test('客户端：配色归一化为 blue/stone/clay，旧值回落到默认蓝'
 })
 
 test('客户端：视觉基座导出三档蓝 token、三套配色与派生色阶', async () => {
-  const { chronoscopeCss } = await loadClientFunctions()
-  assert.equal(typeof chronoscopeCss, 'function')
-  const css = chronoscopeCss()
+  const { dshTimespanCss } = await loadClientFunctions()
+  assert.equal(typeof dshTimespanCss, 'function')
+  const css = dshTimespanCss()
   assert.match(css, /--cs-signal-deep\s*:\s*#133463/i)
   assert.match(css, /--cs-signal\s*:\s*#1F4E94/i)
   assert.match(css, /--cs-signal-soft\s*:\s*#79B3F9/i)
@@ -658,8 +658,8 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与派生色�
 })
 
 test('客户端：概览整页滚轮滚动，子模块不出现内部竖滚', async () => {
-  const { chronoscopeCss } = await loadClientFunctions()
-  const css = chronoscopeCss()
+  const { dshTimespanCss } = await loadClientFunctions()
+  const css = dshTimespanCss()
   const settingsCss = await loadSettingsCss()
   assert.doesNotMatch(css, /100dvh/, '根容器不固定视口高度')
   assert.match(declarationsFor(css, '.cs-page'), /overflow:\s*auto/, '整页由 .cs-page 自己滚动')
@@ -1038,54 +1038,54 @@ test('客户端：回填横幅只在未读事件显示，文案明确为累计�
 })
 
 test('客户端：侧栏入口使用插件主题 token，不再继承宿主 success 绿', async () => {
-  const { chronoscopeSidebarCss } = await loadClientFunctions()
-  assert.equal(typeof chronoscopeSidebarCss, 'function')
-  const css = chronoscopeSidebarCss()
-  assert.match(css, /\.chronoscope-nav-entry\s*\{/)
+  const { dshTimespanSidebarCss } = await loadClientFunctions()
+  assert.equal(typeof dshTimespanSidebarCss, 'function')
+  const css = dshTimespanSidebarCss()
+  assert.match(css, /\.dsh-timespan-nav-entry\s*\{/)
   assert.match(css, /--cs-signal-deep\s*:\s*#133463/i)
   assert.match(css, /--cs-signal\s*:\s*#1F4E94/i)
   assert.match(css, /--cs-signal-soft\s*:\s*#79B3F9/i)
   assert.match(css, /--cs-live\s*:\s*var\(--cs-signal\)/)
   assert.match(css, /--cs-task\s*:\s*#7A5AA6/i, '侧栏任务构成段使用独立紫罗兰辅助色')
   assert.match(css, /--cs-task\s*:\s*#C29BE8/i, '侧栏深色外观使用更亮的紫罗兰')
-  assert.match(css, /\.chronoscope-nav-entry\.cs-palette-blue/)
-  assert.match(css, /\.chronoscope-nav-entry\.cs-palette-stone/)
-  assert.match(css, /\.chronoscope-nav-entry\.cs-palette-clay/)
-  assert.match(css, /\.chronoscope-nav-entry\.cs-appearance-dark/)
+  assert.match(css, /\.dsh-timespan-nav-entry\.cs-palette-blue/)
+  assert.match(css, /\.dsh-timespan-nav-entry\.cs-palette-stone/)
+  assert.match(css, /\.dsh-timespan-nav-entry\.cs-palette-clay/)
+  assert.match(css, /\.dsh-timespan-nav-entry\.cs-appearance-dark/)
   assert.doesNotMatch(css, /--dsw-alias-state-success-primary/, '侧栏入口不得再吃宿主 success 绿')
-  assert.match(css, /html\[data-chronoscope-hide-name\] button\[aria-label="ChronoScope"\] > span \+ span/,
+  assert.match(css, /html\[data-dsh-timespan-hide-name\] button\[aria-label="dsh-timespan"\] > span \+ span/,
     '宿主名称行由根元素开关隐藏，折叠态唯一 span 不受影响')
-  assert.match(declarationsFor(css, '.chronoscope-nav-entry.is-nameless .chronoscope-nav-time'),
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-entry.is-nameless .dsh-timespan-nav-time'),
     /font-size:\s*15px/, '去掉名称后时间放大一档并居中')
-  const entry = declarationsFor(css, '.chronoscope-nav-entry')
+  const entry = declarationsFor(css, '.dsh-timespan-nav-entry')
   assert.match(entry, /display:\s*inline-flex/)
   assert.match(entry, /flex-wrap:\s*nowrap/, '入口保持单行')
   assert.match(entry, /white-space:\s*nowrap/)
-  assert.match(declarationsFor(css, '.chronoscope-nav-time'), /font-size:\s*14px/, '时长与导航文字比例更协调')
-  assert.match(declarationsFor(css, '.chronoscope-nav-time'), /animation:\s*chronoscope-time-swap 160ms ease-out/, '切换数字格式时侧栏时间播放短促淡入')
-  assert.match(css, /@keyframes chronoscope-time-swap/, '换字动画关键帧存在')
-  const navSwapStart = css.indexOf('@keyframes chronoscope-time-swap')
-  const navSwap = css.slice(navSwapStart, css.indexOf('.chronoscope-nav-status', navSwapStart))
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-time'), /font-size:\s*14px/, '时长与导航文字比例更协调')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-time'), /animation:\s*dsh-timespan-time-swap 160ms ease-out/, '切换数字格式时侧栏时间播放短促淡入')
+  assert.match(css, /@keyframes dsh-timespan-time-swap/, '换字动画关键帧存在')
+  const navSwapStart = css.indexOf('@keyframes dsh-timespan-time-swap')
+  const navSwap = css.slice(navSwapStart, css.indexOf('.dsh-timespan-nav-status', navSwapStart))
   assert.doesNotMatch(navSwap, /translate|scale\(|blur\(/, '换字动画不做位移、缩放或模糊，避免夸张')
   assert.match(navSwap, /from\s*\{\s*opacity:\s*0/, '从透明淡入')
   assert.match(navSwap, /to\s*\{\s*opacity:\s*1/, '以完全不透明收尾')
-  assert.match(declarationsFor(css, '.chronoscope-nav-ring'), /width:\s*18px/, '构成环放大到 18px')
-  assert.match(declarationsFor(css, '.chronoscope-nav-ring-track'), /stroke-width:\s*2\.9/, '圆环线宽加粗')
-  assert.match(declarationsFor(css, '.chronoscope-nav-ring svg'), /transform:\s*rotate\(-90deg\)/, '圆环从 12 点方向起画')
-  assert.match(css, /\.chronoscope-nav-dot\.is-live::before/, '活跃或任务进行中的状态点都有扩散环')
-  assert.match(css, /@keyframes chronoscope-dot-pulse/, '活跃与任务进行中状态点向外扩散')
-  assert.match(css, /chronoscope-dot-pulse 3\.6s/, '扩散频率加快到 3.6 秒一轮')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-ring'), /width:\s*18px/, '构成环放大到 18px')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-ring-track'), /stroke-width:\s*2\.9/, '圆环线宽加粗')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-ring svg'), /transform:\s*rotate\(-90deg\)/, '圆环从 12 点方向起画')
+  assert.match(css, /\.dsh-timespan-nav-dot\.is-live::before/, '活跃或任务进行中的状态点都有扩散环')
+  assert.match(css, /@keyframes dsh-timespan-dot-pulse/, '活跃与任务进行中状态点向外扩散')
+  assert.match(css, /dsh-timespan-dot-pulse 3\.6s/, '扩散频率加快到 3.6 秒一轮')
   assert.match(css, /scale\(2\.15\)/, '扩散范围扩大到 2.15 倍')
   assert.match(css, /52%, 100% \{ transform: scale\(2\.15\); opacity: 0; \}/, '扩散结束后留出不可见的空档再开始下一轮')
-  assert.doesNotMatch(css, /\.chronoscope-nav-dot\.is-task::after/, '只保留单圈扩散，旧环未结束不会叠出第二圈')
-  assert.match(declarationsFor(css, '.chronoscope-nav-dot'), /border-radius:\s*999px\s*!important/, '状态点强制标准圆形，不被宿主方角覆盖')
-  assert.match(declarationsFor(css, '.chronoscope-nav-dot.is-task'), /background:\s*var\(--cs-task\)/, '任务态状态点使用紫色')
-  assert.match(css, /\.chronoscope-nav-dot\.is-task::before\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--cs-task\) 58%, transparent\)/, '任务态扩散环改为紫色并覆盖活跃环')
-  assert.match(declarationsFor(css, '.chronoscope-nav-tip'), /position:\s*fixed/, '时长浮层固定定位')
-  assert.match(declarationsFor(css, '.chronoscope-nav-status'), /font-size:\s*11px/, '状态文字与侧栏次级文字同档')
-  assert.match(declarationsFor(css, '.chronoscope-nav-status.is-active'), /color:\s*var\(--cs-live\)/, '活跃中文字使用蓝色')
-  assert.match(declarationsFor(css, '.chronoscope-nav-status.is-task'), /color:\s*var\(--cs-task\)/, '任务中文字使用紫色')
-  assert.doesNotMatch(css, /\.chronoscope-nav-name\s*\{/, '侧栏不再渲染工作区名称')
+  assert.doesNotMatch(css, /\.dsh-timespan-nav-dot\.is-task::after/, '只保留单圈扩散，旧环未结束不会叠出第二圈')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-dot'), /border-radius:\s*999px\s*!important/, '状态点强制标准圆形，不被宿主方角覆盖')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-dot.is-task'), /background:\s*var\(--cs-task\)/, '任务态状态点使用紫色')
+  assert.match(css, /\.dsh-timespan-nav-dot\.is-task::before\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--cs-task\) 58%, transparent\)/, '任务态扩散环改为紫色并覆盖活跃环')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-tip'), /position:\s*fixed/, '时长浮层固定定位')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-status'), /font-size:\s*11px/, '状态文字与侧栏次级文字同档')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-status.is-active'), /color:\s*var\(--cs-live\)/, '活跃中文字使用蓝色')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-status.is-task'), /color:\s*var\(--cs-task\)/, '任务中文字使用紫色')
+  assert.doesNotMatch(css, /\.dsh-timespan-nav-name\s*\{/, '侧栏不再渲染工作区名称')
 })
 
 test('客户端：侧栏构成环按今日在线/活跃/任务三项毫秒分段', async () => {
@@ -1118,8 +1118,8 @@ test('客户端：首次安装与恢复初始设置的外观都跟随系统', as
   })
   assert.equal(readStoredTheme().appearance, 'system', '没有本地偏好时默认跟随系统')
   resetStoredTheme()
-  assert.equal(store.get('chrono-scope.appearance'), 'system', '恢复初始设置写入跟随系统')
-  assert.equal(store.get('chrono-scope.palette'), 'blue', '配色仍恢复默认蓝')
+  assert.equal(store.get('dsh-timespan.appearance'), 'system', '恢复初始设置写入跟随系统')
+  assert.equal(store.get('dsh-timespan.palette'), 'blue', '配色仍恢复默认蓝')
   const source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
   assert.match(source, /applyAppearance\('system'\)/, '仪表盘内恢复初始设置也回到跟随系统')
   assert.doesNotMatch(source, /applyAppearance\('light'\)/, '恢复初始设置不得再写死浅色')
@@ -1129,8 +1129,8 @@ test('客户端：侧栏主题跟随 localStorage 的配色与外观，system �
   const { sidebarThemeClass, readStoredTheme } = await loadClientFunctions({
     localStorage: {
       getItem: (key) => ({
-        'chrono-scope.palette': 'clay',
-        'chrono-scope.appearance': 'system',
+        'dsh-timespan.palette': 'clay',
+        'dsh-timespan.appearance': 'system',
       })[key] ?? null,
     },
   })
@@ -1157,7 +1157,7 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
   const { renderSidebarEntry, buildSidebarTip, renderSidebarTip, SIDEBAR_TIP_DELAY_MS } = await loadClientFunctions()
   assert.equal(SIDEBAR_TIP_DELAY_MS, 200, '侧栏悬浮说明等待时长缩短到 200ms')
   const labels = {
-    title: 'ChronoScope',
+    title: 'dsh-timespan',
     onlineLabel: '在线时长',
     activeLabel: '活跃',
     taskLabel: '任务',
@@ -1165,7 +1165,7 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
     idle: '空闲',
     taskRunning: '任务中',
     cycleToday: '今日',
-    navTooltip: 'ChronoScope · 在线、活跃与任务时长',
+    navTooltip: 'dsh-timespan · 在线、活跃与任务时长',
   }
   const t = (key) => labels[key] ?? key
   const shown = []
@@ -1191,15 +1191,15 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
     t,
     hover,
   })
-  assert.ok(hasClass(tree, 'chronoscope-nav-entry'), '入口根节点存在')
+  assert.ok(hasClass(tree, 'dsh-timespan-nav-entry'), '入口根节点存在')
   assert.match(tree.props.className, /cs-palette-blue/)
   assert.match(tree.props.className, /cs-appearance-light/)
   assert.match(tree.props.className, /is-nameless/, '隐藏名称后入口进入居中的无名称布局')
   assert.equal(tree.props.tabIndex, 0, '入口可被键盘聚焦')
-  assert.ok(findByClass(tree, 'chronoscope-nav-ring'), '迷你构成环存在')
-  assert.equal(findAll(tree, (node) => hasClass(node, 'chronoscope-nav-ring-seg')).length, 3, '标准圆环由三段 SVG 弧组成')
-  assert.equal(findByClass(tree, 'chronoscope-nav-name'), undefined, '隐藏名称后不渲染名称节点')
-  const navTime = findByClass(tree, 'chronoscope-nav-time')
+  assert.ok(findByClass(tree, 'dsh-timespan-nav-ring'), '迷你构成环存在')
+  assert.equal(findAll(tree, (node) => hasClass(node, 'dsh-timespan-nav-ring-seg')).length, 3, '标准圆环由三段 SVG 弧组成')
+  assert.equal(findByClass(tree, 'dsh-timespan-nav-name'), undefined, '隐藏名称后不渲染名称节点')
+  const navTime = findByClass(tree, 'dsh-timespan-nav-time')
   assert.equal(textOf(navTime), '4h 0m', '隐藏名称后默认显示在线时长')
   assert.equal(navTime.props['data-format'], 'short', '默认格式标记在时长节点上')
   assert.equal(navTime.props['data-metric'], 'online', '默认主指标标记为在线时长')
@@ -1210,8 +1210,8 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
     t,
     format: 'ms',
   })
-  assert.equal(findByClass(msTree, 'chronoscope-nav-time').props['data-format'], 'ms', '格式切换后节点重新挂载，动画可以重新播放')
-  const dot = findByClass(tree, 'chronoscope-nav-dot')
+  assert.equal(findByClass(msTree, 'dsh-timespan-nav-time').props['data-format'], 'ms', '格式切换后节点重新挂载，动画可以重新播放')
+  const dot = findByClass(tree, 'dsh-timespan-nav-dot')
   assert.ok(dot, '隐藏名称后状态点仍在')
   assert.match(dot.props.className, /is-live/, '活跃或任务状态点着色')
   assert.match(dot.props.className, /is-task/, '任务进行中带扩散环')
@@ -1226,7 +1226,7 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
   assert.equal(shown[1].immediate, true, '键盘聚焦立即出现')
   assert.equal(shown[0].tip.rows.length, 3, '浮层包含三项时长')
   assert.match(shown[0].tip.rows[0].share, /50%/, '在线时长占环上一半')
-  assert.equal(findAll(tree, (node) => hasClass(node, 'chronoscope-nav-tip')).length, 0, '未展示时入口内不渲染浮层节点')
+  assert.equal(findAll(tree, (node) => hasClass(node, 'dsh-timespan-nav-tip')).length, 0, '未展示时入口内不渲染浮层节点')
   assert.match(tree.props['aria-label'], /在线时长 4h 0m/, '在线时长仍留在无障碍标签里')
   assert.match(tree.props['aria-label'], /活跃 3h 0m/, '活跃时长仍留在无障碍标签里')
   assert.match(tree.props['aria-label'], /任务 1h 0m/, '任务时长仍留在无障碍标签里')
@@ -1236,13 +1236,13 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
 
   const tip = buildSidebarTip(stats, t)
   const tipTree = renderSidebarTip(tip, { left: 12, top: 20, placement: 'top' })
-  assert.equal(tipTree.props.id, 'chrono-scope-sidebar-tip')
+  assert.equal(tipTree.props.id, 'dsh-timespan-sidebar-tip')
   assert.equal(tip.title, undefined, '浮层数据不再携带标题字段')
   assert.doesNotMatch(textOf(tipTree), /今日/, '浮层不再显示今日角标')
   assert.doesNotMatch(textOf(tipTree), /在线、活跃与任务时长/, '浮层不再显示标题说明')
-  assert.equal(findAll(tipTree, (node) => hasClass(node, 'chronoscope-nav-tip-title')).length, 0, '浮层没有标题节点')
-  assert.equal(findAll(tipTree, (node) => hasClass(node, 'chronoscope-nav-tip-kicker')).length, 0, '浮层没有上方小字')
-  assert.equal(findAll(tipTree, (node) => hasClass(node, 'chronoscope-nav-tip-foot')).length, 0, '浮层没有下方小字')
+  assert.equal(findAll(tipTree, (node) => hasClass(node, 'dsh-timespan-nav-tip-title')).length, 0, '浮层没有标题节点')
+  assert.equal(findAll(tipTree, (node) => hasClass(node, 'dsh-timespan-nav-tip-kicker')).length, 0, '浮层没有上方小字')
+  assert.equal(findAll(tipTree, (node) => hasClass(node, 'dsh-timespan-nav-tip-foot')).length, 0, '浮层没有下方小字')
 
   const named = renderSidebarEntry({
     stats: { ...stats, activeRunning: false, taskRunning: false },
@@ -1251,10 +1251,10 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
     t,
     hover,
   })
-  assert.equal(textOf(findByClass(named, 'chronoscope-nav-status')), '空闲', '开启后显示当前状态文字')
-  assert.equal(findByClass(named, 'chronoscope-nav-name'), undefined, '不再渲染工作区名称，避免与宿主 label 重复')
+  assert.equal(textOf(findByClass(named, 'dsh-timespan-nav-status')), '空闲', '开启后显示当前状态文字')
+  assert.equal(findByClass(named, 'dsh-timespan-nav-name'), undefined, '不再渲染工作区名称，避免与宿主 label 重复')
   assert.doesNotMatch(named.props.className, /is-nameless/, '显示状态时保持原有左对齐布局')
-  assert.doesNotMatch(findByClass(named, 'chronoscope-nav-dot').props.className, /is-live/, '空闲状态点不点亮')
+  assert.doesNotMatch(findByClass(named, 'dsh-timespan-nav-dot').props.className, /is-live/, '空闲状态点不点亮')
 
   const activeOnly = renderSidebarEntry({
     stats: { ...stats, activeRunning: true, taskRunning: false },
@@ -1263,7 +1263,7 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
     t,
     hover,
   })
-  const activeDot = findByClass(activeOnly, 'chronoscope-nav-dot')
+  const activeDot = findByClass(activeOnly, 'dsh-timespan-nav-dot')
   assert.match(activeDot.props.className, /is-live/, '活跃但未跑任务时状态点也点亮并脉冲')
   assert.doesNotMatch(activeDot.props.className, /is-task/, '没有任务时仍使用活跃状态')
 
@@ -1274,7 +1274,7 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
     t,
     sidebarMetric: 'active',
   })
-  assert.equal(textOf(findByClass(activeMetric, 'chronoscope-nav-time')), '3h 0m', '选择活跃时长后大数字切换口径')
+  assert.equal(textOf(findByClass(activeMetric, 'dsh-timespan-nav-time')), '3h 0m', '选择活跃时长后大数字切换口径')
   const taskMetric = renderSidebarEntry({
     stats,
     theme: { palette: 'blue', appearance: 'light' },
@@ -1282,20 +1282,20 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
     t,
     sidebarMetric: 'task',
   })
-  assert.equal(textOf(findByClass(taskMetric, 'chronoscope-nav-time')), '1h 0m', '选择任务时长后大数字切换口径')
+  assert.equal(textOf(findByClass(taskMetric, 'dsh-timespan-nav-time')), '1h 0m', '选择任务时长后大数字切换口径')
 })
 
 test('客户端：侧栏状态文字跟随状态点，任务中优先于活跃中，隐藏时都不渲染', async () => {
   const { renderSidebarEntry } = await loadClientFunctions()
   const t = (key) => ({
-    title: 'ChronoScope',
+    title: 'dsh-timespan',
     onlineLabel: '在线',
     activeLabel: '活跃',
     taskLabel: '任务',
     live: '活跃中',
     idle: '空闲',
     taskRunning: '任务中',
-    navTooltip: 'ChronoScope · 在线、活跃与任务时长',
+    navTooltip: 'dsh-timespan · 在线、活跃与任务时长',
   })[key] ?? key
   const base = {
     stats: { status: 'ready', onlineMs: 3_600_000, activeMs: 1_800_000, taskMs: 600_000, activeRunning: false, taskRunning: false },
@@ -1305,29 +1305,29 @@ test('客户端：侧栏状态文字跟随状态点，任务中优先于活跃�
     hover: { show() {}, hide() {} },
   }
   const idle = renderSidebarEntry({ ...base, workspaceTitle: '项目甲' })
-  const idleStatus = findByClass(idle, 'chronoscope-nav-status')
+  const idleStatus = findByClass(idle, 'dsh-timespan-nav-status')
   assert.equal(textOf(idleStatus), '空闲', '没有运行任务且未活跃时显示空闲')
   assert.match(idleStatus.props.className, /is-idle/)
-  assert.equal(findByClass(idle, 'chronoscope-nav-name'), undefined, '不再渲染工作区名称')
+  assert.equal(findByClass(idle, 'dsh-timespan-nav-name'), undefined, '不再渲染工作区名称')
 
   const active = renderSidebarEntry({ ...base, stats: { ...base.stats, activeRunning: true } })
-  const activeStatus = findByClass(active, 'chronoscope-nav-status')
+  const activeStatus = findByClass(active, 'dsh-timespan-nav-status')
   assert.equal(textOf(activeStatus), '活跃中', '用户操作 DSH 时显示活跃中')
   assert.match(activeStatus.props.className, /is-active/)
 
   const task = renderSidebarEntry({ ...base, stats: { ...base.stats, taskRunning: true } })
-  const taskStatus = findByClass(task, 'chronoscope-nav-status')
+  const taskStatus = findByClass(task, 'dsh-timespan-nav-status')
   assert.equal(textOf(taskStatus), '任务中', '任务运行时显示任务中')
   assert.match(taskStatus.props.className, /is-task/)
 
   const both = renderSidebarEntry({ ...base, stats: { ...base.stats, activeRunning: true, taskRunning: true } })
-  const bothStatus = findByClass(both, 'chronoscope-nav-status')
+  const bothStatus = findByClass(both, 'dsh-timespan-nav-status')
   assert.equal(textOf(bothStatus), '任务中', '任务中优先于活跃中')
   assert.match(bothStatus.props.className, /is-task/)
   assert.doesNotMatch(bothStatus.props.className, /is-active/, '任务态不再叠加活跃态样式')
 
   const hidden = renderSidebarEntry({ ...base, showName: false })
-  assert.equal(findByClass(hidden, 'chronoscope-nav-status'), undefined, '隐藏状态后不渲染状态文字')
+  assert.equal(findByClass(hidden, 'dsh-timespan-nav-status'), undefined, '隐藏状态后不渲染状态文字')
   assert.match(hidden.props.className, /is-nameless/, '隐藏状态后入口进入无名称紧凑布局')
 })
 
@@ -1616,7 +1616,7 @@ test('客户端：分段导航渲染四个 tab、移动滑块与 roving tabindex
   assert.equal(typeof TabNav, 'function')
   const labels = {
     tabOverview: '概览', tabTrend: '趋势', tabDetails: '明细', tabSettings: '设置',
-    tabsLabel: 'ChronoScope 页面',
+    tabsLabel: 'dsh-timespan 页面',
   }
   const t = (key) => labels[key] ?? key
   const picked = []
@@ -1624,7 +1624,7 @@ test('客户端：分段导航渲染四个 tab、移动滑块与 roving tabindex
 
   const nav = findAll(tree, (node) => node.props?.role === 'tablist')[0]
   assert.ok(nav, '导航以 tablist 呈现')
-  assert.equal(nav.props['aria-label'], 'ChronoScope 页面')
+  assert.equal(nav.props['aria-label'], 'dsh-timespan 页面')
   const tabs = findAll(tree, (node) => node.props?.role === 'tab')
   assert.equal(tabs.length, 4, '四个同级 tab')
   assert.deepEqual(tabs.map((tab) => textOf(tab).trim()), ['概览', '趋势', '明细', '设置'])
@@ -2069,7 +2069,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
 
   const previewTree = renderSettingsView({
     ...settingsProps,
-    importPreview: { filename: 'backup.json', payload: { format: 'chronoscope-export', version: 1, intervals: [], tasks: [] } },
+    importPreview: { filename: 'backup.json', payload: { format: 'dsh-timespan-export', version: 1, intervals: [], tasks: [] } },
     importRestoreSettings: false,
     onPickImportFile: () => {}, onCancelImport: () => {},
     onImport: () => calls.push(['import']), onToggleImportSettings: () => {},
@@ -2118,7 +2118,7 @@ test('客户端：首屏状态只认三个合法值，非法持久化值回落�
 
 test('客户端：首屏状态从本地设置读取、写回与删除，存储异常不冒泡', async () => {
   const { readStoredFocus, writeStoredFocus, focusTransitionMs, FOCUS_KEY } = await loadClientFunctions()
-  assert.equal(FOCUS_KEY, 'chrono-scope.focus')
+  assert.equal(FOCUS_KEY, 'dsh-timespan.focus')
 
   const calls = []
   const fake = {
@@ -2127,7 +2127,7 @@ test('客户端：首屏状态从本地设置读取、写回与删除，存储�
     removeItem: (key) => calls.push(['remove', key]),
   }
   assert.equal(readStoredFocus(fake), 'hero')
-  assert.deepEqual(calls, [['get', 'chrono-scope.focus']], '读取使用同一个存储键')
+  assert.deepEqual(calls, [['get', 'dsh-timespan.focus']], '读取使用同一个存储键')
 
   assert.equal(readStoredFocus({ getItem: () => 'bogus' }), null, '非法旧值回落普通概览')
   assert.equal(readStoredFocus({ getItem: () => null }), null)
@@ -2135,11 +2135,11 @@ test('客户端：首屏状态从本地设置读取、写回与删除，存储�
   assert.equal(readStoredFocus(null), null)
 
   writeStoredFocus(fake, 'trend')
-  assert.deepEqual(calls.at(-1), ['set', 'chrono-scope.focus', 'trend'])
+  assert.deepEqual(calls.at(-1), ['set', 'dsh-timespan.focus', 'trend'])
   writeStoredFocus(fake, null)
-  assert.deepEqual(calls.at(-1), ['remove', 'chrono-scope.focus'], '缩回时删除持久化值')
+  assert.deepEqual(calls.at(-1), ['remove', 'dsh-timespan.focus'], '缩回时删除持久化值')
   writeStoredFocus(fake, undefined)
-  assert.deepEqual(calls.at(-1), ['remove', 'chrono-scope.focus'])
+  assert.deepEqual(calls.at(-1), ['remove', 'dsh-timespan.focus'])
   assert.doesNotThrow(() => writeStoredFocus({
     setItem() { throw new Error('quota') },
     removeItem() { throw new Error('quota') },
@@ -2264,7 +2264,7 @@ test('客户端：首屏主指标五个时长项可点切换，非法持久化�
     renderHeroFocusPage, normalizeHeroMetric, readStoredHeroMetric, writeStoredHeroMetric,
     HERO_METRIC_KEY,
   } = await loadClientFunctions()
-  assert.equal(HERO_METRIC_KEY, 'chrono-scope.heroMetric')
+  assert.equal(HERO_METRIC_KEY, 'dsh-timespan.heroMetric')
   assert.equal(normalizeHeroMetric('week'), 'week')
   for (const value of ['', 'Active', 'other', null, undefined, 0, {}, []]) {
     assert.equal(normalizeHeroMetric(value), 'active', `非法值 ${JSON.stringify(value)} 归一为今日活跃`)
@@ -2276,9 +2276,9 @@ test('客户端：首屏主指标五个时长项可点切换，非法持久化�
   assert.equal(readStoredHeroMetric({ getItem: () => { throw new Error('denied') } }), 'active')
   assert.equal(readStoredHeroMetric(null), 'active')
   writeStoredHeroMetric(fake, 'task')
-  assert.deepEqual(calls.at(-1), ['chrono-scope.heroMetric', 'task'])
+  assert.deepEqual(calls.at(-1), ['dsh-timespan.heroMetric', 'task'])
   writeStoredHeroMetric(fake, 'bogus')
-  assert.deepEqual(calls.at(-1), ['chrono-scope.heroMetric', 'active'], '写入前归一化')
+  assert.deepEqual(calls.at(-1), ['dsh-timespan.heroMetric', 'active'], '写入前归一化')
   assert.doesNotThrow(() => writeStoredHeroMetric({ setItem() { throw new Error('quota') } }, 'week'))
 
   const labels = {
@@ -3063,8 +3063,8 @@ test('客户端：概览趋势卡复用首屏缩放按钮，趋势视图不传�
 })
 
 test('客户端：趋势页图表与右侧摘要同排，摘要边框统一不再错位', async () => {
-  const { chronoscopeCss } = await loadClientFunctions()
-  const css = chronoscopeCss()
+  const { dshTimespanCss } = await loadClientFunctions()
+  const css = dshTimespanCss()
   assert.match(declarationsFor(css, '.cs-trend-layout > .cs-trend-card'), /grid-column:\s*1/, '图表卡固定在左栏')
   assert.match(declarationsFor(css, '.cs-trend-layout > .cs-trend-summary'), /grid-column:\s*2/, '摘要卡固定在右栏，不再被全局概览网格规则挤到下一行')
   const grid = declarationsFor(css, '.cs-trend-summary .cs-stat-grid')
@@ -3462,8 +3462,8 @@ test('客户端：热力图范围复用统一自定义下拉并一次展示 15 �
 })
 
 test('客户端：热力图范围复用统一下拉的向上三列菜单与自适应网格', async () => {
-  const { chronoscopeCss } = await loadClientFunctions()
-  const css = chronoscopeCss()
+  const { dshTimespanCss } = await loadClientFunctions()
+  const css = dshTimespanCss()
   const menu = declarationsFor(css, '.cs-select-menu.is-grid')
   assert.match(menu, /display:\s*grid/)
   assert.match(menu, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, '基础网格两列')
@@ -3502,8 +3502,8 @@ test('客户端：热力图范围复用统一下拉的向上三列菜单与自�
 })
 
 test('客户端：任务时长构成行的时长不撑出卡片边框', async () => {
-  const { chronoscopeCss } = await loadClientFunctions()
-  const css = chronoscopeCss()
+  const { dshTimespanCss } = await loadClientFunctions()
+  const css = dshTimespanCss()
   const row = declarationsFor(css, '.cs-composition-row')
   assert.match(row, /grid-template-columns:\s*10px minmax\(0,1fr\) 38px minmax\(0,max-content\)/, '标签列吸收收缩、时长列按内容但不撑破')
   assert.match(row, /min-width:\s*0/, '构成行本身允许收缩')

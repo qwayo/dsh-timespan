@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="ChronoScope：记录 DSH 的在线、活跃与任务时长，数据只留在本机">
+  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-timespan：记录 DSH 的在线、活跃与任务时长，数据只留在本机">
 </p>
 
-**ChronoScope** 是一个同时包含 Host 与 Client 两半的 DSH bundle，记录并展示你在 DSH 里的三种时长。所有数据只保存在本机 DSH 的存储域中，不上传。
+**dsh-timespan** 是一个同时包含 Host 与 Client 两半的 DSH bundle，记录并展示你在 DSH 里的三种时长。所有数据只保存在本机 DSH 的存储域中，不上传。
 
 > Time tracking for DSH — online, active, and task time, all stored locally.
 
@@ -17,26 +17,26 @@
 ## 界面一览
 
 <p align="center">
-  <img src="./assets/readme/dashboard.svg" width="100%" alt="ChronoScope 周期概览界面示意（真实数据）：侧栏在线时长入口、今日活跃时长主数字、今日/本周/本月周期卡、本周每日趋势、任务时长构成、工作区任务排行、最近会话与每日活跃热力图">
+  <img src="./assets/readme/dashboard.svg" width="100%" alt="dsh-timespan 周期概览界面示意（示例数据）：侧栏在线时长入口、今日活跃时长主数字、今日/本周/本月周期卡、今日 24 小时、任务时长构成、工作区任务排行、最近会话与每日活跃热力图">
 </p>
 
 - 侧边栏常驻入口，实时显示所选时长（默认在线时长）与今日构成环，悬浮说明约 200ms 出现。
 - 日/周/月仪表盘：概览、趋势、明细、设置四个同级视图；活跃主数字、趋势、热力图均可放大为首屏独立页；趋势页附时段分布与趋势洞察。
 - 工作区 → 会话明细：活跃时长、任务时长、最近活动与当前计时状态；统计范围可切换今天、近3天、最近一周、近30天或全部，全部范围按批次渐进展开会话。
-- Agent 只读工具 `chrono_stats`：在对话中按日/周/月或自定义日期查询，与仪表盘共用同一份 Host 统计。
+- Agent 只读工具 `timespan_stats`：在对话中按日/周/月或自定义日期查询，与仪表盘共用同一份 Host 统计。
 - 设置：空闲阈值（1–15 分钟）、周起始（周一/周日）、外观（默认跟随系统）与配色、数字格式（默认紧凑单位，如 `2h 48m`）、是否显示子代理明细、侧栏状态文字与侧栏常驻时长（默认在线时长）。
-- 导出 JSON / CSV，备份文件按 ID 去重导入；清空数据等破坏性操作保留二次确认。
+- 导出 JSON / CSV，备份文件按 ID 去重导入；新导出格式为 `dsh-timespan-export`，旧版 `chronoscope-export` 备份仍可导入；清空数据等破坏性操作保留二次确认。
 - 首次启用自动回填已有历史会话的任务时长。
 
 ## 运行机制
 
 <p align="center">
-  <img src="./assets/readme/architecture.svg" width="100%" alt="ChronoScope 运行机制：Host 是随 DSH 一起运行的后台，记在线心跳、听会话事件、统一计算统计并写入本机存储；Client 是页面上看到的部分，负责侧栏入口、仪表盘与设置页，并把发生了什么报给后台">
+  <img src="./assets/readme/architecture.svg" width="100%" alt="dsh-timespan 运行机制：Host 是随 DSH 一起运行的后台，记在线心跳、听会话事件、统一计算统计并写入本机存储；Client 是页面上看到的部分，负责侧栏入口、仪表盘与设置页，并把发生了什么报给后台">
 </p>
 
-ChronoScope 分成两半：**Host** 是随 DSH 一起运行的后台，**Client** 是你在页面上看到的部分。页面只把「发生了什么」报给后台——界面还开着、页面是否可见、会话什么时候开始和结束跑任务；至于今天算多久、一周算多久、活跃怎么判定，全部由后台统一计算，算完写进本机的存储域，不上传。
+dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client** 是你在页面上看到的部分。页面只把「发生了什么」报给后台——界面还开着、页面是否可见、会话什么时候开始和结束跑任务；至于今天算多久、一周算多久、活跃怎么判定，全部由后台统一计算，算完写进本机的存储域，不上传。
 
-页面刷新后重新从后台读结果。所以在仪表盘里看到的数字，和在对话里问 `chrono_stats` 拿到的答案，永远是同一份。
+页面刷新后重新从后台读结果。所以在仪表盘里看到的数字，和在对话里问 `timespan_stats` 拿到的答案，永远是同一份。
 
 ## 安装
 
@@ -48,7 +48,7 @@ ChronoScope 分成两半：**Host** 是随 DSH 一起运行的后台，**Client*
 
 仓库托管在 GitHub 上，不想改源码时用这种方式。在会话里对 Agent 说：
 
-> 帮我装插件 github:qwayo/chrono-scope
+> 帮我装插件 github:qwayo/dsh-timespan
 
 `plugin_manager` 会先探测仓库，再拉取、安装并默认启用。提示需要重启时，重启 DSH 即可。
 
@@ -56,7 +56,7 @@ ChronoScope 分成两半：**Host** 是随 DSH 一起运行的后台，**Client*
 
 想改源码或做本地开发，把本地目录以 `link:` 方式接入当前 profile，改完代码重启就能生效，不用重新安装：
 
-1. 把本仓库放在一个固定的本地路径，下文记作 `<仓库本地路径>`（例如 Windows 上的 `C:\path\to\chrono-scope`）。
+1. 把本仓库放在一个固定的本地路径，下文记作 `<仓库本地路径>`（例如 Windows 上的 `C:\path\to\dsh-timespan`）。
 2. 在会话里对 Agent 说：
 
    > 用 plugin_manager 把 `<仓库本地路径>` 安装为当前 profile 的 bundle。
@@ -65,10 +65,11 @@ ChronoScope 分成两半：**Host** 是随 DSH 一起运行的后台，**Client*
 
 ### 装好后核对
 
-- 左侧栏出现 **ChronoScope** 入口，默认显示今日在线时长（可在设置中切换为活跃或任务时长；首次安装默认不显示状态文字，可在设置里打开「侧栏显示状态」，开启后显示空闲、活跃中或任务中）。
-- 设置页出现 **ChronoScope** 分区。
-- 对 Agent 说「用 chrono_stats 查一下今天的时长」，能返回统计结果。
-- 需要时用 `plugin_manager` 的 `list_bundles` / `list_plugins` 核对：bundle `@local/chrono-scope` 和插件行 `chrono-scope` 处于启用状态。
+- 左侧栏出现 **dsh-timespan** 入口，默认显示今日在线时长（可在设置中切换为活跃或任务时长；首次安装默认不显示状态文字，可在设置里打开「侧栏显示状态」，开启后显示空闲、活跃中或任务中）。
+- 设置页出现 **dsh-timespan** 分区。
+- 对 Agent 说「用 timespan_stats 查一下今天的时长」，能返回统计结果。
+- 需要时用 `plugin_manager` 的 `list_bundles` / `list_plugins` 核对：bundle `@local/dsh-timespan` 和插件行 `dsh-timespan` 处于启用状态。
+- 从旧名 `chrono-scope` 升级：先移除旧的 `@local/chrono-scope` bundle，再按上面的方式安装本目录；存储域仍是 `chrono_scope`，历史统计与设置不会丢。
 
 <details>
 <summary>安装细节与故障排查</summary>
@@ -77,7 +78,7 @@ ChronoScope 分成两半：**Host** 是随 DSH 一起运行的后台，**Client*
 
   ```text
   action: install_bundle
-  target: <仓库本地路径> 或 github:qwayo/chrono-scope
+  target: <仓库本地路径> 或 github:qwayo/dsh-timespan
   ```
 
 - 安装时如果 Agent 请求授权，确认一次即可。
@@ -91,7 +92,7 @@ ChronoScope 分成两半：**Host** 是随 DSH 一起运行的后台，**Client*
 ## 开发与测试
 
 ```bash
-npm test         # Node 内置 test runner：领域统计、周期裁剪、并发并集/求和、回填、重启恢复、设置/导出/清空、客户端组合、chrono_stats 工具
+npm test         # Node 内置 test runner：领域统计、周期裁剪、并发并集/求和、回填、重启恢复、设置/导出/清空、客户端组合、timespan_stats 工具
 npm run check    # 全部源码与测试的语法检查
 ```
 
@@ -100,16 +101,16 @@ npm run check    # 全部源码与测试的语法检查
 ## 项目结构
 
 <p align="center">
-  <img src="./assets/readme/structure.svg" width="100%" alt="ChronoScope bundle 结构树：package.json 与 cordis.patch.yml 组成 bundle；index.js 与 client.js 分为 Host、Client 两半；src/domain 领域层七个模块、src/host 适配层两个模块，Client 半挂载宿主四个页面点位；配套 test、docs/adr、locale 与 assets/readme">
+  <img src="./assets/readme/structure.svg" width="100%" alt="dsh-timespan bundle 结构树：package.json 与 cordis.patch.yml 组成 bundle；index.js 与 client.js 分为 Host、Client 两半；src/domain 领域层七个模块、src/host 适配层两个模块，Client 半挂载宿主四个页面点位；配套 test、docs/adr、locale 与 assets/readme">
 </p>
 
 <details>
 <summary>目录树与核心文件</summary>
 
 ```text
-chrono-scope/
+dsh-timespan/
 ├─ package.json                  # npm 包与 DSH bundle 清单
-├─ cordis.patch.yml              # bundle 的 Loader patch：插入 chrono-scope 行
+├─ cordis.patch.yml              # bundle 的 Loader patch：插入 dsh-timespan 行
 ├─ index.js                      # Host 入口：存储域、心跳、会话事件、RPC、工具
 ├─ client.js                     # Client 入口：侧边栏、页面、presence、设置页
 ├─ icon.svg                      # 插件图标
@@ -121,16 +122,16 @@ chrono-scope/
 │  └─ en.json                    # 英文展示元数据
 ├─ src/
 │  ├─ domain/                    # 领域层：不依赖 DSH 运行时，可用假时钟测试
-│  │  ├─ domain-spec.js          # storageDomain 的 chrono_scope v1 结构
-│  │  ├─ chrono-scope-domain.js  # 在线/活跃/任务记录与查询的核心服务
+│  │  ├─ domain-spec.js          # storageDomain 的 chrono_scope v1 结构（历史键，勿改）
+│  │  ├─ dsh-timespan-domain.js  # 在线/活跃/任务记录与查询的核心服务
 │  │  ├─ periods.js              # 本地日/周/月边界与趋势桶
 │  │  ├─ duration-format.js      # 五种数字格式（含中文「2 小时 48 分」）
 │  │  ├─ settings.js             # 设置默认值与归一化
 │  │  ├─ export.js               # JSON/CSV 序列化
 │  │  └─ backfill.js             # 历史会话回填规划
 │  └─ host/                      # Host 适配层
-│     ├─ rpc.js                  # /api/chrono-scope 包内私有 RPC
-│     └─ tool.js                 # chrono_stats Agent 工具
+│     ├─ rpc.js                  # /api/dsh-timespan 包内私有 RPC
+│     └─ tool.js                 # timespan_stats Agent 工具
 ├─ test/                         # Node 内置 test runner 测试
 ├─ docs/adr/                     # 架构决策记录
 └─ .scratch/                     # 历史票证存档，不随插件发布
@@ -140,14 +141,16 @@ chrono-scope/
 
 | 文件 | 作用 |
 | --- | --- |
-| `index.js` | Host 半入口：打开 `chrono_scope` v1 存储域，注册 30 秒心跳、`session/event` 监听、包内 RPC 与 `chrono_stats` 工具。 |
+| `index.js` | Host 半入口：打开 `chrono_scope` v1 存储域（历史键，保持兼容），注册 30 秒心跳、`session/event` 监听、包内 RPC 与 `timespan_stats` 工具。 |
 | `client.js` | Client 半入口：`sidebar.panellist` 侧栏入口、`shell.overlay` presence 心跳、`main` 仪表盘、`settings.section` 设置页。 |
-| `src/domain/chrono-scope-domain.js` | 全部业务规则的核心：在线/活跃/任务区间、任务四段构成、归属、并集/求和、查询与数据操作。 |
+| `src/domain/dsh-timespan-domain.js` | 全部业务规则的核心：在线/活跃/任务区间、任务四段构成、归属、并集/求和、查询与数据操作。 |
 | `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`getSettings`、`setSettings`、`resetSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill`。 |
-| `src/host/tool.js` | 把 `chrono_stats` 参数转为 `queryStats` 查询，不另算一套数字。 |
+| `src/host/tool.js` | 把 `timespan_stats` 参数转为 `queryStats` 查询，不另算一套数字。 |
 | `package.json` | 声明包名、版本、`exports`、发布文件列表；`dsh.bundle.patch` 指向 `cordis.patch.yml`，`dsh.client` 声明 Web 客户端加载方式。 |
 
 </details>
+
+> 存储域内部仍使用 `chrono_scope` 作为持久化键，以免已有统计与设置失联；这是历史兼容名，对外的项目名是 **dsh-timespan**。
 
 ## 相关文档
 
@@ -157,6 +160,7 @@ chrono-scope/
   - [0001 录制架构](docs/adr/0001-usage-recording-architecture.md)：在线/活跃/任务录制架构。
   - [0002 周期裁剪与并发](docs/adr/0002-dashboard-period-clipping-and-concurrency.md)：周期裁剪与并发口径。
   - [0003 历史回填](docs/adr/0003-historical-backfill.md)：历史任务回填。
-  - [0004 chrono_stats 工具](docs/adr/0004-agent-stats-tool.md)：`chrono_stats` Agent 工具。
+  - [0004 timespan_stats 工具](docs/adr/0004-agent-stats-tool.md)：`timespan_stats` Agent 工具。
   - [0005 热力图周网格](docs/adr/0005-全年热力图改为周网格与界面文案中文化.md)：全年热力图改为周网格与文案中文化。
   - [0006 信息浮层](docs/adr/0006-信息浮层反转回悬浮与聚焦触发.md)：信息浮层反转回悬浮与聚焦触发。
+  - [0007 改名为 dsh-timespan](docs/adr/0007-rename-to-dsh-timespan.md)：改名范围、存储域与备份格式的兼容决策。

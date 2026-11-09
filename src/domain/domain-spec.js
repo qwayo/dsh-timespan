@@ -1,9 +1,9 @@
 /**
- * ChronoScope 使用的存储域声明。
+ * dsh-timespan 使用的存储域声明。
  *
- * DSH 的 storageDomain 后端只接受 `[a-z][a-z0-9_]*` 形式的域名与表名，因此
- * 技术域名使用 `chrono_scope`；对外展示名仍是 ChronoScope。域版本固定为 1，
- * 表的完整形状在这里一次声明，后续切片只扩展读写逻辑，不改变存储版本。
+ * 存储域名固定为 `chrono_scope`：这是已经落盘的持久化键（storages/chrono_scope），
+ * 改名会让已有统计与设置失联，因此永久保留；对外的项目名是 dsh-timespan。
+ * 域版本固定为 1，表的完整形状在这里一次声明，后续只扩展读写逻辑，不改变存储版本。
  *
  * 这里不依赖 zod，而是提供与 DomainSpec 相同的 `parse` / `safeParse` 契约，
  * 让插件保持零运行时依赖，同时继续由存储域在 open 时校验每一条已存记录。
@@ -14,7 +14,7 @@ import { DEFAULT_SETTINGS, normalizeSettings } from './settings.js'
 
 const RECORD_SOURCES = new Set(['live', 'backfill'])
 
-export function createChronoScopeSpec() {
+export function createDshTimespanSpec() {
   return {
     name: 'chrono_scope',
     version: 1,

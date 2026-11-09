@@ -1,3 +1,3 @@
 - insert:
-    - id: chrono-scope
-      name: '@local/chrono-scope'
+    - id: dsh-timespan
+      name: '@local/dsh-timespan'

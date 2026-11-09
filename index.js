@@ -1,19 +1,19 @@
 /**
- * ChronoScope 的 Host 半。
+ * dsh-timespan 的 Host 半。
  *
  * 装配顺序：打开 storageDomain 的 v1 域 → 启动领域服务（用进程 uptime 反推
  * 应用启动时刻并收口上次遗留区间）→ 注册 30 秒心跳 → 注册包内私有 RPC →
  * 客户端第一次取数/心跳时在后台触发一次历史回填。领域规则全部留在
- * src/domain/chrono-scope-domain.js，这里只做 DSH 接线：把 sessionQuery
+ * src/domain/dsh-timespan-domain.js，这里只做 DSH 接线：把 sessionQuery
  * 读到的历史会话快照交给领域服务重放。
  */
 
-import { createChronoScopeSpec } from './src/domain/domain-spec.js'
-import { createChronoScopeDomain } from './src/domain/chrono-scope-domain.js'
-import { registerChronoScopeRpc } from './src/host/rpc.js'
-import { registerChronoStatsTool } from './src/host/tool.js'
+import { createDshTimespanSpec } from './src/domain/domain-spec.js'
+import { createDshTimespanDomain } from './src/domain/dsh-timespan-domain.js'
+import { registerDshTimespanRpc } from './src/host/rpc.js'
+import { registerTimespanStatsTool } from './src/host/tool.js'
 
-export const name = 'chrono-scope'
+export const name = 'dsh-timespan'
 export const inject = ['storageDomain', 'timer', 'connection', 'tools']
 
 const HEARTBEAT_MS = 30_000
@@ -36,7 +36,7 @@ export async function apply(ctx) {
     try {
       await dispose()
     } catch (error) {
-      console.warn(`[chrono-scope] ${label}失败：`, error)
+      console.warn(`[dsh-timespan] ${label}失败：`, error)
     }
   }
 
@@ -90,7 +90,7 @@ export async function apply(ctx) {
             }
           } catch (error) {
             // 单个损坏或格式不兼容的历史会话不该让整次回填失败。
-            console.warn(`[chrono-scope] 历史会话读取失败，已跳过 ${id}：`, error)
+            console.warn(`[dsh-timespan] 历史会话读取失败，已跳过 ${id}：`, error)
             return null
           }
         },
@@ -110,7 +110,7 @@ export async function apply(ctx) {
     backfillPromise = service
       .backfill(loadBackfillSessions, { force, yield: yieldToEventLoop })
       .catch((error) => {
-        console.warn('[chrono-scope] 历史回填失败：', error)
+        console.warn('[dsh-timespan] 历史回填失败：', error)
       })
       .finally(() => {
         backfillPromise = null
@@ -129,7 +129,7 @@ export async function apply(ctx) {
         }),
       )
       .catch((error) => {
-        console.warn('[chrono-scope] 会话事件写入失败：', error)
+        console.warn('[dsh-timespan] 会话事件写入失败：', error)
       })
   }
 
@@ -172,13 +172,13 @@ export async function apply(ctx) {
   }
 
   try {
-    domain = await ctx.storageDomain.open(createChronoScopeSpec())
-    service = createChronoScopeDomain({ domain, clock: systemClock })
+    domain = await ctx.storageDomain.open(createDshTimespanSpec())
+    service = createDshTimespanDomain({ domain, clock: systemClock })
     await service.start()
 
     stopHeartbeat = ctx.timer.interval(() => {
       service.recordPresence().catch((error) => {
-        console.warn('[chrono-scope] 在线心跳写入失败：', error)
+        console.warn('[dsh-timespan] 在线心跳写入失败：', error)
       })
     }, HEARTBEAT_MS)
 
@@ -187,7 +187,7 @@ export async function apply(ctx) {
     })
     disposeSessionEvents = typeof removeSessionListener === 'function' ? removeSessionListener : () => {}
 
-    disposeRpc = registerChronoScopeRpc(ctx, service, {
+    disposeRpc = registerDshTimespanRpc(ctx, service, {
       // 由 RPC 的任意一次客户端活动兜底触发：此时组合里的服务已挂载完毕，
       // 不必赌一个固定启动延时。侧边栏每 5 秒的 queryStats 与每 15 秒的
       // presence 心跳都会经过这里。
@@ -196,7 +196,7 @@ export async function apply(ctx) {
     })
 
     // 只读工具与页面共用同一个 queryStats 领域操作；工具随插件 fiber 自动注销。
-    registerChronoStatsTool(ctx, service)
+    registerTimespanStatsTool(ctx, service)
 
     ctx.effect(() => async () => {
       stopHeartbeat()

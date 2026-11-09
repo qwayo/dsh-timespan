@@ -1,6 +1,6 @@
-# ChronoScope（时长统计）
+# dsh-timespan（时长统计）
 
-ChronoScope 记录并展示 DeepSeek Harness 的使用时长与任务运行时长，可按工作区、会话以及日/周/月查看。
+dsh-timespan 记录并展示 DeepSeek Harness 的使用时长与任务运行时长，可按工作区、会话以及日/周/月查看。
 
 ## Language
 

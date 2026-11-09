@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { apply } from '../index.js'
-import { createChronoScopeDomain } from '../src/domain/chrono-scope-domain.js'
+import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
 import { periodRange } from '../src/domain/periods.js'
 import { DEFAULT_SETTINGS, mergeSettings, normalizeSettings } from '../src/domain/settings.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
@@ -66,7 +66,7 @@ async function addTurn(service, sessionId, turn, start, end, header = {}) {
 async function startedService(now, uptimeMs = 0) {
   const domain = createMemoryDomain()
   const clock = createFakeClock({ now, uptimeMs })
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
   return { domain, clock, service }
 }
@@ -155,7 +155,7 @@ test('设置：侧栏名称默认关闭，可显式开启并在局部更新与�
   const partial = await service.setSettings({ idleThresholdMinutes: 9 })
   assert.equal(partial.sidebarShowName, true, '局部更新保留侧栏名称开关')
 
-  const restarted = createChronoScopeDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 4, 10, 0) }) })
+  const restarted = createDshTimespanDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 4, 10, 0) }) })
   await restarted.start()
   assert.equal(restarted.getSettings().sidebarShowName, true, '重启后侧栏名称开关仍保留')
 
@@ -188,7 +188,7 @@ test('设置：非法值收敛到合法范围，局部更新不覆盖其他项�
   assert.equal(partial.sidebarShowName, false, '局部更新保留侧栏名称开关')
 
   // 重启：用同一个存储域重新构造领域服务，只通过公共操作确认设置仍在。
-  const restarted = createChronoScopeDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 4, 10, 0) }) })
+  const restarted = createDshTimespanDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 4, 10, 0) }) })
   await restarted.start()
   assert.deepEqual(restarted.getSettings(), partial)
 })
@@ -476,7 +476,7 @@ async function createRpcHarness() {
 
   await apply(ctx)
   const call = async (method, payload = {}) => {
-    const response = await route.fetch(new Request('http://isolated/api/chrono-scope', {
+    const response = await route.fetch(new Request('http://isolated/api/dsh-timespan', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ type: 'client-request', rpcId: 'isolated-check', payload: { method, payload } }),

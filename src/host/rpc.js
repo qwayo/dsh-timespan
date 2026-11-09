@@ -1,13 +1,13 @@
 /**
- * ChronoScope 的包内私有 RPC。
+ * dsh-timespan 的包内私有 RPC。
  *
  * Client 半通过它做几件事：每 15 秒上报一次 presence 心跳（可见性、窗口
  * 聚焦、前台会话与最近操作），按日/周/月读取统计与仪表盘明细（同一响应
  * 带回回填状态与子代理明细），读取按天三项时长序列，读写设置、导出
  * JSON/CSV、导入 JSON 文件，以及二次确认后清空全部统计；另有失败时的历史回填重试、回填
  * 通知读取与「已读」锚点写入。这里沿用 DSH 的 connection.rpc 通道：Host 侧用
- * connection.fetch.register 挂一条 /api/chrono-scope 的精确路由，Client 用
- * connection.rpc.call('/api', 'chrono-scope', { method, payload }) 调用。
+ * connection.fetch.register 挂一条 /api/dsh-timespan 的精确路由，Client 用
+ * connection.rpc.call('/api', 'dsh-timespan', { method, payload }) 调用。
  *
  * 通道是包内私有的，不占用公开 API 命名空间；调用方只能看到统计结果或
  * 已序列化的导出内容，不会看到存储结构。Client 只上报事实、只下载文件，
@@ -16,22 +16,22 @@
 
 import { initialBackfillStatus } from '../domain/backfill.js'
 
-export const RPC_CHANNEL = 'chrono-scope'
+export const RPC_CHANNEL = 'dsh-timespan'
 export const RPC_PATH = `/api/${RPC_CHANNEL}`
 
 const RPC_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 
 /**
  * @param {object} ctx Host 插件上下文
- * @param {object} service ChronoScope 领域服务
+ * @param {object} service dsh-timespan 领域服务
  * @param {{ ensureBackfillStarted?: () => Promise<unknown>, retryBackfill?: () => Promise<unknown> }} hooks
  * @returns {() => void} 注销函数
  */
-export function registerChronoScopeRpc(ctx, service, hooks = {}) {
+export function registerDshTimespanRpc(ctx, service, hooks = {}) {
   const connection = ctx.get('connection')
   const fetchRegistry = connection?.fetch
   if (fetchRegistry === undefined || typeof fetchRegistry.register !== 'function') {
-    throw new Error('ChronoScope 需要 connection.fetch 才能注册私有 RPC')
+    throw new Error('dsh-timespan 需要 connection.fetch 才能注册私有 RPC')
   }
 
   const routeFetch = async (request) => {
@@ -88,7 +88,7 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
       case 'importData':
         return importData(payload)
       default:
-        throw new Error(`未知的 ChronoScope 方法：${method}`)
+        throw new Error(`未知的 dsh-timespan 方法：${method}`)
     }
   }
 

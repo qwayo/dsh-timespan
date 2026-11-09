@@ -33,7 +33,7 @@ async function exercise(sessionQuery, expectedStatus, expectedCount = 0) {
   try {
     await apply(ctx)
     const query = async () => {
-      const response = await route.fetch(new Request('http://isolated/api/chrono-scope', {
+      const response = await route.fetch(new Request('http://isolated/api/dsh-timespan', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ type: 'client-request', rpcId: 'isolated-check',
           payload: { method: 'queryStats', payload: { period: 'day', view: 'dashboard' } } }),
@@ -133,7 +133,7 @@ async function createBackfillRpcHarness() {
   })
   await apply(ctx)
   const call = async (method, payload = {}) => {
-    const response = await route.fetch(new Request('http://isolated/api/chrono-scope', {
+    const response = await route.fetch(new Request('http://isolated/api/dsh-timespan', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ type: 'client-request', rpcId: 'isolated-notice',
@@ -240,7 +240,7 @@ test('回填 RPC：markBackfillRead 拒绝缺少 eventId 的载荷', async () =>
   })
   try {
     await apply(ctx)
-    const response = await route.fetch(new Request('http://isolated/api/chrono-scope', {
+    const response = await route.fetch(new Request('http://isolated/api/dsh-timespan', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ type: 'client-request', rpcId: 'isolated-bad-read',

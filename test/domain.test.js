@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createChronoScopeDomain } from '../src/domain/chrono-scope-domain.js'
-import { createChronoScopeSpec } from '../src/domain/domain-spec.js'
+import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
+import { createDshTimespanSpec } from '../src/domain/domain-spec.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
 
 const MINUTE = 60_000
@@ -26,7 +26,7 @@ function queryWindow(clock) {
 test('启动：用进程 uptime 反推应用启动时刻，在线时长从应用启动开始计算', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
 
   await service.start()
 
@@ -39,7 +39,7 @@ test('心跳：30 秒心跳推进最后心跳时间，在线时长持续增长',
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
   const domain = createMemoryDomain()
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
 
   clock.nowMs = t0 + 30_000
@@ -55,7 +55,7 @@ test('重启收口：上次运行悬空的在线区间按最后心跳收口，�
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const firstClock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
   const domain = createMemoryDomain()
-  const firstService = createChronoScopeDomain({ domain, clock: firstClock })
+  const firstService = createDshTimespanDomain({ domain, clock: firstClock })
   await firstService.start()
 
   firstClock.nowMs = t0 + 30_000
@@ -64,7 +64,7 @@ test('重启收口：上次运行悬空的在线区间按最后心跳收口，�
   // 进程在 t0+60s 崩溃，没有机会执行 close()。新进程在 t0+5min 启动，
   // 进程 uptime 2s 说明新的应用启动时刻是 t0+4min58s。
   const secondClock = createFakeClock({ now: t0 + 5 * MINUTE, uptimeMs: 2_000 })
-  const secondService = createChronoScopeDomain({ domain, clock: secondClock })
+  const secondService = createDshTimespanDomain({ domain, clock: secondClock })
   await secondService.start()
 
   const stats = secondService.queryStats({
@@ -81,14 +81,14 @@ test('同一进程重新加载：新区间从旧区间收口处继续，不重�
   const clock = createFakeClock({ now: t0, uptimeMs: 2 * MINUTE })
   const domain = createMemoryDomain()
 
-  const firstService = createChronoScopeDomain({ domain, clock })
+  const firstService = createDshTimespanDomain({ domain, clock })
   await firstService.start()
   clock.nowMs = t0 + MINUTE
   await firstService.close()
 
   // 同一进程重新加载：应用启动时刻仍是 t0-2min，旧区间刚在 t0+1min 收口。
   clock.nowMs = t0 + MINUTE
-  const secondService = createChronoScopeDomain({ domain, clock })
+  const secondService = createDshTimespanDomain({ domain, clock })
   await secondService.start()
 
   const stats = secondService.queryStats({ from: t0 - 2 * MINUTE, to: t0 + MINUTE })
@@ -116,7 +116,7 @@ test('活跃归属：跟随前台会话与工作区，没有前台会话时归�
   const t0 = Date.UTC(2026, 10, 4, 5, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
   const domain = createMemoryDomain()
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
 
   let result = await service.recordPresence(foregroundPresence(t0))
@@ -162,7 +162,7 @@ test('活跃归属：跟随前台会话与工作区，没有前台会话时归�
 test('会话标题变更：活跃区间标题快照跟随最新上报', async () => {
   const t0 = Date.UTC(2026, 10, 4, 5, 30, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordPresence(foregroundPresence(t0))
@@ -181,7 +181,7 @@ test('工作区删除后：历史区间保留标题快照', async () => {
   const t0 = Date.UTC(2026, 10, 4, 5, 45, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
   const domain = createMemoryDomain()
-  const firstService = createChronoScopeDomain({ domain, clock })
+  const firstService = createDshTimespanDomain({ domain, clock })
   await firstService.start()
   await firstService.recordPresence(foregroundPresence(t0, { workspaceTitle: '已删除工作区' }))
   clock.nowMs = t0 + 30_000
@@ -193,7 +193,7 @@ test('工作区删除后：历史区间保留标题快照', async () => {
 
   // 重启后没有任何工作区注册表信息，历史区间只能依赖落库的标题快照。
   const laterClock = createFakeClock({ now: t0 + 60_000, uptimeMs: 0 })
-  const secondService = createChronoScopeDomain({ domain, clock: laterClock })
+  const secondService = createDshTimespanDomain({ domain, clock: laterClock })
   await secondService.start()
   const stats = secondService.queryStats({ from: t0, to: t0 + 60_000, view: 'dashboard' })
   assert.equal(stats.workspaces.length, 1)
@@ -204,7 +204,7 @@ test('工作区删除后：历史区间保留标题快照', async () => {
 test('窗口隐藏或失焦：活跃区间立即停止，不把不可见时间算进去', async () => {
   const t0 = Date.UTC(2026, 10, 4, 4, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordPresence(foregroundPresence(t0))
@@ -232,7 +232,7 @@ test('窗口隐藏或失焦：活跃区间立即停止，不把不可见时间�
 test('恢复显示：新区间从恢复时刻开始，不与隐藏前的区间重叠', async () => {
   const t0 = Date.UTC(2026, 10, 4, 6, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordPresence(foregroundPresence(t0))
@@ -253,7 +253,7 @@ test('恢复显示：新区间从恢复时刻开始，不与隐藏前的区间�
 test('迟到隐藏：只按最后心跳收口，不把休眠空白算成活跃', async () => {
   const t0 = Date.UTC(2026, 10, 4, 7, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordPresence(foregroundPresence(t0))
@@ -268,7 +268,7 @@ test('迟到隐藏：只按最后心跳收口，不把休眠空白算成活跃',
 test('关闭：开放活跃区间按最后心跳收口，不把挂起后的时间算进去', async () => {
   const t0 = Date.UTC(2026, 10, 4, 8, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordPresence(foregroundPresence(t0))
@@ -285,7 +285,7 @@ test('关闭：开放活跃区间按最后心跳收口，不把挂起后的时�
 test('任务保持活跃：前台会话运行任务时，超过 5 分钟无操作仍计活跃，任务结束立即停止', async () => {
   const t0 = Date.UTC(2026, 10, 4, 3, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordPresence(foregroundPresence(t0, { foregroundRunning: true }))
@@ -311,7 +311,7 @@ test('任务保持活跃：前台会话运行任务时，超过 5 分钟无操�
 test('活跃判定：连续 4 分 59 秒 999 毫秒内有操作仍活跃，满 5 分钟立即转空闲', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   // 每 15 秒一次心跳，最后一次操作固定在 t0。
@@ -337,7 +337,7 @@ test('活跃判定：连续 4 分 59 秒 999 毫秒内有操作仍活跃，满 5
 test('任务记录：turn/start 到 turn/end 生成一条任务记录，重复事件不重复计数', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordSessionEvent({
@@ -387,7 +387,7 @@ test('任务记录：turn/start 到 turn/end 生成一条任务记录，重复�
 test('任务键：会话 id 含路径非法字符时仍可写入 per-record 存储', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordSessionEvent({
@@ -411,7 +411,7 @@ test('任务键：会话 id 含路径非法字符时仍可写入 per-record 存�
 test('零时长任务：turn 起止同毫秒时仍出现在任务数与会话列表', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordSessionEvent({
@@ -438,7 +438,7 @@ test('零时长任务：turn 起止同毫秒时仍出现在任务数与会话列
 test('任务构成：模型、工具、等待与其他四部分之和等于任务总时长', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   clock.nowMs = t0 + 2 * MINUTE
 
@@ -472,7 +472,7 @@ test('任务构成：模型、工具、等待与其他四部分之和等于任�
 test('等待用户：审批询问到决定之间的区间计入等待', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   clock.nowMs = t0 + MINUTE
 
@@ -496,7 +496,7 @@ test('等待用户：审批询问到决定之间的区间计入等待', async ()
 test('等待用户：ask_user_question 的工具区间计入等待而不是工具', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   clock.nowMs = t0 + MINUTE
 
@@ -528,7 +528,7 @@ test('等待用户：ask_user_question 的工具区间计入等待而不是工�
 test('异常结束：turn/end 带错误原因仍收口，未完成的工具区间计入工具耗时', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
   clock.nowMs = t0 + 2 * MINUTE
 
@@ -556,7 +556,7 @@ test('未结束收口：下次启动时，按最后事件时间收口并标记�
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const domain = createMemoryDomain()
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
 
   const events = [
@@ -572,7 +572,7 @@ test('未结束收口：下次启动时，按最后事件时间收口并标记�
   // 十分钟后才重启：模拟插件崩溃后下次 start() 收口，任务只能算到最后
   // 一条事件，不能把挂起时间算进去。
   clock.nowMs = t0 + 10 * MINUTE
-  const restarted = createChronoScopeDomain({ domain, clock })
+  const restarted = createDshTimespanDomain({ domain, clock })
   await restarted.start()
   const [task] = restarted.queryStats({ from: t0, to: t0 + 20 * MINUTE }).tasks
   assert.equal(task.durationMs, 40_000)
@@ -586,7 +586,7 @@ test('未结束收口：下次启动时，按最后事件时间收口并标记�
 test('未结束收口：插件关闭时，按最后事件时间收口并标记中断', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   await service.recordSessionEvent({
@@ -611,7 +611,7 @@ test('未结束收口：插件关闭时，按最后事件时间收口并标记�
 test('会话任务列表：总览按时间并集，会话明细按会话求和，子代理不计入总计', async () => {
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
   await service.start()
 
   async function turn(sessionId, turnNumber, start, end, header = {}) {
@@ -668,7 +668,7 @@ test('无拆分数据：历史任务标记未拆分，四部分保持为零', as
   const t0 = Date.UTC(2026, 10, 4, 2, 0, 0)
   const domain = createMemoryDomain()
   const clock = createFakeClock({ now: t0, uptimeMs: 0 })
-  const service = createChronoScopeDomain({ domain, clock })
+  const service = createDshTimespanDomain({ domain, clock })
   await service.start()
 
   // 模拟回填/旧版本留下的任务：只有墙钟起止，没有可拆分的 segments。
@@ -705,7 +705,7 @@ test('无拆分数据：历史任务标记未拆分，四部分保持为零', as
 })
 
 test('存储解析：缺失或空 segments 的历史任务按未拆分处理', () => {
-  const schema = createChronoScopeSpec().tables.tasks.valueSchema
+  const schema = createDshTimespanSpec().tables.tasks.valueSchema
   const base = {
     id: 'legacy_t1',
     sessionId: 'legacy',

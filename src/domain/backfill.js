@@ -1,5 +1,5 @@
 /**
- * ChronoScope 历史回填的纯规划层。
+ * dsh-timespan 历史回填的纯规划层。
  *
  * 从第一性原理看，回填 = 把已持久化会话的事件流「重放」进领域服务同一套
  * 任务归约器：turn/start 建任务、turn/end 收口、step / tool / approval 事件
