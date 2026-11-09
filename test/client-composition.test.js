@@ -80,6 +80,15 @@ async function loadClientFunctions(windowExtras = {}) {
       buildSidebarTip: typeof buildSidebarTip === 'function' ? buildSidebarTip : undefined,
       settingsDraft: typeof settingsDraft === 'function' ? settingsDraft : undefined,
       settingsPayload: typeof settingsPayload === 'function' ? settingsPayload : undefined,
+      normalizeLanguage: typeof normalizeLanguage === 'function' ? normalizeLanguage : undefined,
+      currentLanguage: typeof currentLanguage === 'function' ? currentLanguage : undefined,
+      applyLanguage: typeof applyLanguage === 'function' ? applyLanguage : undefined,
+      subscribeLanguage: typeof subscribeLanguage === 'function' ? subscribeLanguage : undefined,
+      translate: typeof translate === 'function' ? translate : undefined,
+      zhDict: typeof zh !== 'undefined' ? zh : undefined,
+      enDict: typeof en !== 'undefined' ? en : undefined,
+      LANGUAGE_OPTIONS: typeof LANGUAGE_OPTIONS !== 'undefined' ? LANGUAGE_OPTIONS : undefined,
+      DEFAULT_LANGUAGE: typeof DEFAULT_LANGUAGE === 'string' ? DEFAULT_LANGUAGE : undefined,
       createSettingsSection: typeof createSettingsSection === 'function' ? createSettingsSection : undefined,
       normalizeView: typeof normalizeView === 'function' ? normalizeView : undefined,
       nextTabIndex: typeof nextTabIndex === 'function' ? nextTabIndex : undefined,
@@ -1053,7 +1062,7 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(css, /\.dsh-timespan-nav-entry\.cs-palette-clay/)
   assert.match(css, /\.dsh-timespan-nav-entry\.cs-appearance-dark/)
   assert.doesNotMatch(css, /--dsw-alias-state-success-primary/, '侧栏入口不得再吃宿主 success 绿')
-  assert.match(css, /html\[data-dsh-timespan-hide-name\] button\[aria-label="dsh-timespan"\] > span \+ span/,
+  assert.match(css, /html\[data-dsh-timespan-hide-name\] button\[aria-label="TimeSpan"\] > span \+ span/,
     '宿主名称行由根元素开关隐藏，折叠态唯一 span 不受影响')
   assert.match(declarationsFor(css, '.dsh-timespan-nav-entry.is-nameless .dsh-timespan-nav-time'),
     /font-size:\s*15px/, '去掉名称后时间放大一档并居中')
@@ -1351,8 +1360,9 @@ test('客户端：侧栏状态与时长进入设置草稿、保存载荷与设�
     durationFormat: 'short',
     sidebarShowName: false,
     sidebarDuration: 'task',
+    language: 'zh',
     approximateNoticeDismissed: false,
-  }), '保存时提交侧栏状态、侧栏时长与数字格式')
+  }), '保存时提交侧栏状态、侧栏时长、界面语言与数字格式')
 
   const labels = {
     settingsSectionDisplay: '明细展示',
@@ -1378,6 +1388,77 @@ test('客户端：侧栏状态与时长进入设置草稿、保存载荷与设�
   assert.equal(durationSelect.props.className, 'cs-settings-select', 'DSH 设置页下拉默认使用紧凑 class，避免菜单铺满整页')
   assert.equal(durationSelect.props.value, 'online', '侧栏时长默认在线时长')
   assert.equal(Array.from(durationSelect.props.options, (option) => option.label).join(','), '在线时长,活跃时长,任务时长', '侧栏时长提供三种口径')
+})
+
+test('客户端：界面语言默认中文，设置页可切英文并即时换掉全部文案', async () => {
+  const {
+    translate, normalizeLanguage, currentLanguage, applyLanguage, subscribeLanguage,
+    LANGUAGE_OPTIONS, DEFAULT_LANGUAGE, settingsDraft, settingsPayload,
+    renderBasicSettingsBody, createSettingsSection, React, Select, zhDict, enDict,
+  } = await loadClientFunctions()
+
+  // 两套字典必须键完全一致：缺一条键在英文界面下会漏出中文或键名。
+  assert.equal(Object.keys(enDict).sort().join('|'), Object.keys(zhDict).sort().join('|'), '中英字典键完全一致')
+  assert.equal(zhDict.settingsLanguageLabel, '界面语言')
+  assert.equal(enDict.settingsLanguageLabel, 'Interface language')
+
+  assert.equal(DEFAULT_LANGUAGE, 'zh', '首次安装默认中文')
+  assert.equal(currentLanguage(), 'zh')
+  assert.equal(normalizeLanguage('en'), 'en')
+  for (const value of ['', 'EN', 'zh-CN', 'fr', null, undefined, 7]) {
+    assert.equal(normalizeLanguage(value), 'zh', `非法语言 ${String(value)} 回落中文`)
+  }
+
+  // 默认中文：同一批键在英文下是另一套文案，TimeSpan 这种品牌词两种语言一致。
+  assert.equal(translate('todayActive'), '今日活跃时长')
+  assert.equal(translate('settingsNav'), 'TimeSpan')
+  assert.equal(translate('notARealKey'), 'notARealKey', '缺键时原样返回键名，不抛错')
+
+  const changes = []
+  const unsubscribe = subscribeLanguage((value) => changes.push(value))
+  assert.equal(applyLanguage('en'), 'en')
+  assert.equal(translate('todayActive'), 'Active today')
+  assert.equal(translate('periodDay'), 'Day', '英文界面下 isZh 判定依据也随之改变')
+  assert.deepEqual(changes, ['en'], '语言变化广播一次')
+  applyLanguage('en')
+  assert.deepEqual(changes, ['en'], '同值重复应用不再广播，避免轮询空转重渲染')
+  applyLanguage('bogus')
+  assert.equal(currentLanguage(), 'zh', '脏值回落中文并广播')
+  assert.deepEqual(changes, ['en', 'zh'])
+  unsubscribe()
+  applyLanguage('en')
+  assert.deepEqual(changes, ['en', 'zh'], '退订后不再收到广播')
+  applyLanguage('zh')
+
+  assert.equal(Array.from(LANGUAGE_OPTIONS, (option) => option.value).join(','), 'zh,en')
+  assert.equal(Array.from(LANGUAGE_OPTIONS, (option) => option.label).join(','), '中文,English', '语言选项用各自语言书写')
+
+  // 设置草稿与保存载荷都带语言：语言也是 Host 设置的一部分。
+  assert.equal(settingsDraft({}).language, 'zh')
+  assert.equal(settingsDraft({ language: 'en' }).language, 'en')
+  assert.equal(settingsDraft({ language: 'bogus' }).language, 'zh')
+  assert.equal(settingsPayload({ language: 'en' }).language, 'en')
+  assert.equal(settingsPayload({}).language, 'zh')
+
+  const labels = {
+    settingsSectionBasics: '统计与显示',
+    settingsBasicsHint: '统计口径、明细展示与侧栏入口，改动会立即生效。',
+    settingsLanguageLabel: '界面语言',
+    settingsLanguageHint: '只影响 TimeSpan 自己的文案，不改变 DSH 界面语言；默认中文。',
+  }
+  const t = (key) => labels[key] ?? key
+  const tree = React.render(createSettingsSection({}), { t })
+  const languageSelect = findAll(tree, (node) => node.type === Select && node.props?.ariaLabel === '界面语言')[0]
+  assert.ok(languageSelect, '设置页存在界面语言下拉')
+  assert.equal(languageSelect.props.value, 'zh', '语言下拉默认中文')
+  assert.equal(languageSelect.props.className, 'cs-settings-select', '与其它设置项共用同一套紧凑下拉')
+  assert.equal(Array.from(languageSelect.props.options, (option) => option.label).join(','), '中文,English')
+
+  // 宽卡两列排版：加上界面语言后是六项，正好填满两列，不留空格。
+  const body = renderBasicSettingsBody(t, null, false, () => {}, { split: true })
+  const list = allOf(body, byClass('cs-settings-list'))[0]
+  assert.match(list.props.className, /is-split is-even/, '六项在宽卡里两列正好填满')
+  assert.equal(allOf(body, byClass('cs-settings-row')).length, 6, '基础设置六项：语言、空闲阈值、周起始、子代理、侧栏状态、侧栏时长')
 })
 
 test('客户端：设置页通知记录可回看已读事件并显示累计条数', async () => {
@@ -1517,6 +1598,15 @@ test('客户端：初始化设置按钮先进入二次确认，再回调恢复',
   const idle = renderResetSettingsBody(t, { onRequest: () => calls.push('request') })
   const requestButton = findAll(idle, (node) => node.type === 'button' && /恢复初始设置/.test(textOf(node)))[0]
   assert.ok(requestButton, '默认状态提供恢复初始设置按钮')
+  assert.match(requestButton.props.className, /is-icon/, '按钮使用带图标的横向布局')
+  const icon = findAll(requestButton, (node) => node.type === 'svg' && /cs-reset-icon/.test(String(node.props?.className ?? '')))[0]
+  assert.ok(icon, '按钮左侧是复位图标')
+  const iconGroup = icon.children[0]
+  assert.equal(iconGroup?.type, 'g', '图标按 24 画布写好路径后整体缩放，描边宽度不被压扁')
+  assert.equal(iconGroup.props?.transform, 'translate(0 -0.6) scale(0.667)', '缩放后仍在 16 viewBox 内居中')
+  assert.equal(iconGroup.children.length, 2, '复位图标由箭头短腿与圆环两段路径组成')
+  assert.equal(icon.props['aria-hidden'], true, '图标不参与朗读，按钮文字已说明动作')
+  assert.equal(textOf(requestButton).trim(), '恢复初始设置', '图标不改变按钮可读文字')
   requestButton.props.onClick()
   assert.deepEqual(calls, ['request'], '第一次点击只请求展开确认，不直接恢复')
   assert.equal(findAll(idle, (node) => node.props?.role === 'alertdialog').length, 0, '确认前没有弹窗')
@@ -1534,6 +1624,24 @@ test('客户端：初始化设置按钮先进入二次确认，再回调恢复',
   cancel.props.onClick()
   confirm.props.onClick()
   assert.deepEqual(calls, ['request', 'cancel', 'reset'], '取消与确认分别回调，确认才真正恢复')
+})
+
+test('客户端：初始化设置卡与左侧外观卡底边齐平，按钮图标与文字同一行居中', async () => {
+  const css = await loadSettingsCss()
+  assert.match(
+    declarationsFor(css, '.cs-settings-board .cs-settings-reset-card'),
+    /align-self:\s*stretch/,
+    '初始化设置卡撑满整行，底边与左侧外观卡齐平',
+  )
+  assert.match(
+    css,
+    /\.cs-settings-board \.cs-settings-reset-card > :last-child \{ margin-top: auto; \}/,
+    '按钮组沉到卡片底部，留白留在说明与按钮之间',
+  )
+  assert.match(declarationsFor(css, '.cs-btn.is-icon'), /display:\s*inline-flex/, '带图标的按钮横向排布')
+  assert.match(declarationsFor(css, '.cs-btn.is-icon'), /gap:\s*6px/, '图标与文字间距固定 6px')
+  assert.match(declarationsFor(css, '.cs-btn.is-icon'), /align-items:\s*center/, '图标与文字垂直居中')
+  assert.match(declarationsFor(css, '.cs-reset-icon'), /flex:\s*none/, '图标不参与拉伸，始终保持 15×15')
 })
 
 test('客户端：设置页预览时间换字使用纯透明度淡入', async () => {

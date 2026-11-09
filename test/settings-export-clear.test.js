@@ -86,6 +86,7 @@ test('设置：首次安装默认紧凑单位、侧栏名称关闭且显示在�
     durationFormat: 'short',
     sidebarShowName: false,
     sidebarDuration: 'online',
+    language: 'zh',
     approximateNoticeDismissed: false,
   })
 })
@@ -100,20 +101,23 @@ test('设置：resetSettings 恢复初始预设且不删除统计数据', async 
     showSubagents: false,
     durationFormat: 'zh',
     sidebarShowName: true,
+    language: 'en',
     approximateNoticeDismissed: true,
   })
 
   const before = service.queryStats({ from: t0, to: t0 + 2 * MINUTE, view: 'dashboard' })
   const reset = await service.resetSettings()
   assert.deepEqual(reset, DEFAULT_SETTINGS, '恢复结果就是首次安装预设')
+  assert.equal(reset.language, 'zh', '恢复初始设置把界面语言带回中文')
   const after = service.queryStats({ from: t0, to: t0 + 2 * MINUTE, view: 'dashboard' })
   assert.equal(after.taskCount, before.taskCount, '恢复设置不影响任务统计')
   assert.equal(after.taskCount, 1, '已有任务仍在')
 })
 
-test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只认三项，补丁不覆盖其它项', () => {
+test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只认三项、language 只认中英两档，补丁不覆盖其它项', () => {
   assert.equal(DEFAULT_SETTINGS.durationFormat, 'short')
   assert.equal(DEFAULT_SETTINGS.sidebarDuration, 'online')
+  assert.equal(DEFAULT_SETTINGS.language, 'zh', '界面语言默认中文')
   assert.equal(normalizeSettings({ durationFormat: 'zh' }).durationFormat, 'zh')
   for (const value of ['short', 'sec', 'padded', 'hms']) {
     assert.equal(normalizeSettings({ durationFormat: value }).durationFormat, value)
@@ -127,6 +131,12 @@ test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只�
   for (const value of ['', 'ONLINE', 'idle', null, undefined, 7]) {
     assert.equal(normalizeSettings({ sidebarDuration: value }).sidebarDuration, 'online', `非法侧栏时长 ${String(value)} 回落在线时长`)
   }
+  for (const value of ['zh', 'en']) {
+    assert.equal(normalizeSettings({ language: value }).language, value)
+  }
+  for (const value of ['', 'EN', 'zh-CN', 'fr', null, undefined, 7]) {
+    assert.equal(normalizeSettings({ language: value }).language, 'zh', `非法语言 ${String(value)} 回落中文`)
+  }
   const merged = mergeSettings(
     { idleThresholdMinutes: 9, weekStartsOn: 7, showSubagents: false, durationFormat: 'zh' },
     { durationFormat: 'short', sidebarDuration: 'task' },
@@ -138,6 +148,7 @@ test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只�
     durationFormat: 'short',
     sidebarShowName: false,
     sidebarDuration: 'task',
+    language: 'zh',
     approximateNoticeDismissed: false,
   })
   const untouched = mergeSettings({ idleThresholdMinutes: 11, durationFormat: 'padded' }, { showSubagents: false })
@@ -160,6 +171,24 @@ test('设置：侧栏名称默认关闭，可显式开启并在局部更新与�
   assert.equal(restarted.getSettings().sidebarShowName, true, '重启后侧栏名称开关仍保留')
 
   assert.equal((await restarted.setSettings({ sidebarShowName: 'false' })).sidebarShowName, false, '字符串 false 也收敛为关闭')
+})
+
+test('设置：界面语言默认中文，可切英文并在局部更新、导出与重启后保留', async () => {
+  const { domain, service } = await startedService(localTime(2026, 11, 4, 10, 0))
+  assert.equal(service.getSettings().language, 'zh', '首次安装默认中文')
+
+  const saved = await service.setSettings({ language: 'en' })
+  assert.equal(saved.language, 'en')
+  assert.equal((await service.setSettings({ idleThresholdMinutes: 9 })).language, 'en', '局部更新保留界面语言')
+  assert.equal((await service.setSettings({ language: 'fr' })).language, 'zh', '非法语言回落中文并写回')
+  await service.setSettings({ language: 'en' })
+
+  const exported = JSON.parse((await service.exportData({ format: 'json' })).content)
+  assert.equal(exported.settings.language, 'en', '界面语言随设置一起导出')
+
+  const restarted = createDshTimespanDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 4, 10, 0) }) })
+  await restarted.start()
+  assert.equal(restarted.getSettings().language, 'en', '重启后界面语言仍保留')
 })
 
 test('设置：非法值收敛到合法范围，局部更新不覆盖其他项，保存后重启仍生效', async () => {
@@ -272,6 +301,7 @@ test('导出 JSON：包含原始区间、原始任务与设置，字段未经裁
     durationFormat: 'short',
     sidebarShowName: false,
     sidebarDuration: 'online',
+    language: 'zh',
     approximateNoticeDismissed: false,
   })
   assert.ok(payload.intervals.some((row) => row.type === 'online'), '原始在线区间必须导出')
@@ -504,6 +534,7 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     assert.equal(defaults.durationFormat, 'short')
     assert.equal(defaults.sidebarShowName, false)
     assert.equal(defaults.sidebarDuration, 'online')
+    assert.equal(defaults.language, 'zh', '界面语言默认中文')
 
     const saved = await harness.call('setSettings', {
       idleThresholdMinutes: 11,
@@ -511,19 +542,23 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
       showSubagents: false,
       durationFormat: 'short',
       sidebarShowName: true,
+      language: 'en',
       ignoredField: '不应写入',
     })
     assert.equal(saved.idleThresholdMinutes, 11)
     assert.equal(saved.durationFormat, 'short', 'RPC 白名单允许保存数字格式')
     assert.equal(saved.sidebarShowName, true, '侧栏名称开关进入 setSettings 白名单')
+    assert.equal(saved.language, 'en', '界面语言进入 setSettings 白名单')
     assert.equal(Object.hasOwn(saved, 'ignoredField'), false, '未知字段仍被白名单丢弃')
     const readBack = await harness.call('getSettings')
     assert.equal(readBack.weekStartsOn, 7, '重启前就能读回新设置')
     assert.equal(readBack.sidebarShowName, true, '侧栏名称开关可读回')
+    assert.equal(readBack.language, 'en', '界面语言可读回')
 
     let stats = await harness.call('queryStats', { period: 'week', view: 'dashboard' })
     assert.equal(stats.weekStartsOn, 7, '统计响应如实反映生效中的周起始')
     assert.equal(stats.durationFormat, 'short', 'queryStats 带回当前数字格式供页面与侧栏初始化')
+    assert.equal(stats.language, 'en', 'queryStats 带回界面语言，首屏即可落到用户选择的语言')
     assert.equal(stats.range.from, periodRange('week', now, { weekStartsOn: 7 }).from)
 
     // 等回填完成，确保清空前确实存在历史任务。
@@ -561,6 +596,7 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     assert.equal(afterReset.durationFormat, 'short', '恢复后数字格式回到紧凑单位')
     assert.equal(afterReset.sidebarShowName, false, '恢复后侧栏名称回到关闭')
     assert.equal(afterReset.sidebarDuration, 'online', '恢复后侧栏时长回到在线时长')
+    assert.equal(afterReset.language, 'zh', '恢复后界面语言回到中文')
   } finally {
     await harness.close()
   }

@@ -2026,31 +2026,49 @@ function sumTaskUnion(rows, from, to) {
  * 优先级为 等待 > 工具 > 模型：`ask_user_question` 的工具区间同时属于工具
  * 执行与等待用户，按等待归类后不再重复计入工具；并行工具调用取并集。剩余
  * 未被任何分段覆盖的时间归「其他」。这样四部分之和恒等于窗口总时长。
+ *
+ * 实现用「边界扫描」：每个分段在起止点记一条类型增量，按时间点排序后逐段
+ * 累加各类在用数量，再按优先级取最高的一类记账。这样每个分段只参与一次，
+ * 复杂度 O(n log n)；旧写法在每个基本区间上对全部分段做覆盖判断，分段上千
+ * 的任务会退化到 O(n²)（趋势桶与逐日序列每个桶都会重算一次，整页会明显卡）。
  */
 function computeTaskBreakdown(segments, start, end) {
   const total = Math.max(0, end - start)
-  const clipped = []
-  const points = new Set([start, end])
+  if (total <= 0) return { modelMs: 0, toolMs: 0, waitMs: 0, otherMs: 0 }
+  const boundaries = new Map([[start, { model: 0, tool: 0, wait: 0 }], [end, { model: 0, tool: 0, wait: 0 }]])
+  const boundaryAt = (at) => {
+    let delta = boundaries.get(at)
+    if (delta === undefined) {
+      delta = { model: 0, tool: 0, wait: 0 }
+      boundaries.set(at, delta)
+    }
+    return delta
+  }
   for (const segment of segments ?? []) {
+    if (segment.type !== 'model' && segment.type !== 'tool' && segment.type !== 'wait') continue
     const segmentStart = Math.max(start, segment.start)
     const segmentEnd = Math.min(end, segment.end ?? end)
     if (segmentEnd <= segmentStart) continue
-    clipped.push({ type: segment.type, start: segmentStart, end: segmentEnd })
-    points.add(segmentStart)
-    points.add(segmentEnd)
+    boundaryAt(segmentStart)[segment.type] += 1
+    boundaryAt(segmentEnd)[segment.type] -= 1
   }
-  const boundaries = [...points].sort((left, right) => left - right)
+  const points = [...boundaries.keys()].sort((left, right) => left - right)
   let modelMs = 0
   let toolMs = 0
   let waitMs = 0
-  for (let index = 0; index < boundaries.length - 1; index += 1) {
-    const segmentStart = boundaries[index]
-    const segmentEnd = boundaries[index + 1]
-    if (segmentEnd <= segmentStart) continue
-    const covers = (type) => clipped.some((item) => item.type === type && item.start <= segmentStart && item.end >= segmentEnd)
-    if (covers('wait')) waitMs += segmentEnd - segmentStart
-    else if (covers('tool')) toolMs += segmentEnd - segmentStart
-    else if (covers('model')) modelMs += segmentEnd - segmentStart
+  let activeModel = 0
+  let activeTool = 0
+  let activeWait = 0
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const delta = boundaries.get(points[index])
+    activeModel += delta.model
+    activeTool += delta.tool
+    activeWait += delta.wait
+    const span = points[index + 1] - points[index]
+    if (span <= 0) continue
+    if (activeWait > 0) waitMs += span
+    else if (activeTool > 0) toolMs += span
+    else if (activeModel > 0) modelMs += span
   }
   return {
     modelMs,

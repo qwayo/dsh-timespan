@@ -1,4 +1,8 @@
 <p align="center">
+  <kbd>简体中文</kbd> · <a href="./README.en.md">English</a>
+</p>
+
+<p align="center">
   <img src="./assets/readme/hero.svg" width="100%" alt="dsh-timespan：记录 DSH 的在线、活跃与任务时长，数据只留在本机">
 </p>
 
@@ -24,7 +28,7 @@
 - 日/周/月仪表盘：概览、趋势、明细、设置四个同级视图；活跃主数字、趋势、热力图均可放大为首屏独立页；趋势页附时段分布与趋势洞察。
 - 工作区 → 会话明细：活跃时长、任务时长、最近活动与当前计时状态；统计范围可切换今天、近3天、最近一周、近30天或全部，全部范围按批次渐进展开会话。
 - Agent 只读工具 `timespan_stats`：在对话中按日/周/月或自定义日期查询，与仪表盘共用同一份 Host 统计。
-- 设置：空闲阈值（1–15 分钟）、周起始（周一/周日）、外观（默认跟随系统）与配色、数字格式（默认紧凑单位，如 `2h 48m`）、是否显示子代理明细、侧栏状态文字与侧栏常驻时长（默认在线时长）。
+- 设置：界面语言（默认中文，可切英文，只影响本插件文案）、空闲阈值（1–15 分钟）、周起始（周一/周日）、外观（默认跟随系统）与配色、数字格式（默认紧凑单位，如 `2h 48m`）、是否显示子代理明细、侧栏状态文字与侧栏常驻时长（默认在线时长）。
 - 导出 JSON / CSV，备份文件按 ID 去重导入；新导出格式为 `dsh-timespan-export`，旧版 `chronoscope-export` 备份仍可导入；清空数据等破坏性操作保留二次确认。
 - 首次启用自动回填已有历史会话的任务时长。
 
@@ -116,7 +120,9 @@ dsh-timespan/
 ├─ icon.svg                      # 插件图标
 ├─ DESIGN.md                     # 页面设计规范
 ├─ GLOSSARY.md                   # 领域术语
-├─ assets/readme/                # README 视觉素材（hero、示意图）
+├─ README.md                     # 本页：中文 README（默认）
+├─ README.en.md                  # 英文 README
+├─ assets/readme/                # README 视觉素材（中英两版 hero 与示意图）
 ├─ locale/
 │  ├─ zh.json                    # 中文展示元数据
 │  └─ en.json                    # 英文展示元数据
@@ -154,6 +160,7 @@ dsh-timespan/
 
 ## 相关文档
 
+- [README.en.md](README.en.md)：本页的英文版，内容与配图一一对应。
 - [DESIGN.md](DESIGN.md)：页面设计规范。
 - [GLOSSARY.md](GLOSSARY.md)：领域术语（在线、活跃、任务、实际占用、累计工时）。
 - 架构决策记录（[docs/adr/](docs/adr/)）：
@@ -164,3 +171,4 @@ dsh-timespan/
   - [0005 热力图周网格](docs/adr/0005-全年热力图改为周网格与界面文案中文化.md)：全年热力图改为周网格与文案中文化。
   - [0006 信息浮层](docs/adr/0006-信息浮层反转回悬浮与聚焦触发.md)：信息浮层反转回悬浮与聚焦触发。
   - [0007 改名为 dsh-timespan](docs/adr/0007-rename-to-dsh-timespan.md)：改名范围、存储域与备份格式的兼容决策。
+  - [0008 界面语言](docs/adr/0008-界面语言改为插件设置项.md)：界面语言改为插件设置项，默认中文、可切英文。

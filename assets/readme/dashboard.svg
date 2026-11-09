@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="dash-title dash-desc">
-  <title id="dash-title">dsh-timespan 周期概览界面</title>
-  <desc id="dash-desc">dsh-timespan 周期概览界面（示例数据）：DSH 深色侧栏中的 dsh-timespan 入口显示今日在线 3h 41m；主区显示今日活跃时长 36m 47s，今日、本周、本月三张周期卡，今日 24 小时活跃与任务柱图，任务时长构成，以及工作区任务排行、示例会话与每日活跃热力图。</desc>
+  <title id="dash-title">TimeSpan 周期概览界面</title>
+  <desc id="dash-desc">TimeSpan 周期概览界面（示例数据）：DSH 深色侧栏中的 TimeSpan 入口显示今日在线 3h 41m；主区显示今日活跃时长 36m 47s，今日、本周、本月三张周期卡，今日 24 小时活跃与任务柱图，任务时长构成，以及工作区任务排行、示例会话与每日活跃热力图。</desc>
 
   <!-- 画布 -->
   <rect width="1200" height="900" rx="24" fill="#151718"/>
@@ -42,7 +42,7 @@
         <text x="74" y="234">更多</text>
       </g>
 
-      <!-- dsh-timespan 入口 -->
+      <!-- TimeSpan 入口 -->
       <rect x="40" y="268" width="164" height="52" rx="12" fill="#303435"/>
       <g transform="rotate(-90 58 294)">
         <circle cx="58" cy="294" r="10.5" fill="none" stroke="#303435" stroke-width="3"/>
@@ -92,7 +92,7 @@
         <path d="M16 16 24 8" fill="none" stroke="#f1f2f1" stroke-width="2.4" stroke-linecap="round"/>
         <circle cx="16" cy="16" r="2.4" fill="#f1f2f1"/>
       </g>
-      <text x="294" y="72" font-size="27" font-weight="700" fill="#f1f2f1">dsh-timespan</text>
+      <text x="294" y="72" font-size="27" font-weight="700" fill="#f1f2f1">TimeSpan</text>
 
       <circle cx="900" cy="63" r="5" fill="#8a9090"/>
       <text x="912" y="69" font-size="16" fill="#b1b6b5">空闲</text>

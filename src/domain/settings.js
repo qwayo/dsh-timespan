@@ -18,6 +18,14 @@ export const MAX_IDLE_THRESHOLD_MINUTES = 15
 export const SIDEBAR_DURATION_VALUES = Object.freeze(['online', 'active', 'task'])
 export const DEFAULT_SIDEBAR_DURATION = 'online'
 
+/**
+ * 插件自己的界面语言：中文（默认）与英文两档。
+ * 它只决定本插件文案用哪套字典，与宿主（DSH）的界面语言互不影响，
+ * 因此同一台机器上的多个页面可以各自选择显示语言。
+ */
+export const LANGUAGE_VALUES = Object.freeze(['zh', 'en'])
+export const DEFAULT_LANGUAGE = 'zh'
+
 export const DEFAULT_SETTINGS = Object.freeze({
   idleThresholdMinutes: 5,
   weekStartsOn: MONDAY_WEEK_START,
@@ -27,6 +35,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   sidebarShowName: false,
   // 侧栏入口常驻显示哪种时长：online = 在线时长（默认）、active = 活跃时长、task = 任务时长。
   sidebarDuration: DEFAULT_SIDEBAR_DURATION,
+  // 插件界面语言：中文（默认）或英文；只影响本插件文案，不改变宿主界面语言。
+  language: DEFAULT_LANGUAGE,
   // 「近似数据」说明是否已被用户关闭；属于展示偏好，默认未关闭。
   approximateNoticeDismissed: false,
 })
@@ -73,6 +83,14 @@ function normalizeSidebarDuration(value) {
 }
 
 /**
+ * 界面语言只认 zh / en：缺省、旧版本字段缺失与脏数据都回落默认中文，
+ * 这样升级后第一次打开一定是中文界面，不会被浏览器语言改变。
+ */
+function normalizeLanguage(value) {
+  return typeof value === 'string' && LANGUAGE_VALUES.includes(value) ? value : DEFAULT_LANGUAGE
+}
+
+/**
  * 近似数据说明的关闭开关只认布尔值：非布尔（含字符串、数字、null、undefined）
  * 一律按未关闭处理，不沿用 showSubagents 那套「字符串 false」的宽松收敛。
  */
@@ -93,6 +111,7 @@ export function normalizeSettings(value) {
     durationFormat: normalizeDurationFormat(source.durationFormat),
     sidebarShowName: normalizeSidebarShowName(source.sidebarShowName),
     sidebarDuration: normalizeSidebarDuration(source.sidebarDuration),
+    language: normalizeLanguage(source.language),
     approximateNoticeDismissed: normalizeApproximateNoticeDismissed(source.approximateNoticeDismissed),
   }
 }
@@ -113,6 +132,7 @@ export function mergeSettings(current, patch) {
     durationFormat: Object.hasOwn(incoming, 'durationFormat') ? incoming.durationFormat : base.durationFormat,
     sidebarShowName: Object.hasOwn(incoming, 'sidebarShowName') ? incoming.sidebarShowName : base.sidebarShowName,
     sidebarDuration: Object.hasOwn(incoming, 'sidebarDuration') ? incoming.sidebarDuration : base.sidebarDuration,
+    language: Object.hasOwn(incoming, 'language') ? incoming.language : base.language,
     approximateNoticeDismissed: Object.hasOwn(incoming, 'approximateNoticeDismissed')
       ? incoming.approximateNoticeDismissed
       : base.approximateNoticeDismissed,

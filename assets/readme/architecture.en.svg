@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">How dsh-timespan works</title>
+  <desc id="arch-desc">dsh-timespan has two halves. The Host is the background half running with DSH: it records the online heartbeat, listens to session events, computes every statistic, writes to local storage and registers the read-only timespan_stats tool. The Client is the half you see on the page: the sidebar entry, the presence heartbeat, the overview / trend / details views and the settings page. It only reports what happened to the Host.</desc>
+
+  <rect width="1200" height="440" rx="24" fill="#151718"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="438.5" rx="23.25" fill="none" stroke="#2b3033" stroke-width="1.5"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+
+    <!-- Eyebrow -->
+    <g transform="translate(72 42)">
+      <circle cx="10" cy="10" r="8" fill="none" stroke="#303435" stroke-width="2.2"/>
+      <g transform="rotate(-90 10 10)">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="#3f6ba8" stroke-width="2.2"
+                pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>
+        <circle cx="10" cy="10" r="8" fill="none" stroke="#79B3F9" stroke-width="2.2"
+                pathLength="100" stroke-dasharray="30 70" stroke-dashoffset="-50"/>
+        <circle cx="10" cy="10" r="8" fill="none" stroke="#C29BE8" stroke-width="2.2"
+                pathLength="100" stroke-dasharray="20 80" stroke-dashoffset="-80"/>
+      </g>
+      <text x="28" y="15" font-size="15" letter-spacing="2.4" fill="#8a9090"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">HOW IT WORKS · HOST + CLIENT</text>
+    </g>
+
+    <!-- ===== Background: DSH Host ===== -->
+    <g id="host-box">
+      <rect x="72" y="70" width="1056" height="132" rx="16" fill="#202324" stroke="#414647" stroke-width="1.5"/>
+      <circle cx="98" cy="101" r="7" fill="#79B3F9"/>
+      <text x="116" y="110" font-size="25" font-weight="700" fill="#f1f2f1"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Host</text>
+      <text x="252" y="109" font-size="18" fill="#8a9090">Runs alongside DSH; every statistic is computed here</text>
+
+      <g font-size="18" fill="#b1b6b5" text-anchor="middle">
+        <rect x="96" y="136" width="152" height="40" rx="20" fill="#303435"/>
+        <text x="172" y="161">30s heartbeat</text>
+        <rect x="260" y="136" width="160" height="40" rx="20" fill="#303435"/>
+        <text x="340" y="161">Session events</text>
+        <rect x="432" y="136" width="169" height="40" rx="20" fill="#303435"/>
+        <text x="516.5" y="161">One calculation</text>
+        <rect x="613" y="136" width="186" height="40" rx="20" fill="#303435"/>
+        <text x="706" y="161">Local · no upload</text>
+        <rect x="811" y="136" width="195" height="40" rx="20" fill="#303435"/>
+        <text x="908.5" y="161">timespan_stats tool</text>
+      </g>
+    </g>
+
+    <!-- ===== Two-way channel ===== -->
+    <g id="channel">
+      <line x1="300" y1="274" x2="300" y2="210" stroke="#79B3F9" stroke-width="2"/>
+      <path d="M294 216 300 206 306 216" fill="none" stroke="#79B3F9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="322" y="242" font-size="16" fill="#b1b6b5">Facts: visible, focus, turn edges</text>
+
+      <line x1="790" y1="208" x2="790" y2="274" stroke="#a9cffa" stroke-width="2"/>
+      <path d="M784 268 790 278 796 268" fill="none" stroke="#a9cffa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="812" y="242" font-size="16" fill="#b1b6b5">Same source as timespan_stats</text>
+
+      <rect x="598" y="221" width="140" height="28" rx="14" fill="#182430" stroke="#2e4a66" stroke-width="1"/>
+      <text x="668" y="240" text-anchor="middle" font-size="12" fill="#8fbfe9"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">in-package RPC</text>
+    </g>
+
+    <!-- ===== Page: DSH Web Client ===== -->
+    <g id="client-box">
+      <rect x="72" y="278" width="1056" height="112" rx="16" fill="#202324" stroke="#414647" stroke-width="1.5"/>
+      <circle cx="98" cy="309" r="7" fill="#a9cffa"/>
+      <text x="116" y="318" font-size="25" font-weight="700" fill="#f1f2f1"
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Web Client</text>
+      <text x="338" y="317" font-size="18" fill="#8a9090">The half you see; it reports facts and renders results</text>
+
+      <g font-size="18" fill="#b1b6b5" text-anchor="middle">
+        <rect x="96" y="334" width="152" height="36" rx="18" fill="#303435"/>
+        <text x="172" y="357">Sidebar entry</text>
+        <rect x="260" y="334" width="160" height="36" rx="18" fill="#303435"/>
+        <text x="340" y="357">presence / 15s</text>
+        <rect x="432" y="334" width="264" height="36" rx="18" fill="#303435"/>
+        <text x="564" y="357">Overview / Trend / Details</text>
+        <rect x="708" y="334" width="238" height="36" rx="18" fill="#303435"/>
+        <text x="827" y="357">Settings on this device</text>
+      </g>
+    </g>
+
+    <text x="600" y="426" text-anchor="middle" font-size="18" fill="#b1b6b5">The page only reports facts; the Host computes every number and keeps it on this device.</text>
+  </g>
+</svg>

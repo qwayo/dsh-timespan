@@ -198,6 +198,9 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
       // 页面与侧栏的初始数字格式：设置是权威副本，随每次取数一起带回，
       // Client 不另存一份业务状态。刷新后自然回到已保存值。
       durationFormat: settings.durationFormat,
+      // 界面语言同理随取数带回：页面首屏就能落到用户选择的语言，
+      // 不必等设置读接口返回，也不用在浏览器里缓存第二份语言状态。
+      language: settings.language,
       view,
       from: stats.from,
       to: stats.to,
@@ -257,7 +260,7 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
   function setSettings(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('setSettings 载荷必须是对象')
     const patch = {}
-    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName', 'sidebarDuration', 'approximateNoticeDismissed']) {
+    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName', 'sidebarDuration', 'language', 'approximateNoticeDismissed']) {
       if (Object.hasOwn(payload, key)) patch[key] = payload[key]
     }
     return service.setSettings(patch)

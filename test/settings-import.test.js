@@ -301,6 +301,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
     durationFormat: 'zh',
     sidebarShowName: false,
     sidebarDuration: 'task',
+    language: 'en',
     approximateNoticeDismissed: true,
     evilField: '不应写入',
   }
@@ -315,6 +316,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
     durationFormat: 'short',
     sidebarShowName: false,
     sidebarDuration: 'online',
+    language: 'zh',
     approximateNoticeDismissed: false,
   })
 
@@ -331,6 +333,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
   assert.equal(restored.durationFormat, 'zh')
   assert.equal(restored.sidebarShowName, false)
   assert.equal(restored.sidebarDuration, 'task')
+  assert.equal(restored.language, 'en', '界面语言随备份一起恢复')
   assert.equal(restored.approximateNoticeDismissed, true)
   assert.equal(Object.hasOwn(restored, 'evilField'), false, '未知字段被 normalizeSettings 白名单丢弃')
 
@@ -339,6 +342,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
   const partial = service.getSettings()
   assert.equal(partial.idleThresholdMinutes, 3)
   assert.equal(partial.weekStartsOn, 7, '局部恢复保留其它字段')
+  assert.equal(partial.language, 'en', '局部恢复保留界面语言')
   assert.equal(partial.approximateNoticeDismissed, true, '局部恢复保留布尔开关')
 })
 
