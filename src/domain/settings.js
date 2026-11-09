@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   weekStartsOn: MONDAY_WEEK_START,
   showSubagents: true,
   durationFormat: DEFAULT_DURATION_FORMAT,
-  // 侧栏入口是否显示名称；首次安装默认关闭，仍保留时长、状态点与今日构成环。
+  // 侧栏入口是否显示状态文字（空闲/活跃中/任务中）；首次安装默认关闭，仍保留时长、状态点与今日构成环。
   sidebarShowName: false,
   // 侧栏入口常驻显示哪种时长：online = 在线时长（默认）、active = 活跃时长、task = 任务时长。
   sidebarDuration: DEFAULT_SIDEBAR_DURATION,
@@ -58,8 +58,8 @@ function normalizeShowSubagents(value) {
 }
 
 /**
- * 侧栏名称默认关闭：只有明确打开才显示，缺省、旧版本字段缺失与脏数据都收敛为
- * 关闭。这样首次安装不会先闪出一行名称。
+ * 侧栏状态文字默认关闭：只有明确打开才显示，缺省、旧版本字段缺失与脏数据都收敛为
+ * 关闭。这样首次安装不会先闪出一行状态文字。
  */
 function normalizeSidebarShowName(value) {
   return value === true || value === 'true' || value === 1

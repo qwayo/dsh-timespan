@@ -844,7 +844,7 @@ export function createChronoScopeDomain({ domain, clock }) {
     if (groupBy === 'workspace' || groupBy === 'session') {
       stats.groups = projectStatsGroups(workspaces, groupBy)
     }
-    if (view !== 'dashboard') return stats
+    if (view !== 'dashboard' && view !== 'details') return stats
     // 子代理任务不进总计，但要能在父会话明细中看到：按 parentSessionId 交给页面
     // 折叠展示，避免 RPC 直接暴露整张 tasks 原始明细。
     // 子代理任务不进总计，是否露出明细由 Host 设置决定；页面只渲染拿到的行，
@@ -861,10 +861,12 @@ export function createChronoScopeDomain({ domain, clock }) {
             start: task.start,
           }))
       : []
+    const result = { ...stats, workspaces, subagentTasks }
+    // 明细只需要工作区与会话；趋势和周期卡仅属于概览/趋势页，查询自定义
+    // 历史范围时跳过这部分计算，避免「全部」范围重复扫描。
+    if (view === 'details') return result
     return {
-      ...stats,
-      workspaces,
-      subagentTasks,
+      ...result,
       trend: computeTrend(requestedPeriod, current, weekStart, filters),
       cycles: computeCycles(current, weekStart, filters),
     }
@@ -1520,8 +1522,12 @@ export function createChronoScopeDomain({ domain, clock }) {
     const totalTaskMs = rows.reduce((sum, group) => sum + group.taskMs, 0)
     for (const group of rows) {
       group.share = totalTaskMs > 0 ? group.taskMs / totalTaskMs : 0
+      // 会话列表按最近活动倒序；统计范围拉大后，旧会话不会仅因累计任务
+      // 时长更高而排到刚用过的会话前面。最近活动相同时再按任务时长兜底。
       group.sessions.sort(
-        (left, right) => right.taskMs - left.taskMs || String(left.sessionId).localeCompare(String(right.sessionId)),
+        (left, right) => right.lastActivityAt - left.lastActivityAt
+          || right.taskMs - left.taskMs
+          || String(left.sessionId).localeCompare(String(right.sessionId)),
       )
     }
     rows.sort(

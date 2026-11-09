@@ -159,16 +159,37 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
    * 周期边界、裁剪与两种口径都由 Host 领域服务决定；RPC 只做参数校验与
    * 字段裁剪，不重新实现任何业务规则。tasks 原始明细不整体向 Client 暴露，
    * 仪表盘视图只附带按父会话关联的子代理任务摘要。
-   * 页面 RPC 只按周期查询：自定义起止范围由 Host 侧工具（票 07 的
-   * chrono_stats）直接调用领域服务，避免自定义范围与趋势桶/周期卡窗口错配。
+   * 页面按周期查询时会带上 `period`；明细页可选传入 `from`（以及 `to`）作为
+   * 本地自然日范围，范围与周期卡/趋势桶互不影响。`details` 视图只返回工作区
+   * 与会话明细，跳过趋势和周期卡计算。
    * 周起始不再由页面下发，也不存在页面缓存的一份设置：Host 领域服务每次
    * 查询都从权威 meta 现取，改完设置的下一次取数立即换边界。
    */
   function queryStats(payload) {
     const now = Date.now()
     const period = normalizePeriod(payload?.period)
-    const view = payload?.view === 'dashboard' ? 'dashboard' : 'summary'
-    const stats = service.queryStats({ period, view })
+    const view = payload?.view === 'dashboard'
+      ? 'dashboard'
+      : payload?.view === 'details'
+        ? 'details'
+        : 'summary'
+    const range = {}
+    if (payload?.from !== undefined) {
+      if (typeof payload.from !== 'number' || !Number.isFinite(payload.from)) {
+        throw new Error('queryStats 的 from 必须是有限数字')
+      }
+      range.from = payload.from
+    }
+    if (payload?.to !== undefined) {
+      if (typeof payload.to !== 'number' || !Number.isFinite(payload.to)) {
+        throw new Error('queryStats 的 to 必须是有限数字')
+      }
+      range.to = payload.to
+    }
+    if (range.from !== undefined && range.to !== undefined && range.from > range.to) {
+      throw new Error('queryStats 的 from 不能晚于 to')
+    }
+    const stats = service.queryStats({ period, view, ...range })
     const settings = service.getSettings()
     const result = {
       asOf: now,
@@ -195,18 +216,20 @@ export function registerChronoScopeRpc(ctx, service, hooks = {}) {
       // 状态翻到 done 的那一次响应里数字也已经是回填后的结果，页面无需刷新。
       backfill: readBackfillStatus(),
     }
-    if (view === 'dashboard') {
+    if (view === 'dashboard' || view === 'details') {
       result.workspaces = stats.workspaces
-      result.trend = stats.trend
-      result.cycles = stats.cycles
       // 子代理任务只按父会话关联暴露，不进总计，也不暴露整张 tasks 原始明细。
       result.subagentTasks = stats.subagentTasks ?? []
+    }
+    if (view === 'dashboard') {
+      result.trend = stats.trend
+      result.cycles = stats.cycles
     }
     return result
   }
 
   /**
-   * 每日时长热力图的只读数据源：只接受 `{ from, to }` 两个有限数字，
+   * 每日活跃热力图的只读数据源：只接受 `{ from, to }` 两个有限数字，
    * 其余规则（自然日切桶、裁剪与三项口径）全部由领域服务决定。
    */
   function queryDailySeries(payload) {

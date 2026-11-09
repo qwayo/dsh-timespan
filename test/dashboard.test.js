@@ -237,6 +237,30 @@ test('工作区→会话明细：两种口径、占比、最近活动与会话�
   assert.equal(hourBucket.activeMs, 4 * MINUTE)
 })
 
+test('工作区明细：会话按最近活动倒序，旧的大任务会话不会压在刚用过的会话前面', async () => {
+  const t0 = localTime(2026, 11, 6, 9, 0)
+  const clock = createFakeClock(t0 + 3 * HOUR, 3 * HOUR)
+  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  await service.start()
+
+  const workspace = { workspaceId: 'workspace-1', workspaceTitle: '工作区一' }
+  await addTurn(service, 'session-old', 1, t0, t0 + 30 * MINUTE, {
+    ...workspace,
+    sessionTitle: '较早的大任务会话',
+  })
+  await addTurn(service, 'session-new', 1, t0 + 2 * HOUR, t0 + 2 * HOUR + 10 * MINUTE, {
+    ...workspace,
+    sessionTitle: '最近使用的会话',
+  })
+
+  const stats = service.queryStats({ period: 'day', view: 'details' })
+  assert.deepEqual(
+    stats.workspaces[0].sessions.map((session) => session.sessionId),
+    ['session-new', 'session-old'],
+    '统计范围扩大后仍按最近活动排序，而不是只按累计任务时长排序',
+  )
+})
+
 test('空数据：仪表盘返回空工作区与全零趋势，不抛错', async () => {
   const clock = createFakeClock(localTime(2026, 11, 4, 10, 0), 0)
   const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
@@ -281,6 +305,27 @@ test('summary 视图：侧边栏读取保持轻量，不携带趋势与工作区
   assert.ok(Number.isFinite(stats.activeMs))
   assert.equal(stats.trend, undefined)
   assert.equal(stats.workspaces, undefined)
+})
+
+test('details 视图：返回工作区与会话明细，跳过趋势和周期卡计算', async () => {
+  const now = localTime(2026, 11, 4, 10, 30)
+  const clock = createFakeClock(now, 0)
+  const service = createChronoScopeDomain({ domain: createMemoryDomain(), clock })
+  await service.start()
+  await addTurn(service, 'session-1', 1, localTime(2026, 11, 4, 9, 0), localTime(2026, 11, 4, 9, 30), {
+    workspaceId: 'workspace-1', workspaceTitle: '工作区一',
+  })
+  await addTurn(service, 'session-1', 2, localTime(2026, 10, 15, 9, 0), localTime(2026, 10, 15, 9, 20))
+
+  const details = service.queryStats({ from: localTime(2026, 11, 4, 0, 0), view: 'details' })
+  assert.equal(details.range.from, localTime(2026, 11, 4, 0, 0))
+  assert.equal(details.range.to, now)
+  assert.equal(details.taskCount, 1, '只统计今天这一段任务')
+  assert.equal(details.workspaces.length, 1)
+  assert.equal(details.workspaces[0].sessions.length, 1)
+  assert.equal(details.trend, undefined, '明细不计算趋势桶')
+  assert.equal(details.cycles, undefined, '明细不计算周期卡')
+  assert.ok(Array.isArray(details.subagentTasks), '明细仍带子代理任务摘要')
 })
 
 test('只有活跃、没有任务的会话也出现在明细里，未归属活跃不被丢弃', async () => {
