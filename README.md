@@ -48,15 +48,23 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 
 > 安装、更新、卸载都交给 `plugin_manager` 处理。不要手动改 profile 的 `package.json`，也不要自己跑 pnpm——这些由它统一处理，失败时它会自动恢复原状。
 
-### 方式一：安装 GitHub 仓库
+### 方式一：从 npm 安装
 
-仓库托管在 GitHub 上，不想改源码时用这种方式。在会话里对 Agent 说：
+包已发布到 npm，这是最省事的方式。在会话里对 Agent 说：
+
+> 帮我装插件 @qwayo/dsh-timespan
+
+`plugin_manager` 会从 registry 拉取最新版本、安装并默认启用。想钉住版本就把名字换成 `@qwayo/dsh-timespan@0.1.1`。提示需要重启时，重启 DSH 即可。
+
+### 方式二：安装 GitHub 仓库
+
+仓库托管在 GitHub 上，想装某个分支或 tag 时用这种方式。在会话里对 Agent 说：
 
 > 帮我装插件 github:qwayo/dsh-timespan
 
 `plugin_manager` 会先探测仓库，再拉取、安装并默认启用。提示需要重启时，重启 DSH 即可。
 
-### 方式二：安装本地目录
+### 方式三：安装本地目录
 
 想改源码或做本地开发，把本地目录以 `link:` 方式接入当前 profile，改完代码重启就能生效，不用重新安装：
 

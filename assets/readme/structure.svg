@@ -19,7 +19,7 @@
                 pathLength="100" stroke-dasharray="20 80" stroke-dashoffset="-80"/>
       </g>
       <text x="28" y="15" font-size="15" letter-spacing="2.2" fill="#8a9090"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">bundle 结构 · @qwayo/dsh-timespan · v0.1.0</text>
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">bundle 结构 · @qwayo/dsh-timespan · v0.1.1</text>
     </g>
 
     <!-- ===== 第一层：bundle 清单 ===== -->

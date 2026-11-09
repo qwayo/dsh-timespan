@@ -46,15 +46,23 @@ Prerequisites: DSH installed (DSH Desktop, or any environment with a Web profile
 
 > Install, update and uninstall all go through `plugin_manager`. Do not edit the profile's `package.json` by hand and do not run pnpm yourself — it handles both and restores the previous state if anything fails.
 
-### Option 1: install from GitHub
+### Option 1: install from npm
 
-The repository is hosted on GitHub; use this route when you do not want to touch the source. Say this in a session:
+The package is published to npm; this is the easiest route. Say this in a session:
+
+> Install the plugin @qwayo/dsh-timespan
+
+`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.1.1` instead. Restart DSH when it says a restart is needed.
+
+### Option 2: install from GitHub
+
+The repository is hosted on GitHub; use this route when you want a specific branch or tag. Say this in a session:
 
 > Install the plugin github:qwayo/dsh-timespan
 
 `plugin_manager` probes the repository first, then fetches, installs and enables it. Restart DSH when it says a restart is needed.
 
-### Option 2: install from a local directory
+### Option 3: install from a local directory
 
 To change the source or develop locally, link the local directory into the current profile with `link:`; after a code change a restart is enough and no reinstall is needed:
 
