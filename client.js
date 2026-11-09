@@ -8,6 +8,10 @@
  * 周期边界、跨午夜裁剪、并发并集、会话求和、设置归一化与文件序列化全部由
  * Host 领域服务计算；Client 不缓存业务状态，刷新后所有数字都重新从 Host 读取。
  *
+ * 界面语言：中文（默认）与英文两档，是插件自己的设置项（language），与宿主
+ * locale 解耦。文案统一走 translate，切语言只改这一处状态，由订阅广播让侧栏
+ * 入口、仪表盘与设置页各自重渲染。
+ *
  * 视觉基座：页面容器用 cs-palette-* 与 cs-appearance-* 切换 CSS 变量；
  * 三档蓝 --cs-signal-deep/--cs-signal/--cs-signal-soft 派生 --cs-live、--cs-tone-*
  * 与 --cs-heat-*；--cs-task 使用独立的紫罗兰辅助色，保证活跃与任务两组柱分明。
@@ -91,9 +95,21 @@ window.__ModuleLoader__.load({
     const HERO_METRIC_KEY = 'dsh-timespan.heroMetric'
     const HERO_METRIC_VALUES = ['active', 'online', 'task', 'week', 'month']
     const HERO_METRIC_DEFAULT = 'active'
+    /**
+     * 插件界面语言：两档，默认中文，设置页可切到英文。
+     * 这是插件自己的设置项（存在 Host 权威设置里），刻意不跟随宿主 locale：
+     * 宿主界面语言属于另一个产品面，改它会影响整个 DSH，超出这个插件的职责。
+     */
+    const LANGUAGE_VALUES = ['zh', 'en']
+    const DEFAULT_LANGUAGE = 'zh'
+    /** 语言选项用各自的语言书写：界面已经在英文时，「中文」仍然认得出来。 */
+    const LANGUAGE_OPTIONS = Object.freeze([
+      { value: 'zh', label: '中文' },
+      { value: 'en', label: 'English' },
+    ])
 
     const zh = {
-      title: 'dsh-timespan',
+      title: 'TimeSpan',
 
       todayActive: '今日活跃时长',
       todayOnline: '今日在线时长',
@@ -134,7 +150,7 @@ window.__ModuleLoader__.load({
       error: '暂时无法读取时长统计，正在自动重试',
       sinceBoot: '活跃：页面可见、窗口聚焦且有键鼠操作时计入。',
       localOnly: '数据仅保存在本机',
-      navTooltip: 'dsh-timespan · 在线、活跃与任务时长',
+      navTooltip: 'TimeSpan · 在线、活跃与任务时长',
       periodDay: '日',
       periodWeek: '周',
       periodMonth: '月',
@@ -152,7 +168,7 @@ window.__ModuleLoader__.load({
       tabTrend: '趋势',
       tabDetails: '明细',
       tabSettings: '设置',
-      tabsLabel: 'dsh-timespan 页面',
+      tabsLabel: 'TimeSpan 页面',
       recentSessions: '最近会话',
       recentSessionsHint: '按最近活动时间排序',
       recentSessionsEmpty: '当前周期还没有会话记录',
@@ -292,8 +308,8 @@ window.__ModuleLoader__.load({
       backfillNoticeUnavailable: '暂时无法读取通知记录',
       subagentDetail: '子代理任务',
       subagentDetailHint: '共 {count} 条，合计 {duration}（不计入总计）',
-      settingsNav: 'dsh-timespan',
-      settingsTitle: 'dsh-timespan 设置',
+      settingsNav: 'TimeSpan',
+      settingsTitle: 'TimeSpan 设置',
       settingsHint: '改动即存本机并立即生效，重启后仍然生效。',
       settingsIdleLabel: '空闲阈值',
       settingsIdleHint: '页面可见且聚焦时，最后一次操作超过这个时长就不再计入活跃时长。',
@@ -316,6 +332,8 @@ window.__ModuleLoader__.load({
       sidebarDurationOnline: '在线时长',
       sidebarDurationActive: '活跃时长',
       sidebarDurationTask: '任务时长',
+      settingsLanguageLabel: '界面语言',
+      settingsLanguageHint: '只影响 TimeSpan 自己的文案，不改变 DSH 界面语言；默认中文。',
       settingsSave: '保存设置',
       settingsSaving: '正在保存…',
       settingsSaved: '已保存，统计已按新设置更新',
@@ -336,10 +354,10 @@ window.__ModuleLoader__.load({
       formatHintPadded: '补零时钟',
       formatPreviewLabel: '预览 · 2:48:16 显示为',
       settingsResetTitle: '初始化设置',
-      settingsResetHint: '把侧栏状态显示与显示时长、数字格式、外观配色与统计偏好恢复为首次安装时的默认值；不会删除任何统计数据。',
+      settingsResetHint: '把界面语言、侧栏状态显示与显示时长、数字格式、外观配色与统计偏好恢复为首次安装时的默认值；不会删除任何统计数据。',
       settingsResetButton: '恢复初始设置',
       settingsResetConfirmTitle: '恢复初始设置？',
-      settingsResetConfirmHint: '侧栏状态显示、侧栏显示时长、数字格式、外观配色、空闲阈值、周起始与子代理显示都会回到默认值；统计记录不受影响。',
+      settingsResetConfirmHint: '界面语言、侧栏状态显示、侧栏显示时长、数字格式、外观配色、空闲阈值、周起始与子代理显示都会回到默认值；统计记录不受影响。',
       settingsResetConfirm: '确认恢复',
       settingsResetCancel: '取消',
       settingsResetDone: '已恢复初始设置',
@@ -381,7 +399,7 @@ window.__ModuleLoader__.load({
     }
 
     const en = {
-      title: 'dsh-timespan',
+      title: 'TimeSpan',
 
       todayActive: 'Active today',
       todayOnline: 'Online today',
@@ -422,7 +440,7 @@ window.__ModuleLoader__.load({
       error: 'Unable to read time statistics. Retrying automatically.',
       sinceBoot: 'Active: counted while the page is visible, the window is focused and there is input.',
       localOnly: 'Data stays on this device',
-      navTooltip: 'dsh-timespan · online, active and task time',
+      navTooltip: 'TimeSpan · online, active and task time',
       periodDay: 'Day',
       periodWeek: 'Week',
       periodMonth: 'Month',
@@ -440,7 +458,7 @@ window.__ModuleLoader__.load({
       tabTrend: 'Trend',
       tabDetails: 'Details',
       tabSettings: 'Settings',
-      tabsLabel: 'dsh-timespan pages',
+      tabsLabel: 'TimeSpan pages',
       recentSessions: 'Recent sessions',
       recentSessionsHint: 'Ordered by last activity',
       recentSessionsEmpty: 'No sessions in this period yet',
@@ -580,8 +598,8 @@ window.__ModuleLoader__.load({
       backfillNoticeUnavailable: 'Notification records are temporarily unavailable',
       subagentDetail: 'Subagent tasks',
       subagentDetailHint: '{count} tasks · {duration} total (excluded from totals)',
-      settingsNav: 'dsh-timespan',
-      settingsTitle: 'dsh-timespan settings',
+      settingsNav: 'TimeSpan',
+      settingsTitle: 'TimeSpan settings',
       settingsHint: 'Settings stay on this device, apply to later statistics immediately and survive restarts.',
       settingsIdleLabel: 'Idle threshold',
       settingsIdleHint: 'While visible and focused, activity stops counting once the last input is older than this.',
@@ -604,6 +622,8 @@ window.__ModuleLoader__.load({
       sidebarDurationOnline: 'Online',
       sidebarDurationActive: 'Active',
       sidebarDurationTask: 'Task',
+      settingsLanguageLabel: 'Interface language',
+      settingsLanguageHint: 'Changes TimeSpan wording only; the DSH interface language is untouched. Defaults to Chinese.',
       settingsSave: 'Save settings',
       settingsSaving: 'Saving…',
       settingsSaved: 'Saved; statistics now use the new settings',
@@ -624,10 +644,10 @@ window.__ModuleLoader__.load({
       formatHintPadded: 'Padded clock',
       formatPreviewLabel: 'Preview · 2:48:16 shows as',
       settingsResetTitle: 'Initial settings',
-      settingsResetHint: 'Restore the sidebar status display and duration, number format, colors and counting preferences to their first-install defaults. Statistics are never deleted.',
+      settingsResetHint: 'Restore interface language, the sidebar status display and duration, number format, colors and counting preferences to their first-install defaults. Statistics are never deleted.',
       settingsResetButton: 'Restore initial settings',
       settingsResetConfirmTitle: 'Restore initial settings?',
-      settingsResetConfirmHint: 'Sidebar status display, sidebar duration, number format, colors, idle threshold, week start and subagent display return to defaults. Statistics are unaffected.',
+      settingsResetConfirmHint: 'Interface language, sidebar status display, sidebar duration, number format, colors, idle threshold, week start and subagent display return to defaults. Statistics are unaffected.',
       settingsResetConfirm: 'Restore',
       settingsResetCancel: 'Cancel',
       settingsResetDone: 'Initial settings restored',
@@ -666,6 +686,65 @@ window.__ModuleLoader__.load({
       importReadFailed: 'Could not read file',
       importFileHint: 'No file selected',
       importFilePicked: 'Selected: ',
+    }
+
+    /**
+     * 当前界面语言。宿主设置是唯一权威副本：这里只是「已经读到的那个值」，
+     * 由 callSettings 在每次读写设置时写入，页面刷新后重新从 Host 落回来。
+     */
+    let activeLanguage = DEFAULT_LANGUAGE
+    /** 语言变化事件：切换后通知侧栏入口、仪表盘与设置页各自重渲染。 */
+    const languageListeners = new Set()
+
+    /** 语言只认 zh / en；脏值回落默认中文，与 Host 侧的归一化规则一致。 */
+    function normalizeLanguage(value) {
+      return LANGUAGE_VALUES.includes(value) ? value : DEFAULT_LANGUAGE
+    }
+
+    function currentLanguage() {
+      return activeLanguage
+    }
+
+    function subscribeLanguage(listener) {
+      languageListeners.add(listener)
+      return () => languageListeners.delete(listener)
+    }
+
+    /**
+     * 把 Host 读回的语言落到本地并广播。值没变时什么也不做：统计与设置
+     * 每次轮询都带回语言，不去重会让三个点位每秒空转重渲染。
+     */
+    function applyLanguage(value) {
+      const next = normalizeLanguage(value)
+      if (next === activeLanguage) return next
+      activeLanguage = next
+      for (const listener of [...languageListeners]) {
+        try {
+          listener(next)
+        } catch {
+          // 单个监听器失败不影响其它点位换文案。
+        }
+      }
+      return next
+    }
+
+    /**
+     * 翻译：按当前语言查插件自己的字典，查不到时回落到默认中文，再查不到
+     * 就原样返回键名。函数引用恒定，可以安全地随 inject 传给各个点位。
+     */
+    function translate(key) {
+      const primary = activeLanguage === 'en' ? en : zh
+      const text = primary[key] ?? zh[key]
+      return typeof text === 'string' ? text : key
+    }
+
+    /**
+     * 语言变化时强制所在组件重渲染：文案由 translate 现读，组件自己不存语言
+     * 副本，因此一个 revision 计数就够。
+     */
+    function useLanguageRevision() {
+      const [, setRevision] = React.useState(0)
+      React.useEffect(() => subscribeLanguage(() => setRevision((value) => value + 1)), [])
     }
 
     /** 每个页面实例一个 Client 标识；刷新后旧区间按最后心跳收口。 */
@@ -1332,6 +1411,18 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * 设置读写统一走这里：getSettings / setSettings / resetSettings 都会回
+     * 完整设置对象，顺手把界面语言落到本地（语言是 Host 设置的一部分）。
+     * 这样每个点位只管自己关心的字段，语言不会漏掉某一个入口。
+     */
+    function callSettings(ctx, method, payload) {
+      return callHost(ctx, method, payload).then((value) => {
+        applyLanguage(value?.language)
+        return value
+      })
+    }
+
+    /**
      * 设置保存 / 数据清空后让仪表盘立刻重新取数。这里只广播「发生了变更」，
      * 不携带任何设置值，页面始终从 Host 重新读，不形成第二份业务状态。
      */
@@ -1411,6 +1502,7 @@ window.__ModuleLoader__.load({
         durationFormat: normalizeDurationFormat(value?.durationFormat),
         sidebarShowName: value?.sidebarShowName === true,
         sidebarDuration: normalizeSidebarDuration(value?.sidebarDuration),
+        language: normalizeLanguage(value?.language),
         approximateNoticeDismissed: value?.approximateNoticeDismissed === true,
       }
     }
@@ -1424,6 +1516,7 @@ window.__ModuleLoader__.load({
         durationFormat: normalizeDurationFormat(draft.durationFormat),
         sidebarShowName: draft.sidebarShowName === true,
         sidebarDuration: normalizeSidebarDuration(draft.sidebarDuration),
+        language: normalizeLanguage(draft.language),
         approximateNoticeDismissed: draft.approximateNoticeDismissed === true,
       }
     }
@@ -1450,6 +1543,8 @@ window.__ModuleLoader__.load({
           try {
             const value = await callHost(ctx, 'queryStats', { period: 'day' })
             if (!active) return
+            // 语言随统计一起带回：侧栏首屏就能落到用户选择的语言。
+            applyLanguage(value?.language)
             setState({
               status: 'ready',
               onlineMs: Number.isFinite(value?.onlineMs) ? value.onlineMs : 0,
@@ -1895,6 +1990,8 @@ window.__ModuleLoader__.load({
     /** 侧边栏常驻入口：今日构成环 + 所选时长 + 可隐藏状态文字 + 状态点。 */
     function createSidebarEntry(ctx, t) {
       return function DshTimespanSidebarEntry(props) {
+        // 设置页切换语言后，侧栏入口立刻用新字典重渲染。
+        useLanguageRevision()
         const [previewFormat, setPreviewFormat] = React.useState(null)
         const [refreshNonce, setRefreshNonce] = React.useState(0)
         const stats = useTodayStats(ctx, SIDEBAR_REFRESH_MS, refreshNonce)
@@ -1939,7 +2036,7 @@ window.__ModuleLoader__.load({
         React.useEffect(() => {
           let active = true
           const load = () => {
-            callHost(ctx, 'getSettings', {})
+            callSettings(ctx, 'getSettings', {})
               .then((value) => {
                 if (!active) return
                 const visible = value?.sidebarShowName === true
@@ -2197,6 +2294,8 @@ window.__ModuleLoader__.load({
             if (from !== null) payload.from = from
             const value = await callHost(ctx, 'queryStats', payload)
             if (!active) return
+            // 语言随统计一起带回：仪表盘首屏不必等设置读接口。
+            applyLanguage(value?.language)
             setState({ status: 'ready', data: normalizeDashboard(value), receivedAt: Date.now() })
           } catch {
             if (!active) return
@@ -3439,6 +3538,8 @@ window.__ModuleLoader__.load({
     function createSettingsSection(ctx) {
       return function DshTimespanSettingsSection(props) {
         const t = props?.t ?? ((key) => key)
+        // 语言切换后这一页自己也要重渲染：标题、标签与提示都来自字典。
+        useLanguageRevision()
         const [draft, setDraft] = React.useState(null)
         const [phase, setPhase] = React.useState('loading')
         const [message, setMessage] = React.useState('')
@@ -3450,7 +3551,7 @@ window.__ModuleLoader__.load({
         React.useEffect(() => {
           let active = true
           setPhase('loading')
-          callHost(ctx, 'getSettings', {})
+          callSettings(ctx, 'getSettings', {})
             .then((value) => {
               if (!active) return
               setDraft(settingsDraft(value))
@@ -3496,7 +3597,7 @@ window.__ModuleLoader__.load({
         }
         const autoSave = async (next) => {
           try {
-            const saved = await callHost(ctx, 'setSettings', settingsPayload(next))
+            const saved = await callSettings(ctx, 'setSettings', settingsPayload(next))
             setDraft(settingsDraft(saved))
             showSavedBadge()
             // 只广播「变了」，具体值由仪表盘重新向 Host 取。
@@ -3527,7 +3628,7 @@ window.__ModuleLoader__.load({
           setResetting(true)
           setMessage('')
           try {
-            const saved = await callHost(ctx, 'resetSettings', {})
+            const saved = await callSettings(ctx, 'resetSettings', {})
             setDraft(settingsDraft(saved))
             resetStoredTheme()
             setResetStep(false)
@@ -3600,68 +3701,99 @@ window.__ModuleLoader__.load({
       const idleOptions = Array.from({ length: 15 }, (_, index) => String(index + 1))
       // DSH 设置页与插件自己的设置面板共用同一套紧凑下拉，避免默认样式在宽容器里被拉满。
       const selectClass = options.selectClass ?? 'cs-settings-select'
+      const rows = [
+        // 语言放第一行：它决定这一页所有文案用哪套字典，先选语言再看其余项最顺。
+        settingsRow(t, 'settingsLanguageLabel', 'settingsLanguageHint',
+          h(Select, {
+            value: normalizeLanguage(draft?.language),
+            options: LANGUAGE_OPTIONS,
+            disabled: busy,
+            className: selectClass,
+            ariaLabel: t('settingsLanguageLabel'),
+            onChange: (value) => onPatch?.('language', normalizeLanguage(value)),
+          })),
+        settingsRow(t, 'settingsIdleLabel', 'settingsIdleHint',
+          h(Select, {
+            value: draft?.idleThresholdMinutes ?? '5',
+            options: idleOptions,
+            disabled: busy,
+            className: selectClass,
+            ariaLabel: t('settingsIdleLabel'),
+            onChange: (value) => onPatch?.('idleThresholdMinutes', value),
+          }),
+          h('span', { className: 'cs-settings-unit' }, t('settingsIdleUnit'))),
+        settingsRow(t, 'settingsWeekLabel', 'settingsWeekHint',
+          h(Select, {
+            value: draft?.weekStartsOn ?? '1',
+            options: [
+              { value: '1', label: t('settingsWeekMonday') },
+              { value: '7', label: t('settingsWeekSunday') },
+            ],
+            disabled: busy,
+            className: selectClass,
+            ariaLabel: t('settingsWeekLabel'),
+            onChange: (value) => onPatch?.('weekStartsOn', value === '7' ? '7' : '1'),
+          })),
+        settingsRow(t, 'settingsSubagentLabel', 'settingsSubagentHint',
+          h('label', { className: 'cs-settings-switch' },
+            h('input', {
+              type: 'checkbox',
+              'aria-label': t('settingsSubagentLabel'),
+              checked: draft?.showSubagents !== false,
+              disabled: busy,
+              onChange: (event) => onPatch?.('showSubagents', event?.target?.checked === true),
+            }),
+            h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn')))),
+        settingsRow(t, 'settingsSidebarNameLabel', 'settingsSidebarNameHint',
+          h('label', { className: 'cs-settings-switch' },
+            h('input', {
+              type: 'checkbox',
+              'aria-label': t('settingsSidebarNameLabel'),
+              checked: draft?.sidebarShowName === true,
+              disabled: busy,
+              onChange: (event) => onPatch?.('sidebarShowName', event?.target?.checked === true),
+            }),
+            h('span', null, draft?.sidebarShowName === true ? t('settingsSidebarNameOn') : t('settingsSidebarNameOff')))),
+        settingsRow(t, 'settingsSidebarDurationLabel', 'settingsSidebarDurationHint',
+          h(Select, {
+            value: normalizeSidebarDuration(draft?.sidebarDuration),
+            options: [
+              { value: 'online', label: t('sidebarDurationOnline') },
+              { value: 'active', label: t('sidebarDurationActive') },
+              { value: 'task', label: t('sidebarDurationTask') },
+            ],
+            disabled: busy,
+            className: selectClass,
+            ariaLabel: t('settingsSidebarDurationLabel'),
+            onChange: (value) => onPatch?.('sidebarDuration', normalizeSidebarDuration(value)),
+          })),
+      ]
+      // 宽卡按两列排：行数为奇数时最后一行独占整行，偶数时正好填满两列，不留空格。
+      const splitClass = options.split === true
+        ? ` is-split${rows.length % 2 === 0 ? ' is-even' : ''}`
+        : ''
       return [
         h('div', { className: 'cs-settings-card-head' },
           h('div', null,
             h('h3', null, t('settingsSectionBasics')),
             h('p', { className: 'cs-settings-card-sub' }, t('settingsBasicsHint')))),
-        h('div', { className: `cs-settings-list${options.split === true ? ' is-split' : ''}` },
-          settingsRow(t, 'settingsIdleLabel', 'settingsIdleHint',
-            h(Select, {
-              value: draft?.idleThresholdMinutes ?? '5',
-              options: idleOptions,
-              disabled: busy,
-              className: selectClass,
-              ariaLabel: t('settingsIdleLabel'),
-              onChange: (value) => onPatch?.('idleThresholdMinutes', value),
-            }),
-            h('span', { className: 'cs-settings-unit' }, t('settingsIdleUnit'))),
-          settingsRow(t, 'settingsWeekLabel', 'settingsWeekHint',
-            h(Select, {
-              value: draft?.weekStartsOn ?? '1',
-              options: [
-                { value: '1', label: t('settingsWeekMonday') },
-                { value: '7', label: t('settingsWeekSunday') },
-              ],
-              disabled: busy,
-              className: selectClass,
-              ariaLabel: t('settingsWeekLabel'),
-              onChange: (value) => onPatch?.('weekStartsOn', value === '7' ? '7' : '1'),
-            })),
-          settingsRow(t, 'settingsSubagentLabel', 'settingsSubagentHint',
-            h('label', { className: 'cs-settings-switch' },
-              h('input', {
-                type: 'checkbox',
-                'aria-label': t('settingsSubagentLabel'),
-                checked: draft?.showSubagents !== false,
-                disabled: busy,
-                onChange: (event) => onPatch?.('showSubagents', event?.target?.checked === true),
-              }),
-              h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn')))),
-          settingsRow(t, 'settingsSidebarNameLabel', 'settingsSidebarNameHint',
-            h('label', { className: 'cs-settings-switch' },
-              h('input', {
-                type: 'checkbox',
-                'aria-label': t('settingsSidebarNameLabel'),
-                checked: draft?.sidebarShowName === true,
-                disabled: busy,
-                onChange: (event) => onPatch?.('sidebarShowName', event?.target?.checked === true),
-              }),
-              h('span', null, draft?.sidebarShowName === true ? t('settingsSidebarNameOn') : t('settingsSidebarNameOff')))),
-          settingsRow(t, 'settingsSidebarDurationLabel', 'settingsSidebarDurationHint',
-            h(Select, {
-              value: normalizeSidebarDuration(draft?.sidebarDuration),
-              options: [
-                { value: 'online', label: t('sidebarDurationOnline') },
-                { value: 'active', label: t('sidebarDurationActive') },
-                { value: 'task', label: t('sidebarDurationTask') },
-              ],
-              disabled: busy,
-              className: selectClass,
-              ariaLabel: t('settingsSidebarDurationLabel'),
-              onChange: (value) => onPatch?.('sidebarDuration', normalizeSidebarDuration(value)),
-            }))),
+        h('div', { className: `cs-settings-list${splitClass}` }, ...rows),
       ]
+    }
+
+    /**
+     * 复位图标：逆时针圆环箭头，用在「恢复初始设置」按钮左侧。
+     * 路径按 24 画布的通用形状写好，再整体缩放进 16 viewBox：这样描边宽度与
+     * 其它图标一致（约 1.45），端点圆角不会被压扁。颜色跟随按钮文字。
+     */
+    function resetIcon() {
+      return h('svg', {
+        className: 'cs-reset-icon', viewBox: '0 0 16 16', width: 15, height: 15,
+        fill: 'none', stroke: 'currentColor', 'aria-hidden': true,
+      },
+      h('g', { transform: 'translate(0 -0.6) scale(0.667)', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        h('path', { d: 'M3 2v6h6' }),
+        h('path', { d: 'M3.51 15a9 9 0 1 0 2.13-9.36L3 8' })))
     }
 
     /**
@@ -3692,9 +3824,9 @@ window.__ModuleLoader__.load({
               }, options.resetting === true ? t('loading') : t('settingsResetConfirm'))))
           : h('div', { className: 'cs-settings-reset-actions' },
               h('button', {
-                type: 'button', className: 'cs-btn', disabled,
+                type: 'button', className: 'cs-btn is-icon', disabled,
                 onClick: () => options.onRequest?.(),
-              }, t('settingsResetButton'))),
+              }, resetIcon(), h('span', null, t('settingsResetButton')))),
       ]
     }
 
@@ -4972,6 +5104,8 @@ window.__ModuleLoader__.load({
     function createPage(ctx) {
       return function DshTimespanPage(props) {
         const t = props?.t ?? ((key) => key)
+        // 语言切换后仪表盘整页换文案；isZh 仍在渲染时从 t 现读，不缓存。
+        useLanguageRevision()
         const isZh = t('periodDay') === '日'
         const [period, setPeriod] = React.useState(() => {
           try { const value = window.sessionStorage.getItem('dsh-timespan.period'); return ['day', 'week', 'month'].includes(value) ? value : 'day' }
@@ -5081,7 +5215,7 @@ window.__ModuleLoader__.load({
         const [approxDismissed, setApproxDismissed] = React.useState(false)
         React.useEffect(() => {
           let active = true
-          callHost(ctx, 'getSettings', {}).then((value) => {
+          callSettings(ctx, 'getSettings', {}).then((value) => {
             if (active) setApproxDismissed(value?.approximateNoticeDismissed === true)
           }).catch(() => {})
           return () => { active = false }
@@ -5197,7 +5331,7 @@ window.__ModuleLoader__.load({
             setDataMessage({ text: `${t('importSuccess')} · ${resultText}`, error: false })
             // 导入产生了新的数据代次，近似说明重新显示。
             setApproxDismissed(false)
-            await callHost(ctx, 'setSettings', { approximateNoticeDismissed: false }).catch(() => {})
+            await callSettings(ctx, 'setSettings', { approximateNoticeDismissed: false }).catch(() => {})
             notifySettingsChanged()
           } catch (error) {
             setImportError(String(error?.message ?? t('importReadFailed')))
@@ -5271,7 +5405,7 @@ window.__ModuleLoader__.load({
             setSettingsPhase('loading')
             setSettingsMessage('')
           }
-          callHost(ctx, 'getSettings', {}).then((value) => {
+          callSettings(ctx, 'getSettings', {}).then((value) => {
             if (!active) return
             setSettingsForm(settingsDraft(value))
             setSettingsPhase(keepSaved ? 'saved' : 'ready')
@@ -5310,7 +5444,7 @@ window.__ModuleLoader__.load({
         }
         const autoSaveSettings = async (next) => {
           try {
-            const saved = await callHost(ctx, 'setSettings', settingsPayload(next))
+            const saved = await callSettings(ctx, 'setSettings', settingsPayload(next))
             setSettingsForm(settingsDraft(saved))
             showSavedBadge()
             notifySettingsChanged()
@@ -5340,7 +5474,7 @@ window.__ModuleLoader__.load({
           setSettingsResetting(true)
           setSettingsMessage('')
           try {
-            const saved = await callHost(ctx, 'resetSettings', {})
+            const saved = await callSettings(ctx, 'resetSettings', {})
             setSettingsForm(settingsDraft(saved))
             setPreviewFormat(null)
             applyAppearance('system')
@@ -5391,7 +5525,7 @@ window.__ModuleLoader__.load({
             setDataMessage({ text: t('cleared'), error: false })
             // 清空数据同样是新的数据代次，近似说明重新显示。
             setApproxDismissed(false)
-            await callHost(ctx, 'setSettings', { approximateNoticeDismissed: false }).catch(() => {})
+            await callSettings(ctx, 'setSettings', { approximateNoticeDismissed: false }).catch(() => {})
             // 广播而不把空状态写进本地：下一次取数由 Host 给出真实结果。
             notifySettingsChanged()
           } catch {
@@ -5488,7 +5622,7 @@ window.__ModuleLoader__.load({
         const onDismissApproximate = async () => {
           setApproxDismissed(true)
           try {
-            await callHost(ctx, 'setSettings', { approximateNoticeDismissed: true })
+            await callSettings(ctx, 'setSettings', { approximateNoticeDismissed: true })
             notifySettingsChanged()
           } catch {
             setApproxDismissed(false)
@@ -5497,7 +5631,7 @@ window.__ModuleLoader__.load({
         const onShowApproximate = async () => {
           setApproxDismissed(false)
           try {
-            await callHost(ctx, 'setSettings', { approximateNoticeDismissed: false })
+            await callSettings(ctx, 'setSettings', { approximateNoticeDismissed: false })
             notifySettingsChanged()
           } catch {
             setApproxDismissed(true)
@@ -5870,8 +6004,8 @@ window.__ModuleLoader__.load({
       .dsh-timespan-nav-entry:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
       /* 关闭「显示名称」时连宿主 panelTitle 一起隐藏：只隐藏第二个 span，
          折叠态只剩 panelGlyph 一个 span，不会被误隐藏；label 保留可访问名与 tooltip。 */
-      html[data-dsh-timespan-hide-name] button[aria-label="dsh-timespan"] { gap: 0; }
-      html[data-dsh-timespan-hide-name] button[aria-label="dsh-timespan"] > span + span { display: none; }
+      html[data-dsh-timespan-hide-name] button[aria-label="TimeSpan"] { gap: 0; }
+      html[data-dsh-timespan-hide-name] button[aria-label="TimeSpan"] > span + span { display: none; }
       /* 名称去掉后，时间独占剩余空间并居中，字号再放大一档。 */
       .dsh-timespan-nav-entry.is-nameless { justify-content: center; }
       .dsh-timespan-nav-entry.is-nameless .dsh-timespan-nav-time {
@@ -6582,6 +6716,9 @@ window.__ModuleLoader__.load({
       .cs-btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 45%, var(--dsw-alias-border-l1)); }
       .cs-btn:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
       .cs-btn:disabled { opacity: .55; cursor: default; }
+      /* 带图标的按钮：图标与文字同色，垂直居中，间距按 6px 收。 */
+      .cs-btn.is-icon { display: inline-flex; align-items: center; gap: 6px; }
+      .cs-reset-icon { flex: none; display: block; }
       .cs-btn.is-danger { color: var(--dsw-alias-state-error-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 40%, var(--dsw-alias-border-l1)); }
       .cs-btn.is-solid { color: #fff; background: var(--dsw-alias-state-error-primary); border-color: var(--dsw-alias-state-error-primary); }
       .cs-clear-confirm {
@@ -7376,7 +7513,7 @@ window.__ModuleLoader__.load({
       }
       .cs-settings-list { display: flex; flex-direction: column; margin-top: 6px; }
       .cs-settings-list .cs-settings-row:last-child { border-bottom: 0; padding-bottom: 1px; }
-      /* 仪表盘宽卡：统计项排成两列，长标签的侧栏显示时长独占一行，避免右半张卡空着。 */
+      /* 仪表盘宽卡：统计项排成两列；行数为奇数时最后一行独占整行，避免右半张卡空着。 */
       .cs-settings-list.is-split {
         display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
         column-gap: 18px; row-gap: 0;
@@ -7385,6 +7522,8 @@ window.__ModuleLoader__.load({
         grid-template-columns: minmax(0, 1fr) auto; gap: 10px;
       }
       .cs-settings-list.is-split .cs-settings-row:last-child { grid-column: 1 / -1; }
+      /* 行数为偶数时（含界面语言后的六项）两列正好填满，最后一行不再独占整行。 */
+      .cs-settings-list.is-split.is-even .cs-settings-row:last-child { grid-column: auto; }
       .cs-settings-list.is-split .cs-settings-row > div:first-child { min-width: 0; }
       .cs-settings-list.is-split .cs-settings-control { justify-content: flex-end; }
       .cs-settings-board .cs-format-card { align-self: stretch; }
@@ -7409,6 +7548,9 @@ window.__ModuleLoader__.load({
       /* 最底一排两张卡共享行高，底边保持齐平；内容多的数据管理决定这一排的高度。 */
       .cs-settings-board .cs-notices-card,
       .cs-settings-board .cs-data-card { align-self: stretch; }
+      /* 初始化设置与左侧外观卡同高：卡片撑满整行，按钮组沉到卡片底部。 */
+      .cs-settings-board .cs-settings-reset-card { align-self: stretch; }
+      .cs-settings-board .cs-settings-reset-card > :last-child { margin-top: auto; }
       .cs-appearance-panel {
         display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
         padding-top: 8px;
@@ -7526,6 +7668,8 @@ window.__ModuleLoader__.load({
       /* 保存按钮组与上方内容拉开留白；独立挂载的设置页也统一 30–32px 按钮高度。 */
       .cs-settings-footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 12px; }
       .cs-btn { min-height: 30px; padding: 5px 12px; }
+      .cs-btn.is-icon { display: inline-flex; align-items: center; gap: 6px; }
+      .cs-reset-icon { flex: none; display: block; }
       .cs-settings-status { font-size: 12px; color: var(--dsw-alias-brand-primary); }
       .cs-settings-status.is-error { color: var(--dsw-alias-state-error-primary); }
       /* 通知记录：已读后仍可回看；样式只做最小列表，不改变设置页版式。 */
@@ -7562,8 +7706,12 @@ window.__ModuleLoader__.load({
     return {
       inject: ['connection', 'slots', 'locale'],
       apply(ctx) {
+        // 两套字典仍登记到宿主 locale 命名空间：点位上的 locale: NS 指向它，
+        // 宿主侧任何按命名空间取文案的入口都拿得到同一份字符串。
         ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-timespan: dictionaries')
-        const t = ctx.locale.bind(NS)
+        // 插件界面语言由自己的设置项决定（默认中文），不跟随宿主 locale：
+        // 这里用本地的 translate，切换后由 languageListeners 通知各点位重渲染。
+        const t = translate
 
         // 活跃采集不依赖侧边栏入口是否固定；放在始终挂载的 frame-wide overlay。
         ctx.slots.inject('shell.overlay', () =>

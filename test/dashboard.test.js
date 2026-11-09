@@ -362,3 +362,75 @@ test('只有活跃、没有任务的会话也出现在明细里，未归属活�
   assert.equal(group.sessions[0].sessionId, null)
   assert.equal(group.sessions[0].activeMs, 2 * MINUTE)
 })
+
+/**
+ * 任务构成按边界扫描一遍就算完：分段再多也不会退化成逐段两两比较。
+ * 旧写法在每个基本区间上对全部分段做覆盖判断，分段上千的任务要跑几十毫秒；
+ * 趋势桶与逐日序列每个桶都会重算一次，整页就会卡在「正在读取时长统计」。
+ */
+test('任务构成：两万条分段的任务单次算完，四段之和仍等于窗口时长', async () => {
+  const t0 = localTime(2026, 11, 4, 9, 0)
+  const clock = createFakeClock(t0 + 3 * HOUR, 3 * HOUR)
+  const service = createDshTimespanDomain({ domain: createMemoryDomain(), clock })
+  await service.start()
+
+  // 首尾相接的模型/工具分段铺满整段任务，末尾再叠一段工具与一段等待，
+  // 用来验证「等待 > 工具 > 模型」的优先级没有被优化改掉。
+  const segments = []
+  let at = t0
+  for (let index = 0; index < 20_000; index += 1) {
+    const length = 200 + (index % 4) * 100
+    segments.push({ type: index % 3 === 0 ? 'tool' : 'model', start: at, end: at + length })
+    at += length
+  }
+  const taskEnd = at
+  segments.push({ type: 'tool', start: taskEnd - 4_000, end: taskEnd - 2_000 })
+  segments.push({ type: 'wait', start: taskEnd - 4_000, end: taskEnd - 3_000 })
+
+  await service.importData({
+    format: 'dsh-timespan-export',
+    version: 1,
+    exportedAt: t0,
+    intervals: [],
+    tasks: [{
+      id: 'session-big_t1',
+      key: 'session-big:1',
+      sessionId: 'session-big',
+      turn: 1,
+      parentSessionId: null,
+      origin: null,
+      workspaceId: 'workspace-1',
+      workspaceTitle: '工作区一',
+      sessionTitle: '会话一',
+      start: t0,
+      end: taskEnd,
+      endReason: 'completed',
+      modelMs: 0,
+      toolMs: 0,
+      waitMs: 0,
+      otherMs: 0,
+      hasBreakdown: true,
+      approximate: false,
+      lastEventAt: taskEnd,
+      lastEventUptime: null,
+      startedUptime: null,
+      segments,
+      source: 'live',
+    }],
+  })
+
+  const began = performance.now()
+  const stats = service.queryStats({ from: t0, to: taskEnd })
+  const elapsed = performance.now() - began
+  const row = stats.tasks[0]
+
+  assert.equal(row.durationMs, taskEnd - t0)
+  assert.equal(row.waitMs, 1_000, '等待压过工具：重叠的 1 秒只计入等待')
+  assert.equal(row.otherMs, 0, '分段铺满整段任务，没有「其他」')
+  assert.equal(
+    row.modelMs + row.toolMs + row.waitMs + row.otherMs,
+    row.durationMs,
+    '四段之和恒等于窗口时长',
+  )
+  assert.ok(elapsed < 150, `两万条分段的单次查询应在 150ms 内完成，实际 ${elapsed.toFixed(1)}ms`)
+})
