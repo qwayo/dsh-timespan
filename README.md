@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.png" width="100%" alt="dsh-timespan：记录 DSH 的在线、活跃与任务时长，数据只留在本机">
+  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-timespan：记录 DSH 的在线、活跃与任务时长，数据只留在本机">
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 ## 界面一览
 
 <p align="center">
-  <img src="./assets/readme/dashboard.png" width="100%" alt="dsh-timespan 周期概览界面示意（示例数据）：侧栏在线时长入口、今日活跃时长主数字、今日/本周/本月周期卡、今日 24 小时、任务时长构成、工作区任务排行、最近会话与每日活跃热力图">
+  <img src="./assets/readme/dashboard.svg" width="100%" alt="dsh-timespan 周期概览界面示意（示例数据）：侧栏在线时长入口、今日活跃时长主数字、今日/本周/本月周期卡、今日 24 小时、任务时长构成、工作区任务排行、最近会话与每日活跃热力图">
 </p>
 
 - 侧边栏常驻入口，实时显示所选时长（默认在线时长）与今日构成环，悬浮说明约 200ms 出现。
@@ -35,7 +35,7 @@
 ## 运行机制
 
 <p align="center">
-  <img src="./assets/readme/architecture.png" width="100%" alt="dsh-timespan 运行机制：Host 是随 DSH 一起运行的后台，记在线心跳、听会话事件、统一计算统计并写入本机存储；Client 是页面上看到的部分，负责侧栏入口、仪表盘与设置页，并把发生了什么报给后台">
+  <img src="./assets/readme/architecture.svg" width="100%" alt="dsh-timespan 运行机制：Host 是随 DSH 一起运行的后台，记在线心跳、听会话事件、统一计算统计并写入本机存储；Client 是页面上看到的部分，负责侧栏入口、仪表盘与设置页，并把发生了什么报给后台">
 </p>
 
 dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client** 是你在页面上看到的部分。页面只把「发生了什么」报给后台——界面还开着、页面是否可见、会话什么时候开始和结束跑任务；至于今天算多久、一周算多久、活跃怎么判定，全部由后台统一计算，算完写进本机的存储域，不上传。
@@ -106,7 +106,7 @@ npm run audit    # 质量门禁：bundle 清单、身份字符串、双语 READM
 ## 项目结构
 
 <p align="center">
-  <img src="./assets/readme/structure.png" width="100%" alt="dsh-timespan bundle 结构树：package.json 与 cordis.patch.yml 组成 bundle；index.js 与 client.js 分为 Host、Client 两半；src/domain 领域层七个模块、src/host 适配层两个模块，Client 半挂载宿主四个页面点位；配套 test、docs/adr、locale 与 assets/readme">
+  <img src="./assets/readme/structure.svg" width="100%" alt="dsh-timespan bundle 结构树：package.json 与 cordis.patch.yml 组成 bundle；index.js 与 client.js 分为 Host、Client 两半；src/domain 领域层七个模块、src/host 适配层两个模块，Client 半挂载宿主四个页面点位；配套 test、docs/adr、locale 与 assets/readme">
 </p>
 
 <details>
@@ -158,6 +158,18 @@ dsh-timespan/
 </details>
 
 > 存储域内部仍使用 `chrono_scope` 作为持久化键，以免已有统计与设置失联；这是历史兼容名，对外的项目名是 **dsh-timespan**。
+
+<details>
+<summary>位图版配图（供插件市场抓取）</summary>
+
+插件市场的截图门禁只接受 PNG / WebP / JPG，SVG 会被直接丢弃，所以这里另放一套 2 倍位图给它抓；正文里的配图仍使用矢量 SVG。改 SVG 后需要重新导出同名 PNG。
+
+<img src="./assets/readme/dashboard.png" width="100%" alt="dsh-timespan 周期概览界面示意（示例数据）">
+<img src="./assets/readme/architecture.png" width="100%" alt="dsh-timespan 运行机制：Host 与 Client 两半">
+<img src="./assets/readme/structure.png" width="100%" alt="dsh-timespan bundle 结构树">
+<img src="./assets/readme/hero.png" width="100%" alt="dsh-timespan 标题图">
+
+</details>
 
 ## 相关文档
 
