@@ -70,7 +70,7 @@ To change the source or develop locally, link the local directory into the curre
 - A **dsh-timespan** entry appears in the left sidebar, showing today's online time by default (switch it to active or task time in Settings; the status text is off on first install and can be turned on with "Show sidebar status" — it then shows idle, active or in task).
 - A **dsh-timespan** section appears on the settings page.
 - Ask the agent "use timespan_stats to check today's time" and it returns statistics.
-- When needed, verify with `plugin_manager`'s `list_bundles` / `list_plugins`: the bundle `@local/dsh-timespan` and the plugin row `dsh-timespan` are enabled.
+- When needed, verify with `plugin_manager`'s `list_bundles` / `list_plugins`: the bundle `@qwayo/dsh-timespan` and the plugin row `dsh-timespan` are enabled.
 - Upgrading from the old `chrono-scope` name: remove the old `@local/chrono-scope` bundle first, then install this directory as above. The storage domain is still `chrono_scope`, so existing statistics and settings survive.
 
 <details>
@@ -172,3 +172,4 @@ Core files:
   - [0007 Rename to dsh-timespan](docs/adr/0007-rename-to-dsh-timespan.md): the rename scope and the compatibility decisions for the storage domain and backup format.
   - [0008 Interface language](docs/adr/0008-界面语言改为插件设置项.md): interface language as a plugin setting, Chinese by default with English available.
   - [0009 Quality gates and release flow](docs/adr/0009-质量门禁与发布流程.md): the scope and limits of CI, the audit invariants, and the manual release flow.
+  - [0010 Package renamed to @qwayo/dsh-timespan](docs/adr/0010-包名改为-qwayo-scope.md): the package-name migration before going public and publishing to npm, and what installed users must do.

@@ -72,7 +72,7 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 - 左侧栏出现 **dsh-timespan** 入口，默认显示今日在线时长（可在设置中切换为活跃或任务时长；首次安装默认不显示状态文字，可在设置里打开「侧栏显示状态」，开启后显示空闲、活跃中或任务中）。
 - 设置页出现 **dsh-timespan** 分区。
 - 对 Agent 说「用 timespan_stats 查一下今天的时长」，能返回统计结果。
-- 需要时用 `plugin_manager` 的 `list_bundles` / `list_plugins` 核对：bundle `@local/dsh-timespan` 和插件行 `dsh-timespan` 处于启用状态。
+- 需要时用 `plugin_manager` 的 `list_bundles` / `list_plugins` 核对：bundle `@qwayo/dsh-timespan` 和插件行 `dsh-timespan` 处于启用状态。
 - 从旧名 `chrono-scope` 升级：先移除旧的 `@local/chrono-scope` bundle，再按上面的方式安装本目录；存储域仍是 `chrono_scope`，历史统计与设置不会丢。
 
 <details>
@@ -174,3 +174,4 @@ dsh-timespan/
   - [0007 改名为 dsh-timespan](docs/adr/0007-rename-to-dsh-timespan.md)：改名范围、存储域与备份格式的兼容决策。
   - [0008 界面语言](docs/adr/0008-界面语言改为插件设置项.md)：界面语言改为插件设置项，默认中文、可切英文。
   - [0009 质量门禁与发布流程](docs/adr/0009-质量门禁与发布流程.md)：CI 的范围与边界、审计的不变量、手动发布流程。
+  - [0010 包名改为 @qwayo/dsh-timespan](docs/adr/0010-包名改为-qwayo-scope.md)：公开与发 npm 前的包名迁移，以及已安装用户的处理。
