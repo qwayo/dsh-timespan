@@ -75,7 +75,7 @@ To change the source or develop locally, link the local directory into the curre
 
 ### Check the install
 
-- A **dsh-timespan** entry appears in the left sidebar and shows today's online time by default; you can switch it to active or task time in Settings. Status text is off by default — turn on "Show sidebar status" in Settings to show idle, active or in task.
+- A **dsh-timespan** entry appears in the left sidebar and shows today's online time by default; you can switch it to active or task time in Settings. Status text is off by default — turn on "Show sidebar status" in Settings to show idle, active or in task. The status dot sits at the far right of the entry by default; you can hide it or move it back beside the duration in Settings.
 - A **dsh-timespan** section appears on the settings page.
 - Ask the agent "use timespan_stats to check today's time" and it returns statistics.
 - When needed, verify with `plugin_manager`'s `list_bundles` / `list_plugins`: the bundle `@qwayo/dsh-timespan` and the plugin row `dsh-timespan` are enabled.

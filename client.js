@@ -47,6 +47,9 @@ window.__ModuleLoader__.load({
     /** 侧栏入口可常驻展示的时长类型；与 Host 设置同名同序。 */
     const SIDEBAR_DURATION_VALUES = ['online', 'active', 'task']
     const SIDEBAR_DURATION_DEFAULT = 'online'
+    /** 侧栏状态点位置：默认贴到行最右侧，也可切回跟随时长的 inline。 */
+    const SIDEBAR_DOT_POSITION_VALUES = ['end', 'inline']
+    const SIDEBAR_DOT_POSITION_DEFAULT = 'end'
     const PAGE_REFRESH_MS = 10_000
     /** 每日活跃热力图的默认范围：最近 3 个本地日历月；#13 再扩展范围切换。 */
     const HEAT_DEFAULT_RANGE = '3m'
@@ -199,15 +202,15 @@ window.__ModuleLoader__.load({
       settingsSectionAppearance: '外观与配色',
       settingsAppearanceHint: '只影响本机显示，不写入统计设置；切换后立即生效。',
       settingsAppearanceLocal: '仅本机',
-      settingsRecheck: '重新检查回填',
-      settingsRechecking: '正在检查…',
-      settingsRecheckDone: '已重新检查回填状态',
-      settingsRecheckError: '重新检查失败，请重试',
+      settingsRecheck: '重新扫描历史任务',
+      settingsRechecking: '正在扫描…',
+      settingsRecheckDone: '已重新扫描历史任务，通知记录已更新',
+      settingsRecheckError: '扫描失败，请稍后重试',
       periodLoading: '正在更新，暂时显示',
       periodLoadFailed: '更新失败，暂时显示',
       trendInfo: '活跃时长和任务时长分别统计，可能重叠；悬停柱形可查看数值。',
       heatmapTitle: '每日活跃',
-      heatmapInfo: '每格代表一天，颜色越深表示当天活跃时长越长。悬停或聚焦任意格子，可查看在线、活跃与任务时长。',
+      heatmapInfo: '每格一天，颜色越深活跃越长；悬停可看当天在线、活跃与任务时长。',
       heatLegendLow: '低',
       heatLegendHigh: '高',
       heatDayTitle: '{month}月{day}日',
@@ -327,6 +330,14 @@ window.__ModuleLoader__.load({
       settingsSidebarNameHint: '开启后侧栏入口在时长旁显示状态文字：空闲、活跃中或任务中；关闭后只保留时长、状态点与今日构成环。',
       settingsSidebarNameOn: '显示状态',
       settingsSidebarNameOff: '隐藏状态',
+      settingsSidebarDotLabel: '侧栏状态点',
+      settingsSidebarDotHint: '控制侧栏入口右侧的小圆点是否显示；它用颜色表示空闲、活跃中或任务中。',
+      settingsSidebarDotOn: '显示',
+      settingsSidebarDotOff: '隐藏',
+      settingsSidebarDotPositionLabel: '状态点位置',
+      settingsSidebarDotPositionHint: '「最右侧」贴住侧栏行末；「跟随时长」保留原来的内容簇布局。',
+      settingsSidebarDotPositionEnd: '最右侧',
+      settingsSidebarDotPositionInline: '跟随时长',
       settingsSidebarDurationLabel: '侧栏显示时长',
       settingsSidebarDurationHint: '选择侧栏入口常驻展示的时长类型；今日构成环仍按在线、活跃、任务三项显示。',
       sidebarDurationOnline: '在线时长',
@@ -354,15 +365,16 @@ window.__ModuleLoader__.load({
       formatHintPadded: '补零时钟',
       formatPreviewLabel: '预览 · 2:48:16 显示为',
       settingsResetTitle: '初始化设置',
-      settingsResetHint: '把界面语言、侧栏状态显示与显示时长、数字格式、外观配色与统计偏好恢复为首次安装时的默认值；不会删除任何统计数据。',
+      settingsResetHint: '把界面语言、侧栏状态显示、状态点显示与位置、显示时长、数字格式、外观配色与统计偏好恢复为首次安装时的默认值；不会删除任何统计数据。',
       settingsResetButton: '恢复初始设置',
       settingsResetConfirmTitle: '恢复初始设置？',
-      settingsResetConfirmHint: '界面语言、侧栏状态显示、侧栏显示时长、数字格式、外观配色、空闲阈值、周起始与子代理显示都会回到默认值；统计记录不受影响。',
+      settingsResetConfirmHint: '界面语言、侧栏状态显示、状态点显示与位置、侧栏显示时长、数字格式、外观配色、空闲阈值、周起始与子代理显示都会回到默认值；统计记录不受影响。',
       settingsResetConfirm: '确认恢复',
       settingsResetCancel: '取消',
       settingsResetDone: '已恢复初始设置',
       settingsResetError: '恢复初始设置失败，请重试',
       settingsSectionNotices: '通知记录',
+      settingsNoticesHint: '这里保留每次历史任务回填的完成记录；如果旧会话任务没有出现，可重新扫描一次。',
       dataTitle: '数据管理',
       dataHint: '导出包含原始区间、任务与设置；清空只删除 dsh-timespan 统计记录，不影响会话日志。',
       exportJson: '导出 JSON',
@@ -380,7 +392,11 @@ window.__ModuleLoader__.load({
       clearError: '清空失败，请重试',
       cleared: '已清空，统计已重置',
       approximateDismiss: '不再显示',
-      approximateShowAgain: '重新显示说明',
+      approximateShowAgain: '重新显示「近似记录」说明',
+      approximateShowAgainHint: '该说明只在存在近似记录时出现；之前关掉后，可用这里恢复显示。',
+      approximateShowRestored: '已重新开启近似记录说明',
+      approximateShowNoData: '已重新开启；当前没有近似记录，所以提示条暂时不会出现',
+      approximateShowError: '操作失败，请稍后重试',
       savedBadge: '已保存',
       importData: '选择备份文件导入',
       importHint: '仅支持此前导出的 JSON 备份；按 ID 去重合并，已有记录不会被覆盖。',
@@ -489,15 +505,15 @@ window.__ModuleLoader__.load({
       settingsSectionAppearance: 'Appearance and colors',
       settingsAppearanceHint: 'Affects this browser only and never changes statistics. Applies immediately.',
       settingsAppearanceLocal: 'This device',
-      settingsRecheck: 'Recheck backfill',
-      settingsRechecking: 'Checking…',
-      settingsRecheckDone: 'Backfill status rechecked',
-      settingsRecheckError: 'Recheck failed; please retry',
+      settingsRecheck: 'Rescan history tasks',
+      settingsRechecking: 'Scanning…',
+      settingsRecheckDone: 'History tasks rescanned; notification records updated',
+      settingsRecheckError: 'Scan failed; please retry later',
       periodLoading: 'Updating; still showing',
       periodLoadFailed: 'Update failed; still showing',
       trendInfo: 'Active and task time are measured separately and may overlap. Hover a bar for its value.',
       heatmapTitle: 'Daily active time',
-      heatmapInfo: 'Each cell is one day; darker means more active time. Hover or focus a cell to see online, active and task time.',
+      heatmapInfo: 'One cell per day; darker means more active time. Hover for that day’s details.',
       heatLegendLow: 'Less',
       heatLegendHigh: 'More',
       heatDayTitle: '{month} {day}',
@@ -617,6 +633,14 @@ window.__ModuleLoader__.load({
       settingsSidebarNameHint: 'When on, the sidebar entry shows the current status next to the duration: Idle, Active or In task; when off, it keeps only the duration, status dot and today ring.',
       settingsSidebarNameOn: 'Show status',
       settingsSidebarNameOff: 'Hide status',
+      settingsSidebarDotLabel: 'Sidebar status dot',
+      settingsSidebarDotHint: 'Shows or hides the small dot at the end of the sidebar entry; its color means idle, active or in task.',
+      settingsSidebarDotOn: 'Shown',
+      settingsSidebarDotOff: 'Hidden',
+      settingsSidebarDotPositionLabel: 'Status dot position',
+      settingsSidebarDotPositionHint: '"Far right" pins it to the row end; "After duration" keeps the original inline layout.',
+      settingsSidebarDotPositionEnd: 'Far right',
+      settingsSidebarDotPositionInline: 'After duration',
       settingsSidebarDurationLabel: 'Sidebar duration',
       settingsSidebarDurationHint: 'Choose which duration the sidebar entry shows. The today ring still shows online, active and task.',
       sidebarDurationOnline: 'Online',
@@ -644,15 +668,16 @@ window.__ModuleLoader__.load({
       formatHintPadded: 'Padded clock',
       formatPreviewLabel: 'Preview · 2:48:16 shows as',
       settingsResetTitle: 'Initial settings',
-      settingsResetHint: 'Restore interface language, the sidebar status display and duration, number format, colors and counting preferences to their first-install defaults. Statistics are never deleted.',
+      settingsResetHint: 'Restore interface language, the sidebar status display, status dot visibility and position, duration, number format, colors and counting preferences to their first-install defaults. Statistics are never deleted.',
       settingsResetButton: 'Restore initial settings',
       settingsResetConfirmTitle: 'Restore initial settings?',
-      settingsResetConfirmHint: 'Interface language, sidebar status display, sidebar duration, number format, colors, idle threshold, week start and subagent display return to defaults. Statistics are unaffected.',
+      settingsResetConfirmHint: 'Interface language, sidebar status display, status dot visibility and position, sidebar duration, number format, colors, idle threshold, week start and subagent display return to defaults. Statistics are unaffected.',
       settingsResetConfirm: 'Restore',
       settingsResetCancel: 'Cancel',
       settingsResetDone: 'Initial settings restored',
       settingsResetError: 'Could not restore initial settings; please retry',
       settingsSectionNotices: 'Notifications',
+      settingsNoticesHint: 'Keeps a record of each history-task backfill. If old session tasks are missing, rescan once.',
       dataTitle: 'Data',
       dataHint: 'Exports include raw intervals, tasks and settings; clearing removes only dsh-timespan records, not session logs.',
       exportJson: 'Export JSON',
@@ -670,7 +695,11 @@ window.__ModuleLoader__.load({
       clearError: 'Clear failed; please retry',
       cleared: 'Cleared; statistics have been reset',
       approximateDismiss: 'Dismiss',
-      approximateShowAgain: 'Show notice again',
+      approximateShowAgain: 'Show the “approximate records” note again',
+      approximateShowAgainHint: 'The note only appears when approximate records exist; restore it here after dismissing.',
+      approximateShowRestored: 'The approximate-record note is enabled again',
+      approximateShowNoData: 'Enabled again; there are no approximate records, so the banner will not appear yet',
+      approximateShowError: 'Could not update the setting; please retry',
       savedBadge: 'Saved',
       importData: 'Choose backup file to import',
       importHint: 'Only JSON backups exported earlier; merged by ID, existing records are never overwritten.',
@@ -765,8 +794,9 @@ window.__ModuleLoader__.load({
       },
       h('circle', { cx: 12, cy: 12, r: 8.5, stroke: 'currentColor', strokeWidth: 2.2,
         strokeLinecap: 'round', strokeDasharray: '11 3 7 3 5 3', transform: 'rotate(-90 12 12)' }),
-      h('path', { d: 'M12 12l4-4', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' }),
-      h('circle', { cx: 12, cy: 12, r: 1.8, fill: 'currentColor' }))
+      // 指针固定白色，在任何配色下都从蓝色环里跳出来；中心小圆使用任务紫，和任务系列同一语义色。
+      h('path', { d: 'M12 12l4-4', stroke: '#ffffff', strokeWidth: 2, strokeLinecap: 'round' }),
+      h('circle', { cx: 12, cy: 12, r: 1.8, fill: 'var(--cs-task, #7A5AA6)' }))
     }
 
     const APPEARANCE_ICONS = {
@@ -921,6 +951,11 @@ window.__ModuleLoader__.load({
     /** 侧栏时长只认三个预设；缺省与脏数据回落到在线时长。 */
     function normalizeSidebarDuration(value) {
       return SIDEBAR_DURATION_VALUES.includes(value) ? value : SIDEBAR_DURATION_DEFAULT
+    }
+
+    /** 状态点位置只认 end / inline；缺省与脏数据默认贴右。 */
+    function normalizeSidebarDotPosition(value) {
+      return SIDEBAR_DOT_POSITION_VALUES.includes(value) ? value : SIDEBAR_DOT_POSITION_DEFAULT
     }
 
     /** 本地日历月回退：保留日号，目标月没有该日时收敛到月末（如 5/31 回退到 2/28）。 */
@@ -1502,6 +1537,8 @@ window.__ModuleLoader__.load({
         durationFormat: normalizeDurationFormat(value?.durationFormat),
         sidebarShowName: value?.sidebarShowName === true,
         sidebarDuration: normalizeSidebarDuration(value?.sidebarDuration),
+        sidebarDotVisible: value?.sidebarDotVisible !== false,
+        sidebarDotPosition: normalizeSidebarDotPosition(value?.sidebarDotPosition),
         language: normalizeLanguage(value?.language),
         approximateNoticeDismissed: value?.approximateNoticeDismissed === true,
       }
@@ -1516,6 +1553,8 @@ window.__ModuleLoader__.load({
         durationFormat: normalizeDurationFormat(draft.durationFormat),
         sidebarShowName: draft.sidebarShowName === true,
         sidebarDuration: normalizeSidebarDuration(draft.sidebarDuration),
+        sidebarDotVisible: draft.sidebarDotVisible !== false,
+        sidebarDotPosition: normalizeSidebarDotPosition(draft.sidebarDotPosition),
         language: normalizeLanguage(draft.language),
         approximateNoticeDismissed: draft.approximateNoticeDismissed === true,
       }
@@ -1930,11 +1969,12 @@ window.__ModuleLoader__.load({
      * 侧栏入口的纯渲染层：主题、状态显隐与三项数值都可从外部注入，
      * 便于在隔离上下文断言结构；真实组件只负责轮询与订阅。
      */
-    function renderSidebarEntry({ stats, theme, showName = true, t, size, format = DEFAULT_DURATION_FORMAT, sidebarMetric = SIDEBAR_DURATION_DEFAULT, hover = null }) {
+    function renderSidebarEntry({ stats, theme, showName = true, showDot = true, dotPosition = SIDEBAR_DOT_POSITION_DEFAULT, t, size, format = DEFAULT_DURATION_FORMAT, sidebarMetric = SIDEBAR_DURATION_DEFAULT, hover = null }) {
       const wide = typeof size !== 'number' || size !== 18
       const themeClass = sidebarThemeClass(theme?.palette, theme?.appearance, theme?.systemDark === true)
       const segments = sidebarRingSegments(stats)
       const selectedMetric = normalizeSidebarDuration(sidebarMetric)
+      const normalizedDotPosition = normalizeSidebarDotPosition(dotPosition)
       const value = stats?.status === 'loading' ? '–:––:––' : formatDuration(sidebarDisplayMs(stats, selectedMetric), format)
       const active = stats?.activeRunning === true
       const task = stats?.taskRunning === true
@@ -1947,7 +1987,7 @@ window.__ModuleLoader__.load({
       const statusLabel = task ? t('taskRunning') : active ? t('live') : t('idle')
       const statusClass = task ? ' is-task' : active ? ' is-active' : ' is-idle'
       const summary = `${t('navTooltip')}：${t('onlineLabel')} ${formatDuration(sidebarDisplayMs(stats, 'online'), format)} · ${t('activeLabel')} ${formatDuration(sidebarDisplayMs(stats, 'active'), format)} · ${t('taskLabel')} ${formatDuration(sidebarDisplayMs(stats, 'task'), format)} · ${statusLabel}`
-      // 去掉名称后时间居中并放大一档；环与状态点仍留在两端。
+      // 去掉名称后时间居中并放大一档；环与状态点在两端。
       const nameless = wide && showName === false
       const tipContent = buildSidebarTip(stats, t, format)
       const hoverProps = hover === null ? {} : {
@@ -1958,7 +1998,7 @@ window.__ModuleLoader__.load({
         onKeyDown: (event) => { if (event?.key === 'Escape') hover.hide?.() },
       }
       return h('span', {
-        className: `dsh-timespan-nav-entry ${themeClass}${nameless ? ' is-nameless' : ''}`,
+        className: `dsh-timespan-nav-entry ${themeClass}${nameless ? ' is-nameless' : ''}${normalizedDotPosition === 'end' ? ' is-dot-end' : ' is-dot-inline'}`,
         tabIndex: 0,
         'aria-label': summary,
         ...(hover?.tip ? { 'aria-describedby': 'dsh-timespan-sidebar-tip' } : {}),
@@ -1977,7 +2017,7 @@ window.__ModuleLoader__.load({
       wide && showName
         ? h('span', { className: `dsh-timespan-nav-status${statusClass}` }, statusLabel)
         : null,
-      wide
+      wide && showDot
         ? h('span', {
             className: `dsh-timespan-nav-dot${active || task ? ' is-live' : ''}${active ? ' is-active' : ''}${task ? ' is-task' : ''}`,
             role: 'img',
@@ -2002,6 +2042,9 @@ window.__ModuleLoader__.load({
         const [showName, setShowName] = React.useState(false)
         // 侧栏显示哪种时长；Host 设置读回前先按默认在线时长渲染，避免布局闪动。
         const [sidebarDuration, setSidebarDuration] = React.useState(SIDEBAR_DURATION_DEFAULT)
+        // 状态点显隐与位置也是 Host 设置；读回前按默认贴右显示，避免入口先闪回旧布局。
+        const [showDot, setShowDot] = React.useState(true)
+        const [dotPosition, setDotPosition] = React.useState(SIDEBAR_DOT_POSITION_DEFAULT)
 
         // 设置页选择格式时侧栏也立即预览；保存或取消后回到 Host 的已保存值。
         React.useEffect(() => subscribeDurationFormatPreview((value) => setPreviewFormat(value)), [])
@@ -2042,6 +2085,8 @@ window.__ModuleLoader__.load({
                 const visible = value?.sidebarShowName === true
                 setShowName(visible)
                 setSidebarDuration(normalizeSidebarDuration(value?.sidebarDuration))
+                setShowDot(value?.sidebarDotVisible !== false)
+                setDotPosition(normalizeSidebarDotPosition(value?.sidebarDotPosition))
                 // 入口内已渲染时长（以及可选的状态文字），宿主 panelTitle 始终隐藏，避免多出插件名。
                 applySidebarHostNameVisibility(false)
               })
@@ -2062,6 +2107,8 @@ window.__ModuleLoader__.load({
           stats,
           theme: { ...theme, systemDark },
           showName,
+          showDot,
+          dotPosition,
           t,
           size: props?.size,
           format: normalizeDurationFormat(previewFormat ?? stats.durationFormat),
@@ -2750,7 +2797,7 @@ window.__ModuleLoader__.load({
       ].filter(Boolean)
     }
 
-    /** 页脚只留数据摘要；本机存储与近似记录说明收进 ⓘ。 */
+    /** 页脚数据摘要之外的通用说明（本机存储、近似记录）收进页面唯一的 ⓘ。 */
     function footerInfoMessages(t, hasApproximate) {
       return [t('localOnly'), hasApproximate === true ? t('approximateHint') : null].filter(Boolean)
     }
@@ -3754,6 +3801,28 @@ window.__ModuleLoader__.load({
               onChange: (event) => onPatch?.('sidebarShowName', event?.target?.checked === true),
             }),
             h('span', null, draft?.sidebarShowName === true ? t('settingsSidebarNameOn') : t('settingsSidebarNameOff')))),
+        settingsRow(t, 'settingsSidebarDotLabel', 'settingsSidebarDotHint',
+          h('label', { className: 'cs-settings-switch' },
+            h('input', {
+              type: 'checkbox',
+              'aria-label': t('settingsSidebarDotLabel'),
+              checked: draft?.sidebarDotVisible !== false,
+              disabled: busy,
+              onChange: (event) => onPatch?.('sidebarDotVisible', event?.target?.checked === true),
+            }),
+            h('span', null, draft?.sidebarDotVisible === false ? t('settingsSidebarDotOff') : t('settingsSidebarDotOn')))),
+        settingsRow(t, 'settingsSidebarDotPositionLabel', 'settingsSidebarDotPositionHint',
+          h(Select, {
+            value: normalizeSidebarDotPosition(draft?.sidebarDotPosition),
+            options: [
+              { value: 'end', label: t('settingsSidebarDotPositionEnd') },
+              { value: 'inline', label: t('settingsSidebarDotPositionInline') },
+            ],
+            disabled: busy,
+            className: selectClass,
+            ariaLabel: t('settingsSidebarDotPositionLabel'),
+            onChange: (value) => onPatch?.('sidebarDotPosition', normalizeSidebarDotPosition(value)),
+          })),
         settingsRow(t, 'settingsSidebarDurationLabel', 'settingsSidebarDurationHint',
           h(Select, {
             value: normalizeSidebarDuration(draft?.sidebarDuration),
@@ -4703,12 +4772,7 @@ window.__ModuleLoader__.load({
         })]
       }
       const shownPeriod = data?.period ?? period
-      const overviewInfo = overviewInfoMessages(data, t)
       return [
-        h('div', { className: 'cs-section-head' },
-          h('div', { className: 'cs-overview-heading' },
-            h('span', { className: 'cs-section-title' }, t('overviewTitle')),
-            renderInfo(overviewInfo.join('；'), null, overviewInfo))),
         h('div', { className: 'cs-overview-grid' },
           renderHeroCard({ data, t, format: durationFormat, focus, onToggleFocus, heroMetric }),
           renderCycles(data, t, period, onSelectPeriod, durationFormat),
@@ -4760,11 +4824,6 @@ window.__ModuleLoader__.load({
       const peak = trendPeak(data?.trend, shownPeriod, isZh)
       const share = activeSharePercent(data?.activeMs, data?.onlineMs)
       return [
-        h('div', { className: 'cs-section-head' },
-          h('div', { className: 'cs-overview-heading' },
-            h('span', { className: 'cs-section-title' }, t('tabTrend')),
-            h('span', { className: 'cs-tag' }, t('actualOccupied')),
-            renderInfo(t('trendInfo')))),
         renderCycles(data, t, period, onSelectPeriod, durationFormat),
         h('div', { className: 'cs-trend-layout' },
           renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod),
@@ -4922,6 +4981,7 @@ window.__ModuleLoader__.load({
       const {
         t, draft, phase, message, noticeState, appearance, palette,
         dataBusy = '', dataMessage = null, clearStep = false, retrying = false, retryError = null,
+        recheckMessage = null, approximateMessage = null,
         importPreview = null, importRestoreSettings = false, importError = '',
         resetStep = false, resetting = false,
         onPatch, onSelectFormat, onRetryLoad, onExport, onRequestClear, onCancelClear, onClear,
@@ -5001,6 +5061,7 @@ window.__ModuleLoader__.load({
             })),
           h('section', { className: 'cs-settings-card cs-settings-side cs-notices-card' },
             h('h3', null, t('settingsSectionNotices')),
+            h('p', { className: 'cs-settings-row-hint' }, t('settingsNoticesHint')),
             noticeState?.status === 'error'
               ? h('p', { className: 'cs-notice-empty' }, t('backfillNoticeUnavailable'))
               : noticeState?.data === null || noticeState?.data === undefined
@@ -5013,7 +5074,11 @@ window.__ModuleLoader__.load({
                 disabled: retrying === true,
                 onClick: () => onRecheckBackfill?.(),
               }, retrying === true ? t('settingsRechecking') : t('settingsRecheck')),
-              retryError ? h('span', { className: 'cs-data-status is-error' }, String(retryError)) : null)),
+              recheckMessage
+                ? h('span', { className: `cs-data-status${recheckMessage.error ? ' is-error' : ''}`, role: 'status' }, recheckMessage.text)
+                : retryError
+                  ? h('span', { className: 'cs-data-status is-error', role: 'status' }, String(retryError))
+                  : null)),
           h('section', { className: 'cs-settings-card cs-settings-main cs-data-card' },
             h('h3', null, t('dataTitle')),
             h('p', { className: 'cs-settings-row-hint' }, t('dataHint')),
@@ -5068,9 +5133,14 @@ window.__ModuleLoader__.load({
             importError
               ? h('div', { className: 'cs-data-status is-error', role: 'status' }, String(importError))
               : null,
-            h('button', {
-              type: 'button', className: 'cs-text-link', onClick: () => onShowApproximate?.(),
-            }, t('approximateShowAgain')),
+            h('div', { className: 'cs-approx-reveal' },
+              h('span', { className: 'cs-settings-row-hint' }, t('approximateShowAgainHint')),
+              h('button', {
+                type: 'button', className: 'cs-text-link', onClick: () => onShowApproximate?.(),
+              }, t('approximateShowAgain')),
+              approximateMessage
+                ? h('span', { className: `cs-data-status${approximateMessage.error ? ' is-error' : ''}`, role: 'status' }, approximateMessage.text)
+                : null),
             clearStep
               ? h('div', { className: 'cs-clear-confirm', role: 'alertdialog', 'aria-label': t('clearStepTitle') },
                   h('strong', null, t('clearStepTitle')),
@@ -5201,6 +5271,8 @@ window.__ModuleLoader__.load({
         const [dismissError, setDismissError] = React.useState(null)
         const [retrying, setRetrying] = React.useState(false)
         const [retryError, setRetryError] = React.useState(null)
+        // 设置页「重新扫描历史任务」的可见结果；与概览页回填横幅的 retryError 分开，避免点了没反馈。
+        const [recheckMessage, setRecheckMessage] = React.useState(null)
         // Dashboard 内设置页的独立草稿：进入视图时从 Host getSettings 拉取。
         const [settingsForm, setSettingsForm] = React.useState(null)
         const [settingsPhase, setSettingsPhase] = React.useState('idle')
@@ -5282,6 +5354,8 @@ window.__ModuleLoader__.load({
         const [clearStep, setClearStep] = React.useState(false)
         const [dataBusy, setDataBusy] = React.useState('')
         const [dataMessage, setDataMessage] = React.useState(null)
+        // 数据管理里「重新显示近似记录说明」的可见结果：无论当前有没有近似记录，都要给出明确回复。
+        const [approximateMessage, setApproximateMessage] = React.useState(null)
         // 备份恢复：Client 只负责读文件与前置校验，预览确认后交给 Host importData 写库。
         const [importPreview, setImportPreview] = React.useState(null)
         const [importRestoreSettings, setImportRestoreSettings] = React.useState(false)
@@ -5539,12 +5613,15 @@ window.__ModuleLoader__.load({
           if (retrying) return
           setRetrying(true)
           setRetryError(null)
+          setRecheckMessage(null)
           try {
             await callHost(ctx, 'retryBackfill', {})
             setRefreshNonce((value) => value + 1)
             setNoticeNonce((value) => value + 1)
+            setRecheckMessage({ text: t('settingsRecheckDone'), error: false })
           } catch (error) {
             setRetryError(String(error?.message ?? error))
+            setRecheckMessage({ text: t('settingsRecheckError'), error: true })
           } finally {
             setRetrying(false)
           }
@@ -5618,9 +5695,11 @@ window.__ModuleLoader__.load({
                 h('span', null, t('retryHint')))))
         }
 
-        const hasApproximate = approximateNoticeVisible(data) && !approxDismissed
+        const approximateAvailable = approximateNoticeVisible(data)
+        const hasApproximate = approximateAvailable && !approxDismissed
         const onDismissApproximate = async () => {
           setApproxDismissed(true)
+          setApproximateMessage(null)
           try {
             await callSettings(ctx, 'setSettings', { approximateNoticeDismissed: true })
             notifySettingsChanged()
@@ -5629,12 +5708,19 @@ window.__ModuleLoader__.load({
           }
         }
         const onShowApproximate = async () => {
+          setApproximateMessage(null)
           setApproxDismissed(false)
           try {
             await callSettings(ctx, 'setSettings', { approximateNoticeDismissed: false })
             notifySettingsChanged()
+            // 没有近似记录时提示条本来就不会出现；这里明确说明，避免再次出现「点了没反应」。
+            setApproximateMessage({
+              text: approximateAvailable ? t('approximateShowRestored') : t('approximateShowNoData'),
+              error: false,
+            })
           } catch {
             setApproxDismissed(true)
+            setApproximateMessage({ text: t('approximateShowError'), error: true })
           }
         }
         const renderView = () => {
@@ -5668,6 +5754,8 @@ window.__ModuleLoader__.load({
               clearStep,
               retrying,
               retryError,
+              recheckMessage,
+              approximateMessage,
               resetStep: settingsResetStep,
               resetting: settingsResetting,
               onPatch: patchSetting,
@@ -5703,6 +5791,11 @@ window.__ModuleLoader__.load({
             heatRangeValue, onSelectHeatRange: setHeatRangeValue,
           })
         }
+
+        // 页脚说明按当前视图合并：顶部标题行的口径说明都收进这一枚 ⓘ，避免同一页出现两处。
+        const footerLines = [...footerInfoMessages(t, hasApproximate)]
+        if (view === 'overview') footerLines.push(...overviewInfoMessages(data, t))
+        else if (view === 'trend') footerLines.push(t('trendInfo'))
 
         return h('div', { className: pageClassName },
           h('style', null, DSH_TIMESPAN_CSS),
@@ -5766,7 +5859,7 @@ window.__ModuleLoader__.load({
                 ...renderView())),
             h('footer', { className: 'cs-foot' },
               h('span', null, `${t('todayActive')} ${formatDuration(data.cycles.day.activeMs, durationFormat)} · ${t('todayOnline')} ${formatDuration(data.cycles.day.onlineMs, durationFormat)}`),
-              renderInfo(footerInfoMessages(t, hasApproximate).join('；'))),
+              renderInfo(footerLines.join('；'), null, footerLines)),
             h(HoverTip, { key: 'hover-tip', tip: hoverTip.tip })))
       }
     }
@@ -5881,6 +5974,15 @@ window.__ModuleLoader__.load({
         font-variant-numeric: tabular-nums;
         border-radius: 6px;
         outline: none;
+      }
+      /* 状态点贴右：入口撑满宿主行，圆点用 auto 外边距推到行末；inline 保持原来的内容簇布局。 */
+      .dsh-timespan-nav-entry.is-dot-end { width: 100%; }
+      .dsh-timespan-nav-entry.is-dot-end .dsh-timespan-nav-dot { margin-left: auto; }
+      /* 宿主把插槽包在一枚定宽 icon 容器里，插件入口要靠 :has 反向撑满整行，否则圆点只能停在文字后。 */
+      html[data-dsh-timespan-hide-name] button[aria-label="TimeSpan"] > span:has(.dsh-timespan-nav-entry.is-dot-end) {
+        flex: 1 1 auto;
+        min-width: 0;
+        justify-content: flex-start;
       }
       .dsh-timespan-nav-entry.cs-palette-blue {
         --cs-signal-deep: #133463; --cs-signal: #1F4E94; --cs-signal-soft: #79B3F9;
@@ -6011,6 +6113,9 @@ window.__ModuleLoader__.load({
       .dsh-timespan-nav-entry.is-nameless .dsh-timespan-nav-time {
         flex: 1 1 auto; text-align: center; font-size: 15px; letter-spacing: 0;
       }
+      /* 状态点贴右时，时间仍紧跟构成环；否则整行会被时间撑成居中标题，视觉上离图标太远。 */
+      .dsh-timespan-nav-entry.is-nameless.is-dot-end { justify-content: flex-start; }
+      .dsh-timespan-nav-entry.is-nameless.is-dot-end .dsh-timespan-nav-time { flex: 0 0 auto; text-align: left; }
       @media (prefers-reduced-motion: reduce) {
         .dsh-timespan-nav-entry, .dsh-timespan-nav-entry * { transition-duration: 0s; animation-duration: 0s; }
         .dsh-timespan-nav-dot.is-live::before {
@@ -6040,7 +6145,7 @@ window.__ModuleLoader__.load({
         margin: 0 auto;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
         min-width: 0;
       }
       .cs-topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
@@ -6306,7 +6411,7 @@ window.__ModuleLoader__.load({
       .cs-session-last:hover { color: var(--dsw-alias-label-primary); }
       .cs-empty { padding: 22px 12px; text-align: center; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
       .cs-empty.is-small { padding: 10px; }
-      .cs-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
+      .cs-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
       .cs-loading { min-height: 340px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 1px dashed var(--dsw-alias-border-l1); border-radius: 14px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
       .cs-loading strong { color: var(--dsw-alias-label-primary); font-size: 14px; font-weight: 600; }
       .cs-loading.is-error strong { color: var(--dsw-alias-state-error-primary); }
@@ -6545,7 +6650,7 @@ window.__ModuleLoader__.load({
       /* 普通概览按原型三行 Bento：hero 与周期卡并排，趋势横跨前两列，构成在右，底部三卡并列。 */
       .cs-overview-grid {
         display: grid; grid-template-columns: 1.05fr 1fr 1fr;
-        grid-template-rows: auto auto auto; gap: 12px; align-content: start;
+        grid-template-rows: auto auto auto; gap: 10px; align-content: start;
       }
       .cs-hero { grid-column: 1; grid-row: 1; }
       .cs-cycles { grid-column: 2 / 4; grid-row: 1; }
@@ -6705,6 +6810,10 @@ window.__ModuleLoader__.load({
       .cs-text-link { appearance: none; align-self: flex-start; margin-top: 10px; padding: 0; border: 0; background: transparent; color: var(--dsw-alias-brand-primary); font: inherit; font-size: 12px; cursor: pointer; }
       .cs-text-link:hover { text-decoration: underline; }
       .cs-text-link:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      /* 数据管理底部的说明恢复区：与危险操作、导入区隔开，点击后有明确的结果反馈。 */
+      .cs-approx-reveal { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--dsw-alias-border-l1); }
+      .cs-approx-reveal .cs-text-link { margin-top: 2px; }
+      .cs-approx-reveal .cs-data-status { margin-top: 4px; }
       .cs-data-spacer { flex: 1 1 auto; min-width: 8px; }
       .cs-btn {
         appearance: none; font: inherit; font-size: 12px; line-height: 18px;
@@ -6791,8 +6900,8 @@ window.__ModuleLoader__.load({
       .cs-tab:hover { color: var(--dsw-alias-label-primary); }
       .cs-tab:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -2px; border-radius: 6px; }
       .cs-tab.is-active { color: var(--dsw-alias-label-primary); font-weight: 650; }
-      .cs-views { position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-      .cs-view { display: flex; flex-direction: column; gap: 12px; animation: viewIn var(--cs-dur-view) cubic-bezier(.2, .8, .2, 1) both; }
+      .cs-views { position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+      .cs-view { display: flex; flex-direction: column; gap: 10px; animation: viewIn var(--cs-dur-view) cubic-bezier(.2, .8, .2, 1) both; }
       .cs-view.is-leaving { animation: viewOut var(--cs-dur-exit) ease both; }
       .cs-curtain {
         position: absolute; inset: 0; z-index: 20; border-radius: 12px;
@@ -6807,17 +6916,17 @@ window.__ModuleLoader__.load({
       .cs-recent-list { display: flex; flex-direction: column; }
       .cs-recent-row {
         position: relative; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto;
-        align-items: center; gap: 10px; padding: 9px 2px 9px 18px; border: 0;
+        align-items: center; gap: 10px; padding: 9px 2px; border: 0;
         background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer;
       }
-      /* 分隔线从标题左缘开始；运行中图标放在线外，让标题与线保持同一条左基线。 */
+      /* 分隔线从标题左缘开始；运行中图标收进卡片内边距里，标题不再为它空出 18px 缩进。 */
       .cs-recent-row + .cs-recent-row::before {
-        content: ""; position: absolute; left: 18px; right: 2px; top: 0;
+        content: ""; position: absolute; left: 0; right: 2px; top: 0;
         border-top: 1px solid var(--dsw-alias-border-l1); pointer-events: none;
       }
       .cs-recent-row:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, transparent); }
       .cs-recent-status {
-        position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+        position: absolute; left: -14px; top: 50%; transform: translateY(-50%);
         display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
         color: var(--cs-task);
       }
@@ -6826,7 +6935,7 @@ window.__ModuleLoader__.load({
       .cs-recent-workspace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--dsw-alias-label-secondary); }
       .cs-recent-time { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 11px; }
       .cs-recent-last { font-size: 11px; color: var(--dsw-alias-label-secondary); white-space: nowrap; text-align: right; }
-      .cs-trend-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; align-items: stretch; }
+      .cs-trend-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 10px; align-items: stretch; }
       .cs-trend-layout > .cs-trend-card { grid-column: 1; grid-row: 1; }
       .cs-trend-layout > .cs-trend-summary { grid-column: 2; grid-row: 1; }
       .cs-trend-summary { display: flex; flex-direction: column; gap: 10px; align-self: stretch; }
@@ -6885,7 +6994,7 @@ window.__ModuleLoader__.load({
       /* 趋势页下半区：时段分布 + 趋势洞察，填满图表下方的留白。 */
       .cs-trend-bottom {
         display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
-        gap: 12px; align-items: stretch;
+        gap: 10px; align-items: stretch;
       }
       .cs-trend-breakdown, .cs-trend-insights { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
       .cs-breakdown-list { display: flex; flex-direction: column; justify-content: space-around; gap: 9px; flex: 1 1 auto; min-height: 0; }

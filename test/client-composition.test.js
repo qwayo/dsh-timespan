@@ -47,7 +47,7 @@ async function loadClientFunctions(windowExtras = {}) {
       buildTrendTip, buildCompositionTip, renderTrendChart, HoverTip, useHoverTip,
       renderBackfillBanner, renderBackfillNotices, isBackfillUnread,
       Select, isSelectOutside, createSelectOutsideHandler,
-      renderWorkspaceRanking, Info, renderInfo,
+      renderWorkspaceRanking, Info, renderInfo, DshTimespanIcon: typeof DshTimespanIcon === 'function' ? DshTimespanIcon : undefined,
       overviewInfoMessages: typeof overviewInfoMessages === 'function' ? overviewInfoMessages : undefined,
       footerInfoMessages: typeof footerInfoMessages === 'function' ? footerInfoMessages : undefined,
       normalizePalette: typeof normalizePalette === 'function' ? normalizePalette : undefined,
@@ -620,6 +620,17 @@ test('客户端：概览口径按行拆分，周/月补一句日均口径', asyn
   assert.ok(weekLines.includes(labels.dailyAverageHint), '周/月视图补充日均按自然日折算')
 })
 
+test('客户端：品牌时钟的指针固定白色，轴心小半圆使用任务紫', async () => {
+  const { DshTimespanIcon } = await loadClientFunctions()
+  const icon = DshTimespanIcon({ size: 36 })
+  const hand = findAll(icon, (node) => node.type === 'path' && node.props?.d === 'M12 12l4-4')[0]
+  assert.equal(hand?.props?.stroke, '#ffffff', '指针不随配色变化，固定白色')
+  const center = findAll(icon, (node) => node.type === 'circle' && String(node.props?.fill).includes('--cs-task'))[0]
+  assert.ok(center, '轴心小半圆使用任务紫变量')
+  assert.match(center.props.fill, /var\(--cs-task, #7A5AA6\)/)
+  assert.equal(center.props.r, 1.8)
+})
+
 test('客户端：配色归一化为 blue/stone/clay，旧值回落到默认蓝', async () => {
   const { normalizePalette } = await loadClientFunctions()
   assert.equal(typeof normalizePalette, 'function')
@@ -983,11 +994,12 @@ test('客户端：明细样式补右内边距，窄屏保留紧凑图标单元',
   assert.match(runningIcon, /color:\s*var\(--cs-task\)/, '运行中会话圆环改用紫色')
   assert.doesNotMatch(runningIcon, /var\(--cs-live\)/, '运行中图标不再沿用活跃蓝')
   const recentRow = declarationsFor(css, '.cs-recent-row')
-  assert.match(recentRow, /padding:\s*9px 2px 9px 18px/, '最近会话标题左侧留出图标槽位')
+  assert.match(recentRow, /padding:\s*9px 2px/, '最近会话标题贴住卡片内容左缘，不再留 18px 空槽')
   assert.doesNotMatch(recentRow, /grid-template-columns:\s*14px/, '标题不再被状态图标列推离分隔线')
-  assert.match(declarationsFor(css, '.cs-recent-row + .cs-recent-row::before'), /left:\s*18px/, '分隔线从标题左缘开始')
+  assert.match(declarationsFor(css, '.cs-recent-row + .cs-recent-row::before'), /left:\s*0/, '分隔线从标题左缘开始')
   const recentStatus = declarationsFor(css, '.cs-recent-status')
-  assert.match(recentStatus, /position:\s*absolute/, '运行中图标移出网格，浮在分隔线左侧')
+  assert.match(recentStatus, /position:\s*absolute/, '运行中图标移出网格，收进卡片内边距')
+  assert.match(recentStatus, /left:\s*-14px/, '运行中图标左移到标题槽位之外，不占正文缩进')
   assert.match(recentStatus, /width:\s*14px/, '最近会话状态槽位不会挤动标题列')
   assert.match(recentStatus, /color:\s*var\(--cs-task\)/, '最近会话的运行中圆环同样使用紫色')
   const last = declarationsFor(css, '.cs-last')
@@ -1070,6 +1082,11 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(entry, /display:\s*inline-flex/)
   assert.match(entry, /flex-wrap:\s*nowrap/, '入口保持单行')
   assert.match(entry, /white-space:\s*nowrap/)
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-entry.is-dot-end'), /width:\s*100%/, '默认位置让入口占满宿主行宽')
+  assert.match(css, /\.dsh-timespan-nav-entry\.is-dot-end \.dsh-timespan-nav-dot\s*\{[^}]*margin-left:\s*auto/, '状态点用 auto 外边距推到最右侧')
+  assert.match(css, /button\[aria-label="TimeSpan"\] > span:has\(\.dsh-timespan-nav-entry\.is-dot-end\)\s*\{[^}]*flex:\s*1 1 auto/, '宿主定宽 icon 容器被撑开，圆点才能贴到整行最右')
+  assert.match(css, /\.dsh-timespan-nav-entry\.is-nameless\.is-dot-end\s*\{[^}]*justify-content:\s*flex-start/, '贴右时时间仍紧跟构成环，不因整行撑开而居中')
+  assert.match(css, /\.dsh-timespan-nav-entry\.is-nameless\.is-dot-end \.dsh-timespan-nav-time\s*\{[^}]*flex:\s*0 0 auto/, '贴右时时间不再吃掉剩余空间')
   assert.match(declarationsFor(css, '.dsh-timespan-nav-time'), /font-size:\s*14px/, '时长与导航文字比例更协调')
   assert.match(declarationsFor(css, '.dsh-timespan-nav-time'), /animation:\s*dsh-timespan-time-swap 160ms ease-out/, '切换数字格式时侧栏时间播放短促淡入')
   assert.match(css, /@keyframes dsh-timespan-time-swap/, '换字动画关键帧存在')
@@ -1338,15 +1355,28 @@ test('客户端：侧栏状态文字跟随状态点，任务中优先于活跃�
   const hidden = renderSidebarEntry({ ...base, showName: false })
   assert.equal(findByClass(hidden, 'dsh-timespan-nav-status'), undefined, '隐藏状态后不渲染状态文字')
   assert.match(hidden.props.className, /is-nameless/, '隐藏状态后入口进入无名称紧凑布局')
+
+  assert.match(hidden.props.className, /is-dot-end/, '默认把状态点放到侧栏行最右侧')
+  const noDot = renderSidebarEntry({ ...base, showDot: false })
+  assert.equal(findByClass(noDot, 'dsh-timespan-nav-dot'), undefined, '关闭状态点后不渲染圆点')
+  assert.equal(textOf(findByClass(noDot, 'dsh-timespan-nav-status')), '空闲', '关闭圆点不影响状态文字')
+  const inlineDot = renderSidebarEntry({ ...base, dotPosition: 'inline' })
+  assert.match(inlineDot.props.className, /is-dot-inline/, '可切回跟随时长的旧布局')
+  assert.doesNotMatch(inlineDot.props.className, /is-dot-end/, '两种位置互斥')
 })
 
-test('客户端：侧栏状态与时长进入设置草稿、保存载荷与设置页控件', async () => {
+test('客户端：侧栏状态、状态点与时长进入设置草稿、保存载荷与设置页控件', async () => {
   const { settingsDraft, settingsPayload, createSettingsSection, React, Select } = await loadClientFunctions()
   assert.equal(settingsDraft({ sidebarShowName: true }).sidebarShowName, true)
   assert.equal(settingsDraft({}).sidebarShowName, false, '缺省时隐藏状态文字')
   assert.equal(settingsDraft({}).sidebarDuration, 'online', '缺省时侧栏显示在线时长')
   assert.equal(settingsDraft({ sidebarDuration: 'task' }).sidebarDuration, 'task')
   assert.equal(settingsDraft({ sidebarDuration: 'bogus' }).sidebarDuration, 'online', '非法侧栏时长回落在线时长')
+  assert.equal(settingsDraft({}).sidebarDotVisible, true, '缺省时显示状态点')
+  assert.equal(settingsDraft({ sidebarDotVisible: false }).sidebarDotVisible, false)
+  assert.equal(settingsDraft({}).sidebarDotPosition, 'end', '缺省时状态点贴最右侧')
+  assert.equal(settingsDraft({ sidebarDotPosition: 'inline' }).sidebarDotPosition, 'inline')
+  assert.equal(settingsDraft({ sidebarDotPosition: 'bogus' }).sidebarDotPosition, 'end', '非法状态点位置回落最右侧')
   assert.equal(JSON.stringify(settingsPayload({
     idleThresholdMinutes: '9',
     weekStartsOn: '7',
@@ -1360,9 +1390,11 @@ test('客户端：侧栏状态与时长进入设置草稿、保存载荷与设�
     durationFormat: 'short',
     sidebarShowName: false,
     sidebarDuration: 'task',
+    sidebarDotVisible: true,
+    sidebarDotPosition: 'end',
     language: 'zh',
     approximateNoticeDismissed: false,
-  }), '保存时提交侧栏状态、侧栏时长、界面语言与数字格式')
+  }), '保存时提交侧栏状态、状态点、侧栏时长、界面语言与数字格式')
 
   const labels = {
     settingsSectionDisplay: '明细展示',
@@ -1371,6 +1403,12 @@ test('客户端：侧栏状态与时长进入设置草稿、保存载荷与设�
     settingsSidebarNameLabel: '侧栏显示状态',
     settingsSidebarNameOn: '显示状态',
     settingsSidebarNameOff: '隐藏状态',
+    settingsSidebarDotLabel: '侧栏状态点',
+    settingsSidebarDotOn: '显示',
+    settingsSidebarDotOff: '隐藏',
+    settingsSidebarDotPositionLabel: '状态点位置',
+    settingsSidebarDotPositionEnd: '最右侧',
+    settingsSidebarDotPositionInline: '跟随时长',
     settingsSidebarDurationLabel: '侧栏显示时长',
     settingsSidebarDurationHint: '选择侧栏常驻时长',
     sidebarDurationOnline: '在线时长',
@@ -1383,6 +1421,13 @@ test('客户端：侧栏状态与时长进入设置草稿、保存载荷与设�
   assert.ok(checkbox, '设置页存在侧栏状态开关')
   assert.equal(checkbox.props.type, 'checkbox')
   assert.equal(checkbox.props.checked, false, '首次安装默认隐藏状态')
+  const dotCheckbox = findAll(tree, (node) => node.type === 'input' && node.props?.['aria-label'] === '侧栏状态点')[0]
+  assert.ok(dotCheckbox, '设置页存在状态点显示开关')
+  assert.equal(dotCheckbox.props.checked, true, '首次安装默认显示状态点')
+  const dotPositionSelect = findAll(tree, (node) => node.type === Select && node.props?.ariaLabel === '状态点位置')[0]
+  assert.ok(dotPositionSelect, '设置页存在状态点位置下拉')
+  assert.equal(dotPositionSelect.props.value, 'end', '状态点默认贴最右侧')
+  assert.equal(Array.from(dotPositionSelect.props.options, (option) => option.label).join(','), '最右侧,跟随时长', '状态点位置提供贴右与跟随两种选项')
   const durationSelect = findAll(tree, (node) => node.type === Select && node.props?.ariaLabel === '侧栏显示时长')[0]
   assert.ok(durationSelect, '设置页存在侧栏显示时长下拉')
   assert.equal(durationSelect.props.className, 'cs-settings-select', 'DSH 设置页下拉默认使用紧凑 class，避免菜单铺满整页')
@@ -1454,11 +1499,11 @@ test('客户端：界面语言默认中文，设置页可切英文并即时换�
   assert.equal(languageSelect.props.className, 'cs-settings-select', '与其它设置项共用同一套紧凑下拉')
   assert.equal(Array.from(languageSelect.props.options, (option) => option.label).join(','), '中文,English')
 
-  // 宽卡两列排版：加上界面语言后是六项，正好填满两列，不留空格。
+  // 宽卡两列排版：加入状态点与位置后是八项，正好填满两列，不留空格。
   const body = renderBasicSettingsBody(t, null, false, () => {}, { split: true })
   const list = allOf(body, byClass('cs-settings-list'))[0]
-  assert.match(list.props.className, /is-split is-even/, '六项在宽卡里两列正好填满')
-  assert.equal(allOf(body, byClass('cs-settings-row')).length, 6, '基础设置六项：语言、空闲阈值、周起始、子代理、侧栏状态、侧栏时长')
+  assert.match(list.props.className, /is-split is-even/, '八项在宽卡里两列正好填满')
+  assert.equal(allOf(body, byClass('cs-settings-row')).length, 8, '基础设置八项：语言、空闲阈值、周起始、子代理、侧栏状态、状态点显示、状态点位置、侧栏时长')
 })
 
 test('客户端：设置页通知记录可回看已读事件并显示累计条数', async () => {
@@ -1853,6 +1898,8 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
     hoverTip, nowMs: now, onOpenSession: (session) => openedSessions.push(session),
   })
   assert.equal(allOf(overview, byClass('cs-cycle')).length, 3, '概览保留今日/本周/本月周期卡')
+  assert.equal(allOf(overview, byClass('cs-section-head')).length, 0, '概览不再保留「周期概览」整行标题')
+  assert.doesNotMatch(textOf(overview), /周期概览/, '标题文案不再出现在内容里')
   assert.ok(allOf(overview, byClass('cs-trend-card')).length >= 1, '概览含趋势卡')
   assert.ok(allOf(overview, byClass('cs-composition')).length >= 1, '概览含任务构成')
   assert.ok(allOf(overview, byClass('cs-ranking')).length >= 1, '概览含工作区排行')
@@ -1867,6 +1914,7 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
     nowMs: now,
   })
   assert.equal(allOf(trend, byClass('cs-cycle')).length, 3, '趋势同样能切换日/周/月比较')
+  assert.equal(allOf(trend, byClass('cs-section-head')).length, 0, '趋势页不再保留整行标题')
   assert.equal(allOf(trend, byClass('cs-cycle-tail')).length, 3, '每张周期卡都有贴底分组')
   assert.equal(allOf(trend, byClass('cs-cycle-share')).length, 3, '活跃占比文字仍在')
   assert.match(textOf(allOf(trend, byClass('cs-cycle-tail'))[0]), /活跃占比 \d+%/, '占比文字下沉到横条上方')
@@ -2085,16 +2133,19 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     settingsSectionDisplay: '明细展示', settingsSubagentLabel: '显示子代理明细', settingsSubagentHint: '开关子代理',
     settingsSubagentOn: '显示', settingsSubagentOff: '隐藏', settingsSidebarNameLabel: '侧栏显示状态',
     settingsSidebarNameHint: '侧栏状态文字开关', settingsSidebarNameOn: '显示状态', settingsSidebarNameOff: '隐藏状态',
+    settingsSidebarDotLabel: '侧栏状态点', settingsSidebarDotHint: '状态点显隐开关', settingsSidebarDotOn: '显示', settingsSidebarDotOff: '隐藏',
+    settingsSidebarDotPositionLabel: '状态点位置', settingsSidebarDotPositionHint: '贴右或跟随时长',
+    settingsSidebarDotPositionEnd: '最右侧', settingsSidebarDotPositionInline: '跟随时长',
     settingsSidebarDurationLabel: '侧栏显示时长', settingsSidebarDurationHint: '选择侧栏常驻时长',
     sidebarDurationOnline: '在线时长', sidebarDurationActive: '活跃时长', sidebarDurationTask: '任务时长',
     settingsResetTitle: '初始化设置', settingsResetHint: '恢复首次安装默认值，不删除统计数据。',
     settingsResetButton: '恢复初始设置', settingsResetConfirmTitle: '恢复初始设置？',
     settingsResetConfirmHint: '名称、数字格式与外观回到默认值。', settingsResetConfirm: '确认恢复',
     settingsResetCancel: '取消', settingsResetDone: '已恢复初始设置',
-    settingsSectionNotices: '通知记录', backfillNoticeCount: '累计回填 {tasks} 条',
+    settingsSectionNotices: '通知记录', settingsNoticesHint: '保留每次历史任务回填记录，可重新扫描。', backfillNoticeCount: '累计回填 {tasks} 条',
     backfillNoticeRead: '已读', backfillNoticeUnread: '待确认', backfillNoticeKindInitial: '首次回填',
     backfillNoticeEmpty: '暂无通知记录', backfillNoticeUnavailable: '暂时无法读取通知记录',
-    settingsRecheck: '重新检查回填', settingsRechecking: '正在检查…',
+    settingsRecheck: '重新扫描历史任务', settingsRechecking: '正在扫描…',
     dataTitle: '数据管理', dataHint: '导出与清空', exportJson: '导出 JSON', exportCsv: '导出 CSV',
     exporting: '正在导出…', clearData: '清空全部数据', clearStepTitle: '确认清空？',
     clearStepHint: '此操作不可撤销', clearConfirm: '确认清空', clearCancel: '取消', clearing: '正在清空…',
@@ -2102,7 +2153,8 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     settingsLoadError: '无法读取设置', settingsRetry: '重试', settingsSaveError: '保存失败',
     savedBadge: '已保存', importData: '选择备份文件导入', importFileHint: '未选择文件',
     importFilePicked: '已选择：', importHint: '按 ID 去重合并，已有记录不会被覆盖。',
-    importPreviewTitle: '待导入文件', importConfirm: '确认导入', approximateShowAgain: '重新显示说明',
+    importPreviewTitle: '待导入文件', importConfirm: '确认导入',
+    approximateShowAgain: '重新显示「近似记录」说明', approximateShowAgainHint: '只在存在近似记录时出现，可在这里恢复。',
     backfillNoticeKindRetry: '手动重试', backfillDone: '历史任务回填完成',
   }
   const t = (key) => labels[key] ?? key
@@ -2127,7 +2179,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   const text = textOf(tree)
   assert.match(allOf(tree, byClass('cs-settings-list'))[0]?.props?.className ?? '', /is-split/, '统计与显示在仪表盘宽卡里排成两列')
   assert.match(text, /侧栏、概览、趋势、明细与导出共用这一格式/, '数字格式卡底部说明共用范围')
-  for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示状态', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '选择备份文件导入', '重新显示说明', '清空全部数据']) {
+  for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示状态', '侧栏状态点', '状态点位置', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '选择备份文件导入', '重新显示「近似记录」说明', '清空全部数据']) {
     assert.match(text, new RegExp(expected), `设置页包含「${expected}」`)
   }
   assert.match(text, /未选择文件/, '未选择文件时常显导入状态')
@@ -2136,14 +2188,20 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   assert.doesNotMatch(text, /保存设置/, '即点即存后不再有「保存设置」按钮')
   assert.equal(allOf(tree, byClass('cs-format-opt')).length, 5, '五个数字格式选项')
   const checkboxes = findAll(tree, (node) => node.type === 'input' && node.props?.type === 'checkbox')
-  assert.equal(checkboxes.length, 2, '子代理与侧栏状态两个开关')
+  assert.equal(checkboxes.length, 3, '子代理、侧栏状态与状态点三个开关')
   const sidebarNameCheckbox = checkboxes.find((node) => node.props?.['aria-label'] === '侧栏显示状态')
   assert.equal(sidebarNameCheckbox?.props?.checked, false, '侧栏状态默认不勾选')
+  const sidebarDotCheckbox = checkboxes.find((node) => node.props?.['aria-label'] === '侧栏状态点')
+  assert.equal(sidebarDotCheckbox?.props?.checked, true, '侧栏状态点默认显示')
   const selectLabels = findAll(tree, (node) => typeof node.props?.ariaLabel === 'string')
     .map((node) => node.props.ariaLabel)
   assert.ok(selectLabels.includes('活跃判定阈值'), '空闲阈值下拉可用')
   assert.ok(selectLabels.includes('每周起始'), '每周起始下拉可用')
+  assert.ok(selectLabels.includes('状态点位置'), '状态点位置下拉可用')
   assert.ok(selectLabels.includes('侧栏显示时长'), '侧栏显示时长下拉可用')
+  const dotPositionSelect = findAll(tree, (node) => node.props?.ariaLabel === '状态点位置')[0]
+  assert.equal(dotPositionSelect?.props?.value, 'end', '状态点默认贴最右侧')
+  assert.equal(dotPositionSelect?.props?.options?.length, 2, '状态点位置提供两种选项')
   const durationSelect = findAll(tree, (node) => node.props?.ariaLabel === '侧栏显示时长')[0]
   assert.equal(durationSelect?.props?.value, 'online', '侧栏显示时长默认在线时长')
   assert.equal(durationSelect?.props?.options?.length, 3, '侧栏显示时长提供三种口径')
