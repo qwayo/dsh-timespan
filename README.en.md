@@ -19,7 +19,7 @@ Scope: there is no separate "idle time" metric, and task time is not part of act
 ## What you see
 
 <p align="center">
-  <img src="./assets/readme/dashboard.en.svg" width="100%" alt="dsh-timespan period overview (sample data): sidebar online entry, today's active headline, today/week/month cards, today's 24 hours, task time breakdown, workspace task ranking, recent sessions and the daily active heatmap">
+  <img src="./assets/readme/dashboard.en.svg" width="100%" alt="dsh-timespan period overview (sample data): sidebar online entry, weekly active headline, today/week/month cards, 24-hour trend, task breakdown, workspace task ranking, recent sessions and the daily active heatmap">
 </p>
 
 - A permanent sidebar entry shows the duration you select (online by default) and today's ring; hovering for about 200 ms shows a tooltip.

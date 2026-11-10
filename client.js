@@ -3190,16 +3190,6 @@ window.__ModuleLoader__.load({
                 hoverTip,
                 tone: 'running',
               })
-              : null,
-            session.approximate
-              ? renderDetailMeta({
-                className: 'cs-session-status',
-                icon: 'approx',
-                label: t('approximateHint'),
-                tipTitle: t('approximateHint'),
-                hoverTip,
-                tone: 'warning',
-              })
               : null),
           h('span', { className: 'cs-session-meta' },
             renderDetailMeta({
@@ -5112,9 +5102,7 @@ window.__ModuleLoader__.load({
               h('div', { className: 'cs-card-heading cs-sessions-heading' },
                 h('div', { className: 'cs-sessions-title-line' },
                   h('h2', null, t('detailsSessionsTitle')),
-                  h('span', { className: 'cs-sessions-count' }, `${sessionCount} ${t('sessionsUnit')}`),
-                  renderInfo(t('sumFoot'))),
-                h('p', { className: 'cs-sessions-caption' }, t('detailsSessionsCaption'))),
+                  h('span', { className: 'cs-sessions-count' }, `${sessionCount} ${t('sessionsUnit')}`))),
               h('span', { className: 'cs-sessions-scope' }, t('sumTag'))),
             rows.length === 0
               ? h('div', { className: 'cs-empty' }, t(hasQuery ? 'detailsEmpty' : 'emptyDashboard'))
@@ -6555,6 +6543,8 @@ window.__ModuleLoader__.load({
       .cs-trend-layout .cs-card-heading,
       .cs-trend-bottom .cs-card-heading { position: relative; top: -4px; }
       .cs-card-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+      .cs-recent .cs-tag { align-self: center; }
+      .cs-heatmap-card .cs-card-heading { align-items: center; }
       .cs-card-heading h2 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 620; }
       .cs-card-title { display: inline-flex; align-items: center; gap: 7px; }
       .cs-card-icon { display: inline-flex; color: var(--dsw-alias-label-secondary); }
@@ -7873,7 +7863,6 @@ window.__ModuleLoader__.load({
       .cs-sessions-title-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
       .cs-sessions-title-line h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 650; }
       .cs-sessions-count { flex: none; padding: 1px 7px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 10.5px; line-height: 17px; font-variant-numeric: tabular-nums; }
-      .cs-sessions-caption { margin: 3px 0 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-sessions-scope { margin-left: auto; padding-top: 3px; font-size: 10.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
       .cs-workspace-list { display: flex; flex-direction: column; margin-top: 8px; }
       .cs-page .cs-group { border-top: 1px solid var(--dsw-alias-border-l1); }
@@ -7886,9 +7875,9 @@ window.__ModuleLoader__.load({
       .cs-group.is-open .cs-workspace-name { color: var(--dsw-alias-label-primary); }
       .cs-workspace-count { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 10.5px; line-height: 18px; font-variant-numeric: tabular-nums; }
       .cs-page .cs-sessions { margin: 0 0 8px 28px; padding: 2px 0 2px 8px; border-left: 1px solid var(--dsw-alias-border-l1); border-radius: 0; background: transparent; }
-      .cs-page .cs-session { display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; padding: 11px 10px; border-top: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 72%, transparent); border-radius: 7px; }
-      .cs-page .cs-session.is-running { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--cs-task) 62%, transparent); }
-      .cs-page .cs-session:first-child { border-top: 0; }
+      .cs-page .cs-session { position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; padding: 11px 10px; border-top: 0; border-radius: 7px; }
+      /* 会话行分隔线：直角并左伸到会话列表的竖线，和竖线连起来。 */
+      .cs-page .cs-session + .cs-session::after { content: ''; position: absolute; top: 0; left: -8px; right: 0; height: 1px; background: color-mix(in srgb, var(--dsw-alias-border-l1) 72%, transparent); pointer-events: none; }
       .cs-page .cs-session.is-openable { cursor: pointer; transition: background var(--cs-dur-tap) var(--cs-ease); }
       .cs-page .cs-session.is-openable:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 4%, transparent); }
       .cs-session-body { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0; }
@@ -7930,12 +7919,12 @@ window.__ModuleLoader__.load({
         .cs-sessions-card-head { flex-direction: column; gap: 2px; }
         .cs-sessions-heading { flex-direction: column; align-items: flex-start; }
         .cs-sessions-title-line h2 { font-size: 15px; line-height: 22px; white-space: nowrap; }
-        .cs-sessions-caption { margin-top: 2px; font-size: 10.5px; line-height: 14px; }
         .cs-sessions-scope { display: none; }
         .cs-workspace-list { margin-top: 4px; }
         .cs-page .cs-summary.cs-workspace-head { min-height: 42px; padding: 4px 4px; }
         .cs-page .cs-sessions { margin-left: 22px; padding-left: 4px; }
         .cs-page .cs-session { gap: 10px; padding: 8px 4px; }
+        .cs-page .cs-session + .cs-session::after { left: -4px; }
         .cs-page .cs-session-headline { align-items: flex-start; gap: 6px; }
         .cs-page .cs-session-dot { margin-top: 6px; }
         .cs-page .cs-session-title { display: -webkit-box; overflow: hidden; white-space: normal; text-overflow: clip; line-height: 18px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }

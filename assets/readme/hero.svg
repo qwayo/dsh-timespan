@@ -45,18 +45,17 @@
 
   <!-- 右侧：今日构成环（三段之间留空隙，任务段为紫色） -->
   <g id="composite-ring">
-    <circle cx="900" cy="178" r="100" fill="none" stroke="#303435" stroke-width="26"/>
-    <g transform="rotate(-90 900 178)">
-      <!-- 三段之间各留 2.2% 的空隙，露出底色轨道，让分界更清楚 -->
+    <g transform="rotate(-90 900 178)" stroke-linecap="round">
+      <!-- 三段之间保留约 2.2% 的可见空隙，圆头端帽让分界处呈半圆 -->
       <!-- 在线：51.5%，两侧各让出 1.1% -->
       <circle cx="900" cy="178" r="100" fill="none" stroke="#3f6ba8" stroke-width="26"
-              pathLength="100" stroke-dasharray="49.3 50.7" stroke-dashoffset="-1.1"/>
-      <!-- 活跃：28.5%，起点让出 1.1%，终点再让出 1.1% -->
+              pathLength="100" stroke-dasharray="45.16 54.84" stroke-dashoffset="-3.17"/>
+      <!-- 活跃：28.5%，两侧各让出 1.1% -->
       <circle cx="900" cy="178" r="100" fill="none" stroke="#79B3F9" stroke-width="26"
-              pathLength="100" stroke-dasharray="26.3 73.7" stroke-dashoffset="-52.6"/>
+              pathLength="100" stroke-dasharray="22.16 77.84" stroke-dashoffset="-54.67"/>
       <!-- 任务：20%，两侧各让出 1.1%，紫色 -->
       <circle cx="900" cy="178" r="100" fill="none" stroke="#C29BE8" stroke-width="26"
-              pathLength="100" stroke-dasharray="17.8 82.2" stroke-dashoffset="-81.1"/>
+              pathLength="100" stroke-dasharray="13.66 86.34" stroke-dashoffset="-83.17"/>
     </g>
 
     <!-- 指针与轴心 -->

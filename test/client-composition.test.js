@@ -969,7 +969,7 @@ test('客户端：会话行只在真实会话 id 时打开宿主会话页，否�
   assert.equal(openSessionInHost(throwing, realSession), false, '归档/未知会话抛错时不冒泡')
 })
 
-test('客户端：排行、近似状态与子代理说明一律收进统一浮层', async () => {
+test('客户端：排行与子代理说明收进统一浮层，会话行不再显示近似标记', async () => {
   const { renderWorkspaceRanking, renderSessionRow } = await loadClientFunctions()
   const labels = {
     unassigned: '未归属', accumulated: '累计', sumFoot: '合计', workspaceRanking: '工作区排行',
@@ -999,10 +999,8 @@ test('客户端：排行、近似状态与子代理说明一律收进统一浮�
   }, t, Date.now(), [{ sessionId: 'a1', sessionTitle: '子任务甲', durationMs: 1000 }], 'hms', hoverTip)
   const withTitle = findAll(session, (node) => typeof node?.type === 'string' && node.props && 'title' in node.props)
   assert.equal(withTitle.length, 0, '会话行内没有任何原生 title 属性')
-  const approximate = findAll(session, (node) => hasClass(node, 'cs-session-status') && node.props['aria-label'] === '按最后心跳估算')[0]
-  assert.ok(approximate, '近似状态图标存在')
-  approximate.props.onMouseEnter(event)
-  assert.equal(shown.at(-1)?.title, '按最后心跳估算', '近似说明走统一浮层')
+  const approximate = findAll(session, (node) => hasClass(node, 'cs-session-status') && node.props['aria-label'] === '按最后心跳估算')
+  assert.equal(approximate.length, 0, '会话行不再显示近似状态图标与说明文字')
   const subagents = findAll(session, (node) => hasClass(node, 'cs-session-tool') && String(node.props['aria-label']).includes('含子代理任务'))[0]
   assert.ok(subagents, '子代理图标存在')
   subagents.props.onMouseEnter(event)
@@ -1077,6 +1075,10 @@ test('客户端：会话模块样式让工作区退后、会话行成为主体',
   assert.match(declarationsFor(css, '.cs-session-meta'), /display:\s*flex/, '会话指标保持紧凑成组')
   assert.match(declarationsFor(css, '.cs-session-arrow'), /opacity:\s*\.45/, '会话行提供轻量但可见的打开提示')
   assert.match(declarationsFor(css, '.cs-session-title'), /text-overflow:\s*ellipsis/, '会话标题过长时省略')
+  assert.match(css, /\.cs-page \.cs-session \+ \.cs-session::after\s*\{[^}]*left:\s*-8px/, '会话分隔线向左伸到列表竖线')
+  assert.doesNotMatch(css, /\.cs-page \.cs-session\.is-running\s*\{/, '任务执行中的会话行不再画紫色边线')
+  assert.match(css, /\.cs-recent \.cs-tag\s*\{[^}]*align-self:\s*center/, '最近会话计数徽标与标题垂直居中')
+  assert.match(css, /\.cs-heatmap-card \.cs-card-heading\s*\{[^}]*align-items:\s*center/, '每日活跃信息图标与标题垂直居中')
 
   const mobile = mediaBlocks(css, 760)
   assert.ok(mobile.length > 0, '存在平板与手机断点')
@@ -2102,6 +2104,9 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
   assert.equal(allOf(details, byClass('cs-detail-stat')).length, 4, '明细顶部四项摘要保持一行')
   assert.equal(allOf(details, byClass('cs-details-side')).length, 0, '不再保留重复的最近会话侧栏')
   assert.ok(allOf(details, byClass('cs-sessions-card')).length === 1, '会话列表独占整宽')
+  const sessionsCard = allOf(details, byClass('cs-sessions-card'))[0]
+  assert.equal(allOf(sessionsCard, byClass('cs-sessions-caption')).length, 0, '会话记录标题右侧不再保留说明文字')
+  assert.equal(allOf(sessionsCard, byClass('cs-info')).length, 0, '会话记录标题右侧不再保留信息图标')
   assert.match(textOf(allOf(details, byClass('cs-sessions-count'))[0]), /个会话/, '卡片头显示会话总数')
   assert.equal(allOf(details, byClass('cs-details-layout')).length, 1, '明细保持单一内容容器')
 
