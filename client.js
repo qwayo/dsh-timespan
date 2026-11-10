@@ -794,8 +794,8 @@ window.__ModuleLoader__.load({
       },
       h('circle', { cx: 12, cy: 12, r: 8.5, stroke: 'currentColor', strokeWidth: 2.2,
         strokeLinecap: 'round', strokeDasharray: '11 3 7 3 5 3', transform: 'rotate(-90 12 12)' }),
-      // 圆环底部那一小段是任务紫；指针与轴心保持白色，避免把轴心误当成独立的状态点。
-      h('path', { d: 'M14.66 20.07 A8.5 8.5 0 0 1 9.73 20.19', stroke: 'var(--cs-task, #7A5AA6)',
+      // 圆环右下角一段与底部小段连成任务紫；指针与轴心保持白色，避免把轴心误当成独立的状态点。
+      h('path', { d: 'M20.5 12 A8.5 8.5 0 0 1 9.73 20.19', stroke: 'var(--cs-task, #7A5AA6)',
         strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
       h('path', { d: 'M12 12l4-4', stroke: '#ffffff', strokeWidth: 2, strokeLinecap: 'round' }),
       h('circle', { cx: 12, cy: 12, r: 1.8, fill: '#ffffff' }))
@@ -1457,6 +1457,17 @@ window.__ModuleLoader__.load({
         applyLanguage(value?.language)
         return value
       })
+    }
+
+    /**
+     * 恢复默认设置：Host 热更新后可能仍使用旧版默认值（例如状态点位置为 end），
+     * 因此 resetSettings 返回后若位置不是当前默认的跟随时长，再显式补写一次。
+     * 这样「恢复初始设置」在当前进程和重启后的行为一致。
+     */
+    async function resetSettingsToDefaults(ctx) {
+      const saved = await callSettings(ctx, 'resetSettings', {})
+      if (settingsDraft(saved).sidebarDotPosition === SIDEBAR_DOT_POSITION_DEFAULT) return saved
+      return callSettings(ctx, 'setSettings', { sidebarDotPosition: SIDEBAR_DOT_POSITION_DEFAULT })
     }
 
     /**
@@ -2960,8 +2971,7 @@ window.__ModuleLoader__.load({
       return h('section', { className: `cs-card cs-composition${hotKey ? ' has-hot' : ''}` },
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' },
-            h('h2', null, t('compositionTitle')),
-            renderInfo(t('compositionInfo'))),
+            h('h2', null, t('compositionTitle'))),
           h('span', { className: 'cs-tag' }, t('accumulated'))),
         total === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-composition-body' },
@@ -3011,8 +3021,7 @@ window.__ModuleLoader__.load({
       const rows = [...data.workspaces].filter((row) => row.taskMs > 0).sort((a, b) => b.taskMs - a.taskMs).slice(0, 5)
       return h('section', { className: 'cs-card cs-ranking' },
         h('div', { className: 'cs-card-head' }, h('div', { className: 'cs-card-heading' },
-          h('h2', null, t('workspaceRanking')),
-          renderInfo(t('sumFoot')))),
+          h('h2', null, t('workspaceRanking')))),
         rows.length === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-ranking-list' }, rows.map((row, index) => {
               const name = row.workspaceTitle ?? t('unassigned')
@@ -3677,7 +3686,7 @@ window.__ModuleLoader__.load({
           setResetting(true)
           setMessage('')
           try {
-            const saved = await callSettings(ctx, 'resetSettings', {})
+            const saved = await resetSettingsToDefaults(ctx)
             setDraft(settingsDraft(saved))
             resetStoredTheme()
             setResetStep(false)
@@ -4258,8 +4267,7 @@ window.__ModuleLoader__.load({
       return h('section', { className: `cs-card cs-trend-card${zoomable ? ' has-zoom' : ''}`, 'data-focus': 'trend' },
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' },
-            h('h2', null, t(trendTitleKey)),
-            renderInfo(t('trendInfo'))),
+            h('h2', null, t(trendTitleKey))),
           h('div', { className: 'cs-legend' },
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel'))),
@@ -4795,8 +4803,7 @@ window.__ModuleLoader__.load({
       return h('section', { className: 'cs-card cs-recent' },
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' },
-            h('h2', null, t('recentSessions')),
-            renderInfo(t('recentSessionsHint'))),
+            h('h2', null, t('recentSessions'))),
           h('span', { className: 'cs-tag' }, '5')),
         rows.length === 0
           ? h('div', { className: 'cs-empty' }, t('recentSessionsEmpty'))
@@ -4942,8 +4949,7 @@ window.__ModuleLoader__.load({
             h('section', { className: 'cs-card cs-details-side-card' },
               h('div', { className: 'cs-card-head' },
                 h('div', { className: 'cs-card-heading' },
-                  h('h2', null, t('recentSessions')),
-                  renderInfo(t('recentSessionsHint')))),
+                  h('h2', null, t('recentSessions')))),
               recent.length === 0
                 ? h('div', { className: 'cs-empty is-small' }, t('recentSessionsEmpty'))
                 : h('div', { className: 'cs-detail-session-list' }, recent.slice(0, 6).map((session) =>
@@ -5550,7 +5556,7 @@ window.__ModuleLoader__.load({
           setSettingsResetting(true)
           setSettingsMessage('')
           try {
-            const saved = await callSettings(ctx, 'resetSettings', {})
+            const saved = await resetSettingsToDefaults(ctx)
             setSettingsForm(settingsDraft(saved))
             setPreviewFormat(null)
             applyAppearance('system')
@@ -6308,10 +6314,11 @@ window.__ModuleLoader__.load({
       .cs-trend-card { display: flex; flex-direction: column; gap: 8px; }
       .cs-table-card { display: flex; flex-direction: column; gap: 8px; padding-bottom: 8px; }
       .cs-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-      /* 只把概览/趋势区块的标题行整体上提 4px，不动卡片内其它元素与间距。 */
-      .cs-overview-grid .cs-card-head,
-      .cs-trend-layout .cs-card-head,
-      .cs-trend-bottom .cs-card-head { position: relative; top: -4px; }
+      /* 只把概览/趋势区块的标题文字与说明整体上提 4px；卡片头保持静态，
+         避免成为右上角缩放按钮的定位参照，放大按钮始终贴卡片右上角。 */
+      .cs-overview-grid .cs-card-heading,
+      .cs-trend-layout .cs-card-heading,
+      .cs-trend-bottom .cs-card-heading { position: relative; top: -4px; }
       .cs-card-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
       .cs-card-heading h2 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 620; }
       .cs-card-hint { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }

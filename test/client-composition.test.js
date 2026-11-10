@@ -57,6 +57,7 @@ async function loadClientFunctions(windowExtras = {}) {
       formatDuration: typeof formatDuration === 'function' ? formatDuration : undefined,
       normalizeDurationFormat: typeof normalizeDurationFormat === 'function' ? normalizeDurationFormat : undefined,
       settingsDraft: typeof settingsDraft === 'function' ? settingsDraft : undefined,
+      resetSettingsToDefaults: typeof resetSettingsToDefaults === 'function' ? resetSettingsToDefaults : undefined,
       renderBasicSettingsBody: typeof renderBasicSettingsBody === 'function' ? renderBasicSettingsBody : undefined,
       renderResetSettingsBody: typeof renderResetSettingsBody === 'function' ? renderResetSettingsBody : undefined,
       renderDurationFormatSection: typeof renderDurationFormatSection === 'function' ? renderDurationFormatSection : undefined,
@@ -620,14 +621,15 @@ test('客户端：概览口径按行拆分，周/月补一句日均口径', asyn
   assert.ok(weekLines.includes(labels.dailyAverageHint), '周/月视图补充日均按自然日折算')
 })
 
-test('客户端：品牌时钟指针与轴心固定白色，圆环底部小段使用任务紫', async () => {
+test('客户端：品牌时钟指针与轴心固定白色，圆环右下角至底部弧形使用任务紫', async () => {
   const { DshTimespanIcon } = await loadClientFunctions()
   const icon = DshTimespanIcon({ size: 36 })
   const hand = findAll(icon, (node) => node.type === 'path' && node.props?.d === 'M12 12l4-4')[0]
   assert.equal(hand?.props?.stroke, '#ffffff', '指针不随配色变化，固定白色')
-  const bottomArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M14.66 20.07'))[0]
-  assert.ok(bottomArc, '圆环底部单独画一小段弧')
-  assert.match(bottomArc.props.stroke, /var\(--cs-task, #7A5AA6\)/, '底部小段使用任务紫')
+  const bottomRightArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M20.5 12'))[0]
+  assert.ok(bottomRightArc, '圆环右下角单独画一段弧')
+  assert.match(bottomRightArc.props.d, /A8\.5 8\.5 0 0 1 9\.73 20\.19$/, '弧形覆盖右下角并连到圆环底部')
+  assert.match(bottomRightArc.props.stroke, /var\(--cs-task, #7A5AA6\)/, '右下角弧形使用任务紫')
   const center = findAll(icon, (node) => node.type === 'circle' && node.props?.r === 1.8)[0]
   assert.equal(center?.props?.fill, '#ffffff', '轴心与指针同为白色，不再使用任务紫')
 })
@@ -671,7 +673,8 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与派生色�
   assert.doesNotMatch(css, /\.cs-info\.is-open \.cs-info-tip/, '不再由点击展开态控制显示')
   assert.doesNotMatch(css, /\.cs-info\.is-dismissed/, '不再有 dismissed 状态')
   assert.doesNotMatch(css, /\.cs-card-heading \.cs-info-tip/, '窄屏 left:-80px 死规则已删，改由视口夹取')
-  assert.match(css, /\.cs-overview-grid \.cs-card-head,\s*\.cs-trend-layout \.cs-card-head,\s*\.cs-trend-bottom \.cs-card-head\s*\{[^}]*top:\s*-4px/, '概览与趋势区块标题行整体上提 4px')
+  assert.match(css, /\.cs-overview-grid \.cs-card-heading,\s*\.cs-trend-layout \.cs-card-heading,\s*\.cs-trend-bottom \.cs-card-heading\s*\{[^}]*top:\s*-4px/, '概览与趋势区块的标题文字整体上提 4px')
+  assert.doesNotMatch(css, /\.cs-overview-grid \.cs-card-head,\s*\.cs-trend-layout \.cs-card-head,\s*\.cs-trend-bottom \.cs-card-head\s*\{[^}]*position:\s*relative/, '卡片头不成为缩放按钮的定位参照')
   assert.match(css, /@keyframes viewIn\s*\{\s*from\s*\{\s*opacity:/, '视图入场只动 opacity')
   assert.doesNotMatch(css, /@keyframes viewIn\s*\{[^}]*\btransform\b/, '入场不再保留 transform，避免 fixed 浮层定位错乱')
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
@@ -813,20 +816,24 @@ test('客户端：散落小字收进 ⓘ 消息，信息不丢失', async () => 
   assert.doesNotMatch(footer, /undefined/)
 })
 
-test('客户端：任务构成与排行的口径说明只保留一条，不重复字段', async () => {
-  const { renderComposition, renderWorkspaceRanking, Info } = await loadClientFunctions()
+test('客户端：任务构成、工作区排行、今日 24 小时与最近会话不再显示说明图标', async () => {
+  const {
+    renderComposition, renderWorkspaceRanking, renderTrendCard, renderRecentSessions, Info,
+  } = await loadClientFunctions()
   const labels = {
-    compositionTitle: '任务时长构成', compositionInfo: '任务时长按会话累计；缺少构成记录的历史任务计入「未拆分」。',
-    noTaskComposition: '暂无任务', accumulated: '累计工时',
-    workspaceRanking: '工作区任务排行', sumFoot: '多会话同时进行时，任务时长按会话分别累计。',
-    unassigned: '未归属', taskLabel: '任务', colShare: '任务占比',
+    compositionTitle: '任务时长构成', noTaskComposition: '暂无任务', accumulated: '累计工时',
+    workspaceRanking: '工作区任务排行', unassigned: '未归属', taskLabel: '任务', colShare: '任务占比',
+    trendDay: '今日 24 小时', activeLabel: '活跃', emptyDashboard: '暂无记录',
+    recentSessions: '最近会话', recentSessionsEmpty: '暂无会话',
   }
   const t = (key) => labels[key] ?? key
-  const messagesOf = (tree) => findNodes(tree, (node) => node.type === Info).map((node) => node.props.message)
-  const composition = messagesOf(renderComposition({ workspaces: [] }, t))
-  assert.deepEqual(composition, [labels.compositionInfo], '构成说明只出现一次，不再追加同义的「按会话累计」')
-  const ranking = messagesOf(renderWorkspaceRanking({ workspaces: [] }, t))
-  assert.deepEqual(ranking, [labels.sumFoot], '排行说明只解释累计口径，不再重复「累计工时」字段')
+  const countInfo = (tree) => findNodes(tree, (node) => node.type === Info).length
+  assert.equal(countInfo(renderComposition({ workspaces: [] }, t)), 0, '任务时长构成去掉右上角说明图标')
+  assert.equal(countInfo(renderWorkspaceRanking({ workspaces: [] }, t)), 0, '工作区任务排行去掉右上角说明图标')
+  const trend = renderTrendCard({ workspaces: [], trend: [] }, t, true, { tip: null, show() {}, hide() {} }, 'hms', 'day', {})
+  assert.equal(countInfo(trend), 0, '今日 24 小时去掉标题右侧说明图标')
+  const recent = renderRecentSessions({ workspaces: [] }, t, Date.now(), () => {}, 'hms')
+  assert.equal(countInfo(recent), 0, '最近会话去掉标题右侧说明图标')
 })
 
 test('客户端：明细标题保留完整文本并走统一浮层', async () => {
@@ -1370,7 +1377,7 @@ test('客户端：侧栏状态文字跟随状态点，任务中优先于活跃�
 })
 
 test('客户端：侧栏状态、状态点与时长进入设置草稿、保存载荷与设置页控件', async () => {
-  const { settingsDraft, settingsPayload, createSettingsSection, React, Select } = await loadClientFunctions()
+  const { settingsDraft, settingsPayload, resetSettingsToDefaults, createSettingsSection, React, Select } = await loadClientFunctions()
   assert.equal(settingsDraft({ sidebarShowName: true }).sidebarShowName, true)
   assert.equal(settingsDraft({}).sidebarShowName, false, '缺省时隐藏状态文字')
   assert.equal(settingsDraft({}).sidebarDuration, 'online', '缺省时侧栏显示在线时长')
@@ -1399,6 +1406,60 @@ test('客户端：侧栏状态、状态点与时长进入设置草稿、保存�
     language: 'zh',
     approximateNoticeDismissed: false,
   }), '保存时提交侧栏状态、状态点、侧栏时长、界面语言与数字格式')
+
+  const defaults = {
+    idleThresholdMinutes: 5,
+    weekStartsOn: 1,
+    showSubagents: true,
+    durationFormat: 'short',
+    sidebarShowName: false,
+    sidebarDuration: 'online',
+    sidebarDotVisible: true,
+    sidebarDotPosition: 'inline',
+    language: 'zh',
+    approximateNoticeDismissed: false,
+  }
+  const resetCalls = []
+  const resetCtx = {
+    get(name) {
+      if (name !== 'connection') return undefined
+      return {
+        rpc: {
+          async call(_api, _service, request) {
+            resetCalls.push([request.method, request.payload])
+            const value = request.method === 'resetSettings'
+              ? { ...defaults, sidebarDotPosition: 'end' }
+              : { ...defaults, sidebarDotPosition: 'inline' }
+            return { ok: true, value }
+          },
+        },
+      }
+    },
+  }
+  const resetSaved = await resetSettingsToDefaults(resetCtx)
+  assert.equal(resetSaved.sidebarDotPosition, 'inline', 'Host 仍返回旧默认 end 时，客户端补写跟随时长')
+  assert.equal(resetCalls.length, 2, '先走 Host 恢复，再补写状态点位置')
+  assert.equal(resetCalls[0][0], 'resetSettings')
+  assert.equal(resetCalls[1][0], 'setSettings')
+  assert.equal(JSON.stringify(resetCalls[1][1]), JSON.stringify({ sidebarDotPosition: 'inline' }), '补写载荷只包含跟随时长')
+
+  const cleanCalls = []
+  const cleanCtx = {
+    get(name) {
+      if (name !== 'connection') return undefined
+      return {
+        rpc: {
+          async call(_api, _service, request) {
+            cleanCalls.push(request.method)
+            return { ok: true, value: defaults }
+          },
+        },
+      }
+    },
+  }
+  const cleanSaved = await resetSettingsToDefaults(cleanCtx)
+  assert.equal(cleanSaved.sidebarDotPosition, 'inline')
+  assert.deepEqual(cleanCalls, ['resetSettings'], 'Host 已返回跟随时长时不再多余写入')
 
   const labels = {
     settingsSectionDisplay: '明细展示',
