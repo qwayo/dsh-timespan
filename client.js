@@ -792,12 +792,13 @@ window.__ModuleLoader__.load({
         className: 'dsh-timespan-nav-icon', width: size, height: size,
         viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true,
       },
-      h('path', { d: 'M3.53 11.26 A8.5 8.5 0 0 1 20.47 11.26', stroke: 'currentColor',
+      h('path', { d: 'M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23', stroke: 'currentColor',
         strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
-      // 圆环一共三段：上半段浅色、右下段任务紫、左下段同色系深色；三段之间留均匀空隙，两端都是半圆端帽。
-      h('path', { d: 'M20.47 12.74 A8.5 8.5 0 0 1 12.74 20.47', stroke: 'var(--cs-task, #7A5AA6)',
+      // 圆环一共三段：上半段浅色、右下段任务紫、左下段同色系深色；每处留 24° 圆心角空档，
+      // 两端半圆端帽占去一部分后仍有约 1.36 个画布单位的可见空隙。
+      h('path', { d: 'M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31', stroke: 'var(--cs-task, #7A5AA6)',
         strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
-      h('path', { d: 'M11.26 20.47 A8.5 8.5 0 0 1 3.53 12.74', stroke: 'var(--cs-brand-ring-low, #133463)',
+      h('path', { d: 'M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77', stroke: 'var(--cs-brand-ring-low, #133463)',
         strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
       h('path', { d: 'M12 12l4-4', stroke: '#ffffff', strokeWidth: 2, strokeLinecap: 'round' }),
       h('circle', { cx: 12, cy: 12, r: 1.8, fill: '#ffffff' }))

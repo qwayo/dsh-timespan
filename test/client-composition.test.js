@@ -626,20 +626,35 @@ test('客户端：品牌时钟圆环固定为三段，上半浅色、右下任�
   const icon = DshTimespanIcon({ size: 36 })
   const hand = findAll(icon, (node) => node.type === 'path' && node.props?.d === 'M12 12l4-4')[0]
   assert.equal(hand?.props?.stroke, '#ffffff', '指针不随配色变化，固定白色')
-  const topArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M3.53 11.26'))[0]
+  const topArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M3.69 10.23'))[0]
   assert.ok(topArc, '圆环上半段单独画一段弧')
-  assert.match(topArc.props.d, /A8\.5 8\.5 0 0 1 20\.47 11\.26$/, '上半段跨过 12 点覆盖左右两侧')
+  assert.match(topArc.props.d, /A8\.5 8\.5 0 0 1 20\.31 10\.23$/, '上半段跨过 12 点覆盖左右两侧')
   assert.equal(topArc.props.stroke, 'currentColor', '上半段保持浅色')
-  const rightArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M20.47 12.74'))[0]
+  const rightArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M20.31 13.77'))[0]
   assert.ok(rightArc, '圆环右下段单独画一段弧')
-  assert.match(rightArc.props.d, /A8\.5 8\.5 0 0 1 12\.74 20\.47$/, '右下段从 3 点方向画到 6 点方向')
+  assert.match(rightArc.props.d, /A8\.5 8\.5 0 0 1 13\.77 20\.31$/, '右下段从 3 点方向画到 6 点方向')
   assert.match(rightArc.props.stroke, /var\(--cs-task, #7A5AA6\)/, '右下段使用任务紫')
-  const leftArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M11.26 20.47'))[0]
+  const leftArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M10.23 20.31'))[0]
   assert.ok(leftArc, '圆环左下段单独画一段弧')
-  assert.match(leftArc.props.d, /A8\.5 8\.5 0 0 1 3\.53 12\.74$/, '左下段从 6 点方向画到 9 点方向')
+  assert.match(leftArc.props.d, /A8\.5 8\.5 0 0 1 3\.69 13\.77$/, '左下段从 6 点方向画到 9 点方向')
   assert.match(leftArc.props.stroke, /var\(--cs-brand-ring-low, #133463\)/, '左下段使用对应配色的深色')
   for (const arc of [topArc, rightArc, leftArc]) {
     assert.equal(arc.props.strokeLinecap, 'round', '每段两端都保留半圆端帽')
+  }
+  const pointOf = (d, end) => {
+    const match = String(d).match(/^M([\d.]+) ([\d.]+) A8\.5 8\.5 0 0 1 ([\d.]+) ([\d.]+)$/)
+    assert.ok(match, `弧线路径格式可解析：${d}`)
+    const offset = end ? 2 : 0
+    return { x: Number(match[1 + offset]), y: Number(match[2 + offset]) }
+  }
+  const gapBetween = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) - 2.2
+  const visibleGaps = [
+    gapBetween(pointOf(topArc.props.d, true), pointOf(rightArc.props.d, false)),
+    gapBetween(pointOf(rightArc.props.d, true), pointOf(leftArc.props.d, false)),
+    gapBetween(pointOf(leftArc.props.d, true), pointOf(topArc.props.d, false)),
+  ]
+  for (const gap of visibleGaps) {
+    assert.ok(gap > 0.9, `半圆端帽之间仍留有可见空隙，实际 ${gap.toFixed(2)}`)
   }
   assert.equal(findAll(icon, (node) => node.type === 'path' && /A8\.5 8\.5/.test(String(node.props?.d))).length, 3, '圆环一共三段')
   const center = findAll(icon, (node) => node.type === 'circle' && node.props?.r === 1.8)[0]
