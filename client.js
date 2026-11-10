@@ -81,6 +81,13 @@ window.__ModuleLoader__.load({
     /** 「全部」下每个工作区首批展开的会话数与每次追加数。 */
     const DETAILS_SESSION_INITIAL = 8
     const DETAILS_SESSION_STEP = 8
+    /** 概览「最近会话」动态条数：默认 5，按底部行高在 3–6 之间取值。 */
+    const RECENT_SESSIONS_DEFAULT = 5
+    const RECENT_SESSIONS_MIN = 3
+    const RECENT_SESSIONS_MAX = 6
+    const RECENT_ROW_FALLBACK_PX = 35
+    const RECENT_CHROME_FALLBACK_PX = 66
+    const RECENT_FIT_GAP_PX = 4
     /** 回填进行时加快轮询，让进度与完成后的数字尽快出现，无需刷新页面。 */
     const BACKFILL_REFRESH_MS = 2_000
     /** 四个同级视图；tab 顺序即键盘左右方向键的顺序。 */
@@ -117,6 +124,11 @@ window.__ModuleLoader__.load({
       todayActive: '今日活跃时长',
       todayOnline: '今日在线时长',
       todayTask: '今日任务时长',
+      weekOnline: '本周在线时长',
+      weekTask: '本周任务时长',
+      monthOnline: '本月在线时长',
+      monthTask: '本月任务时长',
+      openSession: '打开会话',
       live: '活跃中',
       idle: '空闲',
       onlineLive: '正在记录',
@@ -128,6 +140,9 @@ window.__ModuleLoader__.load({
       focusSet: '设为首屏',
       focusUnset: '退出首屏',
       activeShare: '活跃占比',
+      taskShare: '任务占比',
+      weekActiveShare: '本周活跃占比',
+      monthActiveShare: '本月活跃占比',
       focusSummary: '首屏概览',
       focusTodayActive: '今日活跃',
       focusWeekActive: '本周活跃',
@@ -210,7 +225,7 @@ window.__ModuleLoader__.load({
       periodLoadFailed: '更新失败，暂时显示',
       trendInfo: '活跃时长和任务时长分别统计，可能重叠；悬停柱形可查看数值。',
       heatmapTitle: '每日活跃',
-      heatmapInfo: '每格一天，颜色越深活跃越长；悬停可看当天在线、活跃与任务时长。',
+      heatmapInfo: '每格一天，颜色越深活跃越长。',
       heatLegendLow: '低',
       heatLegendHigh: '高',
       heatDayTitle: '{month}月{day}日',
@@ -420,6 +435,11 @@ window.__ModuleLoader__.load({
       todayActive: 'Active today',
       todayOnline: 'Online today',
       todayTask: 'Task time today',
+      weekOnline: 'Online this week',
+      weekTask: 'Task time this week',
+      monthOnline: 'Online this month',
+      monthTask: 'Task time this month',
+      openSession: 'Open session',
       live: 'Active',
       idle: 'Idle',
       onlineLive: 'Recording',
@@ -431,6 +451,9 @@ window.__ModuleLoader__.load({
       focusSet: 'Set as focus view',
       focusUnset: 'Exit focus view',
       activeShare: 'Active share',
+      taskShare: 'Task share',
+      weekActiveShare: 'Active share this week',
+      monthActiveShare: 'Active share this month',
       focusSummary: 'Focus overview',
       focusTodayActive: 'Active today',
       focusWeekActive: 'Active this week',
@@ -513,7 +536,7 @@ window.__ModuleLoader__.load({
       periodLoadFailed: 'Update failed; still showing',
       trendInfo: 'Active and task time are measured separately and may overlap. Hover a bar for its value.',
       heatmapTitle: 'Daily active time',
-      heatmapInfo: 'One cell per day; darker means more active time. Hover for that day’s details.',
+      heatmapInfo: 'One cell per day; darker means more active time.',
       heatLegendLow: 'Less',
       heatLegendHigh: 'More',
       heatDayTitle: '{month} {day}',
@@ -879,6 +902,21 @@ window.__ModuleLoader__.load({
           h('circle', { cx: 12.6, cy: 4, r: 1.6 }),
           h('circle', { cx: 12.6, cy: 12, r: 1.6 }),
           h('path', { d: 'M5 8h2.1M8 8V4.7h3M8 8v3.3h3' }))
+      }
+      if (name === 'trend') {
+        return h('svg', common,
+          h('path', { d: 'M2.4 13.2h11.2' }),
+          h('path', { d: 'M4 13V9.4M7.2 13V5.8M10.4 13V7.6M13.6 13V3.2' }))
+      }
+      if (name === 'ranking') {
+        return h('svg', common,
+          h('path', { d: 'M3 4.2h9.4M3 8h6.4M3 11.8h3.4' }),
+          h('path', { d: 'M13 10.2v3.2' }))
+      }
+      if (name === 'sessions') {
+        return h('svg', common,
+          h('rect', { x: 2.2, y: 3.2, width: 9.6, height: 7, rx: 1.6 }),
+          h('path', { d: 'M4.8 12.2h6.9a1.6 1.6 0 0 0 1.6-1.6V6.2' }))
       }
       if (name === 'approx') {
         return h('svg', common,
@@ -2176,6 +2214,7 @@ window.__ModuleLoader__.load({
           sessionId: typeof row.sessionId === 'string' && row.sessionId
             ? row.sessionId
             : `__unassigned_active_${index}`,
+          hasSessionId: typeof row.sessionId === 'string' && row.sessionId !== '',
           sessionTitle: typeof row.sessionTitle === 'string' ? row.sessionTitle : null,
           activeMs: finite(row.activeMs),
           taskMs: finite(row.taskMs),
@@ -2207,6 +2246,31 @@ window.__ModuleLoader__.load({
           lastActivityAt: finite(row.lastActivityAt),
           sessions: normalizeWorkspaceSessions(row.sessions),
         }))
+    }
+
+    /** 只有真实会话 id 才能打开宿主会话页；`__unassigned_active_*` 是明细行占位 id。 */
+    function isRealSessionId(sessionId) {
+      return typeof sessionId === 'string' && sessionId !== '' && !sessionId.startsWith('__unassigned_active_')
+    }
+
+    function sessionIsOpenable(session) {
+      return session?.hasSessionId !== false && isRealSessionId(session?.sessionId)
+    }
+
+    /**
+     * 尝试打开宿主会话页；服务缺失、会话归档/未知或宿主动作抛错时返回 false，
+     * 由调用方回落到插件内的「切明细并高亮」。
+     */
+    function openSessionInHost(ctx, session) {
+      if (!sessionIsOpenable(session)) return false
+      const uiWorkspace = typeof ctx?.get === 'function' ? ctx.get('uiWorkspace') : undefined
+      if (!uiWorkspace || typeof uiWorkspace.openSession !== 'function') return false
+      try {
+        uiWorkspace.openSession(session.sessionId)
+        return true
+      } catch {
+        return false
+      }
     }
 
     function normalizeTrend(value) {
@@ -2973,9 +3037,7 @@ window.__ModuleLoader__.load({
       })
       return h('section', { className: `cs-card cs-composition${hotKey ? ' has-hot' : ''}` },
         h('div', { className: 'cs-card-head' },
-          h('div', { className: 'cs-card-heading' },
-            h('h2', null, t('compositionTitle'))),
-          h('span', { className: 'cs-tag' }, t('accumulated'))),
+          renderCardTitle(t('compositionTitle'), 'breakdown')),
         total === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-composition-body' },
               h('div', {
@@ -3023,8 +3085,7 @@ window.__ModuleLoader__.load({
     function renderWorkspaceRanking(data, t, format = 'hms', hoverTip = null) {
       const rows = [...data.workspaces].filter((row) => row.taskMs > 0).sort((a, b) => b.taskMs - a.taskMs).slice(0, 5)
       return h('section', { className: 'cs-card cs-ranking' },
-        h('div', { className: 'cs-card-head' }, h('div', { className: 'cs-card-heading' },
-          h('h2', null, t('workspaceRanking')))),
+        h('div', { className: 'cs-card-head' }, renderCardTitle(t('workspaceRanking'), 'ranking')),
         rows.length === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-ranking-list' }, rows.map((row, index) => {
               const name = row.workspaceTitle ?? t('unassigned')
@@ -3040,8 +3101,7 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'cs-ranking-name' }, name),
                 h('span', { className: 'cs-ranking-bar', 'aria-hidden': true },
                   h('i', { style: { width: formatPercent(row.share) } })),
-                h('span', { className: 'cs-ranking-time' }, formatDuration(row.taskMs, format)),
-                h('span', { className: 'cs-ranking-share' }, formatPercent(row.share)))
+                h('span', { className: 'cs-ranking-time' }, formatDuration(row.taskMs, format)))
             })))
     }
 
@@ -3066,7 +3126,7 @@ window.__ModuleLoader__.load({
         rows.length > 0 ? rows.map((row) => `${row.label} ${row.value}`).join(' · ') : t('notBroken'))
     }
 
-    function renderSessionRow(session, t, nowMs, subagentRows, format = 'hms', hoverTip = null, highlighted = false) {
+    function renderSessionRow(session, t, nowMs, subagentRows, format = 'hms', hoverTip = null, highlighted = false, onOpenSession = null) {
       const subagents = subagentRows.length
       const subagentDuration = formatDuration(
         subagentRows.reduce((sum, row) => sum + row.durationMs, 0),
@@ -3087,12 +3147,27 @@ window.__ModuleLoader__.load({
         label: row.sessionTitle ?? row.sessionId,
         value: formatDuration(row.durationMs, format),
       }))
-      return h('div', {
-        className: `cs-session${highlighted ? ' is-highlighted' : ''}`,
+      const openable = sessionIsOpenable(session) && typeof onOpenSession === 'function'
+      const rowProps = {
+        className: `cs-session${highlighted ? ' is-highlighted' : ''}${openable ? ' is-openable' : ''}`,
         key: session.sessionId,
         'data-session-id': session.sessionId,
-      },
-        h('span', { className: 'cs-session-title', ...hoverTipProps(hoverTip, sessionTitle) }, sessionTitle),
+        'data-openable': openable ? 'true' : 'false',
+      }
+      if (openable) rowProps.onClick = () => onOpenSession(session)
+      return h('div', rowProps,
+        openable
+          ? h('button', {
+            type: 'button',
+            className: 'cs-session-title cs-session-open',
+            'aria-label': `${t('openSession')}：${sessionTitle}`,
+            ...hoverTipProps(hoverTip, sessionTitle),
+            onClick: (event) => {
+              event.stopPropagation()
+              onOpenSession(session)
+            },
+          }, sessionTitle)
+          : h('span', { className: 'cs-session-title', ...hoverTipProps(hoverTip, sessionTitle) }, sessionTitle),
         session.taskRunning
           ? renderDetailMeta({
             className: 'cs-session-status',
@@ -3171,7 +3246,7 @@ window.__ModuleLoader__.load({
         }))
     }
 
-    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null, highlightSessionId = null, sessionPaging = null) {
+    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null, highlightSessionId = null, sessionPaging = null, onOpenSession = null) {
       const workspaceTitle = row.workspaceTitle ?? t('unassigned')
       const sessions = Array.isArray(row.sessions) ? row.sessions : []
       const paging = sessionPaging?.enabled === true
@@ -3222,7 +3297,7 @@ window.__ModuleLoader__.load({
                   ...shownSessions.map((session) =>
                     renderSessionRow(
                       session, t, nowMs, subagentByParent[session.sessionId] ?? [], format, hoverTip,
-                      session.sessionId === highlightSessionId,
+                      session.sessionId === highlightSessionId, onOpenSession,
                     )),
                   paging && hiddenCount > 0
                     ? h('div', { className: 'cs-sessions-more', key: 'show-more' },
@@ -4087,6 +4162,27 @@ window.__ModuleLoader__.load({
         }, tab.label)))
     }
 
+    /**
+     * 最近会话条数公式：用同排行高减去卡片头/内边距与一行安全余量，再按单行高度取整。
+     * 测量不可用时回落默认 5，避免首帧闪成其他条数。
+     */
+    function recentLimitForRow(options = {}) {
+      const {
+        rowHeight,
+        rowPx = RECENT_ROW_FALLBACK_PX,
+        chromePx = RECENT_CHROME_FALLBACK_PX,
+        min = RECENT_SESSIONS_MIN,
+        max = RECENT_SESSIONS_MAX,
+        fallback = RECENT_SESSIONS_DEFAULT,
+      } = options
+      const height = Number(rowHeight)
+      const row = Number(rowPx)
+      const chrome = Number(chromePx)
+      if (!Number.isFinite(height) || !Number.isFinite(row) || !Number.isFinite(chrome) ||
+          height <= 0 || row <= 0 || chrome < 0) return fallback
+      return Math.max(min, Math.min(max, Math.floor((height - chrome - RECENT_FIT_GAP_PX) / row)))
+    }
+
     /** 从工作区明细扁平化会话，按最近活动取若干条（默认 5）。 */
     function flattenRecentSessions(data, limit = 5) {
       const rows = []
@@ -4149,7 +4245,6 @@ window.__ModuleLoader__.load({
       const items = [
         { key: 'peak', label: t('peakActive'), value: formatDuration(stats.peakMs, format) },
         { key: 'period', label: t('peakPeriod'), value: stats.peakLabel },
-        { key: 'share', label: t('activeShare'), value: `${stats.activeSharePct}%` },
         { key: 'task', label: t('taskLabel'), value: formatDuration(stats.taskMs, format) },
       ]
       return h('div', { className: 'cs-trend-foot' }, items.map((item) =>
@@ -4269,8 +4364,7 @@ window.__ModuleLoader__.load({
       const trendTitleKey = shownPeriod === 'day' ? 'trendDay' : shownPeriod === 'week' ? 'trendWeek' : 'trendMonth'
       return h('section', { className: `cs-card cs-trend-card${zoomable ? ' has-zoom' : ''}`, 'data-focus': 'trend' },
         h('div', { className: 'cs-card-head' },
-          h('div', { className: 'cs-card-heading' },
-            h('h2', null, t(trendTitleKey))),
+          renderCardTitle(t(trendTitleKey), 'trend'),
           h('div', { className: 'cs-legend' },
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel'))),
@@ -4284,6 +4378,15 @@ window.__ModuleLoader__.load({
 
     function renderStatBox(label, value) {
       return h('div', { className: 'cs-stat-box' }, h('span', null, label), h('b', null, value))
+    }
+
+    /** 概览卡片标题：15px 线性图标只做识别锚点，不进入标题的可读文字。 */
+    function renderCardTitle(label, iconName, extra = null) {
+      return h('div', { className: 'cs-card-heading' },
+        h('h2', { className: 'cs-card-title' },
+          h('span', { className: 'cs-card-icon' }, h(DetailGlyph, { name: iconName, size: 15 })),
+          label),
+        extra)
     }
 
     /** 对角双尖角图标：普通态右上+左下，首屏态左上+右下；两种状态方向相反，提示可放大/缩回。 */
@@ -4340,31 +4443,96 @@ window.__ModuleLoader__.load({
       return null
     }
 
-    /** 今日大数字卡片：普通概览里位于周期卡之前，右上角可放大为首屏。 */
-    function renderHeroCard(props) {
-      const { data, t, format = 'hms', focus = null, onToggleFocus, heroMetric } = props
+    /** 主指标所属周期；周/月主指标的副信息必须同周期，避免和今日口径打架。 */
+    function heroMetricCycle(data, metric) {
+      if (metric === 'week') return data?.cycles?.week ?? {}
+      if (metric === 'month') return data?.cycles?.month ?? {}
+      return data?.cycles?.day ?? {}
+    }
+
+    /** 大数字下方两条只读副信息；今日主指标给另外两项今日数据，周/月给该周期在线与任务。 */
+    function heroMetaItems(data, t, metric) {
       const day = data?.cycles?.day ?? {}
+      if (metric === 'week') {
+        return [['weekOnline', finite(data?.cycles?.week?.onlineMs)], ['weekTask', finite(data?.cycles?.week?.taskMs)]]
+      }
+      if (metric === 'month') {
+        return [['monthOnline', finite(data?.cycles?.month?.onlineMs)], ['monthTask', finite(data?.cycles?.month?.taskMs)]]
+      }
       const activeMs = finite(day.activeMs ?? data?.activeMs)
       const onlineMs = finite(day.onlineMs ?? data?.onlineMs)
       const taskMs = finite(day.taskMs ?? data?.taskMs)
+      if (metric === 'active') return [['todayOnline', onlineMs], ['todayTask', taskMs]]
+      if (metric === 'online') return [['todayActive', activeMs], ['todayTask', taskMs]]
+      return [['todayOnline', onlineMs], ['todayActive', activeMs]]
+    }
+
+    /** 首屏主指标的任务次数同样跟随周期。 */
+    function heroTaskCount(data, metric) {
+      return finite(heroMetricCycle(data, metric)?.taskCount ?? data?.taskCount)
+    }
+
+    /**
+     * 首屏占比圆环：在线与今日活跃读活跃÷在线，今日任务读任务÷在线，
+     * 本周/本月活跃读该周期活跃÷该周期在线；任务口径使用任务紫。
+     */
+    function heroRingModel(data, t, metric) {
+      const day = data?.cycles?.day ?? {}
+      const week = data?.cycles?.week ?? {}
+      const month = data?.cycles?.month ?? {}
+      if (metric === 'task') {
+        const taskMs = finite(day.taskMs ?? data?.taskMs)
+        const onlineMs = finite(day.onlineMs ?? data?.onlineMs)
+        return {
+          percent: activeSharePercent(taskMs, onlineMs),
+          label: t('taskShare'),
+          numeratorLabel: t('taskLabel'),
+          denominatorLabel: t('onlineLabel'),
+          numeratorMs: taskMs,
+          denominatorMs: onlineMs,
+          tone: 'task',
+        }
+      }
+      if (metric === 'week' || metric === 'month') {
+        const cycle = metric === 'week' ? week : month
+        const activeMs = finite(cycle.activeMs)
+        const onlineMs = finite(cycle.onlineMs)
+        return {
+          percent: activeSharePercent(activeMs, onlineMs),
+          label: metric === 'week' ? t('weekActiveShare') : t('monthActiveShare'),
+          numeratorLabel: t('activeLabel'),
+          denominatorLabel: t('onlineLabel'),
+          numeratorMs: activeMs,
+          denominatorMs: onlineMs,
+          tone: 'active',
+        }
+      }
+      const activeMs = finite(day.activeMs ?? data?.activeMs)
+      const onlineMs = finite(day.onlineMs ?? data?.onlineMs)
+      return {
+        percent: activeSharePercent(activeMs, onlineMs),
+        label: t('activeShare'),
+        numeratorLabel: t('activeLabel'),
+        denominatorLabel: t('onlineLabel'),
+        numeratorMs: activeMs,
+        denominatorMs: onlineMs,
+        tone: 'active',
+      }
+    }
+
+    /** 今日大数字卡片：普通概览里位于周期卡之前，右上角可放大为首屏。 */
+    function renderHeroCard(props) {
+      const { data, t, format = 'hms', focus = null, onToggleFocus, heroMetric } = props
       const metric = normalizeHeroMetric(heroMetric)
       const current = heroMetricTable(data, t)[metric]
-      // 选中哪一项，另外两项今日数据作为副信息；周/月主指标仍用今日在线与任务托底。
-      const meta = metric === 'active'
-        ? [['todayOnline', onlineMs], ['todayTask', taskMs]]
-        : metric === 'online'
-          ? [['todayActive', activeMs], ['todayTask', taskMs]]
-          : metric === 'task'
-            ? [['todayOnline', onlineMs], ['todayActive', activeMs]]
-            : [['todayActive', activeMs], ['todayTask', taskMs]]
+      const meta = heroMetaItems(data, t, metric)
       return h('section', {
         className: 'cs-card cs-hero',
         'data-focus': 'hero',
         'data-metric': metric,
       },
         h('div', { className: 'cs-card-head' },
-          h('div', { className: 'cs-card-heading' },
-            h('h2', null, current.title),
+          renderCardTitle(current.title, 'clock',
             heroMetricTag(t, metric) === null ? null : h('span', { className: 'cs-tag' }, heroMetricTag(t, metric))),
           renderZoomButton({ t, focus, onToggleFocus })),
         h('div', { className: 'cs-hero-num' }, formatDuration(current.value, format)),
@@ -4425,14 +4593,11 @@ window.__ModuleLoader__.load({
       const {
         data, t, format = 'hms', focus = 'hero', onToggleFocus, heroMetric, onSelectHeroMetric,
       } = props
-      const day = data?.cycles?.day ?? {}
-      const activeMs = finite(day.activeMs ?? data?.activeMs)
-      const onlineMs = finite(day.onlineMs ?? data?.onlineMs)
-      const taskMs = finite(day.taskMs ?? data?.taskMs)
-      const share = activeSharePercent(activeMs, onlineMs)
       const metric = normalizeHeroMetric(heroMetric)
       const metricTable = heroMetricTable(data, t)
       const current = metricTable[metric]
+      const meta = heroMetaItems(data, t, metric)
+      const ring = heroRingModel(data, t, metric)
       const metricButton = (key, label, value) => h('button', {
         type: 'button',
         className: `cs-fs-item cs-fs-button${key === metric ? ' is-current' : ''}`,
@@ -4453,32 +4618,31 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-hero-focus-primary' },
             h('div', { className: 'cs-hero-num' }, formatDuration(current.value, format)),
             h('div', { className: 'cs-hero-meta' },
-              h('span', null, `${t('todayOnline')} ${formatDuration(onlineMs, format)}`),
-              h('span', null, `${t('todayTask')} ${formatDuration(taskMs, format)}`),
-              h('span', null, `${t('taskCountShort')} ${String(finite(day.taskCount ?? data?.taskCount))}`))),
+              ...meta.map(([labelKey, value]) => h('span', { key: labelKey }, `${t(labelKey)} ${formatDuration(value, format)}`)),
+              h('span', null, `${t('taskCountShort')} ${String(heroTaskCount(data, metric))}`))),
           h('div', { className: 'cs-hero-focus-aside' },
             h('div', {
-              className: 'cs-hero-ring',
+              className: `cs-hero-ring${ring.tone === 'task' ? ' is-task' : ''}`,
               role: 'img',
-              'aria-label': `${t('activeShare')} ${share}%`,
+              'aria-label': `${ring.label} ${ring.percent}%`,
             },
               h('svg', { viewBox: '0 0 160 160', 'aria-hidden': true },
                 h('circle', { className: 'cs-hero-ring-track', cx: 80, cy: 80, r: 68, fill: 'none', strokeWidth: 9 }),
                 h('circle', {
                   className: 'cs-hero-ring-value', cx: 80, cy: 80, r: 68, fill: 'none', strokeWidth: 9,
-                  pathLength: 100, strokeLinecap: share > 0 ? 'round' : 'butt',
-                  strokeDasharray: `${share} ${100 - share}`, transform: 'rotate(-90 80 80)',
+                  pathLength: 100, strokeLinecap: ring.percent > 0 ? 'round' : 'butt',
+                  strokeDasharray: `${ring.percent} ${100 - ring.percent}`, transform: 'rotate(-90 80 80)',
                 })),
               h('div', { className: 'cs-hero-ring-center' },
-                h('b', null, `${share}%`),
-                h('span', null, t('activeShare')))),
+                h('b', null, `${ring.percent}%`),
+                h('span', null, ring.label))),
             h('div', { className: 'cs-hero-ring-legend' },
-              h('div', { className: 'cs-hero-ring-legend-item is-active' },
-                h('span', null, h('i', { 'aria-hidden': true }), t('activeLabel')),
-                h('b', null, formatDuration(activeMs, format))),
+              h('div', { className: `cs-hero-ring-legend-item is-active${ring.tone === 'task' ? ' is-task' : ''}` },
+                h('span', null, h('i', { 'aria-hidden': true }), ring.numeratorLabel),
+                h('b', null, formatDuration(ring.numeratorMs, format))),
               h('div', { className: 'cs-hero-ring-legend-item is-online' },
-                h('span', null, h('i', { 'aria-hidden': true }), t('onlineLabel')),
-                h('b', null, formatDuration(onlineMs, format)))))),
+                h('span', null, h('i', { 'aria-hidden': true }), ring.denominatorLabel),
+                h('b', null, formatDuration(ring.denominatorMs, format)))))),
         h('div', { className: 'cs-focus-panel', role: 'group', 'aria-label': t('heroMetricGroup') },
           metricButton('online', t('onlineLabel'), formatDuration(metricTable.online.value, format)),
           metricButton('task', t('todayTask'), formatDuration(metricTable.task.value, format)),
@@ -4764,7 +4928,7 @@ window.__ModuleLoader__.load({
         data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip, nowMs, onOpenSession,
         focus = null, onToggleFocus, heatSeries, heatStatus,
         heatRangeValue = HEAT_DEFAULT_RANGE, onSelectHeatRange,
-        heroMetric, onSelectHeroMetric,
+        heroMetric, onSelectHeroMetric, recentLimit = RECENT_SESSIONS_DEFAULT,
       } = props
       // 首屏态占据整个内容区：只保留重新排版后的独立页，其余概览卡片不渲染。
       if (focus === 'hero') {
@@ -4792,7 +4956,7 @@ window.__ModuleLoader__.load({
           renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
           renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat),
           renderWorkspaceRanking(data, t, durationFormat, hoverTip),
-          renderRecentSessions(data, t, nowMs, onOpenSession, durationFormat),
+          renderRecentSessions(data, t, nowMs, onOpenSession, durationFormat, recentLimit),
           renderDailyHeatmap({
             series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
             rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange, focus, onToggleFocus,
@@ -4800,22 +4964,24 @@ window.__ModuleLoader__.load({
       ]
     }
 
-    /** 最近会话卡：点击某条会话切到明细、展开所在工作区并高亮该会话。 */
-    function renderRecentSessions(data, t, nowMs, onOpenSession, format = 'hms') {
-      const rows = flattenRecentSessions(data, 5)
+    /** 最近会话卡：真实会话优先打开宿主会话页，失败回落明细定位；条数按概览底部行高动态取 3–6 条。 */
+    function renderRecentSessions(data, t, nowMs, onOpenSession, format = 'hms', limit = RECENT_SESSIONS_DEFAULT) {
+      const rows = flattenRecentSessions(data, limit)
       return h('section', { className: 'cs-card cs-recent' },
         h('div', { className: 'cs-card-head' },
-          h('div', { className: 'cs-card-heading' },
-            h('h2', null, t('recentSessions'))),
-          h('span', { className: 'cs-tag' }, '5')),
+          renderCardTitle(t('recentSessions'), 'sessions',
+            rows.length > 0 ? h('span', { className: 'cs-tag' }, String(rows.length)) : null)),
         rows.length === 0
           ? h('div', { className: 'cs-empty' }, t('recentSessionsEmpty'))
-          : h('div', { className: 'cs-recent-list' }, rows.map((session) =>
-              h('button', {
+          : h('div', { className: 'cs-recent-list' }, rows.map((session) => {
+              const openable = sessionIsOpenable(session) && typeof onOpenSession === 'function'
+              return h(openable ? 'button' : 'div', {
                 key: `${session.workspaceKey}:${session.sessionId}`,
-                type: 'button',
-                className: 'cs-recent-row',
-                onClick: () => onOpenSession?.(session),
+                ...(openable ? {
+                  type: 'button',
+                  onClick: () => onOpenSession(session),
+                } : {}),
+                className: `cs-recent-row${openable ? '' : ' is-static'}`,
               },
                 h('span', {
                   className: `cs-recent-status${session.taskRunning === true ? ' is-running' : ''}`,
@@ -4826,7 +4992,8 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'cs-recent-title' }, session.sessionTitle ?? t('unknownSession')),
                 h('span', { className: 'cs-recent-workspace' }, session.workspaceTitle ?? t('unassigned')),
                 h('span', { className: 'cs-recent-time' }, formatDuration(session.taskMs, format)),
-                h('span', { className: 'cs-recent-last' }, formatRelativeTime(session.lastActivityAt, t, nowMs))))))
+                h('span', { className: 'cs-recent-last' }, formatRelativeTime(session.lastActivityAt, t, nowMs)))
+            })))
     }
 
     /** 趋势：周期卡 + 趋势图 + 日均/任务次数/峰值摘要，日周月可比较。 */
@@ -4886,7 +5053,7 @@ window.__ModuleLoader__.load({
       const {
         data, t, isZh, query, onQueryChange, durationFormat,
         expanded, onToggleRow, nowMs, hoverTip = null,
-        highlightSessionId = null,
+        highlightSessionId = null, onOpenSession = null,
         detailsRange = DETAILS_RANGE_DEFAULT, onSelectDetailsRange = null,
         progressiveSessions = false, visibleSessionCounts = {}, onShowMoreSessions = null,
       } = props
@@ -4955,7 +5122,8 @@ window.__ModuleLoader__.load({
                           visibleCount: visibleSessionCounts?.[row.key] ?? DETAILS_SESSION_INITIAL,
                           onShowMore: () => onShowMoreSessions?.(row.key, Array.isArray(row.sessions) ? row.sessions.length : 0),
                         }
-                      : null)))),
+                      : null,
+                    onOpenSession)))),
           h('aside', { className: 'cs-details-side' },
             h('section', { className: 'cs-card cs-details-side-card' },
               h('div', { className: 'cs-card-head' },
@@ -5207,6 +5375,8 @@ window.__ModuleLoader__.load({
         const [heroMetric, setHeroMetric] = React.useState(() => readStoredHeroMetric())
         // 热力图范围只影响概览取数：3m/6m/year 或数字月份 1–12。
         const [heatRangeValue, setHeatRangeValue] = React.useState(HEAT_DEFAULT_RANGE)
+        // 最近会话条数按概览底部行高动态测量，默认 5 条，限制在 3–6 条。
+        const [recentLimit, setRecentLimit] = React.useState(RECENT_SESSIONS_DEFAULT)
         const [switchingView, setSwitchingView] = React.useState(false)
         const switchingTimerRef = React.useRef(null)
         const viewsRef = React.useRef(null)
@@ -5480,6 +5650,67 @@ window.__ModuleLoader__.load({
           const node = viewsRef.current
           if (node && typeof node.scrollTop === 'number') node.scrollTop = 0
         }, [focus])
+        // 每次进入概览都回到近 3 个月，不记住上一次的范围选择。
+        React.useEffect(() => {
+          if (view === 'overview' && focus === null) setHeatRangeValue(HEAT_DEFAULT_RANGE)
+        }, [view, focus])
+        // 观察同排「工作区排行」的行高作为底部行高度锚点；不要观察最近会话自身，
+        // 否则内容增多会先撑高行、再反过来抬高测量值，形成正反馈。
+        React.useEffect(() => {
+          if (view !== 'overview' || focus !== null) {
+            setRecentLimit(RECENT_SESSIONS_DEFAULT)
+            return undefined
+          }
+          if (typeof window === 'undefined') return undefined
+          let frame = null
+          const measure = () => {
+            const root = viewsRef.current
+            const grid = root?.querySelector?.('.cs-overview-grid')
+            const anchor = grid?.querySelector?.('.cs-ranking')
+            const card = grid?.querySelector?.('.cs-recent')
+            if (!anchor || !card) return
+            const anchorRect = anchor.getBoundingClientRect()
+            const cardRect = card.getBoundingClientRect()
+            if (anchorRect.height <= 0) return
+            if (Math.abs(anchorRect.top - cardRect.top) > 1) {
+              setRecentLimit(RECENT_SESSIONS_DEFAULT)
+              return
+            }
+            const head = card.querySelector('.cs-card-head')
+            const style = window.getComputedStyle(card)
+            const chrome = (head?.getBoundingClientRect().height ?? 24) +
+              parseFloat(style.paddingTop || '0') + parseFloat(style.paddingBottom || '0') +
+              parseFloat(style.borderTopWidth || '0') + parseFloat(style.borderBottomWidth || '0')
+            const row = card.querySelector('.cs-recent-row')
+            const rowPx = row?.getBoundingClientRect().height || RECENT_ROW_FALLBACK_PX
+            const next = recentLimitForRow({ rowHeight: anchorRect.height, rowPx, chromePx: chrome })
+            setRecentLimit((previous) => previous === next ? previous : next)
+          }
+          const schedule = () => {
+            if (frame !== null) return
+            if (typeof window.requestAnimationFrame === 'function') {
+              frame = window.requestAnimationFrame(() => { frame = null; measure() })
+            } else {
+              frame = window.setTimeout(() => { frame = null; measure() }, 0)
+            }
+          }
+          measure()
+          let observer = null
+          const anchor = viewsRef.current?.querySelector?.('.cs-overview-grid .cs-ranking')
+          if (anchor && typeof window.ResizeObserver === 'function') {
+            observer = new window.ResizeObserver(schedule)
+            observer.observe(anchor)
+          }
+          if (typeof window.addEventListener === 'function') window.addEventListener('resize', schedule)
+          return () => {
+            if (observer) observer.disconnect()
+            if (typeof window.removeEventListener === 'function') window.removeEventListener('resize', schedule)
+            if (frame !== null) {
+              if (typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(frame)
+              else window.clearTimeout(frame)
+            }
+          }
+        }, [view, focus, heatRangeValue, isZh])
 
         // 打开设置页时读取 Host 权威设置与通知记录；关闭时丢弃未保存草稿。
         const settingsOpen = view === 'settings'
@@ -5674,6 +5905,12 @@ window.__ModuleLoader__.load({
           }, 3000)
           goToView('details')
         }
+        // 优先打开宿主会话页；服务缺失、归档或未知会话时回落到插件内的定位高亮。
+        const openSessionFromPage = (session) => {
+          if (!sessionIsOpenable(session)) return
+          if (openSessionInHost(ctx, session)) return
+          openSessionInDetails(session)
+        }
         const onToggleRow = (key) => setExpanded((previous) => ({ ...previous, [key]: !previous[key] }))
         // 同一个首屏值再次点击即缩回；写入失败只放弃持久化，页面内状态照常切换。
         const toggleFocus = (value) => {
@@ -5750,6 +5987,7 @@ window.__ModuleLoader__.load({
               data: detailsData, t, isZh, query: detailsQuery, onQueryChange: setDetailsQuery,
               durationFormat, expanded, onToggleRow, nowMs, hoverTip,
               highlightSessionId: detailHighlight?.sessionId ?? null,
+              onOpenSession: openSessionFromPage,
               detailsRange, onSelectDetailsRange: setDetailsRange,
               progressiveSessions: detailsRange === 'all',
               visibleSessionCounts: detailsVisibleCounts,
@@ -5800,9 +6038,10 @@ window.__ModuleLoader__.load({
           }
           return renderOverviewView({
             data, t, isZh, period, onSelectPeriod: setPeriod, durationFormat, hoverTip, nowMs,
-            onOpenSession: openSessionInDetails,
+            onOpenSession: openSessionFromPage,
             focus, onToggleFocus: toggleFocus,
             heroMetric, onSelectHeroMetric: selectHeroMetric,
+            recentLimit,
             heatSeries: heatState.data, heatStatus: heatState.status,
             heatRangeValue, onSelectHeatRange: setHeatRangeValue,
           })
@@ -6329,6 +6568,8 @@ window.__ModuleLoader__.load({
       .cs-trend-bottom .cs-card-heading { position: relative; top: -4px; }
       .cs-card-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
       .cs-card-heading h2 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 620; }
+      .cs-card-title { display: inline-flex; align-items: center; gap: 7px; }
+      .cs-card-icon { display: inline-flex; color: var(--dsw-alias-label-secondary); }
       .cs-card-hint { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .cs-legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
@@ -6397,6 +6638,8 @@ window.__ModuleLoader__.load({
         border-radius: 8px;
       }
       .cs-session + .cs-session { border-top: 1px dashed var(--dsw-alias-border-l1); }
+      .cs-session.is-openable { cursor: pointer; }
+      .cs-session.is-openable:hover { background: color-mix(in srgb, var(--cs-signal) 5%, transparent); }
       /* 从最近会话跳转过来时给目标行留一段可见的定位高亮，随后自然淡出。
          高亮层比会话行左右各收 8px，不贴住内容两侧。 */
       .cs-session.is-highlighted { scroll-margin-block: 28vh; }
@@ -6424,6 +6667,12 @@ window.__ModuleLoader__.load({
         .cs-session.is-highlighted::before { animation-duration: .01ms; }
       }
       .cs-session-title { color: var(--dsw-alias-label-primary); font-size: 12px; font-weight: 540; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+      .cs-session-open {
+        appearance: none; border: 0; background: transparent; padding: 0; margin: 0;
+        font-family: inherit; text-align: left; cursor: pointer;
+      }
+      .cs-session-open:hover { color: var(--cs-signal); }
+      .cs-session-open:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; border-radius: 4px; }
       .cs-session-status { width: 18px; height: 18px; justify-content: center; }
       .cs-session-status:hover { background: var(--dsw-alias-bg-layer-2); }
       .cs-session-metrics { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
@@ -6733,15 +6982,15 @@ window.__ModuleLoader__.load({
       .cs-series-swatch.is-wait { background: var(--cs-series-wait); }
       .cs-series-swatch.is-other { background: var(--cs-series-other); }
       .cs-series-swatch.is-unknown { background: var(--cs-series-unknown); }
-      .cs-composition-percent, .cs-composition-time, .cs-ranking-time, .cs-ranking-share { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; min-width: 0; }
-      .cs-composition-percent, .cs-ranking-share, .cs-rank-index { color: var(--dsw-alias-label-secondary); }
+      .cs-composition-percent, .cs-composition-time, .cs-ranking-time { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; min-width: 0; }
+      .cs-composition-percent, .cs-rank-index { color: var(--dsw-alias-label-secondary); }
       .cs-composition-time, .cs-ranking-time { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-      .cs-ranking-row { display: grid; grid-template-columns: 23px minmax(65px, 1fr) minmax(45px, 1fr) auto 38px; align-items: center; gap: 10px; font-size: 12px; min-height: 26px; }
+      .cs-ranking-row { display: grid; grid-template-columns: 23px minmax(65px, 1fr) minmax(45px, 1fr) auto; align-items: center; gap: 10px; font-size: 12px; min-height: 26px; }
       .cs-ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
       .cs-ranking-bar { height: 8px; border-radius: 5px; background: var(--dsw-alias-bg-layer-2); overflow: hidden; }
       .cs-ranking-bar i { display: block; height: 100%; background: var(--dsw-alias-brand-primary); border-radius: inherit; }
       @media (max-width: 1000px) { .cs-analysis-grid { grid-template-columns: 1fr; } }
-      @media (max-width: 520px) { .cs-composition-body { gap: 14px; } .cs-donut { width: 118px; } .cs-donut-center strong { font-size: 14px; } .cs-ranking-row { grid-template-columns: 20px minmax(55px, 1fr) minmax(30px, .7fr) auto; gap: 7px; } .cs-ranking-share { display: none; } }
+      @media (max-width: 520px) { .cs-composition-body { gap: 14px; } .cs-donut { width: 118px; } .cs-donut-center strong { font-size: 14px; } .cs-ranking-row { grid-template-columns: 20px minmax(55px, 1fr) minmax(30px, .7fr) auto; gap: 7px; } }
 
       .cs-backfill-waiting { color: var(--dsw-alias-label-secondary); }
       .cs-plot { position: relative; padding-left: 58px; }
@@ -6950,7 +7199,8 @@ window.__ModuleLoader__.load({
         content: ""; position: absolute; left: 0; right: 2px; top: 0;
         border-top: 1px solid var(--dsw-alias-border-l1); pointer-events: none;
       }
-      .cs-recent-row:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, transparent); }
+      .cs-recent-row:not(.is-static):hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, transparent); }
+      .cs-recent-row.is-static { cursor: default; }
       .cs-recent-status {
         position: absolute; left: -14px; top: 50%; transform: translateY(-50%);
         display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
@@ -6996,9 +7246,9 @@ window.__ModuleLoader__.load({
       .cs-stat-box { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: var(--dsw-alias-bg-layer-2); min-width: 0; }
       .cs-stat-box span { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-stat-box b { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 15px; line-height: 22px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-      /* 概览趋势卡底部的四项统计带：贴着卡片底边，填住图表下方原本的空白。 */
+      /* 概览趋势卡底部的三项统计带：贴着卡片底边，填住图表下方原本的空白。 */
       .cs-trend-foot {
-        display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+        display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
         margin-top: auto; padding-top: 10px; border-top: 1px solid var(--dsw-alias-border-l1);
       }
       .cs-trend-foot-item {
@@ -7014,8 +7264,7 @@ window.__ModuleLoader__.load({
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
       @media (max-width: 760px) {
-        .cs-trend-foot { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 0; }
-        .cs-trend-foot-item:nth-child(3) { padding-left: 0; border-left: 0; }
+        .cs-trend-foot { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px 0; }
       }
       /* 趋势页下半区：时段分布 + 趋势洞察，填满图表下方的留白。 */
       .cs-trend-bottom {
@@ -7209,8 +7458,10 @@ window.__ModuleLoader__.load({
       .cs-hero-ring-track { stroke: var(--cs-ring-track); }
       .cs-hero-ring-value {
         stroke: var(--cs-signal); stroke-linecap: round;
-        transition: stroke-dasharray 420ms var(--cs-ease);
+        transition: stroke-dasharray 420ms var(--cs-ease), stroke 180ms var(--cs-ease);
       }
+      /* 任务占比只换数据语义色：弧线与图例色块用任务紫，中心文字保持正文色。 */
+      .cs-hero-ring.is-task .cs-hero-ring-value { stroke: var(--cs-task); }
       .cs-hero-ring-center {
         position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px;
         text-align: center;
@@ -7231,6 +7482,7 @@ window.__ModuleLoader__.load({
         font-size: 11px; line-height: 16px; color: var(--cs-ink-3); white-space: nowrap;
       }
       .cs-hero-ring-legend-item i { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 8px; background: var(--cs-signal); }
+      .cs-hero-ring-legend-item.is-task i { background: var(--cs-task); }
       .cs-hero-ring-legend-item.is-online i { background: var(--cs-ring-track); }
       .cs-hero-ring-legend-item b {
         font-family: var(--cs-mono); font-variant-numeric: tabular-nums;
