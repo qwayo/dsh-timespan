@@ -75,7 +75,7 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 
 ### 装好后核对
 
-- 左侧栏出现 **dsh-timespan** 入口，默认显示今日在线时长，可在设置里切换成活跃或任务时长。状态文字默认关闭，在设置里打开「侧栏显示状态」后，会显示空闲、活跃中或任务中。
+- 左侧栏出现 **dsh-timespan** 入口，默认显示今日在线时长，可在设置里切换成活跃或任务时长。状态文字默认关闭，在设置里打开「侧栏显示状态」后，会显示空闲、活跃中或任务中；状态点默认紧跟时长，可在设置里隐藏，或改到入口最右侧。
 - 设置页出现 **dsh-timespan** 分区。
 - 对 Agent 说「用 timespan_stats 查一下今天的时长」，能返回统计结果。
 - 需要时用 `plugin_manager` 的 `list_bundles` / `list_plugins` 核对：bundle `@qwayo/dsh-timespan` 和插件行 `dsh-timespan` 处于启用状态。

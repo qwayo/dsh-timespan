@@ -19,6 +19,13 @@ export const SIDEBAR_DURATION_VALUES = Object.freeze(['online', 'active', 'task'
 export const DEFAULT_SIDEBAR_DURATION = 'online'
 
 /**
+ * 侧栏状态点的位置：inline = 跟随时长留在内容簇里（默认），end = 贴到侧栏行最右侧。
+ * 默认跟随入口里的时长，保留原有阅读顺序；需要把关注点拉到行末时可在设置里切到 end。
+ */
+export const SIDEBAR_DOT_POSITION_VALUES = Object.freeze(['end', 'inline'])
+export const DEFAULT_SIDEBAR_DOT_POSITION = 'inline'
+
+/**
  * 插件自己的界面语言：中文（默认）与英文两档。
  * 它只决定本插件文案用哪套字典，与宿主（DSH）的界面语言互不影响，
  * 因此同一台机器上的多个页面可以各自选择显示语言。
@@ -35,6 +42,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
   sidebarShowName: false,
   // 侧栏入口常驻显示哪种时长：online = 在线时长（默认）、active = 活跃时长、task = 任务时长。
   sidebarDuration: DEFAULT_SIDEBAR_DURATION,
+  // 侧栏状态点是否显示；默认显示，与状态文字是两个独立开关。
+  sidebarDotVisible: true,
+  // 侧栏状态点位置：inline = 跟随时长（默认）、end = 最右侧。
+  sidebarDotPosition: DEFAULT_SIDEBAR_DOT_POSITION,
   // 插件界面语言：中文（默认）或英文；只影响本插件文案，不改变宿主界面语言。
   language: DEFAULT_LANGUAGE,
   // 「近似数据」说明是否已被用户关闭；属于展示偏好，默认未关闭。
@@ -83,6 +94,21 @@ function normalizeSidebarDuration(value) {
 }
 
 /**
+ * 状态点显示开关默认开启：只有明确关闭才隐藏，缺省与旧版本字段缺失都保持可见。
+ */
+function normalizeSidebarDotVisible(value) {
+  if (value === false || value === 'false' || value === 0) return false
+  return true
+}
+
+/** 状态点位置只认 end / inline；缺省、旧版本字段缺失与脏数据都跟随时长。 */
+function normalizeSidebarDotPosition(value) {
+  return typeof value === 'string' && SIDEBAR_DOT_POSITION_VALUES.includes(value)
+    ? value
+    : DEFAULT_SIDEBAR_DOT_POSITION
+}
+
+/**
  * 界面语言只认 zh / en：缺省、旧版本字段缺失与脏数据都回落默认中文，
  * 这样升级后第一次打开一定是中文界面，不会被浏览器语言改变。
  */
@@ -111,6 +137,8 @@ export function normalizeSettings(value) {
     durationFormat: normalizeDurationFormat(source.durationFormat),
     sidebarShowName: normalizeSidebarShowName(source.sidebarShowName),
     sidebarDuration: normalizeSidebarDuration(source.sidebarDuration),
+    sidebarDotVisible: normalizeSidebarDotVisible(source.sidebarDotVisible),
+    sidebarDotPosition: normalizeSidebarDotPosition(source.sidebarDotPosition),
     language: normalizeLanguage(source.language),
     approximateNoticeDismissed: normalizeApproximateNoticeDismissed(source.approximateNoticeDismissed),
   }
@@ -132,6 +160,8 @@ export function mergeSettings(current, patch) {
     durationFormat: Object.hasOwn(incoming, 'durationFormat') ? incoming.durationFormat : base.durationFormat,
     sidebarShowName: Object.hasOwn(incoming, 'sidebarShowName') ? incoming.sidebarShowName : base.sidebarShowName,
     sidebarDuration: Object.hasOwn(incoming, 'sidebarDuration') ? incoming.sidebarDuration : base.sidebarDuration,
+    sidebarDotVisible: Object.hasOwn(incoming, 'sidebarDotVisible') ? incoming.sidebarDotVisible : base.sidebarDotVisible,
+    sidebarDotPosition: Object.hasOwn(incoming, 'sidebarDotPosition') ? incoming.sidebarDotPosition : base.sidebarDotPosition,
     language: Object.hasOwn(incoming, 'language') ? incoming.language : base.language,
     approximateNoticeDismissed: Object.hasOwn(incoming, 'approximateNoticeDismissed')
       ? incoming.approximateNoticeDismissed
