@@ -87,7 +87,7 @@ test('设置：首次安装默认紧凑单位、侧栏名称关闭且显示在�
     sidebarShowName: false,
     sidebarDuration: 'online',
     sidebarDotVisible: true,
-    sidebarDotPosition: 'end',
+    sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
   })
@@ -120,7 +120,7 @@ test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只�
   assert.equal(DEFAULT_SETTINGS.durationFormat, 'short')
   assert.equal(DEFAULT_SETTINGS.sidebarDuration, 'online')
   assert.equal(DEFAULT_SETTINGS.sidebarDotVisible, true, '状态点默认显示')
-  assert.equal(DEFAULT_SETTINGS.sidebarDotPosition, 'end', '状态点默认贴最右侧')
+  assert.equal(DEFAULT_SETTINGS.sidebarDotPosition, 'inline', '状态点默认跟随时长')
   assert.equal(DEFAULT_SETTINGS.language, 'zh', '界面语言默认中文')
   assert.equal(normalizeSettings({ durationFormat: 'zh' }).durationFormat, 'zh')
   for (const value of ['short', 'sec', 'padded', 'hms']) {
@@ -139,7 +139,7 @@ test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只�
     assert.equal(normalizeSettings({ sidebarDotPosition: value }).sidebarDotPosition, value)
   }
   for (const value of ['', 'END', 'left', null, undefined, 7]) {
-    assert.equal(normalizeSettings({ sidebarDotPosition: value }).sidebarDotPosition, 'end', `非法状态点位置 ${String(value)} 回落最右侧`)
+    assert.equal(normalizeSettings({ sidebarDotPosition: value }).sidebarDotPosition, 'inline', `非法状态点位置 ${String(value)} 回落跟随时长`)
   }
   assert.equal(normalizeSettings({ sidebarDotVisible: false }).sidebarDotVisible, false)
   assert.equal(normalizeSettings({}).sidebarDotVisible, true, '缺省显示状态点')
@@ -161,7 +161,7 @@ test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只�
     sidebarShowName: false,
     sidebarDuration: 'task',
     sidebarDotVisible: true,
-    sidebarDotPosition: 'end',
+    sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
   })
@@ -316,7 +316,7 @@ test('导出 JSON：包含原始区间、原始任务与设置，字段未经裁
     sidebarShowName: false,
     sidebarDuration: 'online',
     sidebarDotVisible: true,
-    sidebarDotPosition: 'end',
+    sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
   })
@@ -551,7 +551,7 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     assert.equal(defaults.sidebarShowName, false)
     assert.equal(defaults.sidebarDuration, 'online')
     assert.equal(defaults.sidebarDotVisible, true, '状态点默认显示')
-    assert.equal(defaults.sidebarDotPosition, 'end', '状态点默认贴最右侧')
+    assert.equal(defaults.sidebarDotPosition, 'inline', '状态点默认跟随时长')
     assert.equal(defaults.language, 'zh', '界面语言默认中文')
 
     const saved = await harness.call('setSettings', {
@@ -561,7 +561,7 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
       durationFormat: 'short',
       sidebarShowName: true,
       sidebarDotVisible: false,
-      sidebarDotPosition: 'inline',
+      sidebarDotPosition: 'end',
       language: 'en',
       ignoredField: '不应写入',
     })
@@ -569,14 +569,14 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     assert.equal(saved.durationFormat, 'short', 'RPC 白名单允许保存数字格式')
     assert.equal(saved.sidebarShowName, true, '侧栏名称开关进入 setSettings 白名单')
     assert.equal(saved.sidebarDotVisible, false, '状态点显示开关进入 setSettings 白名单')
-    assert.equal(saved.sidebarDotPosition, 'inline', '状态点位置进入 setSettings 白名单')
+    assert.equal(saved.sidebarDotPosition, 'end', '状态点位置进入 setSettings 白名单')
     assert.equal(saved.language, 'en', '界面语言进入 setSettings 白名单')
     assert.equal(Object.hasOwn(saved, 'ignoredField'), false, '未知字段仍被白名单丢弃')
     const readBack = await harness.call('getSettings')
     assert.equal(readBack.weekStartsOn, 7, '重启前就能读回新设置')
     assert.equal(readBack.sidebarShowName, true, '侧栏名称开关可读回')
     assert.equal(readBack.sidebarDotVisible, false, '状态点显示可读回')
-    assert.equal(readBack.sidebarDotPosition, 'inline', '状态点位置可读回')
+    assert.equal(readBack.sidebarDotPosition, 'end', '状态点位置可读回')
     assert.equal(readBack.language, 'en', '界面语言可读回')
 
     let stats = await harness.call('queryStats', { period: 'week', view: 'dashboard' })
@@ -613,7 +613,7 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     assert.equal(keptSettings.durationFormat, 'short', '数字格式随设置一并保留')
     assert.equal(keptSettings.sidebarShowName, true, '清空数据不影响侧栏名称开关')
     assert.equal(keptSettings.sidebarDotVisible, false, '清空数据不影响状态点显示开关')
-    assert.equal(keptSettings.sidebarDotPosition, 'inline', '清空数据不影响状态点位置')
+    assert.equal(keptSettings.sidebarDotPosition, 'end', '清空数据不影响状态点位置')
 
     const reset = await harness.call('resetSettings')
     assert.deepEqual(reset, defaults, '恢复初始设置返回完整的首次安装预设')
@@ -623,7 +623,7 @@ test('RPC：设置读写、导出与清空都经由 Host 公共操作', async (t
     assert.equal(afterReset.sidebarShowName, false, '恢复后侧栏名称回到关闭')
     assert.equal(afterReset.sidebarDuration, 'online', '恢复后侧栏时长回到在线时长')
     assert.equal(afterReset.sidebarDotVisible, true, '恢复后状态点回到显示')
-    assert.equal(afterReset.sidebarDotPosition, 'end', '恢复后状态点回到最右侧')
+    assert.equal(afterReset.sidebarDotPosition, 'inline', '恢复后状态点回到跟随时长')
     assert.equal(afterReset.language, 'zh', '恢复后界面语言回到中文')
   } finally {
     await harness.close()

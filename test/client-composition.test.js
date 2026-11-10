@@ -620,15 +620,16 @@ test('客户端：概览口径按行拆分，周/月补一句日均口径', asyn
   assert.ok(weekLines.includes(labels.dailyAverageHint), '周/月视图补充日均按自然日折算')
 })
 
-test('客户端：品牌时钟的指针固定白色，轴心小半圆使用任务紫', async () => {
+test('客户端：品牌时钟指针与轴心固定白色，圆环底部小段使用任务紫', async () => {
   const { DshTimespanIcon } = await loadClientFunctions()
   const icon = DshTimespanIcon({ size: 36 })
   const hand = findAll(icon, (node) => node.type === 'path' && node.props?.d === 'M12 12l4-4')[0]
   assert.equal(hand?.props?.stroke, '#ffffff', '指针不随配色变化，固定白色')
-  const center = findAll(icon, (node) => node.type === 'circle' && String(node.props?.fill).includes('--cs-task'))[0]
-  assert.ok(center, '轴心小半圆使用任务紫变量')
-  assert.match(center.props.fill, /var\(--cs-task, #7A5AA6\)/)
-  assert.equal(center.props.r, 1.8)
+  const bottomArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M14.66 20.07'))[0]
+  assert.ok(bottomArc, '圆环底部单独画一小段弧')
+  assert.match(bottomArc.props.stroke, /var\(--cs-task, #7A5AA6\)/, '底部小段使用任务紫')
+  const center = findAll(icon, (node) => node.type === 'circle' && node.props?.r === 1.8)[0]
+  assert.equal(center?.props?.fill, '#ffffff', '轴心与指针同为白色，不再使用任务紫')
 })
 
 test('客户端：配色归一化为 blue/stone/clay，旧值回落到默认蓝', async () => {
@@ -670,6 +671,7 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与派生色�
   assert.doesNotMatch(css, /\.cs-info\.is-open \.cs-info-tip/, '不再由点击展开态控制显示')
   assert.doesNotMatch(css, /\.cs-info\.is-dismissed/, '不再有 dismissed 状态')
   assert.doesNotMatch(css, /\.cs-card-heading \.cs-info-tip/, '窄屏 left:-80px 死规则已删，改由视口夹取')
+  assert.match(css, /\.cs-overview-grid \.cs-card-head,\s*\.cs-trend-layout \.cs-card-head,\s*\.cs-trend-bottom \.cs-card-head\s*\{[^}]*top:\s*-4px/, '概览与趋势区块标题行整体上提 4px')
   assert.match(css, /@keyframes viewIn\s*\{\s*from\s*\{\s*opacity:/, '视图入场只动 opacity')
   assert.doesNotMatch(css, /@keyframes viewIn\s*\{[^}]*\btransform\b/, '入场不再保留 transform，避免 fixed 浮层定位错乱')
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
@@ -1082,11 +1084,13 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(entry, /display:\s*inline-flex/)
   assert.match(entry, /flex-wrap:\s*nowrap/, '入口保持单行')
   assert.match(entry, /white-space:\s*nowrap/)
-  assert.match(declarationsFor(css, '.dsh-timespan-nav-entry.is-dot-end'), /width:\s*100%/, '默认位置让入口占满宿主行宽')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-entry.is-dot-end'), /width:\s*100%/, '贴右时入口占满宿主行宽')
   assert.match(css, /\.dsh-timespan-nav-entry\.is-dot-end \.dsh-timespan-nav-dot\s*\{[^}]*margin-left:\s*auto/, '状态点用 auto 外边距推到最右侧')
   assert.match(css, /button\[aria-label="TimeSpan"\] > span:has\(\.dsh-timespan-nav-entry\.is-dot-end\)\s*\{[^}]*flex:\s*1 1 auto/, '宿主定宽 icon 容器被撑开，圆点才能贴到整行最右')
   assert.match(css, /\.dsh-timespan-nav-entry\.is-nameless\.is-dot-end\s*\{[^}]*justify-content:\s*flex-start/, '贴右时时间仍紧跟构成环，不因整行撑开而居中')
   assert.match(css, /\.dsh-timespan-nav-entry\.is-nameless\.is-dot-end \.dsh-timespan-nav-time\s*\{[^}]*flex:\s*0 0 auto/, '贴右时时间不再吃掉剩余空间')
+  assert.match(css, /\.dsh-timespan-nav-entry\.is-nameless\.is-dot-inline:has\(\.dsh-timespan-nav-dot\)\s*\{[^}]*justify-content:\s*flex-start/, '默认跟随时长时状态点紧贴时长')
+  assert.match(css, /\.dsh-timespan-nav-entry\.is-nameless\.is-dot-inline:has\(\.dsh-timespan-nav-dot\) \.dsh-timespan-nav-time\s*\{[^}]*flex:\s*0 0 auto/, '默认跟随时长时时间不吃满整行')
   assert.match(declarationsFor(css, '.dsh-timespan-nav-time'), /font-size:\s*14px/, '时长与导航文字比例更协调')
   assert.match(declarationsFor(css, '.dsh-timespan-nav-time'), /animation:\s*dsh-timespan-time-swap 160ms ease-out/, '切换数字格式时侧栏时间播放短促淡入')
   assert.match(css, /@keyframes dsh-timespan-time-swap/, '换字动画关键帧存在')
@@ -1356,13 +1360,13 @@ test('客户端：侧栏状态文字跟随状态点，任务中优先于活跃�
   assert.equal(findByClass(hidden, 'dsh-timespan-nav-status'), undefined, '隐藏状态后不渲染状态文字')
   assert.match(hidden.props.className, /is-nameless/, '隐藏状态后入口进入无名称紧凑布局')
 
-  assert.match(hidden.props.className, /is-dot-end/, '默认把状态点放到侧栏行最右侧')
+  assert.match(hidden.props.className, /is-dot-inline/, '默认让状态点紧跟时长')
   const noDot = renderSidebarEntry({ ...base, showDot: false })
   assert.equal(findByClass(noDot, 'dsh-timespan-nav-dot'), undefined, '关闭状态点后不渲染圆点')
   assert.equal(textOf(findByClass(noDot, 'dsh-timespan-nav-status')), '空闲', '关闭圆点不影响状态文字')
-  const inlineDot = renderSidebarEntry({ ...base, dotPosition: 'inline' })
-  assert.match(inlineDot.props.className, /is-dot-inline/, '可切回跟随时长的旧布局')
-  assert.doesNotMatch(inlineDot.props.className, /is-dot-end/, '两种位置互斥')
+  const endDot = renderSidebarEntry({ ...base, dotPosition: 'end' })
+  assert.match(endDot.props.className, /is-dot-end/, '可把状态点贴到最右侧')
+  assert.doesNotMatch(endDot.props.className, /is-dot-inline/, '两种位置互斥')
 })
 
 test('客户端：侧栏状态、状态点与时长进入设置草稿、保存载荷与设置页控件', async () => {
@@ -1374,9 +1378,9 @@ test('客户端：侧栏状态、状态点与时长进入设置草稿、保存�
   assert.equal(settingsDraft({ sidebarDuration: 'bogus' }).sidebarDuration, 'online', '非法侧栏时长回落在线时长')
   assert.equal(settingsDraft({}).sidebarDotVisible, true, '缺省时显示状态点')
   assert.equal(settingsDraft({ sidebarDotVisible: false }).sidebarDotVisible, false)
-  assert.equal(settingsDraft({}).sidebarDotPosition, 'end', '缺省时状态点贴最右侧')
-  assert.equal(settingsDraft({ sidebarDotPosition: 'inline' }).sidebarDotPosition, 'inline')
-  assert.equal(settingsDraft({ sidebarDotPosition: 'bogus' }).sidebarDotPosition, 'end', '非法状态点位置回落最右侧')
+  assert.equal(settingsDraft({}).sidebarDotPosition, 'inline', '缺省时状态点跟随时长')
+  assert.equal(settingsDraft({ sidebarDotPosition: 'end' }).sidebarDotPosition, 'end')
+  assert.equal(settingsDraft({ sidebarDotPosition: 'bogus' }).sidebarDotPosition, 'inline', '非法状态点位置回落跟随时长')
   assert.equal(JSON.stringify(settingsPayload({
     idleThresholdMinutes: '9',
     weekStartsOn: '7',
@@ -1391,7 +1395,7 @@ test('客户端：侧栏状态、状态点与时长进入设置草稿、保存�
     sidebarShowName: false,
     sidebarDuration: 'task',
     sidebarDotVisible: true,
-    sidebarDotPosition: 'end',
+    sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
   }), '保存时提交侧栏状态、状态点、侧栏时长、界面语言与数字格式')
@@ -1426,8 +1430,8 @@ test('客户端：侧栏状态、状态点与时长进入设置草稿、保存�
   assert.equal(dotCheckbox.props.checked, true, '首次安装默认显示状态点')
   const dotPositionSelect = findAll(tree, (node) => node.type === Select && node.props?.ariaLabel === '状态点位置')[0]
   assert.ok(dotPositionSelect, '设置页存在状态点位置下拉')
-  assert.equal(dotPositionSelect.props.value, 'end', '状态点默认贴最右侧')
-  assert.equal(Array.from(dotPositionSelect.props.options, (option) => option.label).join(','), '最右侧,跟随时长', '状态点位置提供贴右与跟随两种选项')
+  assert.equal(dotPositionSelect.props.value, 'inline', '状态点默认跟随时长')
+  assert.equal(Array.from(dotPositionSelect.props.options, (option) => option.label).join(','), '跟随时长,最右侧', '状态点位置提供跟随与贴右两种选项')
   const durationSelect = findAll(tree, (node) => node.type === Select && node.props?.ariaLabel === '侧栏显示时长')[0]
   assert.ok(durationSelect, '设置页存在侧栏显示时长下拉')
   assert.equal(durationSelect.props.className, 'cs-settings-select', 'DSH 设置页下拉默认使用紧凑 class，避免菜单铺满整页')
@@ -2200,7 +2204,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   assert.ok(selectLabels.includes('状态点位置'), '状态点位置下拉可用')
   assert.ok(selectLabels.includes('侧栏显示时长'), '侧栏显示时长下拉可用')
   const dotPositionSelect = findAll(tree, (node) => node.props?.ariaLabel === '状态点位置')[0]
-  assert.equal(dotPositionSelect?.props?.value, 'end', '状态点默认贴最右侧')
+  assert.equal(dotPositionSelect?.props?.value, 'inline', '状态点默认跟随时长')
   assert.equal(dotPositionSelect?.props?.options?.length, 2, '状态点位置提供两种选项')
   const durationSelect = findAll(tree, (node) => node.props?.ariaLabel === '侧栏显示时长')[0]
   assert.equal(durationSelect?.props?.value, 'online', '侧栏显示时长默认在线时长')

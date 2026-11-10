@@ -302,7 +302,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
     sidebarShowName: false,
     sidebarDuration: 'task',
     sidebarDotVisible: false,
-    sidebarDotPosition: 'inline',
+    sidebarDotPosition: 'end',
     language: 'en',
     approximateNoticeDismissed: true,
     evilField: '不应写入',
@@ -319,7 +319,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
     sidebarShowName: false,
     sidebarDuration: 'online',
     sidebarDotVisible: true,
-    sidebarDotPosition: 'end',
+    sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
   })
@@ -338,7 +338,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
   assert.equal(restored.sidebarShowName, false)
   assert.equal(restored.sidebarDuration, 'task')
   assert.equal(restored.sidebarDotVisible, false, '状态点显隐随备份一起恢复')
-  assert.equal(restored.sidebarDotPosition, 'inline', '状态点位置随备份一起恢复')
+  assert.equal(restored.sidebarDotPosition, 'end', '状态点位置随备份一起恢复')
   assert.equal(restored.language, 'en', '界面语言随备份一起恢复')
   assert.equal(restored.approximateNoticeDismissed, true)
   assert.equal(Object.hasOwn(restored, 'evilField'), false, '未知字段被 normalizeSettings 白名单丢弃')

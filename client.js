@@ -49,7 +49,7 @@ window.__ModuleLoader__.load({
     const SIDEBAR_DURATION_DEFAULT = 'online'
     /** 侧栏状态点位置：默认贴到行最右侧，也可切回跟随时长的 inline。 */
     const SIDEBAR_DOT_POSITION_VALUES = ['end', 'inline']
-    const SIDEBAR_DOT_POSITION_DEFAULT = 'end'
+    const SIDEBAR_DOT_POSITION_DEFAULT = 'inline'
     const PAGE_REFRESH_MS = 10_000
     /** 每日活跃热力图的默认范围：最近 3 个本地日历月；#13 再扩展范围切换。 */
     const HEAT_DEFAULT_RANGE = '3m'
@@ -335,7 +335,7 @@ window.__ModuleLoader__.load({
       settingsSidebarDotOn: '显示',
       settingsSidebarDotOff: '隐藏',
       settingsSidebarDotPositionLabel: '状态点位置',
-      settingsSidebarDotPositionHint: '「最右侧」贴住侧栏行末；「跟随时长」保留原来的内容簇布局。',
+      settingsSidebarDotPositionHint: '默认「跟随时长」；选择「最右侧」会贴住侧栏行末。',
       settingsSidebarDotPositionEnd: '最右侧',
       settingsSidebarDotPositionInline: '跟随时长',
       settingsSidebarDurationLabel: '侧栏显示时长',
@@ -638,7 +638,7 @@ window.__ModuleLoader__.load({
       settingsSidebarDotOn: 'Shown',
       settingsSidebarDotOff: 'Hidden',
       settingsSidebarDotPositionLabel: 'Status dot position',
-      settingsSidebarDotPositionHint: '"Far right" pins it to the row end; "After duration" keeps the original inline layout.',
+      settingsSidebarDotPositionHint: 'Defaults to "After duration"; choose "Far right" to pin it to the row end.',
       settingsSidebarDotPositionEnd: 'Far right',
       settingsSidebarDotPositionInline: 'After duration',
       settingsSidebarDurationLabel: 'Sidebar duration',
@@ -794,9 +794,11 @@ window.__ModuleLoader__.load({
       },
       h('circle', { cx: 12, cy: 12, r: 8.5, stroke: 'currentColor', strokeWidth: 2.2,
         strokeLinecap: 'round', strokeDasharray: '11 3 7 3 5 3', transform: 'rotate(-90 12 12)' }),
-      // 指针固定白色，在任何配色下都从蓝色环里跳出来；中心小圆使用任务紫，和任务系列同一语义色。
+      // 圆环底部那一小段是任务紫；指针与轴心保持白色，避免把轴心误当成独立的状态点。
+      h('path', { d: 'M14.66 20.07 A8.5 8.5 0 0 1 9.73 20.19', stroke: 'var(--cs-task, #7A5AA6)',
+        strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
       h('path', { d: 'M12 12l4-4', stroke: '#ffffff', strokeWidth: 2, strokeLinecap: 'round' }),
-      h('circle', { cx: 12, cy: 12, r: 1.8, fill: 'var(--cs-task, #7A5AA6)' }))
+      h('circle', { cx: 12, cy: 12, r: 1.8, fill: '#ffffff' }))
     }
 
     const APPEARANCE_ICONS = {
@@ -953,7 +955,7 @@ window.__ModuleLoader__.load({
       return SIDEBAR_DURATION_VALUES.includes(value) ? value : SIDEBAR_DURATION_DEFAULT
     }
 
-    /** 状态点位置只认 end / inline；缺省与脏数据默认贴右。 */
+    /** 状态点位置只认 end / inline；缺省与脏数据默认跟随时长。 */
     function normalizeSidebarDotPosition(value) {
       return SIDEBAR_DOT_POSITION_VALUES.includes(value) ? value : SIDEBAR_DOT_POSITION_DEFAULT
     }
@@ -2042,7 +2044,7 @@ window.__ModuleLoader__.load({
         const [showName, setShowName] = React.useState(false)
         // 侧栏显示哪种时长；Host 设置读回前先按默认在线时长渲染，避免布局闪动。
         const [sidebarDuration, setSidebarDuration] = React.useState(SIDEBAR_DURATION_DEFAULT)
-        // 状态点显隐与位置也是 Host 设置；读回前按默认贴右显示，避免入口先闪回旧布局。
+        // 状态点显隐与位置也是 Host 设置；读回前按默认跟随时长显示，避免入口先闪回贴右布局。
         const [showDot, setShowDot] = React.useState(true)
         const [dotPosition, setDotPosition] = React.useState(SIDEBAR_DOT_POSITION_DEFAULT)
 
@@ -3815,8 +3817,8 @@ window.__ModuleLoader__.load({
           h(Select, {
             value: normalizeSidebarDotPosition(draft?.sidebarDotPosition),
             options: [
-              { value: 'end', label: t('settingsSidebarDotPositionEnd') },
               { value: 'inline', label: t('settingsSidebarDotPositionInline') },
+              { value: 'end', label: t('settingsSidebarDotPositionEnd') },
             ],
             disabled: busy,
             className: selectClass,
@@ -6116,6 +6118,9 @@ window.__ModuleLoader__.load({
       /* 状态点贴右时，时间仍紧跟构成环；否则整行会被时间撑成居中标题，视觉上离图标太远。 */
       .dsh-timespan-nav-entry.is-nameless.is-dot-end { justify-content: flex-start; }
       .dsh-timespan-nav-entry.is-nameless.is-dot-end .dsh-timespan-nav-time { flex: 0 0 auto; text-align: left; }
+      /* 默认跟随时长：无名称时状态点紧贴时长，不再把时间撑满整行；隐藏状态点时仍保持原居中。 */
+      .dsh-timespan-nav-entry.is-nameless.is-dot-inline:has(.dsh-timespan-nav-dot) { justify-content: flex-start; }
+      .dsh-timespan-nav-entry.is-nameless.is-dot-inline:has(.dsh-timespan-nav-dot) .dsh-timespan-nav-time { flex: 0 0 auto; text-align: left; }
       @media (prefers-reduced-motion: reduce) {
         .dsh-timespan-nav-entry, .dsh-timespan-nav-entry * { transition-duration: 0s; animation-duration: 0s; }
         .dsh-timespan-nav-dot.is-live::before {
@@ -6303,6 +6308,10 @@ window.__ModuleLoader__.load({
       .cs-trend-card { display: flex; flex-direction: column; gap: 8px; }
       .cs-table-card { display: flex; flex-direction: column; gap: 8px; padding-bottom: 8px; }
       .cs-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      /* 只把概览/趋势区块的标题行整体上提 4px，不动卡片内其它元素与间距。 */
+      .cs-overview-grid .cs-card-head,
+      .cs-trend-layout .cs-card-head,
+      .cs-trend-bottom .cs-card-head { position: relative; top: -4px; }
       .cs-card-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
       .cs-card-heading h2 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 620; }
       .cs-card-hint { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }

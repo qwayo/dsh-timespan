@@ -19,11 +19,11 @@ export const SIDEBAR_DURATION_VALUES = Object.freeze(['online', 'active', 'task'
 export const DEFAULT_SIDEBAR_DURATION = 'online'
 
 /**
- * 侧栏状态点的位置：end = 贴到侧栏行最右侧（默认），inline = 跟随时长留在内容簇里。
- * 默认贴右，让侧栏各面板的关注点落在同一条视线上；需要旧样式时可在设置里切回 inline。
+ * 侧栏状态点的位置：inline = 跟随时长留在内容簇里（默认），end = 贴到侧栏行最右侧。
+ * 默认跟随入口里的时长，保留原有阅读顺序；需要把关注点拉到行末时可在设置里切到 end。
  */
 export const SIDEBAR_DOT_POSITION_VALUES = Object.freeze(['end', 'inline'])
-export const DEFAULT_SIDEBAR_DOT_POSITION = 'end'
+export const DEFAULT_SIDEBAR_DOT_POSITION = 'inline'
 
 /**
  * 插件自己的界面语言：中文（默认）与英文两档。
@@ -44,7 +44,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   sidebarDuration: DEFAULT_SIDEBAR_DURATION,
   // 侧栏状态点是否显示；默认显示，与状态文字是两个独立开关。
   sidebarDotVisible: true,
-  // 侧栏状态点位置：end = 最右侧（默认）、inline = 跟随时长。
+  // 侧栏状态点位置：inline = 跟随时长（默认）、end = 最右侧。
   sidebarDotPosition: DEFAULT_SIDEBAR_DOT_POSITION,
   // 插件界面语言：中文（默认）或英文；只影响本插件文案，不改变宿主界面语言。
   language: DEFAULT_LANGUAGE,
@@ -101,7 +101,7 @@ function normalizeSidebarDotVisible(value) {
   return true
 }
 
-/** 状态点位置只认 end / inline；缺省、旧版本字段缺失与脏数据都贴到最右侧。 */
+/** 状态点位置只认 end / inline；缺省、旧版本字段缺失与脏数据都跟随时长。 */
 function normalizeSidebarDotPosition(value) {
   return typeof value === 'string' && SIDEBAR_DOT_POSITION_VALUES.includes(value)
     ? value
