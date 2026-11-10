@@ -273,6 +273,8 @@ window.__ModuleLoader__.load({
       trendHint: '活跃与任务时长',
       workspaceTitle: '工作区明细',
       workspaceHint: '展开查看会话',
+      detailsSessionsTitle: '会话记录',
+      detailsSessionsCaption: '按工作区分组，按最近活动排序',
       colWorkspace: '工作区',
       colActive: '活跃',
       colTask: '任务',
@@ -583,6 +585,8 @@ window.__ModuleLoader__.load({
       trendHint: 'Active and task time',
       workspaceTitle: 'Workspace breakdown',
       workspaceHint: 'Expand to see sessions',
+      detailsSessionsTitle: 'Sessions',
+      detailsSessionsCaption: 'Grouped by workspace, latest activity first',
       colWorkspace: 'Workspace',
       colActive: 'Active',
       colTask: 'Task',
@@ -813,16 +817,16 @@ window.__ModuleLoader__.load({
         className: 'dsh-timespan-nav-icon', width: size, height: size,
         viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true,
       },
-      h('path', { d: 'M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23', stroke: 'currentColor',
+      h('path', { d: 'M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23', stroke: 'var(--cs-brand-ring-high, currentColor)',
         strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
-      // 圆环一共三段：上半段浅色、右下段任务紫、左下段同色系深色；每处留 24° 圆心角空档，
-      // 两端半圆端帽占去一部分后仍有约 1.36 个画布单位的可见空隙。
+      // 圆环一共三段：上半段与左下段随主题对调明暗，右下段固定任务紫；每处留 24° 圆心角空档，
+      // 两端半圆端帽占去一部分后仍有约 1.36 个画布单位的可见空隙。指针在浅色主题改用深色，避免白针落在白底上。
       h('path', { d: 'M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31', stroke: 'var(--cs-task, #7A5AA6)',
         strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
       h('path', { d: 'M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77', stroke: 'var(--cs-brand-ring-low, #133463)',
         strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
-      h('path', { d: 'M12 12l4-4', stroke: '#ffffff', strokeWidth: 2, strokeLinecap: 'round' }),
-      h('circle', { cx: 12, cy: 12, r: 1.8, fill: '#ffffff' }))
+      h('path', { d: 'M12 12l4-4', stroke: 'var(--cs-brand-hand, #ffffff)', strokeWidth: 2, strokeLinecap: 'round' }),
+      h('circle', { cx: 12, cy: 12, r: 1.8, fill: 'var(--cs-brand-hand, #ffffff)' }))
     }
 
     const APPEARANCE_ICONS = {
@@ -926,6 +930,11 @@ window.__ModuleLoader__.load({
         return h('svg', common,
           h('circle', { cx: 8, cy: 8, r: 5.4 }),
           h('circle', { cx: 8, cy: 8, r: 2.1, fill: 'currentColor', stroke: 'none' }))
+      }
+      if (name === 'open') {
+        return h('svg', common,
+          h('path', { d: 'M4.7 11.3 11.3 4.7' }),
+          h('path', { d: 'M5.9 4.7h5.4v5.4' }))
       }
       return h('svg', common,
         h('rect', { x: 2.2, y: 3, width: 11.6, height: 8.1, rx: 2.1 }),
@@ -3147,101 +3156,112 @@ window.__ModuleLoader__.load({
       }))
       const openable = sessionIsOpenable(session) && typeof onOpenSession === 'function'
       const rowProps = {
-        className: `cs-session${highlighted ? ' is-highlighted' : ''}${openable ? ' is-openable' : ''}`,
+        className: `cs-session${session.taskRunning ? ' is-running' : ''}${highlighted ? ' is-highlighted' : ''}${openable ? ' is-openable' : ''}`,
         key: session.sessionId,
         'data-session-id': session.sessionId,
         'data-openable': openable ? 'true' : 'false',
       }
       if (openable) rowProps.onClick = () => onOpenSession(session)
       return h('div', rowProps,
-        openable
-          ? h('button', {
-            type: 'button',
-            className: 'cs-session-title cs-session-open',
-            'aria-label': `${t('openSession')}：${sessionTitle}`,
-            ...hoverTipProps(hoverTip, sessionTitle),
-            onClick: (event) => {
-              event.stopPropagation()
-              onOpenSession(session)
-            },
-          }, sessionTitle)
-          : h('span', { className: 'cs-session-title', ...hoverTipProps(hoverTip, sessionTitle) }, sessionTitle),
-        session.taskRunning
-          ? renderDetailMeta({
-            className: 'cs-session-status',
-            icon: 'running',
-            label: t('runningTag'),
-            tipTitle: t('runningTag'),
-            hoverTip,
-            tone: 'running',
-          })
-          : null,
-        session.approximate
-          ? renderDetailMeta({
-            className: 'cs-session-status',
-            icon: 'approx',
-            label: t('approximateHint'),
-            tipTitle: t('approximateHint'),
-            hoverTip,
-            tone: 'warning',
-          })
-          : null,
-        h('span', { className: 'cs-session-metrics' },
+        h('span', { className: 'cs-session-body' },
+          h('span', { className: 'cs-session-headline' },
+            h('span', {
+              className: `cs-session-dot${session.taskRunning ? ' is-running' : ''}`,
+              'aria-hidden': true,
+            }),
+            openable
+              ? h('button', {
+                type: 'button',
+                className: 'cs-session-title cs-session-open',
+                'aria-label': `${t('openSession')}：${sessionTitle}`,
+                ...hoverTipProps(hoverTip, sessionTitle),
+                onClick: (event) => {
+                  event.stopPropagation()
+                  onOpenSession(session)
+                },
+              }, sessionTitle)
+              : h('span', { className: 'cs-session-title', ...hoverTipProps(hoverTip, sessionTitle) }, sessionTitle),
+            session.taskRunning
+              ? renderDetailMeta({
+                className: 'cs-session-status',
+                icon: 'running',
+                label: t('runningTag'),
+                tipTitle: t('runningTag'),
+                hoverTip,
+                tone: 'running',
+              })
+              : null,
+            session.approximate
+              ? renderDetailMeta({
+                className: 'cs-session-status',
+                icon: 'approx',
+                label: t('approximateHint'),
+                tipTitle: t('approximateHint'),
+                hoverTip,
+                tone: 'warning',
+              })
+              : null),
+          h('span', { className: 'cs-session-meta' },
+            renderDetailMeta({
+              className: 'cs-session-stat',
+              icon: 'active',
+              label: `${t('activeLabel')} ${formatDuration(session.activeMs, format)}`,
+              value: formatDuration(session.activeMs, format),
+              tipTitle: `${t('activeLabel')} ${formatDuration(session.activeMs, format)}`,
+              hoverTip,
+              tone: 'active',
+            }),
+            renderDetailMeta({
+              className: 'cs-session-stat',
+              icon: 'task',
+              label: `${t('taskLabel')} ${formatDuration(session.taskMs, format)}`,
+              value: formatDuration(session.taskMs, format),
+              tipTitle: `${t('taskLabel')} ${formatDuration(session.taskMs, format)}`,
+              hoverTip,
+              tone: 'task',
+            }),
+            renderDetailMeta({
+              className: 'cs-session-stat',
+              icon: 'count',
+              label: `${session.taskCount} ${t('taskCountUnit')}`,
+              value: String(session.taskCount),
+              tipTitle: `${session.taskCount} ${t('taskCountUnit')}`,
+              hoverTip,
+            }),
+            session.taskCount > 0
+              ? renderDetailMeta({
+                className: 'cs-session-tool',
+                icon: 'breakdown',
+                label: `${t('compositionTitle')}：${breakdownSummary}`,
+                tipTitle: t('compositionTitle'),
+                tipRows: breakdownRows,
+                hoverTip,
+              })
+              : null,
+            // 子代理任务只在父会话明细里露出，不参与上面的任务时长与次数。
+            subagents > 0
+              ? renderDetailMeta({
+                className: 'cs-session-tool is-subagent',
+                icon: 'subagent',
+                label: subagentLabel,
+                tipTitle: t('subagentDetail'),
+                tipRows: subagentTipRows,
+                hoverTip,
+              })
+              : null)),
+        h('span', { className: 'cs-session-tail' },
           renderDetailMeta({
-            className: 'cs-session-stat',
-            icon: 'active',
-            label: `${t('activeLabel')} ${formatDuration(session.activeMs, format)}`,
-            value: formatDuration(session.activeMs, format),
-            tipTitle: `${t('activeLabel')} ${formatDuration(session.activeMs, format)}`,
+            className: 'cs-session-last',
+            icon: 'clock',
+            label: `${t('colLast')} ${lastText}`,
+            value: lastText,
+            tipTitle: `${t('colLast')} ${lastText}`,
             hoverTip,
-            tone: 'active',
           }),
-          renderDetailMeta({
-            className: 'cs-session-stat',
-            icon: 'task',
-            label: `${t('taskLabel')} ${formatDuration(session.taskMs, format)}`,
-            value: formatDuration(session.taskMs, format),
-            tipTitle: `${t('taskLabel')} ${formatDuration(session.taskMs, format)}`,
-            hoverTip,
-            tone: 'task',
-          }),
-          renderDetailMeta({
-            className: 'cs-session-stat',
-            icon: 'count',
-            label: `${session.taskCount} ${t('taskCountUnit')}`,
-            value: String(session.taskCount),
-            tipTitle: `${session.taskCount} ${t('taskCountUnit')}`,
-            hoverTip,
-          })),
-        session.taskCount > 0
-          ? renderDetailMeta({
-            className: 'cs-session-tool',
-            icon: 'breakdown',
-            label: `${t('compositionTitle')}：${breakdownSummary}`,
-            tipTitle: t('compositionTitle'),
-            tipRows: breakdownRows,
-            hoverTip,
-          })
-          : null,
-        // 子代理任务只在父会话明细里露出，不参与上面的任务时长与次数。
-        subagents > 0
-          ? renderDetailMeta({
-            className: 'cs-session-tool is-subagent',
-            icon: 'subagent',
-            label: subagentLabel,
-            tipTitle: t('subagentDetail'),
-            tipRows: subagentTipRows,
-            hoverTip,
-          })
-          : null,
-        renderDetailMeta({
-          className: 'cs-session-last',
-          icon: 'clock',
-          label: `${t('colLast')} ${lastText}`,
-          value: lastText,
-          tipTitle: `${t('colLast')} ${lastText}`,
-          hoverTip,
-        }))
+          openable
+            ? h('span', { className: 'cs-session-arrow', 'aria-hidden': true },
+                h(DetailGlyph, { name: 'open', size: 13 }))
+            : null))
     }
 
     function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null, highlightSessionId = null, sessionPaging = null, onOpenSession = null) {
@@ -3254,13 +3274,13 @@ window.__ModuleLoader__.load({
       )
       const shownSessions = paging ? sessions.slice(0, visibleCount) : sessions
       const hiddenCount = Math.max(0, sessions.length - shownSessions.length)
-      return h('div', { className: 'cs-group', key: row.key },
+      return h('div', { className: `cs-group${isOpen ? ' is-open' : ''}`, key: row.key },
         h('div', {
-          className: 'cs-row cs-summary',
+          className: 'cs-summary cs-workspace-head',
           role: 'button',
           tabIndex: 0,
           'aria-expanded': isOpen,
-          'aria-label': `${workspaceTitle} · ${t(isOpen ? 'collapse' : 'expand')}`,
+          'aria-label': `${workspaceTitle} · ${sessions.length} ${t('sessionsUnit')} · ${t(isOpen ? 'collapse' : 'expand')}`,
           onClick: onToggle,
           onKeyDown: (event) => {
             if (event.key === 'Enter' || event.key === ' ') {
@@ -3269,25 +3289,13 @@ window.__ModuleLoader__.load({
             }
           },
         },
-          h('div', { className: 'cs-cell cs-name' },
-            h('span', { className: 'cs-name-text', ...hoverTipProps(hoverTip, workspaceTitle) }, workspaceTitle),
-            renderDetailMeta({
-              className: 'cs-name-sub',
-              icon: 'sessions',
-              label: `${row.sessions.length} ${t('sessionsUnit')}`,
-              value: String(row.sessions.length),
-              tipTitle: `${row.sessions.length} ${t('sessionsUnit')}`,
-              hoverTip,
-            })),
-          h('div', { className: 'cs-cell cs-active cs-num', 'data-label': t('colActive') }, formatDuration(row.activeMs, format)),
-          h('div', { className: 'cs-cell cs-task cs-num', 'data-label': t('colTask') }, formatDuration(row.taskMs, format)),
-          h('div', { className: 'cs-cell cs-share', 'data-label': t('colShare') },
-            h('span', { className: 'cs-share-text' }, formatPercent(row.share)),
-            h('span', { className: 'cs-share-track' },
-              h('span', { className: 'cs-share-fill', style: { width: formatPercent(row.share) } }))),
-          h('div', { className: 'cs-cell cs-last', 'data-label': t('colLast') }, formatRelativeTime(row.lastActivityAt, t, nowMs)),
-          h('div', { className: 'cs-cell cs-toggle' },
-            h('span', { className: `cs-chevron${isOpen ? ' is-open' : ''}`, 'aria-hidden': true }))),
+          h('span', { className: 'cs-workspace-chevron', 'aria-hidden': true },
+            h('span', { className: `cs-chevron${isOpen ? ' is-open' : ''}` })),
+          h('span', { className: 'cs-workspace-name' }, workspaceTitle),
+          h('span', {
+            className: 'cs-workspace-count',
+            'aria-label': `${sessions.length} ${t('sessionsUnit')}`,
+          }, String(sessions.length))),
         isOpen
           ? h('div', { className: 'cs-sessions' }, sessions.length === 0
               ? h('div', { className: 'cs-empty is-small' }, t('emptyWorkspace'))
@@ -5059,6 +5067,14 @@ window.__ModuleLoader__.load({
       // 子代理任务与当前明细数据同源，避免切到更早范围后仍读取基础周期的空快照。
       const sessionSubagentByParent = groupSubagentTasks(data?.subagentTasks)
       const hasQuery = String(query ?? '').trim() !== ''
+      // 首次进入没有保存过展开状态时，默认展开前两个工作区，避免整页只剩工作区索引。
+      // 搜索时展开全部命中项，让匹配到的会话立刻可见；清空搜索仍回到用户自己的展开状态。
+      const hasSavedExpansion = expanded && typeof expanded === 'object' && Object.keys(expanded).length > 0
+      const expandedMap = hasQuery
+        ? Object.fromEntries(rows.map((row) => [row.key, true]))
+        : hasSavedExpansion
+          ? expanded
+          : rows.slice(0, 2).reduce((result, row) => ({ ...result, [row.key]: true }), {})
       const sessionCount = rows.reduce((sum, row) => sum + (Array.isArray(row.sessions) ? row.sessions.length : 0), 0)
       const detailStats = [
         [t('colWorkspace'), String(rows.length), `${sessionCount} ${t('sessionsUnit')}`],
@@ -5066,11 +5082,6 @@ window.__ModuleLoader__.load({
         [t('colTask'), formatDuration(data?.taskMs, durationFormat), ''],
         [t('activeShare'), `${activeSharePercent(data?.activeMs, data?.onlineMs)}%`, ''],
       ]
-      const recent = []
-      for (const row of rows) {
-        for (const session of row.sessions ?? []) recent.push({ ...session, workspaceTitle: row.workspaceTitle })
-      }
-      recent.sort((left, right) => finite(right.lastActivityAt) - finite(left.lastActivityAt))
       return [
         h('div', { className: 'cs-details-toolbar' },
           h('div', { className: 'cs-search-wrap' },
@@ -5089,7 +5100,6 @@ window.__ModuleLoader__.load({
               'aria-label': t('searchPlaceholder'),
               onChange: (event) => onQueryChange?.(event?.target?.value ?? ''),
             })),
-          h('span', { className: 'cs-tag' }, t('sumTag')),
           renderDetailsRangePicker({ value: detailsRange, t, onSelect: onSelectDetailsRange })),
         h('div', { className: 'cs-details-stats' }, detailStats.map(([label, value, hint]) =>
           h('div', { className: 'cs-detail-stat', key: label },
@@ -5097,22 +5107,19 @@ window.__ModuleLoader__.load({
             h('b', { className: 'cs-detail-stat-value' }, value),
             hint === '' ? null : h('span', { className: 'cs-detail-stat-hint' }, hint)))),
         h('div', { className: 'cs-details-layout' },
-          h('section', { className: 'cs-card cs-table-card' },
-            h('div', { className: 'cs-card-head' },
-              h('div', { className: 'cs-card-heading' },
-                h('h2', null, t('workspaceTitle')),
-                renderInfo(t('sumFoot')))),
-            h('div', { className: 'cs-table-head cs-row' },
-              h('div', { className: 'cs-cell cs-name' }, t('colWorkspace')),
-              h('div', { className: 'cs-cell cs-active' }, t('colActive')),
-              h('div', { className: 'cs-cell cs-task' }, t('colTask')),
-              h('div', { className: 'cs-cell cs-share' }, t('colShare')),
-              h('div', { className: 'cs-cell cs-last' }, t('colLast')),
-              h('div', { className: 'cs-cell cs-toggle' })),
+          h('section', { className: 'cs-card cs-sessions-card' },
+            h('div', { className: 'cs-card-head cs-sessions-card-head' },
+              h('div', { className: 'cs-card-heading cs-sessions-heading' },
+                h('div', { className: 'cs-sessions-title-line' },
+                  h('h2', null, t('detailsSessionsTitle')),
+                  h('span', { className: 'cs-sessions-count' }, `${sessionCount} ${t('sessionsUnit')}`),
+                  renderInfo(t('sumFoot'))),
+                h('p', { className: 'cs-sessions-caption' }, t('detailsSessionsCaption'))),
+              h('span', { className: 'cs-sessions-scope' }, t('sumTag'))),
             rows.length === 0
               ? h('div', { className: 'cs-empty' }, t(hasQuery ? 'detailsEmpty' : 'emptyDashboard'))
-              : h('div', { className: 'cs-table-body' }, rows.map((row) =>
-                  renderWorkspaceRow(row, expanded?.[row.key] === true, () => onToggleRow?.(row.key),
+              : h('div', { className: 'cs-workspace-list' }, rows.map((row) =>
+                  renderWorkspaceRow(row, expandedMap?.[row.key] === true, () => onToggleRow?.(row.key),
                     t, nowMs, sessionSubagentByParent, durationFormat, hoverTip, highlightSessionId,
                     progressiveSessions
                       ? {
@@ -5121,21 +5128,7 @@ window.__ModuleLoader__.load({
                           onShowMore: () => onShowMoreSessions?.(row.key, Array.isArray(row.sessions) ? row.sessions.length : 0),
                         }
                       : null,
-                    onOpenSession)))),
-          h('aside', { className: 'cs-details-side' },
-            h('section', { className: 'cs-card cs-details-side-card' },
-              h('div', { className: 'cs-card-head' },
-                h('div', { className: 'cs-card-heading' },
-                  h('h2', null, t('recentSessions')))),
-              recent.length === 0
-                ? h('div', { className: 'cs-empty is-small' }, t('recentSessionsEmpty'))
-                : h('div', { className: 'cs-detail-session-list' }, recent.slice(0, 6).map((session) =>
-                    h('div', { className: 'cs-detail-session', key: session.sessionId },
-                      h('span', { className: 'cs-detail-session-title' }, session.sessionTitle ?? t('unknownSession')),
-                      h('span', { className: 'cs-detail-session-time' }, formatDuration(session.taskMs, durationFormat)),
-                      h('span', { className: 'cs-detail-session-workspace' }, session.workspaceTitle ?? t('unassigned')),
-                      h('span', { className: 'cs-detail-session-last' }, formatRelativeTime(session.lastActivityAt, t, nowMs)))))),
-          )),
+                    onOpenSession))))),
       ]
     }
 
@@ -6732,7 +6725,10 @@ window.__ModuleLoader__.load({
         --cs-signal-deep: #133463;
         --cs-signal: #1F4E94;
         --cs-signal-soft: #79B3F9;
-        --cs-brand-ring-low: var(--cs-signal-deep);
+        /* 浅色外观：上半段深、左下段浅、指针深，和深色外观正好对调。 */
+        --cs-brand-ring-high: var(--cs-signal);
+        --cs-brand-ring-low: var(--cs-signal-soft);
+        --cs-brand-hand: var(--cs-signal-deep);
         --cs-accent: var(--cs-signal-deep);
         --cs-on-accent: #ffffff;
         --cs-live: var(--cs-signal);
@@ -6855,7 +6851,10 @@ window.__ModuleLoader__.load({
         --cs-signal-deep: #a9cffa;
         --cs-signal: #79B3F9;
         --cs-signal-soft: #3f6ba8;
+        /* 深色外观：上半段浅、左下段深、指针白，与浅色外观镜像。 */
+        --cs-brand-ring-high: var(--cs-signal);
         --cs-brand-ring-low: var(--cs-signal-soft);
+        --cs-brand-hand: #ffffff;
         --cs-accent: var(--cs-signal);
         --cs-on-accent: #171a19;
         --cs-task: #C29BE8;
@@ -7858,6 +7857,96 @@ window.__ModuleLoader__.load({
       .cs-settings-card > .cs-settings-row { flex: 0 0 auto; }
       .cs-import-hint { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-import-file-state { font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-primary); }
+
+      /* ===== 会话模块重塑：工作区退为轻量分组标题，会话行成为列表主体。 ===== */
+      .cs-details-toolbar { gap: 12px; }
+      .cs-details-toolbar .cs-search-wrap { flex: 1 1 320px; max-width: 640px; }
+      .cs-details-toolbar .cs-details-range { margin-left: auto; }
+      .cs-details-stats { padding: 10px 18px; }
+      .cs-detail-stat { padding: 2px 18px; gap: 1px; }
+      .cs-detail-stat-value { font-size: 15px; line-height: 21px; font-weight: 500; letter-spacing: -0.01em; }
+      .cs-detail-stat-hint { font-size: 10.5px; line-height: 15px; }
+      .cs-details-layout { display: block; }
+      .cs-sessions-card { padding: 16px 18px 10px; gap: 0; }
+      .cs-sessions-card-head { align-items: flex-start; margin-bottom: 2px; }
+      .cs-sessions-heading { gap: 0; min-width: 0; }
+      .cs-sessions-title-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .cs-sessions-title-line h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 650; }
+      .cs-sessions-count { flex: none; padding: 1px 7px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 10.5px; line-height: 17px; font-variant-numeric: tabular-nums; }
+      .cs-sessions-caption { margin: 3px 0 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      .cs-sessions-scope { margin-left: auto; padding-top: 3px; font-size: 10.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+      .cs-workspace-list { display: flex; flex-direction: column; margin-top: 8px; }
+      .cs-page .cs-group { border-top: 1px solid var(--dsw-alias-border-l1); }
+      .cs-page .cs-group:first-child { border-top: 0; }
+      .cs-page .cs-summary.cs-workspace-head { display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; min-height: 46px; padding: 7px 8px; border: 0; border-radius: 8px; cursor: pointer; transition: background var(--cs-dur-tap) var(--cs-ease); }
+      .cs-page .cs-summary.cs-workspace-head:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 4%, transparent); }
+      .cs-workspace-chevron { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: none; color: var(--dsw-alias-label-secondary); }
+      .cs-workspace-chevron .cs-chevron { width: 7px; height: 7px; margin-top: -3px; }
+      .cs-workspace-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; line-height: 19px; font-weight: 600; color: var(--dsw-alias-label-secondary); }
+      .cs-group.is-open .cs-workspace-name { color: var(--dsw-alias-label-primary); }
+      .cs-workspace-count { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 10.5px; line-height: 18px; font-variant-numeric: tabular-nums; }
+      .cs-page .cs-sessions { margin: 0 0 8px 28px; padding: 2px 0 2px 8px; border-left: 1px solid var(--dsw-alias-border-l1); border-radius: 0; background: transparent; }
+      .cs-page .cs-session { display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; padding: 11px 10px; border-top: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 72%, transparent); border-radius: 7px; }
+      .cs-page .cs-session.is-running { box-shadow: inset 2px 0 0 color-mix(in srgb, var(--cs-task) 62%, transparent); }
+      .cs-page .cs-session:first-child { border-top: 0; }
+      .cs-page .cs-session.is-openable { cursor: pointer; transition: background var(--cs-dur-tap) var(--cs-ease); }
+      .cs-page .cs-session.is-openable:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 4%, transparent); }
+      .cs-session-body { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0; }
+      .cs-session-headline { display: flex; align-items: center; gap: 7px; min-width: 0; }
+      .cs-session-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--dsw-alias-border-l2, var(--dsw-alias-border-l1)); }
+      .cs-session-dot.is-running { background: var(--cs-task); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cs-task) 14%, transparent); }
+      .cs-page .cs-session-title { flex: 0 1 auto; min-width: 0; max-width: 100%; font-size: 14px; line-height: 20px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cs-page .cs-session-open { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+      .cs-page .cs-session-open:hover { color: var(--cs-signal); }
+      .cs-page .cs-session-open:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; border-radius: 3px; }
+      .cs-session-headline .cs-session-status { color: var(--dsw-alias-label-secondary); }
+      .cs-session-headline .cs-session-status.is-running { color: var(--cs-task); }
+      .cs-session-headline .cs-session-status.is-warning { color: var(--cs-error); }
+      .cs-session-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 18px; padding-left: 13px; }
+      .cs-session-meta .cs-session-stat { display: inline-flex; align-items: center; gap: 4px; padding: 0; border-radius: 0; background: transparent; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
+      .cs-session-meta .cs-session-stat .cs-detail-meta-value { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
+      .cs-session-meta .cs-session-stat .cs-detail-glyph { width: 14px; height: 14px; vertical-align: middle; opacity: .75; }
+      .cs-session-meta .cs-session-tool { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; color: var(--dsw-alias-label-secondary); opacity: .72; }
+      .cs-session-meta .cs-session-tool:hover { opacity: 1; color: var(--cs-signal); }
+      .cs-session-tail { display: flex; align-items: center; gap: 5px; flex: none; margin-left: auto; }
+      .cs-session-tail .cs-session-last { display: inline-flex; align-items: center; gap: 4px; padding: 0; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; white-space: nowrap; }
+      .cs-session-tail .cs-session-last .cs-detail-glyph { width: 13px; height: 13px; vertical-align: middle; opacity: .7; }
+      .cs-session-arrow { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--dsw-alias-label-secondary); opacity: .45; transition: opacity var(--cs-dur-tap) var(--cs-ease), transform var(--cs-dur-tap) var(--cs-ease); }
+      .cs-page .cs-session.is-openable:hover .cs-session-arrow { opacity: .9; transform: translate(1px, -1px); }
+      .cs-page .cs-session.is-openable:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; }
+      .cs-page .cs-session.is-highlighted { background: color-mix(in srgb, var(--cs-signal) 8%, transparent); }
+      @media (max-width: 760px) {
+        .cs-details-toolbar .cs-search-wrap { flex-basis: 100%; max-width: none; }
+        .cs-details-toolbar .cs-details-range { margin-left: 0; }
+        .cs-details-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 6px 10px; }
+        .cs-detail-stat { padding: 2px 6px; }
+        .cs-detail-stat:nth-child(2n+1) { border-left: 1px solid var(--dsw-alias-border-l1); padding-left: 6px; }
+        .cs-detail-stat:first-child { border-left: 0; padding-left: 0; }
+        .cs-detail-stat:nth-child(n+3) { border-top: 0; }
+        .cs-detail-stat-label { font-size: 10px; line-height: 14px; }
+        .cs-detail-stat-value { font-size: 14px; line-height: 20px; }
+        .cs-detail-stat-hint { font-size: 9.5px; line-height: 13px; }
+        .cs-sessions-card { padding: 12px 10px 6px; }
+        .cs-sessions-card-head { flex-direction: column; gap: 2px; }
+        .cs-sessions-heading { flex-direction: column; align-items: flex-start; }
+        .cs-sessions-title-line h2 { font-size: 15px; line-height: 22px; white-space: nowrap; }
+        .cs-sessions-caption { margin-top: 2px; font-size: 10.5px; line-height: 14px; }
+        .cs-sessions-scope { display: none; }
+        .cs-workspace-list { margin-top: 4px; }
+        .cs-page .cs-summary.cs-workspace-head { min-height: 42px; padding: 4px 4px; }
+        .cs-page .cs-sessions { margin-left: 22px; padding-left: 4px; }
+        .cs-page .cs-session { gap: 10px; padding: 8px 4px; }
+        .cs-page .cs-session-headline { align-items: flex-start; gap: 6px; }
+        .cs-page .cs-session-dot { margin-top: 6px; }
+        .cs-page .cs-session-title { display: -webkit-box; overflow: hidden; white-space: normal; text-overflow: clip; line-height: 18px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        .cs-session-meta { gap: 4px 6px; }
+        .cs-session-meta .cs-session-tool { width: 15px; height: 15px; }
+        .cs-session-tail { align-self: flex-start; padding-top: 1px; }
+        .cs-session-tail .cs-session-last { font-size: 10.5px; }
+      }
+      @media (max-width: 430px) {
+        .cs-session-arrow { display: none; }
+      }
     `
 
     /** 设置页独立挂载在 settings.section，样式自成一套，不依赖仪表盘根节点。 */
