@@ -1586,8 +1586,11 @@ test('客户端：界面语言默认中文，设置页可切英文并即时换�
   assert.equal(Object.keys(enDict).sort().join('|'), Object.keys(zhDict).sort().join('|'), '中英字典键完全一致')
   assert.equal(zhDict.settingsLanguageLabel, '界面语言')
   assert.equal(enDict.settingsLanguageLabel, 'Interface language')
-  assert.equal(zhDict.heatmapInfo, '每格一天，颜色越深活跃越长。', '热力图说明不再预告悬停内容')
+  assert.equal(zhDict.heatmapInfo, '每格一天，颜色越深活跃越长', '热力图说明不再预告悬停内容，句末不带句号')
   assert.equal(enDict.heatmapInfo, 'One cell per day; darker means more active time.', '英文说明同步精简')
+  assert.equal(zhDict.tabDetails, '会话', '原「明细」视图标题改为「会话」')
+  assert.equal(enDict.tabDetails, 'Sessions', '英文视图标题同步改为 Sessions')
+  assert.equal('currentPeriod' in zhDict, false, '顶栏「当前周期」文案已删除')
 
   assert.equal(DEFAULT_LANGUAGE, 'zh', '首次安装默认中文')
   assert.equal(currentLanguage(), 'zh')
@@ -1910,7 +1913,7 @@ test('客户端：分段导航渲染四个 tab、移动滑块与 roving tabindex
   const { TabNav, React } = await loadClientFunctions()
   assert.equal(typeof TabNav, 'function')
   const labels = {
-    tabOverview: '概览', tabTrend: '趋势', tabDetails: '明细', tabSettings: '设置',
+    tabOverview: '概览', tabTrend: '趋势', tabDetails: '会话', tabSettings: '设置',
     tabsLabel: 'dsh-timespan 页面',
   }
   const t = (key) => labels[key] ?? key
@@ -1922,7 +1925,7 @@ test('客户端：分段导航渲染四个 tab、移动滑块与 roving tabindex
   assert.equal(nav.props['aria-label'], 'dsh-timespan 页面')
   const tabs = findAll(tree, (node) => node.props?.role === 'tab')
   assert.equal(tabs.length, 4, '四个同级 tab')
-  assert.deepEqual(tabs.map((tab) => textOf(tab).trim()), ['概览', '趋势', '明细', '设置'])
+  assert.deepEqual(tabs.map((tab) => textOf(tab).trim()), ['概览', '趋势', '会话', '设置'])
   assert.deepEqual(tabs.map((tab) => tab.props['aria-selected']), [false, true, false, false])
   assert.deepEqual(tabs.map((tab) => tab.props.tabIndex), [-1, 0, -1, -1], '激活项 0，其余 -1')
   const thumb = findAll(tree, byClass('cs-tab-thumb'))[0]
@@ -2293,7 +2296,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   const labels = {
     settingsPageTitle: '仪表盘设置', settingsPageHint: '设置保存在本机',
     settingsSectionFormat: '数字格式', settingsFormatHint: '选择后立即预览',
-    settingsFormatShared: '侧栏、概览、趋势、明细与导出共用这一格式',
+    settingsFormatShared: '侧栏、概览、趋势、会话与导出共用这一格式',
     formatHintHms: '时:分:秒', formatHintShort: '紧凑单位', formatHintZh: '中文单位',
     formatHintSec: '纯秒', formatHintPadded: '补零时钟', formatPreviewLabel: '预览 · 2:48:16 显示为',
     settingsSectionAppearance: '外观与配色', appearanceLabel: '外观',
@@ -2356,7 +2359,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   assert.doesNotMatch(text, /仪表盘设置|设置保存在本机/, 'Dashboard 设置页不再显示顶部标题与说明两行')
   assert.match(settingsCss, /\.cs-settings-list\.is-split\.is-even \.cs-settings-row:last-child\s*\{[^}]*border-bottom:\s*1px solid var\(--dsw-alias-border-l1\)/, '侧栏显示时长与左侧状态点位置下方横线对齐')
   assert.match(allOf(tree, byClass('cs-settings-list'))[0]?.props?.className ?? '', /is-split/, '统计与显示在仪表盘宽卡里排成两列')
-  assert.match(text, /侧栏、概览、趋势、明细与导出共用这一格式/, '数字格式卡底部说明共用范围')
+  assert.match(text, /侧栏、概览、趋势、会话与导出共用这一格式/, '数字格式卡底部说明共用范围')
   for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示状态', '侧栏状态点', '状态点位置', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '选择备份文件导入', '重新显示「近似记录」说明', '清空全部数据']) {
     assert.match(text, new RegExp(expected), `设置页包含「${expected}」`)
   }
@@ -2498,9 +2501,9 @@ test('客户端：概览首屏卡片右上角有无边框纯图标按钮，主�
   const labels = {
     todayActive: '今日活跃时长', actualOccupied: '实际占用', focusSet: '设为首屏',
     focusUnset: '退出首屏', todayOnline: '今日在线时长', todayTask: '今日任务时长',
-    weekOnline: '本周在线时长', weekTask: '本周任务时长',
-    monthOnline: '本月在线时长', monthTask: '本月任务时长',
-    heroMetricWeekTitle: '本周活跃时长', heroMetricMonthTitle: '本月活跃时长',
+    weekOnline: '本周在线', weekTask: '本周任务',
+    monthOnline: '本月在线', monthTask: '本月任务',
+    heroMetricWeekTitle: '本周活跃', heroMetricMonthTitle: '本月活跃',
     cycleToday: '今日', cycleWeek: '本周', cycleMonth: '本月',
   }
   const t = (key) => labels[key] ?? key
@@ -2534,17 +2537,17 @@ test('客户端：概览首屏卡片右上角有无边框纯图标按钮，主�
     data: heroSampleData(), t, format: 'hms', focus: null, onToggleFocus: () => {}, heroMetric: 'week',
   })
   assert.equal(weekly.props['data-metric'], 'week', '普通概览 hero 标记所选主指标')
-  assert.equal(textOf(allOf(weekly, (node) => node.type === 'h2')[0]).trim(), '本周活跃时长', '缩回首屏后标题仍是所选指标')
+  assert.equal(textOf(allOf(weekly, (node) => node.type === 'h2')[0]).trim(), '本周活跃', '缩回首屏后标题仍是所选指标')
   assert.equal(textOf(allOf(weekly, byClass('cs-hero-num'))[0]).trim(), '5:51:01', '缩回首屏后大数字仍是所选指标')
   assert.equal(allOf(weekly, byClass('cs-tag')).length, 0, '标题已含本周，不再重复周期标签')
   const monthly = renderHeroCard({
     data: heroSampleData(), t, format: 'hms', focus: null, onToggleFocus: () => {}, heroMetric: 'month',
   })
-  assert.equal(allOf(monthly, byClass('cs-tag')).length, 0, '本月活跃时长标题右侧不再挂「本月」标签')
-  assert.match(textOf(weekly), /本周在线时长 6:56:40/, '周指标副信息切换为本周在线时长')
-  assert.match(textOf(weekly), /本周任务时长 2:30:00/, '周指标副信息切换为本周任务时长')
-  assert.match(textOf(monthly), /本月在线时长 16:40:00/, '月指标副信息切换为本月在线时长')
-  assert.match(textOf(monthly), /本月任务时长 5:33:20/, '月指标副信息切换为本月任务时长')
+  assert.equal(allOf(monthly, byClass('cs-tag')).length, 0, '本月活跃标题右侧不再挂「本月」标签')
+  assert.match(textOf(weekly), /本周在线 6:56:40/, '周指标副信息切换为本周在线')
+  assert.match(textOf(weekly), /本周任务 2:30:00/, '周指标副信息切换为本周任务')
+  assert.match(textOf(monthly), /本月在线 16:40:00/, '月指标副信息切换为本月在线')
+  assert.match(textOf(monthly), /本月任务 5:33:20/, '月指标副信息切换为本月任务')
 
   const online = renderHeroCard({
     data: heroSampleData(), t, format: 'hms', focus: null, onToggleFocus: () => {}, heroMetric: 'online',
@@ -2560,8 +2563,8 @@ test('客户端：首屏放大页重新排版为大数字、多项统计与活�
     focusSet: '设为首屏', focusUnset: '退出首屏', todayOnline: '今日在线时长',
     onlineLabel: '在线时长', todayTask: '任务时长', activeShare: '活跃占比', activeLabel: '活跃',
     taskShare: '任务占比', weekActiveShare: '本周活跃占比', monthActiveShare: '本月活跃占比',
-    taskLabel: '任务', weekOnline: '本周在线时长', weekTask: '本周任务时长',
-    monthOnline: '本月在线时长', monthTask: '本月任务时长',
+    taskLabel: '任务', weekOnline: '本周在线', weekTask: '本周任务',
+    monthOnline: '本月在线', monthTask: '本月任务',
     taskCountShort: '任务次数', focusTodayActive: '今日活跃', focusWeekActive: '本周活跃',
     focusMonthActive: '本月活跃',
   }
@@ -2622,7 +2625,7 @@ test('客户端：首屏放大页重新排版为大数字、多项统计与活�
   assert.equal(weekRing.props['aria-label'], '本周活跃占比 84%', '周活跃占比使用本周活跃÷本周在线')
   assert.match(textOf(allOf(weekPage, byClass('cs-hero-ring-legend'))[0]), /活跃\s*5:51:01/, '周圆环图例给本周活跃')
   assert.match(textOf(allOf(weekPage, byClass('cs-hero-ring-legend'))[0]), /在线时长\s*6:56:40/, '周圆环图例给本周在线')
-  assert.match(textOf(allOf(weekPage, byClass('cs-hero-meta'))[0]), /本周在线时长 6:56:40/, '周指标副信息跟周期')
+  assert.match(textOf(allOf(weekPage, byClass('cs-hero-meta'))[0]), /本周在线 6:56:40/, '周指标副信息跟周期')
 
   const monthPage = renderHeroFocusPage({
     data: heroSampleData(), t, format: 'hms', onToggleFocus: () => {}, heroMetric: 'month',
@@ -2658,7 +2661,7 @@ test('客户端：首屏主指标五个时长项可点切换，非法持久化�
 
   const labels = {
     todayActive: '今日活跃时长', todayOnline: '今日在线时长', todayTask: '今日任务时长',
-    heroMetricWeekTitle: '本周活跃时长', heroMetricMonthTitle: '本月活跃时长',
+    heroMetricWeekTitle: '本周活跃', heroMetricMonthTitle: '本月活跃',
     focusSummary: '首屏概览', actualOccupied: '实际占用', focusSet: '设为首屏',
     focusUnset: '退出首屏', onlineLabel: '在线时长', activeShare: '活跃占比',
     taskCountShort: '任务次数', focusTodayActive: '今日活跃', focusWeekActive: '本周活跃',
@@ -2679,7 +2682,7 @@ test('客户端：首屏主指标五个时长项可点切换，非法持久化�
     assert.equal(allOf(page, (node) => hasClass(node, 'is-current')).length, 1, `${metric} 只有一项高亮`)
   }
   const page = renderHeroFocusPage({ ...base, heroMetric: 'week' })
-  assert.equal(textOf(allOf(page, (node) => node.type === 'h2')[0]).trim(), '本周活跃时长', '标题跟随主指标')
+  assert.equal(textOf(allOf(page, (node) => node.type === 'h2')[0]).trim(), '本周活跃', '标题跟随主指标')
   const buttons = allOf(page, byClass('cs-fs-button'))
   assert.equal(buttons.length, 5, '五个时长项是可点按钮')
   assert.ok(buttons.every((button) => button.type === 'button'))
@@ -4086,6 +4089,7 @@ test('客户端：全年 Bento 跨行、范围选择器紧凑尺寸与顶栏图�
   assert.match(declarationsFor(css, '.cs-topbar-group'), /display:\s*inline-flex/, '顶栏右侧两个 cs-topbar-group')
   assert.match(declarationsFor(css, '.cs-topbar-divider'), /width:\s*1px/, '顶栏两组之间有 1px 分隔线')
   assert.match(css, /\.cs-icon-toggle\s*\{/, '配色与外观共用单枚循环图标按钮样式')
+  assert.doesNotMatch(css, /\.cs-period-display/, '顶栏不再保留当前周期圆角徽标样式')
   assert.doesNotMatch(css, /\.cs-palette-label/, '顶栏不再有配色下拉的标签')
   assert.doesNotMatch(css, /\.cs-palette-name/, '取消常显配色名，名称与循环顺序收进 tooltip')
   assert.match(css, /\.cs-palette-toggle svg \.cs-palette-signal/, '循环图标用当前套信号色圆点表当前值')
