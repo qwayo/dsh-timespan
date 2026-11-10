@@ -621,15 +621,27 @@ test('客户端：概览口径按行拆分，周/月补一句日均口径', asyn
   assert.ok(weekLines.includes(labels.dailyAverageHint), '周/月视图补充日均按自然日折算')
 })
 
-test('客户端：品牌时钟指针与轴心固定白色，圆环右下角至底部弧形使用任务紫', async () => {
+test('客户端：品牌时钟圆环固定为三段，上半浅色、右下任务紫、左下对应深色', async () => {
   const { DshTimespanIcon } = await loadClientFunctions()
   const icon = DshTimespanIcon({ size: 36 })
   const hand = findAll(icon, (node) => node.type === 'path' && node.props?.d === 'M12 12l4-4')[0]
   assert.equal(hand?.props?.stroke, '#ffffff', '指针不随配色变化，固定白色')
-  const bottomRightArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M20.5 12'))[0]
-  assert.ok(bottomRightArc, '圆环右下角单独画一段弧')
-  assert.match(bottomRightArc.props.d, /A8\.5 8\.5 0 0 1 9\.73 20\.19$/, '弧形覆盖右下角并连到圆环底部')
-  assert.match(bottomRightArc.props.stroke, /var\(--cs-task, #7A5AA6\)/, '右下角弧形使用任务紫')
+  const topArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M3.53 11.26'))[0]
+  assert.ok(topArc, '圆环上半段单独画一段弧')
+  assert.match(topArc.props.d, /A8\.5 8\.5 0 0 1 20\.47 11\.26$/, '上半段跨过 12 点覆盖左右两侧')
+  assert.equal(topArc.props.stroke, 'currentColor', '上半段保持浅色')
+  const rightArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M20.47 12.74'))[0]
+  assert.ok(rightArc, '圆环右下段单独画一段弧')
+  assert.match(rightArc.props.d, /A8\.5 8\.5 0 0 1 12\.74 20\.47$/, '右下段从 3 点方向画到 6 点方向')
+  assert.match(rightArc.props.stroke, /var\(--cs-task, #7A5AA6\)/, '右下段使用任务紫')
+  const leftArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M11.26 20.47'))[0]
+  assert.ok(leftArc, '圆环左下段单独画一段弧')
+  assert.match(leftArc.props.d, /A8\.5 8\.5 0 0 1 3\.53 12\.74$/, '左下段从 6 点方向画到 9 点方向')
+  assert.match(leftArc.props.stroke, /var\(--cs-brand-ring-low, #133463\)/, '左下段使用对应配色的深色')
+  for (const arc of [topArc, rightArc, leftArc]) {
+    assert.equal(arc.props.strokeLinecap, 'round', '每段两端都保留半圆端帽')
+  }
+  assert.equal(findAll(icon, (node) => node.type === 'path' && /A8\.5 8\.5/.test(String(node.props?.d))).length, 3, '圆环一共三段')
   const center = findAll(icon, (node) => node.type === 'circle' && node.props?.r === 1.8)[0]
   assert.equal(center?.props?.fill, '#ffffff', '轴心与指针同为白色，不再使用任务紫')
 })
@@ -656,6 +668,8 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与派生色�
   assert.match(css, /--cs-live\s*:\s*var\(--cs-signal\)/)
   assert.match(css, /--cs-task\s*:\s*#7A5AA6/i, '任务系列使用与活跃蓝分开的紫罗兰辅助色')
   assert.match(css, /--cs-task\s*:\s*#C29BE8/i, '深色外观使用更亮的紫罗兰')
+  assert.match(css, /--cs-brand-ring-low\s*:\s*var\(--cs-signal-deep\)/, '浅色外观左下圆环取该配色的深色')
+  assert.match(css, /--cs-brand-ring-low\s*:\s*var\(--cs-signal-soft\)/, '深色外观左下圆环切换到同色系的深色档')
   assert.match(css, /--cs-ring-track\s*:\s*color-mix\(/, '主页面也导出圆环轨道色')
   assert.match(css, /--cs-tone-faint\s*:/)
   assert.match(css, /--cs-tone-soft\s*:/)
@@ -695,6 +709,7 @@ test('客户端：概览整页滚轮滚动，子模块不出现内部竖滚', as
   assert.match(declarationsFor(css, '.cs-overview-grid'), /grid-template-rows:\s*auto\s+auto\s+auto/, '三行按内容自然高度')
   assert.match(declarationsFor(css, '.cs-overview-grid'), /align-content:\s*start/, 'Bento 从顶部排，不留底部空白')
   assert.match(declarationsFor(css, '.cs-chart svg'), /height:\s*clamp\(/, '图表高度随视口收缩')
+  assert.match(declarationsFor(css, '.cs-trend-layout .cs-trend-card .cs-plot svg'), /flex:\s*1 1 auto/, '今日 24 小时图表吃满卡片剩余高度，柱图整体下沉')
   assert.match(declarationsFor(css, '.cs-table-body'), /overflow:\s*visible/, '明细表不设内部竖滚，交给整页')
   assert.doesNotMatch(css, /\.cs-table-body\s*\{[^}]*flex:\s*1 1 auto/, '明细表不再被 flex 拉进固定高度')
   assert.match(declarationsFor(css, '.cs-settings-card'), /align-self:\s*start/, '设置卡片按自然高度排，不再强行拉伸')
@@ -1092,7 +1107,7 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(entry, /flex-wrap:\s*nowrap/, '入口保持单行')
   assert.match(entry, /white-space:\s*nowrap/)
   assert.match(declarationsFor(css, '.dsh-timespan-nav-entry.is-dot-end'), /width:\s*100%/, '贴右时入口占满宿主行宽')
-  assert.match(css, /\.dsh-timespan-nav-entry\.is-dot-end \.dsh-timespan-nav-dot\s*\{[^}]*margin-left:\s*auto/, '状态点用 auto 外边距推到最右侧')
+  assert.match(css, /\.dsh-timespan-nav-entry\.is-dot-end \.dsh-timespan-nav-dot\s*\{[^}]*margin-left:\s*auto[^}]*margin-right:\s*3px/, '状态点用 auto 外边距推到最右侧，并留 3px 避免贴得过右')
   assert.match(css, /button\[aria-label="TimeSpan"\] > span:has\(\.dsh-timespan-nav-entry\.is-dot-end\)\s*\{[^}]*flex:\s*1 1 auto/, '宿主定宽 icon 容器被撑开，圆点才能贴到整行最右')
   assert.match(css, /\.dsh-timespan-nav-entry\.is-nameless\.is-dot-end\s*\{[^}]*justify-content:\s*flex-start/, '贴右时时间仍紧跟构成环，不因整行撑开而居中')
   assert.match(css, /\.dsh-timespan-nav-entry\.is-nameless\.is-dot-end \.dsh-timespan-nav-time\s*\{[^}]*flex:\s*0 0 auto/, '贴右时时间不再吃掉剩余空间')
@@ -2134,6 +2149,10 @@ test('客户端：明细「全部」范围按批次渐进展开会话', async ()
     visibleSessionCounts: {},
     onShowMoreSessions: (key, total) => clicked.push([key, total]),
   })
+  const searchWrap = allOf(first, byClass('cs-search-wrap'))[0]
+  assert.ok(searchWrap, '明细搜索框外层容器存在')
+  assert.ok(allOf(searchWrap, byClass('cs-search-icon'))[0], '搜索框内部左侧显示搜索图标')
+  assert.equal(allOf(searchWrap, byClass('cs-search'))[0]?.props?.type, 'search', '搜索图标包裹真实搜索输入框')
   assert.equal(allOf(first, byClass('cs-session')).length, 8, '首批只渲染 8 个会话')
   const more = allOf(first, byClass('cs-sessions-more'))[0]
   assert.ok(more, '还有更多会话时显示二次展开入口')
@@ -2178,6 +2197,7 @@ test('客户端：概览最近会话在标题左侧显示运行中图标', async
 
 test('客户端：Dashboard 设置页包含格式、外观、统计、通知、导出与二次确认清空', async () => {
   const { renderSettingsView, normalizeBackfill, settingsDraft, React } = await loadClientFunctions()
+  const settingsCss = await loadSettingsCss()
   assert.equal(typeof renderSettingsView, 'function')
   const labels = {
     settingsPageTitle: '仪表盘设置', settingsPageHint: '设置保存在本机',
@@ -2242,6 +2262,8 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   }
   const tree = renderSettingsView(settingsProps)
   const text = textOf(tree)
+  assert.doesNotMatch(text, /仪表盘设置|设置保存在本机/, 'Dashboard 设置页不再显示顶部标题与说明两行')
+  assert.match(settingsCss, /\.cs-settings-list\.is-split\.is-even \.cs-settings-row:last-child\s*\{[^}]*border-bottom:\s*1px solid var\(--dsw-alias-border-l1\)/, '侧栏显示时长与左侧状态点位置下方横线对齐')
   assert.match(allOf(tree, byClass('cs-settings-list'))[0]?.props?.className ?? '', /is-split/, '统计与显示在仪表盘宽卡里排成两列')
   assert.match(text, /侧栏、概览、趋势、明细与导出共用这一格式/, '数字格式卡底部说明共用范围')
   for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示状态', '侧栏状态点', '状态点位置', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '选择备份文件导入', '重新显示「近似记录」说明', '清空全部数据']) {

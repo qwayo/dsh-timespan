@@ -792,10 +792,12 @@ window.__ModuleLoader__.load({
         className: 'dsh-timespan-nav-icon', width: size, height: size,
         viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true,
       },
-      h('circle', { cx: 12, cy: 12, r: 8.5, stroke: 'currentColor', strokeWidth: 2.2,
-        strokeLinecap: 'round', strokeDasharray: '11 3 7 3 5 3', transform: 'rotate(-90 12 12)' }),
-      // 圆环右下角一段与底部小段连成任务紫；指针与轴心保持白色，避免把轴心误当成独立的状态点。
-      h('path', { d: 'M20.5 12 A8.5 8.5 0 0 1 9.73 20.19', stroke: 'var(--cs-task, #7A5AA6)',
+      h('path', { d: 'M3.53 11.26 A8.5 8.5 0 0 1 20.47 11.26', stroke: 'currentColor',
+        strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
+      // 圆环一共三段：上半段浅色、右下段任务紫、左下段同色系深色；三段之间留均匀空隙，两端都是半圆端帽。
+      h('path', { d: 'M20.47 12.74 A8.5 8.5 0 0 1 12.74 20.47', stroke: 'var(--cs-task, #7A5AA6)',
+        strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
+      h('path', { d: 'M11.26 20.47 A8.5 8.5 0 0 1 3.53 12.74', stroke: 'var(--cs-brand-ring-low, #133463)',
         strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
       h('path', { d: 'M12 12l4-4', stroke: '#ffffff', strokeWidth: 2, strokeLinecap: 'round' }),
       h('circle', { cx: 12, cy: 12, r: 1.8, fill: '#ffffff' }))
@@ -4905,14 +4907,22 @@ window.__ModuleLoader__.load({
       recent.sort((left, right) => finite(right.lastActivityAt) - finite(left.lastActivityAt))
       return [
         h('div', { className: 'cs-details-toolbar' },
-          h('input', {
-            className: 'cs-search',
-            type: 'search',
-            value: query ?? '',
-            placeholder: t('searchPlaceholder'),
-            'aria-label': t('searchPlaceholder'),
-            onChange: (event) => onQueryChange?.(event?.target?.value ?? ''),
-          }),
+          h('div', { className: 'cs-search-wrap' },
+            h('svg', {
+              className: 'cs-search-icon', viewBox: '0 0 16 16', width: 14, height: 14,
+              fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round',
+              'aria-hidden': true,
+            },
+            h('circle', { cx: 7, cy: 7, r: 4.2 }),
+            h('path', { d: 'M10.1 10.1 13.5 13.5' })),
+            h('input', {
+              className: 'cs-search',
+              type: 'search',
+              value: query ?? '',
+              placeholder: t('searchPlaceholder'),
+              'aria-label': t('searchPlaceholder'),
+              onChange: (event) => onQueryChange?.(event?.target?.value ?? ''),
+            })),
           h('span', { className: 'cs-tag' }, t('sumTag')),
           renderDetailsRangePicker({ value: detailsRange, t, onSelect: onSelectDetailsRange })),
         h('div', { className: 'cs-details-stats' }, detailStats.map(([label, value, hint]) =>
@@ -5002,9 +5012,6 @@ window.__ModuleLoader__.load({
       const appearanceMode = normalizeAppearance(appearance)
       const importRange = importPreview ? importPreviewRange(importPreview.payload) : ''
       return [h('div', { className: 'cs-settings cs-settings-board' },
-        h('header', { className: 'cs-settings-hero' },
-          h('h2', { className: 'cs-settings-title' }, t('settingsPageTitle')),
-          h('p', { className: 'cs-settings-hint' }, t('settingsPageHint'))),
         h('div', { className: 'cs-settings-grid' },
           h('section', { className: 'cs-settings-card cs-settings-main cs-settings-basics-card' },
             ...renderBasicSettingsBody(t, draft, busy, onPatch, { selectClass: 'cs-settings-select', split: true })),
@@ -5985,7 +5992,7 @@ window.__ModuleLoader__.load({
       }
       /* 状态点贴右：入口撑满宿主行，圆点用 auto 外边距推到行末；inline 保持原来的内容簇布局。 */
       .dsh-timespan-nav-entry.is-dot-end { width: 100%; }
-      .dsh-timespan-nav-entry.is-dot-end .dsh-timespan-nav-dot { margin-left: auto; }
+      .dsh-timespan-nav-entry.is-dot-end .dsh-timespan-nav-dot { margin-left: auto; margin-right: 3px; }
       /* 宿主把插槽包在一枚定宽 icon 容器里，插件入口要靠 :has 反向撑满整行，否则圆点只能停在文字后。 */
       html[data-dsh-timespan-hide-name] button[aria-label="TimeSpan"] > span:has(.dsh-timespan-nav-entry.is-dot-end) {
         flex: 1 1 auto;
@@ -6480,6 +6487,7 @@ window.__ModuleLoader__.load({
         --cs-signal-deep: #133463;
         --cs-signal: #1F4E94;
         --cs-signal-soft: #79B3F9;
+        --cs-brand-ring-low: var(--cs-signal-deep);
         --cs-accent: var(--cs-signal-deep);
         --cs-on-accent: #ffffff;
         --cs-live: var(--cs-signal);
@@ -6602,6 +6610,7 @@ window.__ModuleLoader__.load({
         --cs-signal-deep: #a9cffa;
         --cs-signal: #79B3F9;
         --cs-signal-soft: #3f6ba8;
+        --cs-brand-ring-low: var(--cs-signal-soft);
         --cs-accent: var(--cs-signal);
         --cs-on-accent: #171a19;
         --cs-task: #C29BE8;
@@ -7059,9 +7068,17 @@ window.__ModuleLoader__.load({
       }
       .cs-details-range .cs-select-menu { min-width: 116px; padding: 3px; }
       .cs-details-range .cs-opt { padding: 5px 9px; font-size: 11.5px; line-height: 17px; }
+      .cs-search-wrap {
+        position: relative; display: flex; align-items: center;
+        flex: 1 1 260px; min-width: 180px;
+      }
+      .cs-search-icon {
+        position: absolute; left: 11px; width: 14px; height: 14px;
+        color: var(--dsw-alias-label-secondary); pointer-events: none;
+      }
       .cs-search {
-        flex: 1 1 260px; min-width: 180px; appearance: none; font: inherit; font-size: 12px;
-        padding: 7px 12px; border-radius: 9px; color: var(--dsw-alias-label-primary);
+        flex: 1 1 auto; width: 100%; min-width: 0; appearance: none; font: inherit; font-size: 12px;
+        padding: 7px 12px 7px 31px; border-radius: 9px; color: var(--dsw-alias-label-primary);
         border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
       }
       .cs-search:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
@@ -7583,6 +7600,10 @@ window.__ModuleLoader__.load({
         .cs-donut-center strong { font-size: 14px; }
       }
       .cs-chart svg { height: clamp(90px, 13vh, 160px); }
+      /* 今日 24 小时条状图：图表区吃满卡片剩余高度，柱图整体下沉，不在统计带上方留大块空白。 */
+      .cs-trend-layout .cs-trend-card .cs-chart { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+      .cs-trend-layout .cs-trend-card .cs-plot { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+      .cs-trend-layout .cs-trend-card .cs-plot svg { flex: 1 1 auto; height: 100%; min-height: 120px; }
       .cs-summary { padding: 8px 12px; }
       .cs-trend-card, .cs-table-card { gap: 10px; }
       /* 设置页留白：卡片按自然高度排，不再把两行卡强行拉到四行卡的高度。 */
@@ -7648,7 +7669,10 @@ window.__ModuleLoader__.load({
       }
       .cs-settings-list.is-split .cs-settings-row:last-child { grid-column: 1 / -1; }
       /* 行数为偶数时（含界面语言后的六项）两列正好填满，最后一行不再独占整行。 */
-      .cs-settings-list.is-split.is-even .cs-settings-row:last-child { grid-column: auto; }
+      .cs-settings-list.is-split.is-even .cs-settings-row:last-child {
+        grid-column: auto;
+        border-bottom: 1px solid var(--dsw-alias-border-l1);
+      }
       .cs-settings-list.is-split .cs-settings-row > div:first-child { min-width: 0; }
       .cs-settings-list.is-split .cs-settings-control { justify-content: flex-end; }
       .cs-settings-board .cs-format-card { align-self: stretch; }
