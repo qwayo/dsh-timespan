@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="arch-title arch-desc">
   <title id="arch-title">How dsh-timespan works</title>
-  <desc id="arch-desc">dsh-timespan has two halves. The Host is the background half running with DSH: it records the online heartbeat, listens to session events, computes every statistic, writes to local storage and registers the read-only timespan_stats tool. The Client is the half you see on the page: the sidebar entry, the presence heartbeat, the overview / trend / details views and the settings page. It only reports what happened to the Host.</desc>
+  <desc id="arch-desc">dsh-timespan has two halves. The Host is the background half running with DSH: it records the online heartbeat, listens to session events, computes every statistic, writes to local storage and registers the read-only timespan_stats tool. The Client is the half you see on the page: the sidebar entry, the presence heartbeat, the overview / trend / sessions views and the settings page. It only reports what happened to the Host.</desc>
 
   <rect width="1200" height="440" rx="24" fill="#151718"/>
   <rect x="0.75" y="0.75" width="1198.5" height="438.5" rx="23.25" fill="none" stroke="#2b3033" stroke-width="1.5"/>
@@ -73,9 +73,9 @@
         <rect x="260" y="334" width="160" height="36" rx="18" fill="#303435"/>
         <text x="340" y="357">presence / 15s</text>
         <rect x="432" y="334" width="264" height="36" rx="18" fill="#303435"/>
-        <text x="564" y="357">Overview / Trend / Details</text>
+        <text x="564" y="357">Overview / Trend / Sessions</text>
         <rect x="708" y="334" width="238" height="36" rx="18" fill="#303435"/>
-        <text x="827" y="357">Settings on this device</text>
+        <text x="827" y="357">Appearance and colors</text>
       </g>
     </g>
 

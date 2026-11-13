@@ -19,16 +19,16 @@ Scope: there is no separate "idle time" metric, and task time is not part of act
 ## What you see
 
 <p align="center">
-  <img src="./assets/readme/dashboard.en.svg" width="100%" alt="dsh-timespan period overview (sample data): sidebar online entry, weekly active headline, today/week/month cards, 24-hour trend, task breakdown, workspace task ranking, recent sessions and the daily active heatmap">
+  <img src="./assets/readme/dashboard.en.svg" width="100%" alt="dsh-timespan period overview (sample data): sidebar online duration, today's active, online and task time, weekly and monthly totals, 24-hour trend, task breakdown, daily active heatmap, workspace task ranking and recent sessions">
 </p>
 
 - A permanent sidebar entry shows the duration you select (online by default) and today's ring; hovering for about 200 ms shows a tooltip
-- The day / week / month dashboard has four views: Overview, Trend, Sessions and Settings. The active headline switches between five durations, and the share ring on its right changes to today's active, today's task, this week's active or this month's active basis; the active headline, trend chart and heatmap can each expand into a full page (focus view); the trend page also shows time distribution and trend analysis.
-- Overview card titles carry light line icons, recent sessions show 3–6 rows based on the bottom-row height, and the heatmap resets to the last 3 months each time the overview is entered
+- The dashboard has four views: Overview, Trend, Sessions and Settings. A single overview card shows the headline metric, two supporting durations, and weekly and monthly totals, with horizontal bars for shares. The headline, trend chart and heatmap each open in a focus view. In the headline focus view, choose from five durations and see the corresponding share in a ring. The Trend view also shows time distribution and trend insights.
+- The bottom row shows the daily active heatmap, workspace task ranking and recent sessions, from left to right. The heatmap resets to the last 3 months when you enter Overview. The year view spans a row of its own, with weeks starting on Monday.
 - The plugin mark swaps its ring lightness with the theme: dark mode has a light upper arc, dark lower-left arc and white needle; light mode reverses the two arcs and uses a deep-blue needle, so the white needle no longer disappears on white
 - Workspace → Sessions: workspaces stay as collapsible groups with only a name and session count, while expanded session rows carry active time, task count, task composition, subagents and last activity. Each session row opens the host conversation page directly, falling back to highlighting the session in the session view when the host cannot open it. Switch the range between today, last 3 days, last week, last 30 days and all time; with all time, sessions load in batches.
 - The read-only agent tool `timespan_stats`: query by day, week, month or a custom date range in a conversation, using the same data as the dashboard
-- Settings: interface language (Chinese by default, English available; affects this plugin's wording only), idle threshold (1–15 min), week start (Monday / Sunday), appearance and color palette (follows the system by default), number format (compact units by default, e.g. `2h 48m`), whether to show subagent detail, and whether the sidebar shows status text and a permanent duration (online by default).
+- Settings: interface language (Chinese by default, English available; affects this plugin's wording only), idle threshold (1–15 min), start of the statistical week (Monday / Sunday), appearance and color palette (follows the system by default), number format (compact units by default, e.g. `2h 48m`), whether to show subagent detail, and whether the sidebar shows status text and a permanent duration (online by default).
 - Export JSON / CSV, and import backups de-duplicated by ID. New exports use the `dsh-timespan-export` format; older `chronoscope-export` backups still import. Destructive actions such as clearing data ask for a second confirmation.
 - On first enable, task time is backfilled for existing historical sessions
 

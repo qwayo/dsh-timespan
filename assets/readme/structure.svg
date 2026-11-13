@@ -55,7 +55,7 @@
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">client.js</text>
       <rect x="804" y="166" width="78" height="26" rx="13" fill="#182430" stroke="#2e4a66" stroke-width="1.2"/>
       <text x="843" y="184" text-anchor="middle" font-size="13" fill="#8fbfe9">Client 半</text>
-      <text x="648" y="220" font-size="15" fill="#b1b6b5">侧栏 · presence · 概览 / 趋势 / 明细 · 设置</text>
+      <text x="648" y="220" font-size="15" fill="#b1b6b5">侧栏 · presence · 概览 / 趋势 / 会话 · 设置</text>
     </g>
 
     <!-- 连接线：入口 → 模块层 -->
