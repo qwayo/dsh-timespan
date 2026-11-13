@@ -42,6 +42,7 @@ async function loadClientFunctions(windowExtras = {}) {
   source = source.replace(anchor,
     `    window.__testFunctions = {
       renderComposition, renderSessionBreakdown, renderSessionRow, renderWorkspaceRow,
+      selectDetailsWorkspaces, summarizeDetailSessions, selectedDetailSession, importResultText, formatSelectedRange,
       openSessionInHost, sessionIsOpenable, recentLimitForRow, heroRingModel, heroMetaItems,
       normalizeBackfill, normalizeDashboard, approximateNoticeVisible, renderApproximateNotice,
       localDayCount, averageMsPerDay, clampTipPosition, renderHoverTip,
@@ -932,7 +933,7 @@ test('客户端：工作区标题不再挂浮层，会话标题保留完整文�
   assert.equal(shown.at(-1)?.title, longSession, '浮层展示完整会话名称')
 })
 
-test('客户端：会话行只在真实会话 id 时打开宿主会话页，否则保持普通明细行', async () => {
+test('客户端：会话标题不直接打开宿主，宿主入口只接受真实会话 id', async () => {
   const { renderSessionRow, openSessionInHost, sessionIsOpenable } = await loadClientFunctions()
   const labels = {
     unknownSession: '未命名会话', runningTag: '运行中', approximateHint: '近似',
@@ -950,24 +951,20 @@ test('客户端：会话行只在真实会话 id 时打开宿主会话页，否�
   const opened = []
   const ctx = { get: (name) => name === 'uiWorkspace' ? { openSession: (id) => opened.push(id) } : undefined }
   const onOpen = (session) => openSessionInHost(ctx, session)
-  const row = renderSessionRow(realSession, t, now, [], 'hms', null, false, onOpen)
-  assert.equal(row.props['data-openable'], 'true', '真实会话行标记为可打开')
-  assert.equal(row.props.className.includes('is-openable'), true, '真实会话行有可点样式')
-  row.props.onClick()
-  assert.deepEqual(opened, ['session-1'], '整行鼠标点击调用宿主 openSession')
-  const title = findAll(row, (node) => hasClass(node, 'cs-session-open'))[0]
-  assert.ok(title, '标题使用原生按钮承接键盘')
-  assert.equal(title.type, 'button')
-  title.props.onClick({ stopPropagation() {} })
-  assert.deepEqual(opened, ['session-1', 'session-1'], '标题按钮不会重复触发整行')
-  assert.equal(opened.length, 2, '标题按钮本身也打开会话')
+  const row = renderSessionRow(realSession, t, now, [], 'hms')
+  assert.equal(row.props.onClick, undefined, '未提供统计预览时，整行没有跳转操作')
+  const title = findAll(row, (node) => hasClass(node, 'cs-session-title'))[0]
+  assert.equal(title.type, 'span', '标题只承载文字与完整名称提示')
+  assert.equal(title.props.onClick, undefined, '标题没有独立跳转处理')
+  assert.deepEqual(opened, [])
+  assert.equal(onOpen(realSession), true)
+  assert.deepEqual(opened, ['session-1'], '显式宿主入口仍可打开真实会话')
 
   assert.equal(sessionIsOpenable(realSession), true)
   const unassigned = { ...realSession, sessionId: '__unassigned_active_0', hasSessionId: false }
   assert.equal(sessionIsOpenable(unassigned), false, '无归属活跃行的占位 id 不可打开')
-  const plain = renderSessionRow(unassigned, t, now, [], 'hms', null, false, onOpen)
-  assert.equal(plain.props['data-openable'], 'false')
-  assert.equal(allOf(plain, (node) => hasClass(node, 'cs-session-open')).length, 0, '假 id 不渲染可点标题')
+  const plain = renderSessionRow(unassigned, t, now, [], 'hms')
+  assert.equal(plain.props.onClick, undefined)
   assert.equal(openSessionInHost(ctx, unassigned), false)
 
   assert.equal(openSessionInHost({}, realSession), false, '服务缺失时回落由调用方处理')
@@ -1079,9 +1076,7 @@ test('客户端：会话模块样式让工作区退后、会话行成为主体',
   assert.match(session, /flex-wrap:\s*nowrap/, '会话行不因窄屏挤成碎块')
   assert.match(declarationsFor(css, '.cs-session-body'), /flex-direction:\s*column/, '会话标题与指标分成上下两层')
   assert.match(declarationsFor(css, '.cs-session-meta'), /display:\s*flex/, '会话指标保持紧凑成组')
-  assert.match(declarationsFor(css, '.cs-session-arrow'), /opacity:\s*\.45/, '会话行提供轻量但可见的打开提示')
   assert.match(declarationsFor(css, '.cs-session-title'), /text-overflow:\s*ellipsis/, '会话标题过长时省略')
-  assert.match(css, /\.cs-page \.cs-session \+ \.cs-session::after\s*\{[^}]*left:\s*-8px/, '会话分隔线向左伸到列表竖线')
   assert.doesNotMatch(css, /\.cs-page \.cs-session\.is-running\s*\{/, '任务执行中的会话行不再画紫色边线')
   assert.match(css, /\.cs-heatmap-card \.cs-card-heading\s*\{[^}]*align-items:\s*center/, '每日活跃信息图标与标题垂直居中')
 
@@ -1634,10 +1629,12 @@ test('客户端：界面语言默认中文，设置页可切英文并即时换�
   assert.equal(languageSelect.props.className, 'cs-settings-select', '与其它设置项共用同一套紧凑下拉')
   assert.equal(Array.from(languageSelect.props.options, (option) => option.label).join(','), '中文,English')
 
-  // 宽卡两列排版：加入状态点与位置后是八项，正好填满两列，不留空格。
+  // 八项按统计规则与侧栏入口分组，共享控件与语言逻辑。
   const body = renderBasicSettingsBody(t, null, false, () => {}, { split: true })
-  const list = allOf(body, byClass('cs-settings-list'))[0]
-  assert.match(list.props.className, /is-split is-even/, '八项在宽卡里两列正好填满')
+  const lists = allOf(body, byClass('cs-settings-list'))
+  assert.equal(lists.length, 2)
+  assert.equal(allOf(lists[0], byClass('cs-settings-row')).length, 4)
+  assert.equal(allOf(lists[1], byClass('cs-settings-row')).length, 4)
   assert.equal(allOf(body, byClass('cs-settings-row')).length, 8, '基础设置八项：语言、空闲阈值、周起始、子代理、侧栏状态、状态点显示、状态点位置、侧栏时长')
 })
 
@@ -2073,9 +2070,9 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
   assert.match(summaryText, /日均任务/)
   assert.match(summaryText, /任务次数/)
   assert.equal(allOf(trend, byClass('cs-trend-bottom')).length, 1, '趋势页底部补时段分布与趋势洞察')
-  assert.equal(allOf(trend, byClass('cs-breakdown-row')).length, 2, '时段分布按数据桶生成排行行')
-  assert.match(textOf(allOf(trend, byClass('cs-breakdown-row'))[0]), /11:00|10:00/, '时段分布保留桶标签')
-  assert.equal(allOf(trend, byClass('cs-trend-insight-row')).length, 4, '趋势洞察给出四项指标')
+  assert.equal(allOf(trend, byClass('cs-distribution-cell')).length, 2, '色阶保留实际时间桶')
+  assert.match(allOf(trend, byClass('cs-distribution-cell'))[0].props['aria-label'], /11:00|10:00/, '每个时间桶可读出时段和数值')
+  assert.equal(allOf(trend, byClass('cs-trend-insight-row')).length, 2, '洞察保留峰值和集中度，覆盖率位于分布卡')
   assert.match(textOf(allOf(trend, byClass('cs-trend-insights'))[0]), /峰值时段/, '趋势洞察包含峰值时段')
 
   const details = renderDetailsView({
@@ -2370,8 +2367,8 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   const tree = renderSettingsView(settingsProps)
   const text = textOf(tree)
   assert.doesNotMatch(text, /仪表盘设置|设置保存在本机/, 'Dashboard 设置页不再显示顶部标题与说明两行')
-  assert.match(settingsCss, /\.cs-settings-list\.is-split\.is-even \.cs-settings-row:last-child\s*\{[^}]*border-bottom:\s*1px solid var\(--dsw-alias-border-l1\)/, '侧栏显示时长与左侧状态点位置下方横线对齐')
-  assert.match(allOf(tree, byClass('cs-settings-list'))[0]?.props?.className ?? '', /is-split/, '统计与显示在仪表盘宽卡里排成两列')
+  assert.equal(allOf(tree, byClass('cs-settings-sections')).length, 1, '统计和侧栏设置独立分组')
+  assert.equal(allOf(tree, byClass('cs-format-sidebar')).length, 1, '数字格式提供真实侧栏组件预览')
   assert.match(text, /侧栏、概览、趋势、会话与导出共用这一格式/, '数字格式卡底部说明共用范围')
   for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示状态', '侧栏状态点', '状态点位置', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '选择备份文件导入', '重新显示「近似记录」说明', '清空全部数据']) {
     assert.match(text, new RegExp(expected), `设置页包含「${expected}」`)
@@ -3432,20 +3429,14 @@ test('客户端：概览趋势卡复用首屏缩放按钮，趋势视图不传�
   assert.equal(allOf(plain, byClass('cs-zoom-btn')).length, 0, '趋势视图复用同一卡片时不显示按钮')
 })
 
-test('客户端：趋势页图表与右侧摘要同排，摘要边框统一不再错位', async () => {
+test('客户端：趋势页图表与右侧摘要同排，摘要保持两列', async () => {
   const { dshTimespanCss } = await loadClientFunctions()
   const css = dshTimespanCss()
   assert.match(declarationsFor(css, '.cs-trend-layout > .cs-trend-card'), /grid-column:\s*1/, '图表卡固定在左栏')
   assert.match(declarationsFor(css, '.cs-trend-layout > .cs-trend-summary'), /grid-column:\s*2/, '摘要卡固定在右栏，不再被全局概览网格规则挤到下一行')
   const grid = declarationsFor(css, '.cs-trend-summary .cs-stat-grid')
-  assert.match(grid, /flex-direction:\s*column/, '摘要四项纵向排列')
-  assert.match(grid, /border:\s*1px solid/, '四项共用一层外框')
-  assert.match(grid, /overflow:\s*hidden/, '外框包住首尾行，不出圆角')
-  assert.match(declarationsFor(css, '.cs-trend-summary .cs-stat-box'), /flex:\s*1 1 0/, '四项均分摘要卡高度')
-  const first = declarationsFor(css, '.cs-trend-summary .cs-stat-box:first-child')
-  assert.doesNotMatch(first, /border:\s*1px solid/, '首项不再单独描边，避免与外框重叠')
-  assert.match(first, /border-top:\s*0/, '首项与外框之间不叠双线')
-  assert.match(first, /box-shadow:\s*inset 3px 0 0/, '首项改用内嵌左侧强调线')
+  assert.match(grid, /grid-template-columns:\s*repeat\(2,/, '摘要四项排成两列')
+  assert.match(declarationsFor(css, '.cs-trend-summary .cs-stat-box'), /background:\s*transparent/, '摘要使用共享表面')
 })
 
 test('客户端：条状图首屏按可用高度铺开、悬停分组放大并尊重减少动效', async () => {
@@ -4073,4 +4064,91 @@ test('客户端：全年 Bento 跨行、范围选择器紧凑尺寸与顶栏图�
   assert.match(css, /\.cs-palette-toggle svg \.cs-palette-ring/, '循环图标外围是白色圆环')
   assert.match(css, /\.cs-palette-ring[^}]*stroke:\s*#fff/, '白色圆环不随配色变化')
   assert.doesNotMatch(css, /\.cs-palette-dot/, '不再用三枚小色点编码当前套')
+})
+
+
+test('客户端：会话筛选和排序不修改快照，累计摘要只统计当前结果', async () => {
+  const { selectDetailsWorkspaces, summarizeDetailSessions, selectedDetailSession } = await loadClientFunctions()
+  const workspaces = [
+    { key: 'main', workspaceTitle: '主工作区', sessions: [
+      { sessionId: 'one', sessionTitle: '查日志', activeMs: 20, taskMs: 90, taskCount: 2, lastActivityAt: 100, taskRunning: false },
+      { sessionId: 'two', sessionTitle: '修设置', activeMs: 50, taskMs: 10, taskCount: 1, lastActivityAt: 200, taskRunning: true },
+    ] },
+    { key: 'lab', workspaceTitle: '实验区', sessions: [
+      { sessionId: 'one', sessionTitle: '另一条日志', activeMs: 30, taskMs: 40, taskCount: 3, lastActivityAt: 300, taskRunning: false },
+    ] },
+  ]
+  const original = JSON.stringify(workspaces)
+  const taskSorted = selectDetailsWorkspaces(workspaces, '', 'all', 'task')
+  assert.equal(taskSorted[0].sessions[0].sessionId, 'one')
+  assert.equal(selectDetailsWorkspaces(workspaces, '', 'all', 'recent')[0].sessions[0].sessionId, 'two')
+  const running = selectDetailsWorkspaces(workspaces, '', 'running', 'active')
+  assert.equal(running.length, 1)
+  assert.equal(running[0].sessions[0].sessionId, 'two')
+  assert.deepEqual(JSON.parse(JSON.stringify(summarizeDetailSessions(running))), { sessionCount: 1, activeMs: 50, taskMs: 10, taskCount: 1, runningCount: 1 })
+  assert.equal(selectDetailsWorkspaces(workspaces, '主工作区')[0].sessions.length, 2)
+  assert.equal(selectDetailsWorkspaces(workspaces, '不存在').length, 0)
+  assert.equal(JSON.stringify(workspaces), original)
+  assert.equal(selectedDetailSession(taskSorted, { workspaceKey: 'lab', sessionId: 'one' }).sessionTitle, '另一条日志')
+  assert.equal(selectedDetailSession(running, { workspaceKey: 'main', sessionId: 'one' }), null, '隐藏选择不暗中替换成另一会话')
+  assert.equal(selectedDetailSession([], null), null)
+})
+
+test('客户端：列表只切换统计，右侧打开会话，收起一组保留其余展开状态', async () => {
+  const { renderDetailsView, translate } = await loadClientFunctions()
+  const selected = [], opened = [], toggled = []
+  const session = { sessionId: 'real-one', hasSessionId: true, sessionTitle: '真实会话', activeMs: 60_000, taskMs: 120_000, taskCount: 1, modelMs: 60_000, toolMs: 30_000, waitMs: 0, otherMs: 0, lastActivityAt: 10 }
+  const data = { workspaces: [{ key: 'one', workspaceTitle: '工作区一', sessions: [session] }, { key: 'two', workspaceTitle: '工作区二', sessions: [{ ...session, sessionId: 'real-two' }] }], range: { from: 1, to: 100 } }
+  const tree = renderDetailsView({ data, t: translate, isZh: true, expanded: {}, durationFormat: 'short', onSelectSession: value => selected.push(value), onOpenSession: value => opened.push(value), onToggleRow: (...args) => toggled.push(args) })
+  const inspect = allOf(tree, byClass('cs-session-inspect'))[0]
+  let stopped = 0
+  inspect.props.onClick({ stopPropagation() { stopped++ } })
+  assert.equal(selected[0].workspaceKey, 'one')
+  assert.equal(opened.length, 0)
+  const row = allOf(tree, byClass('cs-session'))[0]
+  assert.equal(allOf(row, byClass('cs-session-title'))[0].props.onClick, undefined)
+  row.props.onClick()
+  assert.equal(selected.length, 2, '标题点击冒泡到行后仍只切换统计')
+  assert.equal(opened.length, 0)
+  allOf(tree, byClass('cs-inspector-open'))[0].props.onClick()
+  assert.equal(opened[0].sessionId, 'real-one')
+  assert.equal(opened[0].workspaceKey, 'one', '宿主失败回退时保留所属工作区')
+  assert.equal(stopped, 1)
+  allOf(tree, byClass('cs-workspace-head'))[0].props.onClick()
+  assert.equal(toggled[0][2].two, true)
+  assert.match(textOf(allOf(tree, byClass('cs-session-inspector'))[0]), /未拆分/, '已知构成与历史未拆分时长同时可见')
+})
+
+test('客户端：会话范围加载和失败状态不会展示上一范围的记录', async () => {
+  const { renderDetailsView, translate } = await loadClientFunctions()
+  const base = { data: { workspaces: [{ key: 'old', sessions: [{ sessionId: 'old', sessionTitle: '上一范围的会话' }] }] }, t: translate }
+  let retried = false
+  for (const status of ['loading', 'error']) {
+    const tree = renderDetailsView({ ...base, loadStatus: status, onRetry() { retried = true } })
+    assert.doesNotMatch(textOf(tree), /上一范围的会话/)
+    assert.equal(allOf(tree, byClass('cs-record-columns')).length, 0)
+    if (status === 'error') allOf(tree, node => node.type === 'button' && textOf(node) === translate('settingsRetry'))[0].props.onClick()
+  }
+  assert.equal(retried, true)
+})
+
+test('客户端：趋势峰值跳转带完整边界，小时范围和整日范围显示准确', async () => {
+  const { renderTrendView, translate, formatSelectedRange } = await loadClientFunctions()
+  const from = new Date(2026, 10, 13, 14).getTime(), to = from + 3600000
+  const ranges = []
+  const tree = renderTrendView({ data: { period: 'day', trend: [{ key: 'peak', from, to, activeMs: 120000, taskMs: 60000 }] }, t: translate, isZh: true, period: 'day', durationFormat: 'short', onOpenRange: range => ranges.push(range) })
+  allOf(tree, byClass('cs-peak-sessions'))[0].props.onClick()
+  assert.equal(ranges[0].from, from)
+  assert.equal(ranges[0].to, to)
+  assert.match(formatSelectedRange({ from, to }, translate, true), /14:00 – 15:00/)
+  const midnight = new Date(2026, 10, 13).getTime()
+  const wholeDay = formatSelectedRange({ from: midnight, to: midnight + 86400000 }, translate, true)
+  assert.match(wholeDay, /11月13日/)
+  assert.doesNotMatch(wholeDay, /14日/)
+})
+
+test('客户端：导入反馈汇总 Host 分开的区间与任务数量', async () => {
+  const { importResultText, translate } = await loadClientFunctions()
+  assert.match(importResultText({ imported: { intervals: 48, tasks: 36 }, skipped: { intervals: 2, tasks: 3 } }, translate), /新增 84 条.*跳过重复 5 条/)
+  assert.match(importResultText({ imported: 4, skipped: 1 }, translate), /新增 4 条.*跳过重复 1 条/)
 })

@@ -273,6 +273,37 @@ window.__ModuleLoader__.load({
       trendHint: '活跃与任务时长',
       workspaceTitle: '工作区明细',
       workspaceHint: '展开查看会话',
+      detailsAll: '全部',
+      detailsSessionCount: '会话数',
+      detailsRunning: '运行中',
+      detailsSortLabel: '会话排序',
+      detailsSortRecent: '最近活动',
+      detailsSortTask: '任务时长',
+      detailsSortActive: '活跃时长',
+      detailsInspect: '查看统计',
+      detailsInspector: '会话统计',
+      detailsInspectorEmpty: '选择一个会话，查看时长与任务构成',
+      detailsSelectionHidden: '所选会话不在当前筛选结果中',
+      detailsExpandAll: '展开全部',
+      detailsCollapseAll: '收起全部',
+      detailsFiltered: '当前结果：{workspaces} 个工作区 · {sessions} 个会话',
+      detailsTaskScope: '任务时长 · 累计工时',
+      detailsIndependent: '活跃与任务分别计时；任务可在界面空闲时继续运行。',
+      detailsRangeSelected: '选定时段',
+      detailsLoading: '正在读取所选范围的会话…',
+      detailsLoadError: '暂时无法读取所选范围的会话',
+      detailsOpenFallback: '原会话暂时无法打开，可在此查看统计。',
+      trendOpenSessions: '查看该时段会话',
+      trendPeakSessions: '查看 {range} 会话',
+      trendNotStarted: '尚未开始',
+      trendFutureHint: '虚线表示尚未开始',
+      trendDistributionHour: '按小时 · 活跃时长',
+      trendDistributionDay: '按天 · 活跃时长',
+      trendDistributionHint: '色阶表示当前周期各时段的活跃时长；无活跃时段保留为空，未来时段不计入统计。',
+      settingsSidebarPreview: '侧栏效果',
+      settingsAutoSave: '更改后自动保存',
+      settingsRulesGroup: '统计规则',
+      settingsSidebarGroup: '侧栏入口',
       detailsSessionsTitle: '会话记录',
       detailsSessionsCaption: '按工作区分组，按最近活动排序',
       colWorkspace: '工作区',
@@ -331,36 +362,36 @@ window.__ModuleLoader__.load({
       settingsTitle: 'TimeSpan 设置',
       settingsHint: '改动即存本机并立即生效，重启后仍然生效。',
       settingsIdleLabel: '空闲阈值',
-      settingsIdleHint: '页面可见且聚焦时，最后一次操作超过这个时长就不再计入活跃时长。',
+      settingsIdleHint: '页面可见且聚焦时，无操作超过阈值便停止累计活跃时长',
       settingsIdleUnit: '分钟',
       settingsIdleRange: '可选 1–15 分钟',
       settingsWeekLabel: '每周起始',
-      settingsWeekHint: '决定「本周」与周趋势桶的起止边界。',
+      settingsWeekHint: '设置「本周」统计从周一或周日开始',
       settingsWeekMonday: '周一',
       settingsWeekSunday: '周日',
       settingsSubagentLabel: '显示子代理明细',
-      settingsSubagentHint: '关闭后父会话下不再列出子代理任务；总计口径不受影响。',
+      settingsSubagentHint: '显示父会话下的子代理任务，不影响总计',
       settingsSubagentOn: '显示',
       settingsSubagentOff: '隐藏',
       settingsSidebarNameLabel: '侧栏显示状态',
-      settingsSidebarNameHint: '开启后侧栏入口在时长旁显示状态文字：空闲、活跃中或任务中；关闭后只保留时长、状态点与今日构成环。',
+      settingsSidebarNameHint: '在时长旁显示「空闲」「活跃中」或「任务中」',
       settingsSidebarNameOn: '显示状态',
       settingsSidebarNameOff: '隐藏状态',
       settingsSidebarDotLabel: '侧栏状态点',
-      settingsSidebarDotHint: '控制侧栏入口右侧的小圆点是否显示；它用颜色表示空闲、活跃中或任务中。',
+      settingsSidebarDotHint: '用圆点颜色区分空闲、活跃中和任务中',
       settingsSidebarDotOn: '显示',
       settingsSidebarDotOff: '隐藏',
       settingsSidebarDotPositionLabel: '状态点位置',
-      settingsSidebarDotPositionHint: '默认「跟随时长」；选择「最右侧」会贴住侧栏行末。',
+      settingsSidebarDotPositionHint: '跟随时长：紧靠数字；最右侧：贴住侧栏行末',
       settingsSidebarDotPositionEnd: '最右侧',
       settingsSidebarDotPositionInline: '跟随时长',
       settingsSidebarDurationLabel: '侧栏显示时长',
-      settingsSidebarDurationHint: '选择侧栏入口常驻展示的时长类型；今日构成环仍按在线、活跃、任务三项显示。',
+      settingsSidebarDurationHint: '选择侧栏显示的时长，今日构成环保持不变',
       sidebarDurationOnline: '在线时长',
       sidebarDurationActive: '活跃时长',
       sidebarDurationTask: '任务时长',
       settingsLanguageLabel: '界面语言',
-      settingsLanguageHint: '只影响 TimeSpan 自己的文案，不改变 DSH 界面语言；默认中文。',
+      settingsLanguageHint: '仅切换 TimeSpan 的语言，不影响 DSH',
       settingsSave: '保存设置',
       settingsSaving: '正在保存…',
       settingsSaved: '已保存，统计已按新设置更新',
@@ -370,7 +401,7 @@ window.__ModuleLoader__.load({
       settingsSectionGeneral: '统计口径',
       settingsSectionDisplay: '明细展示',
       settingsSectionBasics: '统计与显示',
-      settingsBasicsHint: '统计口径、明细展示与侧栏入口，改动会立即生效。',
+      settingsBasicsHint: '统计规则与侧栏显示，修改后立即生效',
       settingsSectionFormat: '数字格式',
       settingsFormatHint: '选择后整页立即预览并自动保存，刷新后沿用已保存的格式。',
       settingsFormatShared: '侧栏、概览、趋势、会话与导出共用这一格式。',
@@ -585,6 +616,37 @@ window.__ModuleLoader__.load({
       trendHint: 'Active and task time',
       workspaceTitle: 'Workspace breakdown',
       workspaceHint: 'Expand to see sessions',
+      detailsAll: 'All',
+      detailsSessionCount: 'Sessions',
+      detailsRunning: 'Running',
+      detailsSortLabel: 'Sort sessions',
+      detailsSortRecent: 'Recent activity',
+      detailsSortTask: 'Task time',
+      detailsSortActive: 'Active time',
+      detailsInspect: 'View statistics',
+      detailsInspector: 'Session statistics',
+      detailsInspectorEmpty: 'Select a session to inspect its time and task breakdown',
+      detailsSelectionHidden: 'The selected session is outside the current results',
+      detailsExpandAll: 'Expand all',
+      detailsCollapseAll: 'Collapse all',
+      detailsFiltered: 'Results: {workspaces} workspaces · {sessions} sessions',
+      detailsTaskScope: 'Task time · Accumulated',
+      detailsIndependent: 'Active and task time are measured independently. Tasks can continue while the interface is idle.',
+      detailsRangeSelected: 'Selected interval',
+      detailsLoading: 'Loading sessions for the selected range…',
+      detailsLoadError: 'Could not load sessions for this range',
+      detailsOpenFallback: 'The original session could not be opened. Its statistics are available here.',
+      trendOpenSessions: 'View sessions in this interval',
+      trendPeakSessions: 'Sessions · {range}',
+      trendNotStarted: 'Not started',
+      trendFutureHint: 'Dashed cells have not started',
+      trendDistributionHour: 'Hourly · Active time',
+      trendDistributionDay: 'Daily · Active time',
+      trendDistributionHint: 'Color indicates active time in each bucket. Inactive buckets remain empty; future buckets are excluded.',
+      settingsSidebarPreview: 'Sidebar preview',
+      settingsAutoSave: 'Changes save automatically',
+      settingsRulesGroup: 'Statistics',
+      settingsSidebarGroup: 'Sidebar',
       detailsSessionsTitle: 'Sessions',
       detailsSessionsCaption: 'Grouped by workspace, latest activity first',
       colWorkspace: 'Workspace',
@@ -643,36 +705,36 @@ window.__ModuleLoader__.load({
       settingsTitle: 'TimeSpan settings',
       settingsHint: 'Settings stay on this device, apply to later statistics immediately and survive restarts.',
       settingsIdleLabel: 'Idle threshold',
-      settingsIdleHint: 'While visible and focused, activity stops counting once the last input is older than this.',
+      settingsIdleHint: 'While the page is visible and focused, active time stops after this long without input',
       settingsIdleUnit: 'min',
       settingsIdleRange: '1–15 minutes',
       settingsWeekLabel: 'Week starts on',
-      settingsWeekHint: 'Sets the boundary of "this week" and its trend buckets.',
+      settingsWeekHint: 'Start this week’s statistics on Monday or Sunday',
       settingsWeekMonday: 'Monday',
       settingsWeekSunday: 'Sunday',
       settingsSubagentLabel: 'Show subagent detail',
-      settingsSubagentHint: 'Hides subagent tasks under parent sessions when off; totals are unaffected.',
+      settingsSubagentHint: 'Show subagent tasks under parent sessions without changing totals',
       settingsSubagentOn: 'Shown',
       settingsSubagentOff: 'Hidden',
       settingsSidebarNameLabel: 'Show sidebar status',
-      settingsSidebarNameHint: 'When on, the sidebar entry shows the current status next to the duration: Idle, Active or In task; when off, it keeps only the duration, status dot and today ring.',
+      settingsSidebarNameHint: 'Show Idle, Active or In task next to the duration',
       settingsSidebarNameOn: 'Show status',
       settingsSidebarNameOff: 'Hide status',
       settingsSidebarDotLabel: 'Sidebar status dot',
-      settingsSidebarDotHint: 'Shows or hides the small dot at the end of the sidebar entry; its color means idle, active or in task.',
+      settingsSidebarDotHint: 'Use a colored dot to indicate idle, active or in task',
       settingsSidebarDotOn: 'Shown',
       settingsSidebarDotOff: 'Hidden',
       settingsSidebarDotPositionLabel: 'Status dot position',
-      settingsSidebarDotPositionHint: 'Defaults to "After duration"; choose "Far right" to pin it to the row end.',
+      settingsSidebarDotPositionHint: 'Place the dot after the duration or at the far right of the sidebar row',
       settingsSidebarDotPositionEnd: 'Far right',
       settingsSidebarDotPositionInline: 'After duration',
       settingsSidebarDurationLabel: 'Sidebar duration',
-      settingsSidebarDurationHint: 'Choose which duration the sidebar entry shows. The today ring still shows online, active and task.',
+      settingsSidebarDurationHint: 'Choose the sidebar duration; the today ring stays unchanged',
       sidebarDurationOnline: 'Online',
       sidebarDurationActive: 'Active',
       sidebarDurationTask: 'Task',
       settingsLanguageLabel: 'Interface language',
-      settingsLanguageHint: 'Changes TimeSpan wording only; the DSH interface language is untouched. Defaults to Chinese.',
+      settingsLanguageHint: 'Change TimeSpan’s language without changing DSH',
       settingsSave: 'Save settings',
       settingsSaving: 'Saving…',
       settingsSaved: 'Saved; statistics now use the new settings',
@@ -682,7 +744,7 @@ window.__ModuleLoader__.load({
       settingsSectionGeneral: 'Counting rules',
       settingsSectionDisplay: 'Detail display',
       settingsSectionBasics: 'Counting and display',
-      settingsBasicsHint: 'Counting rules, detail display and the sidebar entry; changes apply immediately.',
+      settingsBasicsHint: 'Counting rules and sidebar display; changes apply immediately',
       settingsSectionFormat: 'Number format',
       settingsFormatHint: 'The whole page previews immediately and the choice is saved automatically; the saved format survives refresh.',
       settingsFormatShared: 'The sidebar, overview, trend, sessions and exports all use this format.',
@@ -2415,6 +2477,8 @@ window.__ModuleLoader__.load({
       const view = options.view === 'details' ? 'details' : 'dashboard'
       const rangeFrom = Number(options.range?.from)
       const from = Number.isFinite(rangeFrom) ? rangeFrom : null
+      const rangeTo = Number(options.range?.to)
+      const to = Number.isFinite(rangeTo) ? rangeTo : null
       const [state, setState] = React.useState({ status: 'loading', data: null, receivedAt: 0 })
       const loadRef = React.useRef(null)
       React.useEffect(() => {
@@ -2426,6 +2490,7 @@ window.__ModuleLoader__.load({
             const payload = { period, view }
             // 明细预设范围只传起点，终点由 Host 取当前时刻；「全部」的起点是 0。
             if (from !== null) payload.from = from
+            if (to !== null) payload.to = to
             const value = await callHost(ctx, 'queryStats', payload)
             if (!active) return
             // 语言随统计一起带回：仪表盘首屏不必等设置读接口。
@@ -2443,7 +2508,7 @@ window.__ModuleLoader__.load({
           active = false
           loadRef.current = null
         }
-      }, [ctx, period, view, from, enabled])
+      }, [ctx, period, view, from, to, enabled])
       React.useEffect(() => {
         if (!enabled || typeof loadRef.current !== 'function') return undefined
         loadRef.current()
@@ -2451,7 +2516,7 @@ window.__ModuleLoader__.load({
           if (typeof loadRef.current === 'function') loadRef.current()
         }, refreshMs)
         return () => clearInterval(timer)
-      }, [ctx, period, view, from, refreshMs, refreshNonce, enabled])
+      }, [ctx, period, view, from, to, refreshMs, refreshNonce, enabled])
       return state
     }
 
@@ -2524,6 +2589,19 @@ window.__ModuleLoader__.load({
       }
       const prefix = `${t('rangeLabel')} `
       return period === 'day' ? prefix + day(range.from) : `${prefix}${day(range.from)} – ${day(range.to)}`
+    }
+
+    /** 趋势桶采用左闭右开范围；小时桶保留时间，整日桶不把次日零点算进日期标签。 */
+    function formatSelectedRange(range, t, isZh) {
+      const from = new Date(range.from), to = new Date(range.to)
+      const date = (value) => isZh ? `${value.getMonth() + 1}月${value.getDate()}日` : `${value.getMonth() + 1}/${value.getDate()}`
+      const time = (value) => `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`
+      const wholeDays = from.getHours() === 0 && from.getMinutes() === 0 && to.getHours() === 0 && to.getMinutes() === 0
+      if (wholeDays) {
+        const end = new Date(range.to - 1)
+        return `${t('detailsRangeSelected')} · ${date(from)}${localDateKey(from) === localDateKey(end) ? '' : ` – ${date(end)}`}`
+      }
+      return `${date(from)} ${time(from)} – ${localDateKey(from) === localDateKey(to) ? '' : `${date(to)} `}${time(to)}`
     }
 
     /** 明细范围值归一化；未知值一律回到「今天」。 */
@@ -2689,7 +2767,7 @@ window.__ModuleLoader__.load({
         kind: 'bucket',
         key: bucket.key,
         title: bucketLabel(bucket, period, isZh),
-        rows: [
+        rows: bucket.future ? [{ key: 'future', label: t('trendNotStarted'), value: '—' }] : [
           { key: 'active', label: t('activeLabel'), value: formatDuration(bucket.activeMs, format) },
           { key: 'task', label: t('taskLabel'), value: formatDuration(bucket.taskMs, format) },
         ],
@@ -2794,7 +2872,7 @@ window.__ModuleLoader__.load({
           className: `cs-bar-group${hot ? ' is-hot' : ''}`,
           tabIndex: 0,
           role: 'button',
-          'aria-label': `${label} · ${t('activeLabel')} ${formatDuration(bucket.activeMs, format)} · ${t('taskLabel')} ${formatDuration(bucket.taskMs, format)}`,
+          'aria-label': bucket.future ? `${label} · ${t('trendNotStarted')}` : `${label} · ${t('activeLabel')} ${formatDuration(bucket.activeMs, format)} · ${t('taskLabel')} ${formatDuration(bucket.taskMs, format)}`,
           onKeyDown: (event) => {
             if (moveFocusByKey(event, '.cs-bar-group')) return
             if (isActivationKey(event) && actions.onHover) {
@@ -2833,7 +2911,7 @@ window.__ModuleLoader__.load({
       const axis = axisIndices(count, period).map((index) => h('span', {
         key: `axis-${index}`,
         style: { left: `${((index + 0.5) / count) * 100}%` },
-      }, bucketLabel(trend[index], period, isZh)))
+      }, bucketLabel(trend[index], period, isZh), actions.showFuture && trend[index]?.future ? h('small', { className: 'cs-axis-future' }, t('trendNotStarted')) : null))
       return h('div', { className: 'cs-chart' },
         h('div', { className: 'cs-plot' },
         h('div', { className: 'cs-y-axis', 'aria-hidden': true }, [1, 0.5, 0].map((ratio) =>
@@ -2850,7 +2928,7 @@ window.__ModuleLoader__.load({
             stroke: 'var(--dsw-alias-border-l1)', strokeWidth: 1, vectorEffect: 'non-scaling-stroke',
           }),
           ...groups)),
-        h('div', { className: 'cs-axis' }, ...axis))
+        h('div', { className: `cs-axis${actions.showFuture && trend.some((bucket) => bucket.future) ? ' has-future' : ''}` }, ...axis))
     }
 
     /** 当前统计范围包含的本地日历日数；跨夏令时也按日历日而不是固定 24 小时计算。 */
@@ -2891,7 +2969,8 @@ window.__ModuleLoader__.load({
       const titleKey = period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth'
       return h('button', { key: period, type: 'button', className: `cs-cycle${isCurrent ? ' is-current' : ''}`, 'aria-pressed': isCurrent, onClick: onSelect },
         h('span', { className: 'cs-cycle-head' },
-          h('span', { className: 'cs-cycle-title' }, t(titleKey))),
+          h('span', { className: 'cs-cycle-title' }, t(titleKey)),
+          cycle.from > 0 && cycle.to > cycle.from ? h('span', { className: 'cs-cycle-date' }, formatRangeLabel(cycle, period, t, t('periodDay') === '日').replace(`${t('rangeLabel')} `, '')) : null),
         h('span', { className: 'cs-cycle-value' }, formatDuration(cycle.activeMs, format)),
         renderCycleShare(cycle, t))
     }
@@ -3119,9 +3198,9 @@ window.__ModuleLoader__.load({
       values.forEach((value, index) => {
         const amount = Math.min(remaining, Math.max(0, value))
         remaining -= amount
-        if (amount > 0) rows.push({ key: labels[index], label: t(labels[index]), value: formatDuration(amount, format) })
+        if (amount > 0) rows.push({ key: labels[index], label: t(labels[index]), value: formatDuration(amount, format), ms: amount })
       })
-      if (remaining > 0) rows.push({ key: 'notBroken', label: t('notBroken'), value: formatDuration(remaining, format) })
+      if (remaining > 0) rows.push({ key: 'notBroken', label: t('notBroken'), value: formatDuration(remaining, format), ms: remaining })
       return rows
     }
 
@@ -3131,7 +3210,7 @@ window.__ModuleLoader__.load({
         rows.length > 0 ? rows.map((row) => `${row.label} ${row.value}`).join(' · ') : t('notBroken'))
     }
 
-    function renderSessionRow(session, t, nowMs, subagentRows, format = 'hms', hoverTip = null, highlighted = false, onOpenSession = null) {
+    function renderSessionRow(session, t, nowMs, subagentRows, format = 'hms', hoverTip = null, highlighted = false, preview = null) {
       const subagents = subagentRows.length
       const subagentDuration = formatDuration(
         subagentRows.reduce((sum, row) => sum + row.durationMs, 0),
@@ -3152,14 +3231,12 @@ window.__ModuleLoader__.load({
         label: row.sessionTitle ?? row.sessionId,
         value: formatDuration(row.durationMs, format),
       }))
-      const openable = sessionIsOpenable(session) && typeof onOpenSession === 'function'
       const rowProps = {
-        className: `cs-session${session.taskRunning ? ' is-running' : ''}${highlighted ? ' is-highlighted' : ''}${openable ? ' is-openable' : ''}`,
+        className: `cs-session${preview?.selected ? ' is-selected' : ''}${preview?.onSelect ? ' is-selectable' : ''}${session.taskRunning ? ' is-running' : ''}${highlighted ? ' is-highlighted' : ''}`,
         key: session.sessionId,
         'data-session-id': session.sessionId,
-        'data-openable': openable ? 'true' : 'false',
       }
-      if (openable) rowProps.onClick = () => onOpenSession(session)
+      if (typeof preview?.onSelect === 'function') rowProps.onClick = () => preview.onSelect(session)
       return h('div', rowProps,
         h('span', { className: 'cs-session-body' },
           h('span', { className: 'cs-session-headline' },
@@ -3167,18 +3244,7 @@ window.__ModuleLoader__.load({
               className: `cs-session-dot${session.taskRunning ? ' is-running' : ''}`,
               'aria-hidden': true,
             }),
-            openable
-              ? h('button', {
-                type: 'button',
-                className: 'cs-session-title cs-session-open',
-                'aria-label': `${t('openSession')}：${sessionTitle}`,
-                ...hoverTipProps(hoverTip, sessionTitle),
-                onClick: (event) => {
-                  event.stopPropagation()
-                  onOpenSession(session)
-                },
-              }, sessionTitle)
-              : h('span', { className: 'cs-session-title', ...hoverTipProps(hoverTip, sessionTitle) }, sessionTitle),
+            h('span', { className: 'cs-session-title', ...hoverTipProps(hoverTip, sessionTitle) }, sessionTitle),
             session.taskRunning
               ? renderDetailMeta({
                 className: 'cs-session-status',
@@ -3246,13 +3312,19 @@ window.__ModuleLoader__.load({
             tipTitle: `${t('colLast')} ${lastText}`,
             hoverTip,
           }),
-          openable
-            ? h('span', { className: 'cs-session-arrow', 'aria-hidden': true },
-                h(DetailGlyph, { name: 'open', size: 13 }))
+          typeof preview?.onSelect === 'function'
+            ? h('button', {
+                type: 'button', className: 'cs-session-inspect',
+                'aria-label': `${t('detailsInspect')}：${sessionTitle}`,
+                'aria-pressed': preview.selected === true,
+                'aria-controls': 'cs-session-inspector',
+                ...hoverTipProps(hoverTip, t('detailsInspect')),
+                onClick: (event) => { event.stopPropagation(); preview.onSelect(session) },
+              }, h(DetailGlyph, { name: 'trend', size: 16 }))
             : null))
     }
 
-    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null, highlightSessionId = null, sessionPaging = null, onOpenSession = null) {
+    function renderWorkspaceRow(row, isOpen, onToggle, t, nowMs, subagentByParent, format = 'hms', hoverTip = null, highlightSessionId = null, sessionPaging = null, preview = null) {
       const workspaceTitle = row.workspaceTitle ?? t('unassigned')
       const sessions = Array.isArray(row.sessions) ? row.sessions : []
       const paging = sessionPaging?.enabled === true
@@ -3291,7 +3363,11 @@ window.__ModuleLoader__.load({
                   ...shownSessions.map((session) =>
                     renderSessionRow(
                       session, t, nowMs, subagentByParent[session.sessionId] ?? [], format, hoverTip,
-                      session.sessionId === highlightSessionId, onOpenSession,
+                      session.sessionId === highlightSessionId,
+                      preview ? {
+                        selected: preview.sessionId === session.sessionId,
+                        onSelect: (value) => preview.onSelect?.({ ...value, workspaceKey: row.key, workspaceTitle }),
+                      } : null,
                     )),
                   paging && hiddenCount > 0
                     ? h('div', { className: 'cs-sessions-more', key: 'show-more' },
@@ -3635,9 +3711,9 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-format-heading' },
             h('h3', null, t('settingsSectionFormat')),
             h('p', { className: 'cs-settings-row-hint' }, t('settingsFormatHint'))),
-          h('div', { className: 'cs-format-preview', 'aria-live': 'polite' },
+          !options.sidebarPreview ? h('div', { className: 'cs-format-preview', 'aria-live': 'polite' },
             h('span', null, t('formatPreviewLabel')),
-            h('b', { key: current, className: 'cs-format-preview-value', 'data-format': current }, formatDuration(DURATION_FORMAT_SAMPLE_MS, current)))),
+            h('b', { key: current, className: 'cs-format-preview-value', 'data-format': current }, formatDuration(DURATION_FORMAT_SAMPLE_MS, current))) : null),
         h('div', {
           className: 'cs-format-grid',
           role: 'radiogroup',
@@ -3658,6 +3734,10 @@ window.__ModuleLoader__.load({
           h('i', { className: 'cs-format-divider', 'aria-hidden': true }),
           h('span', null, t(durationFormatHintKey(format))))
         })),
+        options.sidebarPreview ? h('div', { className: 'cs-format-live' },
+          h('div', { className: 'cs-format-live-value', 'aria-live': 'polite' }, h('span', null, t('formatPreviewLabel')),
+            h('b', { key: current, className: 'cs-format-preview-value' }, formatDuration(DURATION_FORMAT_SAMPLE_MS, current))),
+          h('div', { className: 'cs-format-sidebar' }, h('span', null, t('settingsSidebarPreview')), options.sidebarPreview)) : null,
         h('p', { className: 'cs-format-shared' }, t('settingsFormatShared')))
     }
 
@@ -3828,12 +3908,19 @@ window.__ModuleLoader__.load({
      * 对齐，避免 2×2 大卡把四个小开关撑成整页最重的区块。两套设置界面共用。
      */
     function renderBasicSettingsBody(t, draft, busy, onPatch, options = {}) {
-      const idleOptions = Array.from({ length: 15 }, (_, index) => String(index + 1))
+      const idleOptions = Array.from({ length: 15 }, (_, index) => ({
+        value: String(index + 1), label: `${index + 1} ${t('settingsIdleUnit')}`,
+      }))
       // DSH 设置页与插件自己的设置面板共用同一套紧凑下拉，避免默认样式在宽容器里被拉满。
       const selectClass = options.selectClass ?? 'cs-settings-select'
+      const row = (t, labelKey, hintKey, ...controls) => options.split
+        ? h('div', { className: 'cs-settings-row' },
+            h('div', { className: 'cs-settings-label' }, t(labelKey), renderInfo(t(hintKey))),
+            h('div', { className: 'cs-settings-control' }, ...controls))
+        : settingsRow(t, labelKey, hintKey, ...controls)
       const rows = [
         // 语言放第一行：它决定这一页所有文案用哪套字典，先选语言再看其余项最顺。
-        settingsRow(t, 'settingsLanguageLabel', 'settingsLanguageHint',
+        row(t, 'settingsLanguageLabel', 'settingsLanguageHint',
           h(Select, {
             value: normalizeLanguage(draft?.language),
             options: LANGUAGE_OPTIONS,
@@ -3842,7 +3929,7 @@ window.__ModuleLoader__.load({
             ariaLabel: t('settingsLanguageLabel'),
             onChange: (value) => onPatch?.('language', normalizeLanguage(value)),
           })),
-        settingsRow(t, 'settingsIdleLabel', 'settingsIdleHint',
+        row(t, 'settingsIdleLabel', 'settingsIdleHint',
           h(Select, {
             value: draft?.idleThresholdMinutes ?? '5',
             options: idleOptions,
@@ -3850,9 +3937,8 @@ window.__ModuleLoader__.load({
             className: selectClass,
             ariaLabel: t('settingsIdleLabel'),
             onChange: (value) => onPatch?.('idleThresholdMinutes', value),
-          }),
-          h('span', { className: 'cs-settings-unit' }, t('settingsIdleUnit'))),
-        settingsRow(t, 'settingsWeekLabel', 'settingsWeekHint',
+          })),
+        row(t, 'settingsWeekLabel', 'settingsWeekHint',
           h(Select, {
             value: draft?.weekStartsOn ?? '1',
             options: [
@@ -3864,7 +3950,7 @@ window.__ModuleLoader__.load({
             ariaLabel: t('settingsWeekLabel'),
             onChange: (value) => onPatch?.('weekStartsOn', value === '7' ? '7' : '1'),
           })),
-        settingsRow(t, 'settingsSubagentLabel', 'settingsSubagentHint',
+        row(t, 'settingsSubagentLabel', 'settingsSubagentHint',
           h('label', { className: 'cs-settings-switch' },
             h('input', {
               type: 'checkbox',
@@ -3874,7 +3960,7 @@ window.__ModuleLoader__.load({
               onChange: (event) => onPatch?.('showSubagents', event?.target?.checked === true),
             }),
             h('span', null, draft?.showSubagents === false ? t('settingsSubagentOff') : t('settingsSubagentOn')))),
-        settingsRow(t, 'settingsSidebarNameLabel', 'settingsSidebarNameHint',
+        row(t, 'settingsSidebarNameLabel', 'settingsSidebarNameHint',
           h('label', { className: 'cs-settings-switch' },
             h('input', {
               type: 'checkbox',
@@ -3884,7 +3970,7 @@ window.__ModuleLoader__.load({
               onChange: (event) => onPatch?.('sidebarShowName', event?.target?.checked === true),
             }),
             h('span', null, draft?.sidebarShowName === true ? t('settingsSidebarNameOn') : t('settingsSidebarNameOff')))),
-        settingsRow(t, 'settingsSidebarDotLabel', 'settingsSidebarDotHint',
+        row(t, 'settingsSidebarDotLabel', 'settingsSidebarDotHint',
           h('label', { className: 'cs-settings-switch' },
             h('input', {
               type: 'checkbox',
@@ -3894,7 +3980,7 @@ window.__ModuleLoader__.load({
               onChange: (event) => onPatch?.('sidebarDotVisible', event?.target?.checked === true),
             }),
             h('span', null, draft?.sidebarDotVisible === false ? t('settingsSidebarDotOff') : t('settingsSidebarDotOn')))),
-        settingsRow(t, 'settingsSidebarDotPositionLabel', 'settingsSidebarDotPositionHint',
+        row(t, 'settingsSidebarDotPositionLabel', 'settingsSidebarDotPositionHint',
           h(Select, {
             value: normalizeSidebarDotPosition(draft?.sidebarDotPosition),
             options: [
@@ -3906,7 +3992,7 @@ window.__ModuleLoader__.load({
             ariaLabel: t('settingsSidebarDotPositionLabel'),
             onChange: (value) => onPatch?.('sidebarDotPosition', normalizeSidebarDotPosition(value)),
           })),
-        settingsRow(t, 'settingsSidebarDurationLabel', 'settingsSidebarDurationHint',
+        row(t, 'settingsSidebarDurationLabel', 'settingsSidebarDurationHint',
           h(Select, {
             value: normalizeSidebarDuration(draft?.sidebarDuration),
             options: [
@@ -3920,16 +4006,16 @@ window.__ModuleLoader__.load({
             onChange: (value) => onPatch?.('sidebarDuration', normalizeSidebarDuration(value)),
           })),
       ]
-      // 宽卡按两列排：行数为奇数时最后一行独占整行，偶数时正好填满两列，不留空格。
-      const splitClass = options.split === true
-        ? ` is-split${rows.length % 2 === 0 ? ' is-even' : ''}`
-        : ''
       return [
         h('div', { className: 'cs-settings-card-head' },
           h('div', null,
             h('h3', null, t('settingsSectionBasics')),
-            h('p', { className: 'cs-settings-card-sub' }, t('settingsBasicsHint')))),
-        h('div', { className: `cs-settings-list${splitClass}` }, ...rows),
+            h('p', { className: 'cs-settings-card-sub' }, t('settingsBasicsHint'))),
+          options.status ?? null),
+        options.split ? h('div', { className: 'cs-settings-sections' },
+          h('div', { className: 'cs-settings-list' }, h('h4', null, t('settingsRulesGroup')), ...rows.slice(0, 4)),
+          h('div', { className: 'cs-settings-list' }, h('h4', null, t('settingsSidebarGroup')), ...[7, 5, 6, 4].map((index) => rows[index])))
+          : h('div', { className: 'cs-settings-list' }, ...rows),
       ]
     }
 
@@ -4207,6 +4293,67 @@ window.__ModuleLoader__.load({
       return matched
     }
 
+    /** 搜索、状态与排序都从原始快照推导，不修改 Host 响应或另存排序后的列表。 */
+    function selectDetailsWorkspaces(workspaces, query, status = 'all', sort = 'recent') {
+      const metric = sort === 'task' ? 'taskMs' : sort === 'active' ? 'activeMs' : 'lastActivityAt'
+      return filterWorkspaces(workspaces, query).map((workspace) => ({
+        ...workspace,
+        sessions: (workspace.sessions ?? [])
+          .filter((session) => status !== 'running' || session.taskRunning === true)
+          .slice().sort((left, right) => finite(right[metric]) - finite(left[metric]) ||
+            finite(right.lastActivityAt) - finite(left.lastActivityAt) ||
+            String(left.sessionId).localeCompare(String(right.sessionId))),
+      })).filter((workspace) => workspace.sessions.length > 0)
+    }
+
+    /** 累计明细与筛选结果同源；并发会话不会被误作时间并集。 */
+    function summarizeDetailSessions(rows) {
+      const result = { sessionCount: 0, activeMs: 0, taskMs: 0, taskCount: 0, runningCount: 0 }
+      for (const row of rows) for (const session of row.sessions ?? []) {
+        result.sessionCount += 1
+        result.activeMs += Math.max(0, finite(session.activeMs))
+        result.taskMs += Math.max(0, finite(session.taskMs))
+        result.taskCount += Math.max(0, finite(session.taskCount))
+        if (session.taskRunning === true) result.runningCount += 1
+      }
+      return result
+    }
+
+    function selectedDetailSession(rows, selection) {
+      if (selection) {
+        const workspace = rows.find((row) => row.key === selection.workspaceKey)
+        const session = workspace?.sessions.find((row) => row.sessionId === selection.sessionId)
+        return session ? { ...session, workspaceKey: workspace.key, workspaceTitle: workspace.workspaceTitle } : null
+      }
+      const workspace = rows.find((row) => row.sessions.length > 0)
+      return workspace ? { ...workspace.sessions[0], workspaceKey: workspace.key, workspaceTitle: workspace.workspaceTitle } : null
+    }
+
+    function renderSessionInspector(session, t, format, onOpenSession, selection, hoverTip) {
+      if (!session) return h('aside', { id: 'cs-session-inspector', className: 'cs-session-inspector is-empty', 'aria-label': t('detailsInspector') },
+        h(DetailGlyph, { name: 'sessions', size: 24 }),
+        h('p', { role: 'status' }, t(selection ? 'detailsSelectionHidden' : 'detailsInspectorEmpty')))
+      const rows = sessionBreakdownRows(session, t, format)
+      const colors = { breakdownModel: '--cs-signal-deep', breakdownTool: '--cs-signal', breakdownWait: '--cs-signal-soft', breakdownOther: '--cs-tone-other', notBroken: '--cs-tone-faint' }
+      return h('aside', { id: 'cs-session-inspector', className: 'cs-session-inspector', 'aria-label': t('detailsInspector') },
+        h('div', { className: 'cs-inspector-label' }, t('detailsInspector'), renderInfo(t('compositionInfo'))),
+        h('h3', null, session.sessionTitle ?? t('unknownSession')),
+        h('div', { className: 'cs-inspector-workspace' }, session.workspaceTitle ?? t('unassigned'),
+          session.taskRunning ? h('span', { className: 'cs-inspector-running' }, t('runningTag')) : null),
+        h('strong', { className: 'cs-inspector-total' }, formatDuration(session.taskMs, format)),
+        h('span', { className: 'cs-inspector-label' }, t('detailsTaskScope')),
+        h('div', { className: 'cs-inspector-breakdown', 'aria-hidden': true }, rows.map((row) =>
+          h('i', { key: row.key, style: { width: `${session.taskMs > 0 ? row.ms / session.taskMs * 100 : 0}%`, background: `var(${colors[row.key]})` } }))),
+        h('dl', { className: 'cs-inspector-rows' }, rows.length > 0 ? rows.map((row) =>
+          h('div', { key: row.key }, h('dt', null, h('i', { style: { background: `var(${colors[row.key]})` }, 'aria-hidden': true }), row.label), h('dd', null, row.value)))
+          : h('div', null, h('dt', null, t('noTaskComposition')))),
+        h('div', { className: 'cs-inspector-active' }, t('activeLabel'), h('b', null, formatDuration(session.activeMs, format))),
+        sessionIsOpenable(session) && typeof onOpenSession === 'function'
+          ? h('button', { type: 'button', className: 'cs-btn cs-inspector-open', onClick: () => onOpenSession(session) },
+              t('openSession'), h(DetailGlyph, { name: 'open', size: 14 })) : null,
+        h('p', { className: 'cs-inspector-note' }, t('detailsIndependent')))
+    }
+
     function trendPeak(trend, period, isZh) {
       if (!Array.isArray(trend) || trend.length === 0) return null
       let best = trend[0]
@@ -4245,25 +4392,6 @@ window.__ModuleLoader__.load({
         h('div', { className: 'cs-trend-foot-item', key: item.key },
           h('span', null, item.label),
           h('b', null, item.value))))
-    }
-
-    /** 趋势页底部的时段分布：按活跃与任务合计取最忙的几个桶。 */
-    function trendDistributionRows(data, isZh, shownPeriod) {
-      const trend = Array.isArray(data?.trend) ? data.trend : []
-      return trend
-        .map((bucket) => {
-          const activeMs = Math.max(0, finite(bucket?.activeMs))
-          const taskMs = Math.max(0, finite(bucket?.taskMs))
-          return {
-            key: bucket?.key ?? `${bucket?.from}`,
-            label: bucketLabel(bucket, shownPeriod, isZh),
-            activeMs,
-            taskMs,
-            totalMs: activeMs + taskMs,
-          }
-        })
-        .filter((row) => row.totalMs > 0)
-        .sort((left, right) => right.totalMs - left.totalMs)
     }
 
     /** 趋势页右下的文字洞察：峰值、覆盖、集中度与任务占在线比。 */
@@ -4310,45 +4438,42 @@ window.__ModuleLoader__.load({
       ]
     }
 
-    function renderTrendBottom(data, t, isZh, shownPeriod, format) {
-      const rows = trendDistributionRows(data, isZh, shownPeriod)
-      const shownRows = rows.slice(0, 7)
-      const maxTotal = shownRows.reduce((max, row) => Math.max(max, row.totalMs), 0)
-      const percentOfMax = (value) => maxTotal > 0 ? Math.max(0, Math.min(100, (value / maxTotal) * 100)) : 0
+    function renderTrendBottom(data, t, isZh, shownPeriod, format, hoverTip, onOpenRange) {
+      const buckets = Array.isArray(data?.trend) ? data.trend : []
+      const max = Math.max(1, ...buckets.filter((bucket) => !bucket.future).map((bucket) => finite(bucket.activeMs)))
+      const peak = trendPeak(buckets.filter((bucket) => !bucket.future), shownPeriod, isZh)
       const insights = trendInsightRows(data, t, isZh, shownPeriod, format)
       return h('div', { className: 'cs-trend-bottom' },
         h('section', { className: 'cs-card cs-trend-breakdown' },
           h('div', { className: 'cs-card-head' },
-            h('div', { className: 'cs-card-heading' },
-              h('h2', null, t('trendBreakdownTitle')),
-              renderInfo(t('trendBreakdownHint'))),
-            h('div', { className: 'cs-legend' },
-              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
-              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel')))),
-          shownRows.length === 0
-            ? h('div', { className: 'cs-empty' }, t('trendBreakdownEmpty'))
-            : h('div', { className: 'cs-breakdown-list' }, shownRows.map((row) =>
-                h('div', {
-                  className: 'cs-breakdown-row',
-                  key: row.key,
-                  role: 'group',
-                  'aria-label': `${row.label} · ${t('activeLabel')} ${formatDuration(row.activeMs, format)} · ${t('taskLabel')} ${formatDuration(row.taskMs, format)}`,
-                },
-                  h('span', { className: 'cs-breakdown-label' }, row.label),
-                  h('span', { className: 'cs-breakdown-track', 'aria-hidden': true },
-                    h('i', { className: 'cs-breakdown-active', style: { width: `${percentOfMax(row.activeMs)}%` } }),
-                    h('i', { className: 'cs-breakdown-task', style: { width: `${percentOfMax(row.taskMs)}%` } })),
-                  h('span', { className: 'cs-breakdown-value' }, formatDuration(row.totalMs, format)))))),
+            renderCardTitle(t('trendBreakdownTitle'), 'clock'),
+            h('span', { className: 'cs-distribution-grain' }, t(shownPeriod === 'day' ? 'trendDistributionHour' : 'trendDistributionDay'), renderInfo(t('trendDistributionHint')))),
+          buckets.length === 0 ? h('div', { className: 'cs-empty' }, t('trendBreakdownEmpty'))
+            : h('div', { className: 'cs-distribution' },
+                h('div', { className: 'cs-distribution-strip', role: 'group', 'aria-label': t('trendBreakdownTitle') }, buckets.map((bucket) => {
+                  const level = bucket.future || finite(bucket.activeMs) <= 0 ? 0 : Math.max(1, Math.ceil(finite(bucket.activeMs) / max * 5))
+                  const tip = buildTrendTip(bucket, shownPeriod, t, isZh, format)
+                  return h('span', { key: bucket.key, tabIndex: 0,
+                    className: `cs-distribution-cell is-level-${level}${bucket.future ? ' is-future' : ''}`,
+                    'aria-label': `${tip.title} · ${tip.rows.map((row) => `${row.label} ${row.value}`).join(' · ')}`,
+                    ...hoverTipProps(hoverTip, tip.title, tip.rows) })
+                })),
+                h('div', { className: 'cs-distribution-axis', 'aria-hidden': true },
+                  [0, Math.floor((buckets.length - 1) / 2), buckets.length - 1].map((index) =>
+                    h('span', { key: index }, bucketLabel(buckets[index], shownPeriod, isZh))))),
+          h('div', { className: 'cs-distribution-summary' }, h('span', null, t('trendInsightCoverage')), h('b', null, insights[1].value)),
+          buckets.some((bucket) => bucket.future) ? h('span', { className: 'cs-distribution-future' }, t('trendFutureHint')) : null),
         h('section', { className: 'cs-card cs-trend-insights' },
-          h('div', { className: 'cs-card-head' },
-            h('div', { className: 'cs-card-heading' },
-              h('h2', null, t('trendInsightsTitle')),
-              renderInfo(t('trendInsightsHint')))),
-          h('div', { className: 'cs-trend-insight-list' }, insights.map((item) =>
+          h('div', { className: 'cs-card-head' }, renderCardTitle(t('trendInsightsTitle'), 'trend', renderInfo(t('trendInsightsHint')))),
+          h('div', { className: 'cs-trend-insight-list' }, [insights[0], insights[2]].map((item) =>
             h('div', { className: 'cs-trend-insight-row', key: item.key },
-              h('span', null, item.label),
-              h('b', null, item.value)))),
-          h('p', { className: 'cs-trend-insight-note' }, t('trendInsightNote'))))
+              h('span', { className: 'cs-insight-icon' }, h(DetailGlyph, { name: item.key === 'peak' ? 'clock' : 'trend', size: 16 })),
+              h('div', null, h('span', null, item.label), h('b', null, item.value))))),
+          h('div', { className: 'cs-trend-insight-footer' },
+            h('span', null, t('trendInsightNote')),
+            peak && finite(peak.bucket.activeMs) > 0 && typeof onOpenRange === 'function'
+              ? h('button', { type: 'button', className: 'cs-text-link cs-peak-sessions', onClick: () => onOpenRange({ from: peak.bucket.from, to: peak.bucket.to }) },
+                  t('trendPeakSessions').replace('{range}', formatSelectedRange(peak.bucket, t, isZh).replace(`${t('detailsRangeSelected')} · `, '')), h(DetailGlyph, { name: 'open', size: 13 })) : null)))
     }
 
     function renderTrendCard(data, t, isZh, hoverTip, format, shownPeriod, options = {}) {
@@ -4366,8 +4491,8 @@ window.__ModuleLoader__.load({
         isEmpty
           ? h('div', { className: 'cs-empty' }, t('emptyDashboard'))
           : renderTrendChart(data.trend, shownPeriod, t, isZh, hoverTip?.tip,
-              { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, format),
-        zoomable && !isEmpty ? renderTrendFoot(data, t, isZh, shownPeriod, format) : null)
+              { onHover: hoverTip?.show, onLeave: hoverTip?.hide, showFuture: options.showFoot === true }, format),
+        (zoomable || options.showFoot) && !isEmpty ? renderTrendFoot(data, t, isZh, shownPeriod, format) : null)
     }
 
     function renderStatBox(label, value) {
@@ -5016,14 +5141,14 @@ window.__ModuleLoader__.load({
 
     /** 趋势：周期卡 + 趋势图 + 日均/任务次数/峰值摘要，日周月可比较。 */
     function renderTrendView(props) {
-      const { data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip } = props
+      const { data, t, isZh, period, onSelectPeriod, durationFormat, hoverTip, onOpenRange } = props
       const shownPeriod = data?.period ?? period
       const peak = trendPeak(data?.trend, shownPeriod, isZh)
       const share = activeSharePercent(data?.activeMs, data?.onlineMs)
       return [
         renderCycles(data, t, period, onSelectPeriod, durationFormat),
         h('div', { className: 'cs-trend-layout' },
-          renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod),
+          renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { showFoot: true }),
           h('section', { className: 'cs-card cs-trend-summary' },
             h('div', { className: 'cs-card-head' },
               h('div', { className: 'cs-card-heading' },
@@ -5035,7 +5160,7 @@ window.__ModuleLoader__.load({
               renderStatBox(t('taskCountShort'), String(finite(data?.taskCount))),
               renderStatBox(t('peakActive'), peak === null
                 ? '—'
-                : `${formatDuration(finite(peak.bucket.activeMs), durationFormat)} · ${peak.label}`)),
+                : formatDuration(finite(peak.bucket.activeMs), durationFormat))),
             h('div', { className: 'cs-trend-summary-foot' },
               h('div', { className: 'cs-trend-share-head' },
                 h('span', null, t('activeShare')),
@@ -5044,101 +5169,90 @@ window.__ModuleLoader__.load({
                 h('i', { style: { width: `${share}%` } })),
               h('div', { className: 'cs-trend-share-caption' },
                 `${t('activeLabel')} ${formatDuration(data?.activeMs, durationFormat)} · ${t('onlineLabel')} ${formatDuration(data?.onlineMs, durationFormat)}`)))),
-        renderTrendBottom(data, t, isZh, shownPeriod, durationFormat),
+        renderTrendBottom(data, t, isZh, shownPeriod, durationFormat, hoverTip, onOpenRange),
       ]
     }
 
     /** 明细右上角的统计范围下拉：预设范围直接映射成本地自然日区间。 */
-    function renderDetailsRangePicker({ value, t, onSelect }) {
-      const options = DETAILS_RANGE_OPTIONS.map((option) => ({
-        value: option.value,
-        label: t(option.labelKey),
-        key: `details-range-${option.value}`,
-      }))
+    function renderDetailsRangePicker({ value, t, onSelect, customRange = null, isZh = true }) {
+      const options = DETAILS_RANGE_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey), key: option.value }))
+      if (customRange) options.unshift({ value: 'selected', label: formatSelectedRange(customRange, t, isZh), key: 'selected' })
       return h('div', { className: 'cs-details-range' },
         h('span', { className: 'cs-range' }, t('rangeLabel')),
         h(Select, {
-          value: normalizeDetailsRange(value),
-          options,
-          ariaLabel: t('detailsRangeLabel'),
-          className: 'cs-details-range-select',
-          onChange: onSelect,
+          value: customRange ? 'selected' : normalizeDetailsRange(value), options,
+          ariaLabel: t('detailsRangeLabel'), className: 'cs-details-range-select',
+          onChange: (next) => { if (next !== 'selected') onSelect?.(next) },
         }))
     }
 
-    /** 明细：本地搜索、工作区行与渐进展开会话，空状态区分「无匹配」与「无数据」。 */
+    /** 会话 B：筛选、累计摘要、分组列表与就地统计共用同一份当前范围快照。 */
     function renderDetailsView(props) {
       const {
-        data, t, isZh, query, onQueryChange, durationFormat,
-        expanded, onToggleRow, nowMs, hoverTip = null,
-        highlightSessionId = null, onOpenSession = null,
+        data, t, isZh, query, onQueryChange, durationFormat, expanded, onToggleRow, nowMs,
+        hoverTip = null, highlightSessionId = null, onOpenSession = null,
         detailsRange = DETAILS_RANGE_DEFAULT, onSelectDetailsRange = null,
         progressiveSessions = false, visibleSessionCounts = {}, onShowMoreSessions = null,
+        statusFilter = 'all', onStatusFilter = null, sort = 'recent', onSort = null,
+        selection = null, onSelectSession = null, onToggleAll = null,
+        customRange = null, loadStatus = 'ready', onRetry = null, openMessage = '',
       } = props
-      const rows = filterWorkspaces(data?.workspaces, query)
-      // 子代理任务与当前明细数据同源，避免切到更早范围后仍读取基础周期的空快照。
+      const rows = selectDetailsWorkspaces(data?.workspaces, query, statusFilter, sort)
+      const summary = summarizeDetailSessions(rows)
+      const allSummary = summarizeDetailSessions(data?.workspaces ?? [])
+      const session = selectedDetailSession(rows, selection)
       const sessionSubagentByParent = groupSubagentTasks(data?.subagentTasks)
-      const hasQuery = String(query ?? '').trim() !== ''
-      // 首次进入没有保存过展开状态时，默认展开前两个工作区，避免整页只剩工作区索引。
-      // 搜索时展开全部命中项，让匹配到的会话立刻可见；清空搜索仍回到用户自己的展开状态。
-      const hasSavedExpansion = expanded && typeof expanded === 'object' && Object.keys(expanded).length > 0
-      const expandedMap = hasQuery
-        ? Object.fromEntries(rows.map((row) => [row.key, true]))
-        : hasSavedExpansion
-          ? expanded
-          : rows.slice(0, 2).reduce((result, row) => ({ ...result, [row.key]: true }), {})
-      const sessionCount = rows.reduce((sum, row) => sum + (Array.isArray(row.sessions) ? row.sessions.length : 0), 0)
+      const filtered = String(query ?? '').trim() !== '' || statusFilter === 'running'
+      const saved = expanded && Object.keys(expanded).length > 0
+      const expandedMap = saved ? expanded
+        : Object.fromEntries((filtered ? rows : rows.slice(0, 2)).map((row) => [row.key, true]))
+      const allOpen = rows.length > 0 && rows.every((row) => expandedMap[row.key] === true)
+      const toolbar = h('div', { className: 'cs-details-toolbar' },
+        h('div', { className: 'cs-search-wrap' },
+          h('svg', { className: 'cs-search-icon', viewBox: '0 0 16 16', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, 'aria-hidden': true },
+            h('circle', { cx: 7, cy: 7, r: 4.2 }), h('path', { d: 'M10.1 10.1 13.5 13.5' })),
+          h('input', { className: 'cs-search', type: 'search', value: query ?? '', placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder'), onChange: (event) => onQueryChange?.(event.target.value) })),
+        h('div', { className: 'cs-details-filter', role: 'group', 'aria-label': t('detailsRunning') }, ['all', 'running'].map((value) =>
+          h('button', { key: value, type: 'button', 'aria-pressed': statusFilter === value, className: statusFilter === value ? 'is-on' : '', onClick: () => onStatusFilter?.(value) },
+            value === 'all' ? t('detailsAll') : `${t('detailsRunning')} ${allSummary.runningCount}`))),
+        h(Select, { value: sort, ariaLabel: t('detailsSortLabel'), className: 'cs-details-sort', onChange: onSort,
+          options: [{ value: 'recent', label: t('detailsSortRecent') }, { value: 'task', label: t('detailsSortTask') }, { value: 'active', label: t('detailsSortActive') }] }),
+        renderDetailsRangePicker({ value: detailsRange, t, onSelect: onSelectDetailsRange, customRange, isZh }))
+      if (loadStatus !== 'ready') return [toolbar,
+        h('div', { className: 'cs-card cs-details-loading', role: 'status' },
+          h('p', null, t(loadStatus === 'error' ? 'detailsLoadError' : 'detailsLoading')),
+          loadStatus === 'error' ? h('button', { type: 'button', className: 'cs-btn', onClick: onRetry }, t('settingsRetry')) : null)]
       const detailStats = [
-        [t('colWorkspace'), String(rows.length), `${sessionCount} ${t('sessionsUnit')}`],
-        [t('colActive'), formatDuration(data?.activeMs, durationFormat), ''],
-        [t('colTask'), formatDuration(data?.taskMs, durationFormat), ''],
-        [t('activeShare'), `${activeSharePercent(data?.activeMs, data?.onlineMs)}%`, ''],
+        [t('detailsSessionCount'), String(summary.sessionCount), `${rows.length} ${t('colWorkspace')}`, 'sessions'],
+        [t('colActive'), formatDuration(summary.activeMs, durationFormat), t('sumTag'), 'active'],
+        [t('colTask'), formatDuration(summary.taskMs, durationFormat), t('sumTag'), 'task'],
+        [t('taskCountShort'), String(summary.taskCount), '', 'count'],
       ]
-      return [
-        h('div', { className: 'cs-details-toolbar' },
-          h('div', { className: 'cs-search-wrap' },
-            h('svg', {
-              className: 'cs-search-icon', viewBox: '0 0 16 16', width: 14, height: 14,
-              fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round',
-              'aria-hidden': true,
-            },
-            h('circle', { cx: 7, cy: 7, r: 4.2 }),
-            h('path', { d: 'M10.1 10.1 13.5 13.5' })),
-            h('input', {
-              className: 'cs-search',
-              type: 'search',
-              value: query ?? '',
-              placeholder: t('searchPlaceholder'),
-              'aria-label': t('searchPlaceholder'),
-              onChange: (event) => onQueryChange?.(event?.target?.value ?? ''),
-            })),
-          renderDetailsRangePicker({ value: detailsRange, t, onSelect: onSelectDetailsRange })),
-        h('div', { className: 'cs-details-stats' }, detailStats.map(([label, value, hint]) =>
-          h('div', { className: 'cs-detail-stat', key: label },
-            h('span', { className: 'cs-detail-stat-label' }, label),
+      return [toolbar,
+        openMessage ? h('div', { className: 'cs-details-notice', role: 'status' }, openMessage) : null,
+        h('div', { className: 'cs-details-stats' }, detailStats.map(([label, value, hint, glyph]) =>
+          h('div', { className: `cs-detail-stat is-${glyph}`, key: glyph },
+            h('span', { className: 'cs-detail-stat-label' }, h(DetailGlyph, { name: glyph, size: 14 }), label),
             h('b', { className: 'cs-detail-stat-value' }, value),
-            hint === '' ? null : h('span', { className: 'cs-detail-stat-hint' }, hint)))),
-        h('div', { className: 'cs-details-layout' },
-          h('section', { className: 'cs-card cs-sessions-card' },
-            h('div', { className: 'cs-card-head cs-sessions-card-head' },
-              h('div', { className: 'cs-card-heading cs-sessions-heading' },
-                h('div', { className: 'cs-sessions-title-line' },
-                  h('h2', null, t('detailsSessionsTitle')),
-                  h('span', { className: 'cs-sessions-count' }, `${sessionCount} ${t('sessionsUnit')}`))),
-              h('span', { className: 'cs-sessions-scope' }, t('sumTag'))),
-            rows.length === 0
-              ? h('div', { className: 'cs-empty' }, t(hasQuery ? 'detailsEmpty' : 'emptyDashboard'))
-              : h('div', { className: 'cs-workspace-list' }, rows.map((row) =>
-                  renderWorkspaceRow(row, expandedMap?.[row.key] === true, () => onToggleRow?.(row.key),
-                    t, nowMs, sessionSubagentByParent, durationFormat, hoverTip, highlightSessionId,
-                    progressiveSessions
-                      ? {
-                          enabled: true,
-                          visibleCount: visibleSessionCounts?.[row.key] ?? DETAILS_SESSION_INITIAL,
-                          onShowMore: () => onShowMoreSessions?.(row.key, Array.isArray(row.sessions) ? row.sessions.length : 0),
-                        }
-                      : null,
-                    onOpenSession))))),
+            hint ? h('span', { className: 'cs-detail-stat-hint' }, hint) : null))),
+        h('div', { className: 'cs-details-layout' }, h('section', { className: 'cs-card cs-sessions-card' },
+          h('div', { className: 'cs-card-head cs-sessions-card-head' },
+            h('div', { className: 'cs-card-heading cs-sessions-heading' }, h('div', { className: 'cs-sessions-title-line' },
+              h('h2', null, t('detailsSessionsTitle')), h('span', { className: 'cs-sessions-count' }, `${summary.sessionCount} ${t('sessionsUnit')}`))),
+            h('div', { className: 'cs-sessions-tools' }, h('span', { className: 'cs-sessions-scope' }, t('sumTag')),
+              !filtered && rows.length > 0 ? h('button', { type: 'button', className: 'cs-text-link', onClick: () => onToggleAll?.(Object.fromEntries(rows.map((row) => [row.key, !allOpen]))) }, t(allOpen ? 'detailsCollapseAll' : 'detailsExpandAll')) : null)),
+          h('div', { className: 'cs-record-columns' },
+            rows.length === 0 ? h('div', { className: 'cs-empty' }, t(filtered ? 'detailsEmpty' : 'emptyDashboard'))
+              : h('div', { className: 'cs-workspace-list' }, rows.map((row) => renderWorkspaceRow(
+                  row, expandedMap[row.key] === true, () => onToggleRow?.(row.key, expandedMap[row.key] === true, expandedMap),
+                  t, nowMs, sessionSubagentByParent, durationFormat, hoverTip, highlightSessionId,
+                  progressiveSessions ? { enabled: true, visibleCount: visibleSessionCounts[row.key] ?? DETAILS_SESSION_INITIAL, onShowMore: () => onShowMoreSessions?.(row.key, row.sessions.length) } : null,
+                  typeof onSelectSession === 'function' ? { sessionId: session?.workspaceKey === row.key ? session.sessionId : null, onSelect: onSelectSession } : null,
+                ))),
+            renderSessionInspector(session, t, durationFormat, onOpenSession, selection, hoverTip)),
+          h('div', { className: 'cs-record-footer' },
+            h('span', null, customRange ? formatSelectedRange(customRange, t, isZh) : formatRangeLabel(data?.range, 'month', t, isZh)),
+            h('span', null, t('detailsFiltered').replace('{workspaces}', String(rows.length)).replace('{sessions}', String(summary.sessionCount)))))),
       ]
     }
 
@@ -5146,6 +5260,13 @@ window.__ModuleLoader__.load({
      * Dashboard 内设置页：表单值来自 Host 草稿，外观/配色来自页面本地主题状态。
      * 纯渲染函数便于组成测试断言控件结构，数据加载与保存逻辑留在 createPage。
      */
+    /** Host 分别统计区间和任务，页面用两者合计回报实际导入数量。 */
+    function importResultText(result, t) {
+      const count = (value) => value && typeof value === 'object'
+        ? finite(value.intervals) + finite(value.tasks) : finite(value)
+      return t('importResult').replace('{imported}', String(count(result?.imported))).replace('{skipped}', String(count(result?.skipped)))
+    }
+
     /** 从备份记录里取最早/最晚观测时刻，给导入预览一行时间范围；无有效时刻时返回空串。 */
     function importPreviewRange(payload) {
       let min = Infinity
@@ -5167,7 +5288,7 @@ window.__ModuleLoader__.load({
 
     function renderSettingsView(props) {
       const {
-        t, draft, phase, message, noticeState, appearance, palette,
+        t, draft, phase, message, noticeState, appearance, palette, sidebarStats = null, systemDark = false,
         dataBusy = '', dataMessage = null, clearStep = false, retrying = false, retryError = null,
         recheckMessage = null, approximateMessage = null,
         importPreview = null, importRestoreSettings = false, importError = '',
@@ -5181,14 +5302,20 @@ window.__ModuleLoader__.load({
       const busy = phase === 'saving' || draft === null || loadFailed
       const appearanceMode = normalizeAppearance(appearance)
       const importRange = importPreview ? importPreviewRange(importPreview.payload) : ''
+      const saveStatus = h('div', { className: 'cs-settings-feedback' },
+        h('span', { className: `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`, role: 'status' }, message || t('settingsAutoSave')),
+        loadFailed ? h('button', { type: 'button', className: 'cs-btn', onClick: onRetryLoad }, t('settingsRetry')) : null)
       return [h('div', { className: 'cs-settings cs-settings-board' },
         h('div', { className: 'cs-settings-grid' },
           h('section', { className: 'cs-settings-card cs-settings-main cs-settings-basics-card' },
-            ...renderBasicSettingsBody(t, draft, busy, onPatch, { selectClass: 'cs-settings-select', split: true })),
+            ...renderBasicSettingsBody(t, draft, busy, onPatch, { selectClass: 'cs-settings-select', split: true, status: saveStatus })),
           h('section', { className: 'cs-settings-card cs-settings-side cs-format-card' },
             renderDurationFormatSection(t, draft?.durationFormat, {
               disabled: busy,
               onSelect: onSelectFormat,
+              sidebarPreview: renderSidebarEntry({ stats: sidebarStats, theme: { palette, appearance, systemDark }, t,
+                showName: draft?.sidebarShowName === true, showDot: draft?.sidebarDotVisible !== false,
+                dotPosition: draft?.sidebarDotPosition, sidebarMetric: draft?.sidebarDuration, format: draft?.durationFormat }),
             })),
           h('section', { className: 'cs-settings-card cs-settings-main cs-appearance-card' },
             h('div', { className: 'cs-settings-card-head' },
@@ -5244,7 +5371,7 @@ window.__ModuleLoader__.load({
               onCancel: onCancelReset,
               onReset: onResetSettings,
             })),
-          h('section', { className: 'cs-settings-card cs-settings-side cs-notices-card' },
+          h('section', { className: 'cs-settings-card cs-settings-main cs-notices-card' },
             h('h3', null, t('settingsSectionNotices')),
             h('p', { className: 'cs-settings-row-hint' }, t('settingsNoticesHint')),
             noticeState?.status === 'error'
@@ -5264,7 +5391,7 @@ window.__ModuleLoader__.load({
                 : retryError
                   ? h('span', { className: 'cs-data-status is-error', role: 'status' }, String(retryError))
                   : null)),
-          h('section', { className: 'cs-settings-card cs-settings-main cs-data-card' },
+          h('section', { className: 'cs-settings-card cs-settings-side cs-data-card' },
             h('h3', null, t('dataTitle')),
             h('p', { className: 'cs-settings-row-hint' }, t('dataHint')),
             h('div', { className: 'cs-data-actions' },
@@ -5282,12 +5409,7 @@ window.__ModuleLoader__.load({
                   type: 'file', accept: '.json,application/json', className: 'cs-file-input',
                   'aria-label': t('importData'), disabled: dataBusy !== '',
                   onChange: (event) => onPickImportFile?.(event),
-                })),
-              h('span', { className: 'cs-data-spacer' }),
-              h('button', {
-                type: 'button', className: 'cs-btn is-danger', disabled: dataBusy !== '',
-                onClick: () => onRequestClear?.(),
-              }, t('clearData'))),
+                }))),
             h('div', { className: 'cs-import-hint' },
               h('span', null, t('importHint')),
               h('span', { className: 'cs-import-file-state', role: 'status' },
@@ -5326,6 +5448,10 @@ window.__ModuleLoader__.load({
               approximateMessage
                 ? h('span', { className: `cs-data-status${approximateMessage.error ? ' is-error' : ''}`, role: 'status' }, approximateMessage.text)
                 : null),
+            h('div', { className: 'cs-data-danger' }, h('button', {
+              type: 'button', className: 'cs-btn is-danger', disabled: dataBusy !== '',
+              onClick: () => onRequestClear?.(),
+            }, t('clearData'))),
             clearStep
               ? h('div', { className: 'cs-clear-confirm', role: 'alertdialog', 'aria-label': t('clearStepTitle') },
                   h('strong', null, t('clearStepTitle')),
@@ -5345,15 +5471,7 @@ window.__ModuleLoader__.load({
                   className: `cs-data-status${dataMessage.error ? ' is-error' : ''}`,
                   role: 'status',
                 }, dataMessage.text)
-              : null)),
-        h('div', { className: 'cs-settings-footer' },
-          loadFailed
-            ? h('button', { type: 'button', className: 'cs-btn', onClick: () => onRetryLoad?.() }, t('settingsRetry'))
-            : null,
-          message ? h('span', {
-            className: `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`,
-            role: 'status',
-          }, message) : null))]
+              : null)))]
     }
 
     function createPage(ctx) {
@@ -5441,11 +5559,16 @@ window.__ModuleLoader__.load({
         const [detailsQuery, setDetailsQuery] = React.useState('')
         const [detailsRange, setDetailsRange] = React.useState(() => detailsRangeForPeriod(period))
         const [detailsVisibleCounts, setDetailsVisibleCounts] = React.useState({})
+        const [detailsCustomRange, setDetailsCustomRange] = React.useState(null)
+        const [detailsStatusFilter, setDetailsStatusFilter] = React.useState('all')
+        const [detailsSort, setDetailsSort] = React.useState('recent')
+        const [detailsSelection, setDetailsSelection] = React.useState(null)
+        const [detailsOpenMessage, setDetailsOpenMessage] = React.useState('')
         const [detailHighlight, setDetailHighlight] = React.useState(null)
         const detailHighlightTimerRef = React.useRef(null)
         // 顶部周期变化时把明细范围同步到语义相近的预设；手动选择后保持到下次周期切换。
-        React.useEffect(() => { setDetailsRange(detailsRangeForPeriod(period)) }, [period])
-        React.useEffect(() => { setDetailsVisibleCounts({}) }, [detailsRange])
+        React.useEffect(() => { setDetailsRange(detailsRangeForPeriod(period)); setDetailsCustomRange(null); setDetailsSelection(null); setDetailsOpenMessage('') }, [period])
+        React.useEffect(() => { setDetailsVisibleCounts({}) }, [detailsRange, detailsCustomRange])
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.period', period) } catch {} }, [period])
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.view', view) } catch {} }, [view])
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
@@ -5482,7 +5605,7 @@ window.__ModuleLoader__.load({
         const [noticeState, setNoticeState] = React.useState({ status: 'idle', data: null })
         const [noticeNonce, setNoticeNonce] = React.useState(0)
         const state = useDashboard(ctx, period, pollMs, refreshNonce)
-        const detailsRangeBounds = resolveDetailsRange(detailsRange, Date.now())
+        const detailsRangeBounds = detailsCustomRange ?? resolveDetailsRange(detailsRange, Date.now())
         const detailsState = useDashboard(ctx, 'day', pollMs, refreshNonce, {
           view: 'details',
           range: detailsRangeBounds,
@@ -5585,9 +5708,7 @@ window.__ModuleLoader__.load({
               ...importPreview.payload,
               restoreSettings: importRestoreSettings === true,
             })
-            const resultText = t('importResult')
-              .replace('{imported}', String(finite(result?.imported)))
-              .replace('{skipped}', String(finite(result?.skipped)))
+            const resultText = importResultText(result, t)
             setImportPreview(null)
             setDataMessage({ text: `${t('importSuccess')} · ${resultText}`, error: false })
             // 导入产生了新的数据代次，近似说明重新显示。
@@ -5776,6 +5897,12 @@ window.__ModuleLoader__.load({
           }, 1000)
         }
         const autoSaveSettings = async (next) => {
+          if (savedBadgeTimerRef.current !== null) {
+            window.clearTimeout(savedBadgeTimerRef.current)
+            savedBadgeTimerRef.current = null
+          }
+          setSettingsPhase('saving')
+          setSettingsMessage(t('settingsSaving'))
           try {
             const saved = await callSettings(ctx, 'setSettings', settingsPayload(next))
             setSettingsForm(settingsDraft(saved))
@@ -5904,11 +6031,16 @@ window.__ModuleLoader__.load({
         const openSessionInDetails = (session) => {
           const sessionId = typeof session?.sessionId === 'string' ? session.sessionId : ''
           if (sessionId === '') return
-          const workspaceKey = session?.workspaceKey
+          const workspaceKey = session?.workspaceKey ?? (detailsData?.workspaces ?? data?.workspaces ?? [])
+            .find((row) => row.sessions?.some((item) => item.sessionId === sessionId))?.key
           if (workspaceKey !== undefined && workspaceKey !== null) {
             setExpanded((previous) => ({ ...previous, [workspaceKey]: true }))
           }
           setDetailsQuery('')
+          setDetailsStatusFilter('all')
+          if (view !== 'details') { setDetailsCustomRange(null); setDetailsRange('all') }
+          setDetailsSelection({ workspaceKey, sessionId })
+          setDetailsOpenMessage(t('detailsOpenFallback'))
           setDetailHighlight({ sessionId, token: Date.now() })
           if (detailHighlightTimerRef.current !== null) window.clearTimeout(detailHighlightTimerRef.current)
           detailHighlightTimerRef.current = window.setTimeout(() => {
@@ -5923,7 +6055,16 @@ window.__ModuleLoader__.load({
           if (openSessionInHost(ctx, session)) return
           openSessionInDetails(session)
         }
-        const onToggleRow = (key) => setExpanded((previous) => ({ ...previous, [key]: !previous[key] }))
+        const onToggleRow = (key, current, expandedMap) => setExpanded((previous) => ({ ...(expandedMap ?? previous), [key]: !(current ?? previous[key]) }))
+        const openTrendSessions = (range) => {
+          if (!Number.isFinite(range?.from) || !Number.isFinite(range?.to) || range.from >= range.to) return
+          setDetailsCustomRange({ from: range.from, to: range.to })
+          setDetailsOpenMessage('')
+          setDetailsQuery('')
+          setDetailsStatusFilter('all')
+          setDetailsSelection(null)
+          goToView('details')
+        }
         // 同一个首屏值再次点击即缩回；写入失败只放弃持久化，页面内状态照常切换。
         const toggleFocus = (value) => {
           setFocus((previous) => {
@@ -5991,17 +6132,28 @@ window.__ModuleLoader__.load({
         const renderView = () => {
           if (view === 'trend') {
             return renderTrendView({
-              data, t, isZh, period, onSelectPeriod: setPeriod, durationFormat, hoverTip, nowMs,
+              data, t, isZh, period, onSelectPeriod: setPeriod, durationFormat, hoverTip, nowMs, onOpenRange: openTrendSessions,
             })
           }
           if (view === 'details') {
             return renderDetailsView({
-              data: detailsData, t, isZh, query: detailsQuery, onQueryChange: setDetailsQuery,
+              data: detailsData, t, isZh, query: detailsQuery, onQueryChange: (value) => { setDetailsQuery(value); setExpanded({}); setDetailsOpenMessage('') },
               durationFormat, expanded, onToggleRow, nowMs, hoverTip,
               highlightSessionId: detailHighlight?.sessionId ?? null,
               onOpenSession: openSessionFromPage,
-              detailsRange, onSelectDetailsRange: setDetailsRange,
-              progressiveSessions: detailsRange === 'all',
+              detailsRange, customRange: detailsCustomRange,
+              onSelectDetailsRange: (value) => { setDetailsCustomRange(null); setDetailsRange(value); setDetailsSelection(null); setDetailsOpenMessage('') },
+              statusFilter: detailsStatusFilter, onStatusFilter: (value) => { setDetailsStatusFilter(value); setExpanded({}) },
+              sort: detailsSort, onSort: setDetailsSort,
+              selection: detailsSelection, onSelectSession: (session) => {
+                setDetailsSelection({ workspaceKey: session.workspaceKey, sessionId: session.sessionId })
+                setDetailsOpenMessage('')
+                if (window.innerWidth <= 900) window.requestAnimationFrame(() =>
+                  document.getElementById('cs-session-inspector')?.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'instant' : 'smooth' }))
+              },
+              onToggleAll: setExpanded, loadStatus: detailsState.status, openMessage: detailsOpenMessage,
+              onRetry: () => setRefreshNonce((value) => value + 1),
+              progressiveSessions: detailsRange === 'all' && detailsCustomRange === null,
               visibleSessionCounts: detailsVisibleCounts,
               onShowMoreSessions: showMoreDetailsSessions,
             })
@@ -6013,6 +6165,8 @@ window.__ModuleLoader__.load({
               phase: settingsPhase,
               message: settingsMessage,
               noticeState,
+              sidebarStats: { ...data?.cycles?.day, receivedAt: state.receivedAt, activeRunning: data?.activeRunning, taskRunning: data?.taskRunning, running: data?.running },
+              systemDark,
               appearance,
               palette,
               dataBusy,
@@ -6556,6 +6710,7 @@ window.__ModuleLoader__.load({
         color: inherit; font: inherit; text-align: left; cursor: pointer;
       }
       .cs-cycle-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+      .cs-cycle-date { margin-left: auto; font-size: 11px; line-height: 16px; color: var(--cs-ink-2); font-weight: 400; }
       .cs-cycle-title { font-size: 13px; line-height: 18px; font-weight: 620; letter-spacing: .01em; }
       .cs-cycle-value {
         margin-top: 5px;
@@ -6660,8 +6815,6 @@ window.__ModuleLoader__.load({
         border-radius: 8px;
       }
       .cs-session + .cs-session { border-top: 1px dashed var(--dsw-alias-border-l1); }
-      .cs-session.is-openable { cursor: pointer; }
-      .cs-session.is-openable:hover { background: color-mix(in srgb, var(--cs-signal) 5%, transparent); }
       /* 从最近会话跳转过来时给目标行留一段可见的定位高亮，随后自然淡出。
          高亮层比会话行左右各收 8px，不贴住内容两侧。 */
       .cs-session.is-highlighted { scroll-margin-block: 28vh; }
@@ -6689,12 +6842,6 @@ window.__ModuleLoader__.load({
         .cs-session.is-highlighted::before { animation-duration: .01ms; }
       }
       .cs-session-title { color: var(--dsw-alias-label-primary); font-size: 12px; font-weight: 540; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
-      .cs-session-open {
-        appearance: none; border: 0; background: transparent; padding: 0; margin: 0;
-        font-family: inherit; text-align: left; cursor: pointer;
-      }
-      .cs-session-open:hover { color: var(--cs-signal); }
-      .cs-session-open:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; border-radius: 4px; }
       .cs-session-status { width: 18px; height: 18px; justify-content: center; }
       .cs-session-status:hover { background: var(--dsw-alias-bg-layer-2); }
       .cs-session-metrics { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
@@ -7014,6 +7161,8 @@ window.__ModuleLoader__.load({
       .cs-y-axis { position: absolute; left: 0; top: 0; bottom: 0; width: 50px; color: var(--dsw-alias-label-secondary); font-size: 10px; font-variant-numeric: tabular-nums; }
       .cs-y-axis span { position: absolute; right: 0; transform: translateY(-50%); white-space: nowrap; }
       .cs-axis { margin-left: 58px; }
+      .cs-axis.has-future { height: 31px; }
+      .cs-axis .cs-axis-future { display: block; position: static; font-size: 10px; line-height: 15px; font-weight: 400; transform: none; }
       @media (max-width: 520px) { .cs-plot { padding-left: 50px; } .cs-y-axis { width: 43px; font-size: 9px; } .cs-axis { margin-left: 50px; } }
 
       /* 解释性信息改为悬浮/聚焦即显示：位置由 JS 按视口夹取，fixed 定位不被卡片裁切。 */
@@ -7221,27 +7370,18 @@ window.__ModuleLoader__.load({
       .cs-recent-workspace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 14px; color: var(--dsw-alias-label-secondary); }
       .cs-recent-time { max-width: 11ch; text-align: right; overflow-wrap: anywhere; font-family: var(--cs-mono); font-variant-numeric: tabular-nums; font-size: 12px; }
       .cs-recent-last { font-size: 11px; color: var(--dsw-alias-label-secondary); white-space: nowrap; text-align: right; }
-      .cs-trend-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 10px; align-items: stretch; }
+      .cs-view[data-view="trend"] .cs-cycle-value { font-size: clamp(24px, 2.2vw, 30px); line-height: 1.2; color: var(--cs-signal); margin-top: 10px; }
+      .cs-view[data-view="trend"] .cs-cycle.is-current :is(.cs-cycle-value, .cs-cycle-date) { color: inherit; }
+      .cs-trend-layout { display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(260px, 1fr); gap: 14px; align-items: stretch; min-height: 335px; }
       .cs-trend-layout > .cs-trend-card { grid-column: 1; grid-row: 1; }
       .cs-trend-layout > .cs-trend-summary { grid-column: 2; grid-row: 1; }
       .cs-trend-summary { display: flex; flex-direction: column; gap: 10px; align-self: stretch; }
-      .cs-trend-summary .cs-stat-grid {
-        display: flex; flex-direction: column; gap: 0; flex: 1 1 auto; min-height: 0;
-        border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; overflow: hidden;
-      }
-      .cs-trend-summary .cs-stat-box {
-        display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px;
-        flex: 1 1 0; min-height: 0; padding: 10px 12px;
-        border-radius: 0; border: 0; border-top: 1px solid var(--dsw-alias-border-l1); background: transparent;
-      }
-      .cs-trend-summary .cs-stat-box:first-child {
-        border-top: 0;
-        background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, var(--dsw-alias-bg-layer-1));
-        box-shadow: inset 3px 0 0 var(--dsw-alias-brand-primary);
-      }
-      .cs-trend-summary .cs-stat-box:first-child span { color: var(--dsw-alias-label-primary); font-weight: 600; }
+      .cs-trend-summary .cs-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 14px; align-content: center; padding: 12px 0 18px; }
+      .cs-trend-summary .cs-stat-box { padding: 0; border: 0; border-radius: 0; background: transparent; gap: 9px; }
       .cs-trend-summary .cs-stat-box span { font-size: 12px; }
-      .cs-trend-summary .cs-stat-box b { font-size: 18px; line-height: 24px; }
+      .cs-trend-summary .cs-stat-box b { font-size: 20px; line-height: 28px; overflow-wrap: anywhere; }
+      .cs-trend-summary .cs-stat-box:nth-child(1) b, .cs-trend-summary .cs-stat-box:nth-child(4) b { color: var(--cs-signal); }
+      .cs-trend-summary .cs-stat-box:nth-child(2) b { color: var(--cs-task); }
       /* 右栏底部补一条活跃占比可视化，填满原来空旷的下半区。 */
       .cs-trend-summary-foot {
         display: flex; flex-direction: column; gap: 7px;
@@ -7276,50 +7416,35 @@ window.__ModuleLoader__.load({
       @media (max-width: 760px) {
         .cs-trend-foot { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px 0; }
       }
-      /* 趋势页下半区：时段分布 + 趋势洞察，填满图表下方的留白。 */
-      .cs-trend-bottom {
-        display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
-        gap: 10px; align-items: stretch;
-      }
-      .cs-trend-breakdown, .cs-trend-insights { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-      .cs-breakdown-list { display: flex; flex-direction: column; justify-content: space-around; gap: 9px; flex: 1 1 auto; min-height: 0; }
-      .cs-breakdown-row { display: grid; grid-template-columns: 54px minmax(0, 1fr) 78px; align-items: center; gap: 12px; min-width: 0; }
-      .cs-breakdown-label { font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
-      .cs-breakdown-track {
-        display: flex; align-items: stretch; height: 8px; min-width: 0;
-        border-radius: 999px; overflow: hidden; background: var(--cs-tone-faint);
-      }
-      .cs-breakdown-active { display: block; height: 100%; flex: 0 0 auto; background: var(--cs-live); }
-      .cs-breakdown-task { display: block; height: 100%; flex: 0 0 auto; background: var(--cs-task); }
-      .cs-breakdown-value {
-        font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-        font-variant-numeric: tabular-nums; font-size: 11.5px; line-height: 16px;
-        text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      }
-      .cs-trend-insight-list {
-        display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0;
-        border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; overflow: hidden;
-      }
-      .cs-trend-insight-row {
-        display: flex; align-items: center; justify-content: space-between; gap: 12px;
-        flex: 1 1 0; min-height: 0; padding: 9px 12px;
-        border-top: 1px solid var(--dsw-alias-border-l1);
-      }
-      .cs-trend-insight-row:first-child { border-top: 0; }
-      .cs-trend-insight-row span { font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
-      .cs-trend-insight-row b {
-        font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-        font-variant-numeric: tabular-nums; font-size: 14px; line-height: 20px; font-weight: 650;
-        text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      }
-      .cs-trend-insight-note { margin: 0; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
-      @media (max-width: 900px) {
-        .cs-trend-bottom { grid-template-columns: 1fr; }
-      }
-      @media (max-width: 760px) {
-        .cs-breakdown-row { grid-template-columns: 46px minmax(0, 1fr) 68px; gap: 8px; }
-        .cs-trend-insight-row { padding: 9px 10px; }
-      }
+      /* 均衡趋势页：时段色阶与事实洞察并排，所有桶遵守实际聚合粒度。 */
+      .cs-trend-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+      .cs-trend-breakdown, .cs-trend-insights { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+      .cs-distribution-grain { display: inline-flex; align-items: center; gap: 5px; color: var(--cs-ink-2); font-size: 11px; }
+      .cs-distribution { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+      .cs-distribution-strip { display: flex; gap: 4px; min-height: 42px; }
+      .cs-distribution-cell { flex: 1 1 0; min-width: 0; border-radius: 4px; background: var(--cs-tone-faint); }
+      .cs-distribution-cell.is-level-1 { background: var(--cs-heat-1); }
+      .cs-distribution-cell.is-level-2 { background: var(--cs-heat-2); }
+      .cs-distribution-cell.is-level-3 { background: var(--cs-heat-3); }
+      .cs-distribution-cell.is-level-4 { background: var(--cs-heat-4); }
+      .cs-distribution-cell.is-level-5 { background: var(--cs-heat-5); }
+      .cs-distribution-cell.is-future { background: transparent; border: 1px dashed var(--cs-line); }
+      .cs-distribution-cell:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; }
+      .cs-distribution-axis, .cs-distribution-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--cs-ink-2); font-size: 11px; }
+      .cs-distribution-summary { border-top: 1px solid var(--cs-line); padding-top: 14px; margin-top: auto; }
+      .cs-distribution-summary b { color: var(--cs-ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+      .cs-distribution-future { margin-top: -10px; font-size: 11px; color: var(--cs-ink-2); }
+      .cs-trend-insight-list { display: flex; flex-direction: column; gap: 16px; }
+      .cs-trend-insight-row { display: flex; align-items: center; gap: 10px; }
+      .cs-insight-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; background: var(--cs-tone-faint); color: var(--cs-signal); flex: none; }
+      .cs-trend-insight-row > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+      .cs-trend-insight-row span { font-size: 12px; }
+      .cs-trend-insight-row b { font-size: 12px; line-height: 18px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--cs-ink-2); }
+      .cs-trend-insight-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--cs-line); padding-top: 14px; margin-top: auto; color: var(--cs-ink-2); font-size: 11px; }
+      .cs-text-link { display: inline-flex; align-items: center; gap: 6px; border: 0; padding: 3px 0; color: var(--cs-signal); background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
+      .cs-text-link:hover { text-decoration: underline; }
+      .cs-text-link:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 3px; border-radius: 2px; }
+      @media (max-width: 900px) { .cs-trend-bottom { grid-template-columns: 1fr; } }
       .cs-details-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
       .cs-details-range { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
       .cs-details-range .cs-select-btn {
@@ -7999,13 +8124,59 @@ window.__ModuleLoader__.load({
 
       /* ===== 会话模块重塑：工作区退为轻量分组标题，会话行成为列表主体。 ===== */
       .cs-details-toolbar { gap: 12px; }
-      .cs-details-toolbar .cs-search-wrap { flex: 1 1 320px; max-width: 640px; }
+      .cs-details-toolbar .cs-search-wrap { flex: 1 1 240px; max-width: none; }
       .cs-details-toolbar .cs-details-range { margin-left: auto; }
       .cs-details-stats { padding: 10px 18px; }
       .cs-detail-stat { padding: 2px 18px; gap: 1px; }
-      .cs-detail-stat-value { font-size: 15px; line-height: 21px; font-weight: 500; letter-spacing: -0.01em; }
+      .cs-detail-stat-value { font-size: 22px; line-height: 30px; font-weight: 600; letter-spacing: -0.02em; }
       .cs-detail-stat-hint { font-size: 10.5px; line-height: 15px; }
       .cs-details-layout { display: block; }
+      .cs-details-filter { display: flex; gap: 2px; padding: 3px; background: var(--cs-surface); border: 1px solid var(--cs-line); border-radius: 8px; }
+      .cs-details-filter button { border: 0; padding: 5px 10px; border-radius: 5px; background: transparent; color: var(--cs-ink-2); font: inherit; font-size: 12px; cursor: pointer; }
+      .cs-details-filter button.is-on { background: var(--cs-tone-faint); color: var(--cs-signal); }
+      .cs-details-filter button:focus-visible, .cs-session-inspect:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; }
+      .cs-details-sort .cs-select-btn { min-height: 34px; font-size: 12px; }
+      .cs-record-columns { display: grid; grid-template-columns: minmax(0, 1fr) 285px; margin-top: 12px; border-top: 1px solid var(--cs-line); }
+      .cs-record-columns .cs-workspace-list { min-width: 0; padding-right: 18px; }
+      .cs-sessions-tools { display: flex; align-items: center; gap: 18px; }
+      .cs-record-footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--cs-line); margin-top: 12px; padding: 12px 0 4px; font-size: 11px; color: var(--cs-ink-2); }
+      .cs-session-inspector { display: flex; flex-direction: column; gap: 15px; align-self: start; min-width: 0; padding: 20px 0 20px 20px; border-left: 1px solid var(--cs-line); position: sticky; top: 12px; }
+      .cs-inspector-label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--cs-ink-2); }
+      .cs-session-inspector h3 { margin: 0; font-size: 15px; line-height: 23px; font-weight: 600; overflow-wrap: anywhere; }
+      .cs-inspector-workspace { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--cs-ink-2); }
+      .cs-inspector-running { color: var(--cs-task); }
+      .cs-inspector-total { font: 650 27px/1.3 ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; color: var(--cs-task); overflow-wrap: anywhere; }
+      .cs-inspector-breakdown { display: flex; gap: 2px; height: 7px; border-radius: 3px; overflow: hidden; background: var(--cs-tone-faint); }
+      .cs-inspector-rows { display: flex; flex-direction: column; gap: 12px; margin: 0; padding-bottom: 16px; border-bottom: 1px solid var(--cs-line); }
+      .cs-inspector-rows > div, .cs-inspector-active { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+      .cs-inspector-rows dt { display: flex; align-items: center; gap: 7px; color: var(--cs-ink-2); }
+      .cs-inspector-rows dt i { width: 7px; height: 7px; border-radius: 2px; }
+      .cs-inspector-rows dd { margin: 0; font-variant-numeric: tabular-nums; }
+      .cs-inspector-active { color: var(--cs-ink-2); }
+      .cs-inspector-active b { color: var(--cs-signal); font-weight: 500; }
+      .cs-inspector-open { display: inline-flex; align-items: center; gap: 8px; justify-content: center; width: 100%; }
+      .cs-inspector-note, .cs-session-inspector.is-empty p { margin: 0; font-size: 11px; line-height: 1.8; color: var(--cs-ink-2); }
+      .cs-session-inspector.is-empty { align-items: center; padding-top: 50px; text-align: center; }
+      .cs-session-inspect { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 30px; height: 30px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--cs-ink-2); cursor: pointer; }
+      .cs-session-inspect:hover, .cs-session-inspect[aria-pressed="true"] { color: var(--cs-signal); background: var(--cs-tone-faint); }
+      .cs-page .cs-session.is-selected { background: var(--cs-tone-faint); }
+      .cs-page .cs-session.is-selected::before { content: ''; position: absolute; top: 0; right: auto; bottom: 0; left: -1px; width: 2px; border-radius: 0; background: var(--cs-signal); box-shadow: none; animation: none; pointer-events: none; }
+      .cs-page .cs-session.is-selectable { cursor: pointer; transition: background var(--cs-dur-tap) var(--cs-ease); }
+      .cs-page .cs-session.is-selectable:not(.is-selected):hover { background: color-mix(in srgb, var(--cs-signal) 4%, transparent); }
+      .cs-detail-stat.is-task .cs-detail-stat-value { color: var(--cs-task); }
+      .cs-detail-stat.is-active .cs-detail-stat-value { color: var(--cs-signal); }
+      .cs-details-loading { padding: 32px; text-align: center; }
+      .cs-details-notice { padding: 10px 12px; border: 1px solid var(--cs-line); border-radius: 8px; background: var(--cs-tone-faint); color: var(--cs-ink); font-size: 12px; line-height: 18px; }
+      @media (max-width: 1100px) {
+        .cs-record-columns { grid-template-columns: minmax(0, 1fr) 240px; }
+        .cs-record-columns .cs-workspace-list { padding-right: 10px; }
+        .cs-session-inspector { padding-left: 14px; }
+      }
+      @media (max-width: 900px) {
+        .cs-record-columns { grid-template-columns: 1fr; }
+        .cs-record-columns .cs-workspace-list { padding-right: 0; }
+        .cs-session-inspector { border-left: 0; border-top: 1px solid var(--cs-line); padding: 20px 0 8px; position: static; }
+      }
       .cs-sessions-card { padding: 16px 18px 10px; gap: 0; }
       .cs-sessions-card-head { align-items: flex-start; margin-bottom: 2px; }
       .cs-sessions-heading { gap: 0; min-width: 0; }
@@ -8023,20 +8194,15 @@ window.__ModuleLoader__.load({
       .cs-workspace-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; line-height: 19px; font-weight: 600; color: var(--dsw-alias-label-secondary); }
       .cs-group.is-open .cs-workspace-name { color: var(--dsw-alias-label-primary); }
       .cs-workspace-count { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 10.5px; line-height: 18px; font-variant-numeric: tabular-nums; }
-      .cs-page .cs-sessions { margin: 0 0 8px 28px; padding: 2px 0 2px 8px; border-left: 1px solid var(--dsw-alias-border-l1); border-radius: 0; background: transparent; }
-      .cs-page .cs-session { position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; padding: 11px 10px; border-top: 0; border-radius: 7px; }
-      /* 会话行分隔线：直角并左伸到会话列表的竖线，和竖线连起来。 */
-      .cs-page .cs-session + .cs-session::after { content: ''; position: absolute; top: 0; left: -8px; right: 0; height: 1px; background: color-mix(in srgb, var(--dsw-alias-border-l1) 72%, transparent); pointer-events: none; }
-      .cs-page .cs-session.is-openable { cursor: pointer; transition: background var(--cs-dur-tap) var(--cs-ease); }
-      .cs-page .cs-session.is-openable:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 4%, transparent); }
+      .cs-page .cs-sessions { margin: 0 0 8px 28px; padding: 2px 0; border-left: 1px solid var(--dsw-alias-border-l1); border-radius: 0; background: transparent; }
+      .cs-page .cs-session { position: relative; display: flex; align-items: center; flex-wrap: nowrap; gap: 16px; padding: 11px 10px 11px 18px; border-top: 0; border-radius: 0 7px 7px 0; }
+      /* 选中底色和分隔线贴合分组竖线，选中标记覆盖竖线，文字保留原有缩进。 */
+      .cs-page .cs-session + .cs-session::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: color-mix(in srgb, var(--dsw-alias-border-l1) 72%, transparent); pointer-events: none; }
       .cs-session-body { display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; min-width: 0; }
       .cs-session-headline { display: flex; align-items: center; gap: 7px; min-width: 0; }
       .cs-session-dot { width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--dsw-alias-border-l2, var(--dsw-alias-border-l1)); }
       .cs-session-dot.is-running { background: var(--cs-task); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cs-task) 14%, transparent); }
-      .cs-page .cs-session-title { flex: 0 1 auto; min-width: 0; max-width: 100%; font-size: 14px; line-height: 20px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .cs-page .cs-session-open { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-      .cs-page .cs-session-open:hover { color: var(--cs-signal); }
-      .cs-page .cs-session-open:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; border-radius: 3px; }
+      .cs-page .cs-session-title { flex: 0 1 auto; min-width: 0; max-width: 100%; color: var(--cs-ink); font-size: 14px; line-height: 20px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .cs-session-headline .cs-session-status { color: var(--dsw-alias-label-secondary); }
       .cs-session-headline .cs-session-status.is-running { color: var(--cs-task); }
       .cs-session-headline .cs-session-status.is-warning { color: var(--cs-error); }
@@ -8049,9 +8215,6 @@ window.__ModuleLoader__.load({
       .cs-session-tail { display: flex; align-items: center; gap: 5px; flex: none; margin-left: auto; }
       .cs-session-tail .cs-session-last { display: inline-flex; align-items: center; gap: 4px; padding: 0; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; white-space: nowrap; }
       .cs-session-tail .cs-session-last .cs-detail-glyph { width: 13px; height: 13px; vertical-align: middle; opacity: .7; }
-      .cs-session-arrow { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--dsw-alias-label-secondary); opacity: .45; transition: opacity var(--cs-dur-tap) var(--cs-ease), transform var(--cs-dur-tap) var(--cs-ease); }
-      .cs-page .cs-session.is-openable:hover .cs-session-arrow { opacity: .9; transform: translate(1px, -1px); }
-      .cs-page .cs-session.is-openable:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; }
       .cs-page .cs-session.is-highlighted { background: color-mix(in srgb, var(--cs-signal) 8%, transparent); }
       @media (max-width: 760px) {
         .cs-details-toolbar .cs-search-wrap { flex-basis: 100%; max-width: none; }
@@ -8071,9 +8234,8 @@ window.__ModuleLoader__.load({
         .cs-sessions-scope { display: none; }
         .cs-workspace-list { margin-top: 4px; }
         .cs-page .cs-summary.cs-workspace-head { min-height: 42px; padding: 4px 4px; }
-        .cs-page .cs-sessions { margin-left: 22px; padding-left: 4px; }
-        .cs-page .cs-session { gap: 10px; padding: 8px 4px; }
-        .cs-page .cs-session + .cs-session::after { left: -4px; }
+        .cs-page .cs-sessions { margin-left: 22px; }
+        .cs-page .cs-session { gap: 10px; padding: 8px 4px 8px 8px; }
         .cs-page .cs-session-headline { align-items: flex-start; gap: 6px; }
         .cs-page .cs-session-dot { margin-top: 6px; }
         .cs-page .cs-session-title { display: -webkit-box; overflow: hidden; white-space: normal; text-overflow: clip; line-height: 18px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
@@ -8083,7 +8245,6 @@ window.__ModuleLoader__.load({
         .cs-session-tail .cs-session-last { font-size: 10.5px; }
       }
       @media (max-width: 430px) {
-        .cs-session-arrow { display: none; }
       }
     `
 
@@ -8112,42 +8273,36 @@ window.__ModuleLoader__.load({
       }
       .cs-settings-control input:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
       .cs-settings-control .cs-settings-select .cs-select-btn { min-width: 72px; font-size: 12px; }
-      .cs-settings-unit { font-size: 12px; color: var(--dsw-alias-label-secondary); }
       .cs-settings-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
       .cs-settings-switch input { width: 16px; height: 16px; accent-color: var(--dsw-alias-brand-primary); cursor: pointer; }
       /* Dashboard 设置：12 列双栏板。统计与数字格式在上，外观/初始化/通知/数据交错排布，
          宽屏利用横向空间，窄屏自动回到单列；每张卡只占内容需要的高度。 */
       .cs-settings-board .cs-settings-grid {
-        grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: start;
+        grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: stretch;
       }
-      .cs-settings-board .cs-settings-card { padding: 13px 15px; align-self: start; }
+      .cs-settings-board .cs-settings-card { padding: 17px 18px; align-self: stretch; }
       .cs-settings-main { grid-column: span 7; }
       .cs-settings-side { grid-column: span 5; }
       .cs-settings-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
       .cs-settings-card-head h3 { margin: 0; font-size: 13px; line-height: 19px; font-weight: 650; }
       .cs-settings-card-sub { margin: 2px 0 0; font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      .cs-settings-feedback { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; max-width: 45%; text-align: right; }
+      .cs-settings-feedback .cs-settings-status { font-size: 11px; }
       .cs-settings-scope {
         flex: none; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l1);
         color: var(--dsw-alias-label-secondary); font-size: 10px; line-height: 16px; letter-spacing: .02em;
       }
       .cs-settings-list { display: flex; flex-direction: column; margin-top: 6px; }
       .cs-settings-list .cs-settings-row:last-child { border-bottom: 0; padding-bottom: 1px; }
-      /* 仪表盘宽卡：统计项排成两列；行数为奇数时最后一行独占整行，避免右半张卡空着。 */
-      .cs-settings-list.is-split {
-        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-        column-gap: 18px; row-gap: 0;
-      }
-      .cs-settings-list.is-split .cs-settings-row {
-        grid-template-columns: minmax(0, 1fr) auto; gap: 10px;
-      }
-      .cs-settings-list.is-split .cs-settings-row:last-child { grid-column: 1 / -1; }
-      /* 行数为偶数时（含界面语言后的六项）两列正好填满，最后一行不再独占整行。 */
-      .cs-settings-list.is-split.is-even .cs-settings-row:last-child {
-        grid-column: auto;
-        border-bottom: 1px solid var(--dsw-alias-border-l1);
-      }
-      .cs-settings-list.is-split .cs-settings-row > div:first-child { min-width: 0; }
-      .cs-settings-list.is-split .cs-settings-control { justify-content: flex-end; }
+      .cs-settings-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+      .cs-settings-sections h4 { margin: 0 0 5px; font-size: 11px; line-height: 18px; font-weight: 500; color: var(--dsw-alias-label-secondary); }
+      .cs-settings-sections .cs-settings-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; min-height: 42px; padding: 5px 0; }
+      .cs-settings-sections .cs-settings-label { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+      .cs-settings-sections .cs-info-tip { font-size: 13px; line-height: 1.65; }
+      .cs-settings-sections .cs-settings-control { justify-content: flex-end; gap: 4px; }
+      .cs-settings-sections .cs-settings-select .cs-select-btn { min-width: 88px; }
+      .cs-settings-sections .cs-settings-switch { font-size: 11px; gap: 5px; }
+      .cs-settings-sections .cs-settings-row:last-child { border-bottom: 0; }
       .cs-settings-board .cs-format-card { align-self: stretch; }
       .cs-settings-board .cs-format-card .cs-format-section {
         display: flex; flex: 1 1 auto; flex-direction: column; height: 100%;
@@ -8159,10 +8314,17 @@ window.__ModuleLoader__.load({
           gap: 6px; align-content: center;
         }
         .cs-settings-board .cs-format-opt {
-          flex: none; min-height: 40px; justify-content: flex-start; padding: 5px 9px;
+          flex: none; min-height: 32px; justify-content: flex-start; padding: 5px 9px;
         }
         .cs-settings-board .cs-format-opt:last-child { grid-column: 1 / -1; }
       }
+      .cs-format-live { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 10px; padding: 10px 0; border-top: 1px solid var(--dsw-alias-border-l1); margin-top: 10px; }
+      .cs-data-danger { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--dsw-alias-border-l1); }
+      .cs-format-live-value, .cs-format-sidebar { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
+      .cs-format-sidebar { align-items: flex-end; }
+      .cs-format-live-value > span, .cs-format-sidebar > span:first-child { font-size: 11px; color: var(--dsw-alias-label-secondary); flex: none; }
+      .cs-format-live-value b { font: 600 20px/1.4 ui-monospace, Consolas, monospace; }
+      .cs-format-sidebar > .dsh-timespan-nav-entry { width: auto; min-width: 120px; max-width: 220px; padding: 4px 8px; border-radius: 6px; background: var(--dsw-alias-bg-layer-2); }
       .cs-format-shared {
         margin: auto 0 0; padding-top: 10px; border-top: 1px solid var(--dsw-alias-border-l1);
         font-size: 10.5px; line-height: 16px; color: var(--dsw-alias-label-secondary);
@@ -8220,7 +8382,7 @@ window.__ModuleLoader__.load({
         .cs-settings-main, .cs-settings-side { grid-column: 1 / -1; }
       }
       @media (max-width: 760px) {
-        .cs-appearance-panel { grid-template-columns: 1fr; }
+        .cs-appearance-panel, .cs-settings-sections { grid-template-columns: 1fr; }
       }
       /* 数字格式：五档压成一条横向选项条，标题右侧只留一枚实时预览。 */
       .cs-format-section { gap: 0; }
