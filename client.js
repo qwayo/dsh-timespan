@@ -85,7 +85,7 @@ window.__ModuleLoader__.load({
     const RECENT_SESSIONS_DEFAULT = 5
     const RECENT_SESSIONS_MIN = 3
     const RECENT_SESSIONS_MAX = 6
-    const RECENT_ROW_FALLBACK_PX = 35
+    const RECENT_ROW_FALLBACK_PX = 41
     const RECENT_CHROME_FALLBACK_PX = 66
     const RECENT_FIT_GAP_PX = 4
     /** 回填进行时加快轮询，让进度与完成后的数字尽快出现，无需刷新页面。 */
@@ -224,7 +224,7 @@ window.__ModuleLoader__.load({
       periodLoadFailed: '更新失败，暂时显示',
       trendInfo: '活跃时长和任务时长分别统计，可能重叠；悬停柱形可查看数值。',
       heatmapTitle: '每日活跃',
-      heatmapInfo: '每格一天，颜色越深活跃越长',
+      heatLegendLabel: '活跃程度图例',
       heatLegendLow: '低',
       heatLegendHigh: '高',
       heatDayTitle: '{month}月{day}日',
@@ -536,7 +536,7 @@ window.__ModuleLoader__.load({
       periodLoadFailed: 'Update failed; still showing',
       trendInfo: 'Active and task time are measured separately and may overlap. Hover a bar for its value.',
       heatmapTitle: 'Daily active time',
-      heatmapInfo: 'One cell per day; darker means more active time.',
+      heatLegendLabel: 'Activity level legend',
       heatLegendLow: 'Less',
       heatLegendHigh: 'More',
       heatDayTitle: '{month} {day}',
@@ -2762,6 +2762,20 @@ window.__ModuleLoader__.load({
       const slot = width / Math.max(1, count)
       const barWidth = Math.max(1.5, Math.min(slot * 0.32, 16))
       const gap = Math.max(1, slot * 0.05)
+      const renderBar = (key, x, duration, fill) => {
+        const barHeight = Math.max(1.5, (duration / peak) * usable)
+        return h('rect', {
+          key,
+          className: 'cs-bar',
+          x,
+          y: baseline - barHeight,
+          width: barWidth,
+          height: barHeight,
+          rx: barWidth * 0.42,
+          ry: Math.min(barWidth * 0.32, barHeight / 2),
+          fill,
+        })
+      }
       const groups = []
       trend.forEach((bucket, index) => {
         const left = index * slot + (slot - barWidth * 2 - gap) / 2
@@ -2770,30 +2784,10 @@ window.__ModuleLoader__.load({
         const hot = hover?.kind === 'bucket' && hover.key === bucket.key
         const bars = []
         if (bucket.activeMs > 0) {
-          const barHeight = Math.max(1.5, (bucket.activeMs / peak) * usable)
-          bars.push(h('rect', {
-            key: `active-${bucket.key}`,
-            className: 'cs-bar',
-            x: left,
-            y: baseline - barHeight,
-            width: barWidth,
-            height: barHeight,
-            rx: 1.5,
-            fill: 'var(--cs-live)',
-          }))
+          bars.push(renderBar(`active-${bucket.key}`, left, bucket.activeMs, 'var(--cs-live)'))
         }
         if (bucket.taskMs > 0) {
-          const barHeight = Math.max(1.5, (bucket.taskMs / peak) * usable)
-          bars.push(h('rect', {
-            key: `task-${bucket.key}`,
-            className: 'cs-bar',
-            x: left + barWidth + gap,
-            y: baseline - barHeight,
-            width: barWidth,
-            height: barHeight,
-            rx: 1.5,
-            fill: 'var(--cs-task)',
-          }))
+          bars.push(renderBar(`task-${bucket.key}`, left + barWidth + gap, bucket.taskMs, 'var(--cs-task)'))
         }
         const groupProps = {
           key: bucket.key,
@@ -2895,15 +2889,23 @@ window.__ModuleLoader__.load({
      */
     function renderCycleCard(t, period, cycle, isCurrent, onSelect, format = 'hms') {
       const titleKey = period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth'
-      const share = activeSharePercent(cycle.activeMs, cycle.onlineMs)
       return h('button', { key: period, type: 'button', className: `cs-cycle${isCurrent ? ' is-current' : ''}`, 'aria-pressed': isCurrent, onClick: onSelect },
         h('span', { className: 'cs-cycle-head' },
           h('span', { className: 'cs-cycle-title' }, t(titleKey))),
         h('span', { className: 'cs-cycle-value' }, formatDuration(cycle.activeMs, format)),
-        h('span', { className: 'cs-cycle-tail' },
-          h('span', { className: 'cs-cycle-share' }, `${t('activeShare')} ${share}%`),
-          h('span', { className: 'cs-cycle-track', 'aria-hidden': true },
-            h('i', { style: { width: `${share}%` } }))))
+        renderCycleShare(cycle, t))
+    }
+
+    function renderCycleShare(cycle, t) {
+      const share = activeSharePercent(cycle.activeMs, cycle.onlineMs)
+      return renderShareTrack(t('activeShare'), share)
+    }
+
+    function renderShareTrack(label, share, tone = 'active') {
+      return h('span', { className: 'cs-cycle-tail' },
+        h('span', { className: 'cs-cycle-share' }, `${label} ${share}%`),
+        h('span', { className: `cs-cycle-track${tone === 'task' ? ' is-task' : ''}`, 'aria-hidden': true },
+          h('i', { style: { width: `${share}%` } })))
     }
 
     /** 热力图图例：只用当前主题的六档热力色从左到右排成低→高色带，不再重复解释文字。 */
@@ -2961,7 +2963,7 @@ window.__ModuleLoader__.load({
             h('path', { d: 'M10 9v4M10 6.5h.01', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' }))),
         h('span', {
           ref: tipRef,
-          className: `cs-info-tip${content === null && lines === null ? '' : ' cs-info-tip-legend'}${lines === null ? '' : ' cs-info-tip-lines'}`,
+          className: `cs-info-tip${lines === null ? '' : ' cs-info-tip-lines'}`,
           role: 'tooltip',
           'data-placement': position?.placement ?? 'bottom',
           // 位置尚未量出时内联 hidden 压住 CSS 显示，避免在 (0,0) 闪一下。
@@ -2969,11 +2971,7 @@ window.__ModuleLoader__.load({
             ? { left: `${position.left}px`, top: `${position.top}px` }
             : { left: '0px', top: '0px', visibility: 'hidden' },
         }, lines === null
-          ? (content === null
-              ? message
-              : h('span', { className: 'cs-info-content' },
-                  h('span', { className: 'cs-info-copy' }, message),
-                  h('span', { className: 'cs-info-legend' }, content)))
+          ? content ?? message
           : h('span', { className: 'cs-info-lines' },
               lines.map((line, index) => h('span', { className: 'cs-info-line', key: index }, line)))))
     }
@@ -3094,7 +3092,7 @@ window.__ModuleLoader__.load({
       return h('section', { className: 'cs-card cs-ranking' },
         h('div', { className: 'cs-card-head' }, renderCardTitle(t('workspaceRanking'), 'ranking')),
         rows.length === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
-          : h('div', { className: 'cs-ranking-list' }, rows.map((row, index) => {
+          : h('div', { className: `cs-ranking-list${rows.length <= 2 ? ' is-short' : ''}` }, rows.map((row, index) => {
               const name = row.workspaceTitle ?? t('unassigned')
               return h('div', {
                 className: 'cs-ranking-row',
@@ -4419,7 +4417,7 @@ window.__ModuleLoader__.load({
       }, zoomIcon(active))
     }
 
-    /** 首屏主指标的统一取值表：普通 hero 卡与放大页共用，避免两处口径漂移。 */
+    /** 普通概览与放大页共用五种主指标的取值表。 */
     function heroMetricTable(data, t) {
       const day = data?.cycles?.day ?? {}
       const week = data?.cycles?.week ?? {}
@@ -4447,7 +4445,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 大数字下方两条只读副信息；今日主指标给另外两项今日数据，周/月给该周期在线与任务。 */
-    function heroMetaItems(data, t, metric) {
+    function heroMetaItems(data, metric) {
       const day = data?.cycles?.day ?? {}
       if (metric === 'week') {
         return [['weekOnline', finite(data?.cycles?.week?.onlineMs)], ['weekTask', finite(data?.cycles?.week?.taskMs)]]
@@ -4516,24 +4514,46 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** 今日大数字卡片：普通概览里位于周期卡之前，右上角可放大为首屏。 */
-    function renderHeroCard(props) {
-      const { data, t, format = 'hms', focus = null, onToggleFocus, heroMetric } = props
+    /** 概览主指标跟随放大页；三个周期按钮切换下方的统计范围。 */
+    function renderOverviewMetrics(props) {
+      const { data, t, isZh, nowMs, period, onSelectPeriod, format = 'hms', focus, onToggleFocus, heroMetric } = props
       const metric = normalizeHeroMetric(heroMetric)
       const current = heroMetricTable(data, t)[metric]
-      const meta = heroMetaItems(data, t, metric)
+      const value = formatDuration(current.value, format)
+      const share = heroRingModel(data, t, metric)
+      const isLongRange = metric === 'week' || metric === 'month'
+      const date = new Date(nowMs ?? Date.now())
+      const locale = isZh ? 'zh-CN' : 'en'
+      const dateLabel = date.toLocaleDateString(locale, { month: 'short', day: 'numeric', weekday: 'short' })
       return h('section', {
-        className: 'cs-card cs-hero',
+        className: 'cs-card cs-overview-metrics',
         'data-focus': 'hero',
-        'data-metric': metric,
       },
-        h('div', { className: 'cs-card-head' },
-          renderCardTitle(current.title, 'clock',
-            heroMetricTag(t, metric) === null ? null : h('span', { className: 'cs-tag' }, heroMetricTag(t, metric))),
+        h('div', { className: 'cs-overview-today' },
+          h('button', {
+            type: 'button',
+            className: `cs-cycle cs-cycle-today${period === 'day' ? ' is-current' : ''}`,
+            'aria-label': `${t('cycleToday')} · ${current.title} ${value}`,
+            'aria-pressed': period === 'day',
+            onClick: () => onSelectPeriod?.('day'),
+          },
+            h('span', { className: 'cs-cycle-head' },
+              h('span', { className: 'cs-card-icon' }, h(DetailGlyph, { name: 'clock', size: 15 })),
+              h('span', { className: 'cs-cycle-title' }, metric === 'active' ? t('focusTodayActive') : current.title),
+              isLongRange ? h('span', { className: 'cs-cycle-period' }, t('cycleToday')) : null),
+            h('strong', { className: metric === 'online' ? 'cs-hero-num is-today-online' : 'cs-hero-num' }, value),
+            h('time', { dateTime: localDateKey(date) }, dateLabel),
+            renderShareTrack(share.label, share.percent, share.tone)),
           renderZoomButton({ t, focus, onToggleFocus })),
-        h('div', { className: 'cs-hero-num' }, formatDuration(current.value, format)),
-        h('div', { className: 'cs-hero-meta' }, meta.map(([labelKey, value]) =>
-          h('span', { key: labelKey }, `${t(labelKey)} ${formatDuration(value, format)}`))))
+        h('div', { className: 'cs-overview-metric-pair' },
+          heroMetaItems(data, metric).map(([label, value]) => {
+            const glyph = label.endsWith('Task') ? 'task' : label.endsWith('Active') ? 'active' : 'clock'
+            return h('div', { key: label, className: `cs-overview-metric is-${glyph}` },
+              h('span', null, h(DetailGlyph, { name: glyph, size: 14 }), t(label)),
+              h('strong', { className: label === 'todayOnline' ? 'is-today-online' : undefined }, formatDuration(value, format)))
+          })),
+        ['week', 'month'].map((item) => renderCycleCard(
+          t, item, data?.cycles?.[item] ?? {}, item === period, () => onSelectPeriod?.(item), format)))
     }
 
     /** 活跃占比：在线为 0 时按 0% 处理，结果夹在 0–100 之间。 */
@@ -4592,7 +4612,7 @@ window.__ModuleLoader__.load({
       const metric = normalizeHeroMetric(heroMetric)
       const metricTable = heroMetricTable(data, t)
       const current = metricTable[metric]
-      const meta = heroMetaItems(data, t, metric)
+      const meta = heroMetaItems(data, metric)
       const ring = heroRingModel(data, t, metric)
       const metricButton = (key, label, value) => h('button', {
         type: 'button',
@@ -4721,7 +4741,7 @@ window.__ModuleLoader__.load({
       const head = h('div', { className: 'cs-card-head' },
         h('div', { className: 'cs-card-heading' },
           h('h2', null, titleText),
-          renderInfo(t('heatmapInfo'), renderHeatLegend(t))),
+          renderInfo(t('heatLegendLabel'), renderHeatLegend(t))),
         h('div', { className: 'heat-card-actions' },
           renderHeatRangePicker({ value: normalizedValue, t, onSelectRange }),
           zoomable ? renderZoomButton({ t, focus, onToggleFocus, value: 'heatmap' }) : null))
@@ -4945,18 +4965,22 @@ window.__ModuleLoader__.load({
         })]
       }
       const shownPeriod = data?.period ?? period
+      const heatmap = renderDailyHeatmap({
+        series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
+        rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange, focus, onToggleFocus,
+      })
+      const showYear = heatLayoutFor(heatRangeValue) === 'year'
       return [
         h('div', { className: 'cs-overview-grid' },
-          renderHeroCard({ data, t, format: durationFormat, focus, onToggleFocus, heroMetric }),
-          renderCycles(data, t, period, onSelectPeriod, durationFormat),
-          renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
-          renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat),
-          renderWorkspaceRanking(data, t, durationFormat, hoverTip),
-          renderRecentSessions(data, t, nowMs, onOpenSession, durationFormat, recentLimit),
-          renderDailyHeatmap({
-            series: heatSeries, status: heatStatus, t, format: durationFormat, nowMs, hoverTip,
-            rangeValue: heatRangeValue, onSelectRange: onSelectHeatRange, focus, onToggleFocus,
-          })),
+          renderOverviewMetrics({ data, t, isZh, nowMs, period, onSelectPeriod, format: durationFormat, focus, onToggleFocus, heroMetric }),
+          h('div', { className: 'cs-overview-analysis' },
+            renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
+            renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat)),
+          h('div', { className: `cs-overview-bottom${showYear ? ' is-year' : ''}` },
+            ...(showYear ? [] : [heatmap]),
+            renderWorkspaceRanking(data, t, durationFormat, hoverTip),
+            renderRecentSessions(data, t, nowMs, onOpenSession, durationFormat, recentLimit)),
+          ...(showYear ? [heatmap] : [])),
       ]
     }
 
@@ -4979,14 +5003,12 @@ window.__ModuleLoader__.load({
                 } : {}),
                 className: `cs-recent-row${openable ? '' : ' is-static'}`,
               },
-                h('span', {
-                  className: `cs-recent-status${session.taskRunning === true ? ' is-running' : ''}`,
-                  ...(session.taskRunning === true
-                    ? { role: 'img', 'aria-label': t('runningTag'), title: t('runningTag') }
-                    : { 'aria-hidden': true }),
-                }, session.taskRunning === true ? h(DetailGlyph, { name: 'running', size: 13 }) : null),
-                h('span', { className: 'cs-recent-title' }, session.sessionTitle ?? t('unknownSession')),
-                h('span', { className: 'cs-recent-workspace' }, session.workspaceTitle ?? t('unassigned')),
+                h('span', { className: 'cs-recent-name' },
+                  session.taskRunning === true ? h('span', {
+                    className: 'cs-recent-status', role: 'img', 'aria-label': t('runningTag'), title: t('runningTag'),
+                  }) : null,
+                  h('span', { className: 'cs-recent-title' }, session.sessionTitle ?? t('unknownSession')),
+                  h('span', { className: 'cs-recent-workspace' }, session.workspaceTitle ?? t('unassigned'))),
                 h('span', { className: 'cs-recent-time' }, formatDuration(session.taskMs, format)),
                 h('span', { className: 'cs-recent-last' }, formatRelativeTime(session.lastActivityAt, t, nowMs)))
             })))
@@ -5633,8 +5655,7 @@ window.__ModuleLoader__.load({
         React.useEffect(() => {
           if (view === 'overview' && focus === null) setHeatRangeValue(HEAT_DEFAULT_RANGE)
         }, [view, focus])
-        // 观察同排「工作区排行」的行高作为底部行高度锚点；不要观察最近会话自身，
-        // 否则内容增多会先撑高行、再反过来抬高测量值，形成正反馈。
+        // 用同排行卡、热力图卡的自然内容高度估算最近会话条数，避免网格拉伸后的高度反过来受会话条数影响。
         React.useEffect(() => {
           if (view !== 'overview' || focus !== null) {
             setRecentLimit(RECENT_SESSIONS_DEFAULT)
@@ -5645,24 +5666,33 @@ window.__ModuleLoader__.load({
           const measure = () => {
             const root = viewsRef.current
             const grid = root?.querySelector?.('.cs-overview-grid')
-            const anchor = grid?.querySelector?.('.cs-ranking')
             const card = grid?.querySelector?.('.cs-recent')
-            if (!anchor || !card) return
-            const anchorRect = anchor.getBoundingClientRect()
+            if (!card) {
+              setRecentLimit(RECENT_SESSIONS_DEFAULT)
+              return
+            }
             const cardRect = card.getBoundingClientRect()
-            if (anchorRect.height <= 0) return
-            if (Math.abs(anchorRect.top - cardRect.top) > 1) {
+            const rowHeight = Math.max(0, ...Array.from(grid.querySelectorAll('.cs-overview-bottom > .cs-card')).map((anchor) => {
+              if (anchor === card || Math.abs(anchor.getBoundingClientRect().top - cardRect.top) > 1) return 0
+              const style = window.getComputedStyle(anchor)
+              const contentHeight = Array.from(anchor.children).reduce((height, child) => height + child.getBoundingClientRect().height, 0)
+              return Math.max(parseFloat(style.minHeight) || 0, contentHeight +
+                (parseFloat(style.rowGap) || 0) * Math.max(0, anchor.children.length - 1) +
+                ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'].reduce((sum, key) => sum + (parseFloat(style[key]) || 0), 0))
+            }))
+            if (rowHeight <= 0) {
               setRecentLimit(RECENT_SESSIONS_DEFAULT)
               return
             }
             const head = card.querySelector('.cs-card-head')
             const style = window.getComputedStyle(card)
             const chrome = (head?.getBoundingClientRect().height ?? 24) +
+              (head ? parseFloat(window.getComputedStyle(head).marginBottom) || 0 : 0) +
               parseFloat(style.paddingTop || '0') + parseFloat(style.paddingBottom || '0') +
               parseFloat(style.borderTopWidth || '0') + parseFloat(style.borderBottomWidth || '0')
             const row = card.querySelector('.cs-recent-row')
             const rowPx = row?.getBoundingClientRect().height || RECENT_ROW_FALLBACK_PX
-            const next = recentLimitForRow({ rowHeight: anchorRect.height, rowPx, chromePx: chrome })
+            const next = recentLimitForRow({ rowHeight, rowPx, chromePx: chrome })
             setRecentLimit((previous) => previous === next ? previous : next)
           }
           const schedule = () => {
@@ -5675,10 +5705,13 @@ window.__ModuleLoader__.load({
           }
           measure()
           let observer = null
-          const anchor = viewsRef.current?.querySelector?.('.cs-overview-grid .cs-ranking')
-          if (anchor && typeof window.ResizeObserver === 'function') {
+          const anchors = viewsRef.current?.querySelectorAll?.('.cs-overview-bottom > .cs-ranking, .cs-overview-bottom > .cs-heatmap-card')
+          if (anchors?.length && typeof window.ResizeObserver === 'function') {
             observer = new window.ResizeObserver(schedule)
-            observer.observe(anchor)
+            for (const anchor of anchors) {
+              observer.observe(anchor)
+              for (const child of anchor.children) observer.observe(child)
+            }
           }
           if (typeof window.addEventListener === 'function') window.addEventListener('resize', schedule)
           return () => {
@@ -5689,7 +5722,7 @@ window.__ModuleLoader__.load({
               else window.clearTimeout(frame)
             }
           }
-        }, [view, focus, heatRangeValue, isZh])
+        }, [view, focus, heatRangeValue, state.status, isZh, period])
 
         // 打开设置页时读取 Host 权威设置与通知记录；关闭时丢弃未保存草稿。
         const settingsOpen = view === 'settings'
@@ -6206,6 +6239,18 @@ window.__ModuleLoader__.load({
         border-radius: 6px;
         outline: none;
       }
+      /* 「更多」复用侧栏图标，但宿主把它装在 16px 的盒子里。为时长腾出实际宽度，菜单行仍由宿主管理。 */
+      [role="menuitem"] > span:has(.dsh-timespan-nav-entry),
+      [role="menuitem"] span:has(> [data-slot="sidebar.panellist"] > .dsh-timespan-nav-entry) {
+        width: auto; min-width: 0; flex: 0 1 auto;
+      }
+      [role="menuitem"] .dsh-timespan-nav-entry { width: auto; gap: 5px; }
+      [role="menuitem"] .dsh-timespan-nav-entry .dsh-timespan-nav-time {
+        flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px;
+      }
+      [role="menuitem"] .dsh-timespan-nav-status,
+      [role="menuitem"] .dsh-timespan-nav-dot,
+      [role="menuitem"] .dsh-timespan-nav-tip { display: none; }
       /* 状态点贴右：入口撑满宿主行，圆点用 auto 外边距推到行末；inline 保持原来的内容簇布局。 */
       .dsh-timespan-nav-entry.is-dot-end { width: 100%; }
       .dsh-timespan-nav-entry.is-dot-end .dsh-timespan-nav-dot { margin-left: auto; margin-right: 3px; }
@@ -6337,8 +6382,8 @@ window.__ModuleLoader__.load({
       .dsh-timespan-nav-entry:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
       /* 关闭「显示名称」时连宿主 panelTitle 一起隐藏：只隐藏第二个 span，
          折叠态只剩 panelGlyph 一个 span，不会被误隐藏；label 保留可访问名与 tooltip。 */
-      html[data-dsh-timespan-hide-name] button[aria-label="TimeSpan"] { gap: 0; }
-      html[data-dsh-timespan-hide-name] button[aria-label="TimeSpan"] > span + span { display: none; }
+      html[data-dsh-timespan-hide-name] button[aria-label="TimeSpan"]:not([role="menuitem"]) { gap: 0; }
+      html[data-dsh-timespan-hide-name] button[aria-label="TimeSpan"]:not([role="menuitem"]) > span + span { display: none; }
       /* 名称去掉后，时间独占剩余空间并居中，字号再放大一档。 */
       .dsh-timespan-nav-entry.is-nameless { justify-content: center; }
       .dsh-timespan-nav-entry.is-nameless .dsh-timespan-nav-time {
@@ -6543,7 +6588,6 @@ window.__ModuleLoader__.load({
       .cs-trend-layout .cs-card-heading,
       .cs-trend-bottom .cs-card-heading { position: relative; top: -4px; }
       .cs-card-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-      .cs-recent .cs-tag { align-self: center; }
       .cs-heatmap-card .cs-card-heading { align-items: center; }
       .cs-card-heading h2 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 620; }
       .cs-card-title { display: inline-flex; align-items: center; gap: 7px; }
@@ -6904,45 +6948,29 @@ window.__ModuleLoader__.load({
         --cs-series-other: color-mix(in srgb, var(--cs-signal) 32%, var(--cs-surface));
         --cs-series-unknown: color-mix(in srgb, var(--cs-signal) 17%, var(--cs-surface));
       }
-      /* 普通概览按原型三行 Bento：hero 与周期卡并排，趋势横跨前两列，构成在右，底部三卡并列。 */
+      /* 概览各行使用独立列宽：趋势与构成同排，底部给热力图与会话列表留出更多空间。 */
       .cs-overview-grid {
-        display: grid; grid-template-columns: 1.05fr 1fr 1fr;
+        display: grid; grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto auto auto; gap: 10px; align-content: start;
       }
-      .cs-hero { grid-column: 1; grid-row: 1; }
-      .cs-cycles { grid-column: 2 / 4; grid-row: 1; }
-      .cs-trend-card { grid-column: 1 / 3; grid-row: 2; }
-      .cs-composition { grid-column: 3; grid-row: 2; }
-      .cs-ranking { grid-column: 1; grid-row: 3; }
-      .cs-recent { grid-column: 2; grid-row: 3; }
-      .cs-heatmap-card { grid-column: 3; grid-row: 3; }
-      /* 全年 7 行 × 53 列周网格需要整行宽度；最近会话顺势拉宽填满第 3 行，不留空列。 */
-      .cs-overview-grid > .cs-heatmap-card[data-range="year"] { grid-column: 1 / -1; grid-row: 4; }
-      .cs-overview-grid:has(> .cs-heatmap-card[data-range="year"]) > .cs-recent { grid-column: 2 / 4; }
-      @media (max-width: 900px) {
-        .cs-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        /* 窗口收窄时周期卡独占整行，避免三张卡挤在右半列里把内容压扁。 */
-        .cs-hero { grid-column: 1 / -1; grid-row: 1; }
-        .cs-cycles { grid-column: 1 / -1; grid-row: 2; }
-        .cs-trend-card { grid-column: 1 / -1; grid-row: 3; }
-        .cs-composition { grid-column: 1; grid-row: 4; }
-        .cs-ranking { grid-column: 2; grid-row: 4; }
-        .cs-recent { grid-column: 1; grid-row: 5; }
-        .cs-heatmap-card { grid-column: 2; grid-row: 5; }
-        .cs-overview-grid > .cs-heatmap-card[data-range="year"] { grid-column: 1 / -1; grid-row: 6; }
-        .cs-overview-grid:has(> .cs-heatmap-card[data-range="year"]) > .cs-recent { grid-column: 1 / -1; grid-row: 5; }
+      .cs-overview-analysis, .cs-overview-bottom { display: grid; min-width: 0; gap: 10px; }
+      .cs-overview-analysis { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); }
+      .cs-overview-bottom { grid-template-columns: minmax(0, 1.08fr) minmax(0, .87fr) minmax(0, 1.3fr); }
+      .cs-overview-bottom.is-year { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+      .cs-overview-grid > .cs-heatmap-card { grid-column: 1 / -1; }
+      #cs-view-overview { container: cs-overview / inline-size; }
+      @container cs-overview (max-width: 850px) {
+        .cs-overview-analysis { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+        .cs-overview-bottom { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .cs-overview-bottom:not(.is-year) > .cs-recent { grid-column: 1 / -1; }
       }
-      @media (max-width: 600px) {
-        .cs-overview-grid { grid-template-columns: 1fr; }
-        .cs-hero, .cs-cycles, .cs-trend-card, .cs-composition, .cs-ranking, .cs-recent, .cs-heatmap-card {
-          grid-column: 1; grid-row: auto;
-        }
-        .cs-overview-grid > .cs-heatmap-card[data-range="year"] { grid-column: 1; grid-row: auto; }
-        .cs-overview-grid:has(> .cs-heatmap-card[data-range="year"]) > .cs-recent { grid-column: 1; grid-row: auto; }
+      @container cs-overview (max-width: 560px) {
+        .cs-overview-analysis, .cs-overview-bottom, .cs-overview-bottom.is-year { grid-template-columns: minmax(0, 1fr); }
       }
       .cs-analysis-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
       .cs-composition, .cs-ranking { min-height: 250px; display: flex; flex-direction: column; gap: 20px; }
-      .cs-composition-body { display: flex; align-items: center; gap: 16px; flex: 1; }
+      .cs-composition { container: cs-composition / inline-size; }
+      .cs-composition-body { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
       .cs-donut { position: relative; width: clamp(118px, 12vw, 168px); aspect-ratio: 1; flex: none; }
       .cs-donut svg { display: block; width: 100%; height: 100%; }
       .cs-donut-center {
@@ -6955,9 +6983,11 @@ window.__ModuleLoader__.load({
       }
       .cs-donut-center span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 1.15; color: var(--dsw-alias-label-secondary); }
       .cs-composition-list, .cs-ranking-list { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
-      /* 时长可长可短（中文格式「2 小时 48 分」最宽）：标签列吸收收缩，时长列按内容但允许省略，绝不撑出卡片。 */
-      .cs-composition-row { display: grid; grid-template-columns: 10px minmax(0,1fr) 38px minmax(0,max-content); align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
-      .cs-composition-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cs-ranking-list { flex: 0 0 auto; margin-block: auto; }
+      .cs-ranking-list.is-short { margin-block: 4px auto; }
+      /* 给图例名称和百分比留足空间，过长的时长可在数字列内换行。 */
+      .cs-composition-row { display: grid; grid-template-columns: 10px minmax(min-content, 1fr) max-content minmax(0, max-content); align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+      .cs-composition-label { min-width: max-content; }
       .cs-series-swatch { width: 9px; height: 9px; border-radius: 2px; }
       .cs-series-swatch.is-model { background: var(--cs-series-model); }
       .cs-series-swatch.is-tool { background: var(--cs-series-tool); }
@@ -6967,6 +6997,11 @@ window.__ModuleLoader__.load({
       .cs-composition-percent, .cs-composition-time, .cs-ranking-time { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; min-width: 0; }
       .cs-composition-percent, .cs-rank-index { color: var(--dsw-alias-label-secondary); }
       .cs-composition-time, .cs-ranking-time { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+      .cs-composition-time { white-space: normal; overflow-wrap: anywhere; }
+      @container cs-composition (max-width: 310px) {
+        .cs-composition-body { flex-direction: column; justify-content: center; gap: 12px; }
+        .cs-composition-list { flex: 0 0 auto; width: 100%; }
+      }
       .cs-ranking-row { display: grid; grid-template-columns: 23px minmax(65px, 1fr) minmax(45px, 1fr) auto; align-items: center; gap: 10px; font-size: 12px; min-height: 26px; }
       .cs-ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
       .cs-ranking-bar { height: 8px; border-radius: 5px; background: var(--dsw-alias-bg-layer-2); overflow: hidden; }
@@ -6992,11 +7027,7 @@ window.__ModuleLoader__.load({
       .cs-info:hover .cs-info-tip,
       .cs-info:focus-within .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); }
       .cs-info.is-escaped .cs-info-tip { visibility: hidden !important; opacity: 0 !important; }
-      .cs-info-tip.cs-info-tip-legend { padding: 9px 11px; }
       .cs-info-tip.cs-info-tip-lines { max-width: min(320px, 74vw); padding: 10px 12px; }
-      .cs-info-content { display: flex; flex-direction: column; gap: 7px; }
-      .cs-info-copy { display: block; }
-      .cs-info-legend { display: block; }
       .cs-info-lines { display: flex; flex-direction: column; gap: 6px; }
       .cs-info-line { position: relative; display: block; padding-left: 11px; }
       .cs-info-line::before { content: ""; position: absolute; left: 1px; top: .68em; width: 3px; height: 3px; border-radius: 50%; background: var(--dsw-alias-label-secondary); }
@@ -7047,7 +7078,6 @@ window.__ModuleLoader__.load({
         .cs-bar-group .cs-bar-pair, .cs-donut-seg, .cs-composition-row { transition: none; }
       }
       .cs-foot { font-size: 12px; line-height: 1.6; }
-      @media (max-width: 520px) { .cs-composition-body { flex-direction: column; align-items: center; } .cs-composition-list { width: 100%; } }
 
       /* 数据管理：导出与清空。按钮沿用卡片体系，危险操作单独着色。 */
       .cs-data-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; }
@@ -7172,26 +7202,24 @@ window.__ModuleLoader__.load({
 
       .cs-recent-list { display: flex; flex-direction: column; }
       .cs-recent-row {
-        position: relative; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto;
-        align-items: center; gap: 10px; padding: 9px 2px; border: 0;
+        display: grid; grid-template-columns: minmax(0, 1fr) minmax(48px, max-content) minmax(52px, max-content);
+        align-items: center; gap: 8px; padding: 4px 0; border: 0;
+        border-top: 1px solid var(--dsw-alias-border-l1);
         background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer;
-      }
-      /* 分隔线从标题左缘开始；运行中图标收进卡片内边距里，标题不再为它空出 18px 缩进。 */
-      .cs-recent-row + .cs-recent-row::before {
-        content: ""; position: absolute; left: 0; right: 2px; top: 0;
-        border-top: 1px solid var(--dsw-alias-border-l1); pointer-events: none;
       }
       .cs-recent-row:not(.is-static):hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 5%, transparent); }
       .cs-recent-row.is-static { cursor: default; }
+      .cs-recent .cs-card-head { margin-bottom: 6px; }
+      .cs-recent .cs-card-heading { width: 100%; align-items: center; justify-content: space-between; }
+      .cs-recent .cs-tag { min-width: 24px; padding: 1px 7px; text-align: center; font-variant-numeric: tabular-nums; }
+      .cs-recent-name { position: relative; display: grid; min-width: 0; padding-left: 12px; gap: 4px; }
       .cs-recent-status {
-        position: absolute; left: -14px; top: 50%; transform: translateY(-50%);
-        display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
-        color: var(--cs-task);
+        position: absolute; left: 0; top: 6px; width: 6px; height: 6px;
+        border-radius: 50%; background: var(--cs-task);
       }
-      .cs-recent-status.is-running .cs-detail-glyph { color: var(--cs-task); }
-      .cs-recent-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
-      .cs-recent-workspace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--dsw-alias-label-secondary); }
-      .cs-recent-time { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; font-size: 11px; }
+      .cs-recent-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 17px; font-weight: 600; }
+      .cs-recent-workspace { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 14px; color: var(--dsw-alias-label-secondary); }
+      .cs-recent-time { max-width: 11ch; text-align: right; overflow-wrap: anywhere; font-family: var(--cs-mono); font-variant-numeric: tabular-nums; font-size: 12px; }
       .cs-recent-last { font-size: 11px; color: var(--dsw-alias-label-secondary); white-space: nowrap; text-align: right; }
       .cs-trend-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 10px; align-items: stretch; }
       .cs-trend-layout > .cs-trend-card { grid-column: 1; grid-row: 1; }
@@ -7369,8 +7397,6 @@ window.__ModuleLoader__.load({
       @media (max-width: 860px) {
         .cs-trend-layout, .cs-settings-grid { grid-template-columns: 1fr; }
         .cs-trend-layout > .cs-trend-card, .cs-trend-layout > .cs-trend-summary { grid-column: 1; grid-row: auto; }
-        .cs-recent-row { grid-template-columns: minmax(0, 1fr) auto; }
-        .cs-recent-workspace { grid-column: 1 / -1; }
       }
       /* 首屏放大：右上角纯图标按钮；放大态重新排版为整页统计，而不是把卡片简单拉大。 */
       .cs-hero { position: relative; display: flex; flex-direction: column; gap: 8px; }
@@ -7398,6 +7424,76 @@ window.__ModuleLoader__.load({
       .cs-zoom-btn svg {
         width: 15px; height: 15px; stroke: var(--cs-ink-2); fill: none;
         stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+      }
+      .cs-overview-metrics {
+        display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.1fr) repeat(2, minmax(0, 1fr));
+        align-items: stretch; min-height: 142px; padding: 12px 14px; gap: 4px;
+      }
+      .cs-overview-today { position: relative; min-width: 0; }
+      .cs-overview-today .cs-cycle { height: 100%; }
+      .cs-overview-today .cs-zoom-btn { top: 2px; right: 5px; }
+      .cs-overview-metric-pair {
+        display: grid; align-content: center; padding: 7px 14px;
+        border-left: 1px solid var(--cs-line); min-width: 0;
+      }
+      .cs-overview-metric {
+        display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 2px 6px;
+        padding-block: 6px; min-width: 0;
+        color: var(--dsw-alias-label-secondary); font-size: 12px;
+      }
+      .cs-overview-metric + .cs-overview-metric { border-top: 1px solid var(--cs-line); }
+      .cs-overview-metric > span { display: inline-flex; align-items: center; gap: 5px; }
+      .cs-overview-metric .cs-detail-glyph { flex: none; color: var(--cs-signal); }
+      .cs-overview-metric strong { color: var(--cs-ink); font-family: var(--cs-mono); font-size: 16px; overflow-wrap: anywhere; }
+      .cs-overview-metric strong.is-today-online { color: var(--cs-signal-deep); }
+      .cs-overview-metric.is-task :is(.cs-detail-glyph, strong) { color: var(--cs-task); }
+      .cs-overview-metrics .cs-cycle {
+        color: var(--cs-ink); background: transparent; border: 0; border-radius: 9px;
+        min-height: 0; padding: 8px 14px; gap: 4px; justify-content: center;
+      }
+      .cs-overview-metrics > .cs-cycle:not(.is-current):hover {
+        background: color-mix(in srgb, var(--cs-signal) 6%, transparent);
+      }
+      .cs-overview-metrics .cs-cycle-today:hover { background: transparent; }
+      .cs-overview-metrics > .cs-cycle.is-current {
+        color: var(--cs-on-accent); background: var(--dsw-alias-brand-primary);
+      }
+      .cs-overview-metrics .cs-cycle:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: -2px; }
+      .cs-overview-metrics .cs-cycle-title {
+        padding: 2px 6px; border-radius: 4px; font-size: 12px; color: var(--dsw-alias-label-secondary);
+        background: var(--dsw-alias-bg-layer-2);
+      }
+      .cs-overview-metrics > .cs-cycle.is-current .cs-cycle-title {
+        color: inherit; background: color-mix(in srgb, currentColor 14%, transparent);
+      }
+      .cs-overview-metrics .cs-cycle-value { font-size: clamp(18px, 2.5cqw, 26px); color: var(--cs-signal-deep); overflow-wrap: anywhere; }
+      .cs-overview-metrics .cs-cycle-tail { padding-top: 2px; margin-top: 0; gap: 3px; }
+      .cs-overview-metrics .cs-cycle .cs-cycle-share {
+        margin-left: 0; text-align: right; color: var(--dsw-alias-label-secondary); white-space: normal;
+      }
+      .cs-overview-metrics .cs-cycle-today { padding-right: 30px; }
+      .cs-cycle-today .cs-cycle-head { flex-wrap: wrap; gap: 4px 6px; }
+      .cs-cycle-today .cs-cycle-period { color: var(--cs-ink-2); font-size: 11px; }
+      .cs-cycle-today .cs-hero-num { position: relative; color: var(--cs-signal-deep); font-size: clamp(30px, 5cqw, 46px); overflow-wrap: anywhere; }
+      .cs-cycle-today.is-current .cs-hero-num.is-today-online { color: var(--cs-ink); }
+      .cs-cycle-today.is-current .cs-hero-num::before {
+        content: ''; position: absolute; inset: 50% auto auto -7px; transform: translateY(-50%);
+        width: 2px; height: .85em; border-radius: 2px; background: var(--cs-signal); pointer-events: none;
+      }
+      .cs-cycle-today time { color: var(--dsw-alias-label-secondary); font-size: 11px; }
+      .cs-overview-metrics > .cs-cycle.is-current :is(.cs-cycle-share, .cs-cycle-value) { color: inherit; }
+      .cs-cycle-today.is-current .cs-cycle-title { color: var(--cs-signal-deep); background: transparent; padding-inline: 0; }
+      .cs-overview-metrics .cs-cycle-today.is-current .cs-cycle-share { color: var(--dsw-alias-label-secondary); }
+      .cs-cycle-today.is-current .cs-cycle-track { background: var(--cs-tone-faint); }
+      .cs-cycle-today.is-current .cs-cycle-track i { background: var(--cs-signal); }
+      .cs-cycle-today .cs-cycle-track.is-task i { background: var(--cs-task); }
+      @container cs-overview (max-width: 680px) {
+        .cs-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 8px; }
+      }
+      @container cs-overview (max-width: 330px) {
+        .cs-overview-metrics { padding-inline: 6px; }
+        .cs-overview-metrics .cs-cycle, .cs-overview-metric-pair { padding-inline: 8px; }
+        .cs-overview-metrics .cs-cycle-today { padding-right: 27px; }
       }
       .cs-hero-focus {
         min-height: calc(100vh - 260px); padding: 28px 32px 24px; gap: 18px;
@@ -7841,6 +7937,59 @@ window.__ModuleLoader__.load({
       .cs-trend-layout .cs-trend-card .cs-plot svg { flex: 1 1 auto; height: 100%; min-height: 120px; }
       .cs-summary { padding: 8px 12px; }
       .cs-trend-card, .cs-table-card { gap: 10px; }
+      /* 矮窗四个视图共用顶栏和导航间距，概览图表按剩余高度调整尺寸。 */
+      @media (max-height: 850px) {
+        .cs-page { padding-block: 12px; }
+        .cs-shell { gap: 6px; }
+        .cs-tabs { margin-bottom: 0; }
+        .cs-overview-grid, .cs-overview-analysis, .cs-overview-bottom { gap: 8px; }
+        .cs-overview-grid { --cs-overview-room: 0px; }
+        .cs-overview-grid .cs-card { padding: calc(10px + var(--cs-overview-room) * .04) 12px; }
+        .cs-overview-grid .cs-card-heading { top: 0; }
+        .cs-overview-grid .cs-overview-metrics { min-height: 0; }
+        .cs-overview-metrics .cs-cycle { padding-block: 5px; gap: 2px; }
+        .cs-cycle-today .cs-hero-num { font-size: clamp(28px, 4.5cqw, calc(38px + var(--cs-overview-room) * .07)); }
+        .cs-overview-analysis .cs-trend-card { gap: 6px; }
+        .cs-overview-analysis .cs-chart svg { height: calc(clamp(72px, 11vh, 100px) + var(--cs-overview-room) * .5); }
+        .cs-overview-analysis .cs-trend-foot { padding-block: 6px; }
+        .cs-overview-analysis .cs-composition, .cs-overview-bottom .cs-ranking { min-height: 0; gap: 8px; }
+        .cs-overview-analysis .cs-donut { width: clamp(96px, calc(9cqw + var(--cs-overview-room) * .28), 148px); }
+        .cs-overview-analysis .cs-donut-center strong { font-size: 14px; }
+        .cs-overview-analysis .cs-composition-list, .cs-overview-bottom .cs-ranking-list { gap: 5px; }
+        .cs-overview-bottom .cs-ranking-row { min-height: 24px; grid-template-columns: 17px minmax(0, 1fr) minmax(22px, .8fr) auto; gap: 7px; }
+        .cs-overview-bottom .cs-heatmap-card {
+          --cs-heat-cell: calc(clamp(10px, 1.45cqw, 15px) + var(--cs-overview-room) * .04);
+          --cs-heat-gap: calc(2px + var(--cs-overview-room) * .01);
+          gap: 6px;
+        }
+        .cs-overview-bottom .cs-recent-row { min-height: calc(38px + var(--cs-overview-room) * .065); padding-block: 3px; }
+        @container cs-overview (min-width: 850px) {
+          .cs-overview-grid { --cs-overview-room: clamp(0px, calc((100vh - 726px) * .74), 90px); }
+          .cs-shell:has(> :is(.cs-backfill, .cs-alert)) .cs-overview-grid {
+            --cs-overview-room: clamp(0px, calc((100vh - 782px) * .74), 54px);
+          }
+        }
+        @container cs-composition (min-width: 230px) and (max-width: 310px) {
+          .cs-overview-analysis .cs-composition-body { flex-direction: row; gap: 8px; }
+          .cs-overview-analysis .cs-composition-list { flex: 1; width: auto; }
+        }
+        @container cs-overview (min-width: 650px) and (max-width: 850px) {
+          .cs-overview-bottom:not(.is-year) { grid-template-columns: minmax(0, 1fr) minmax(0, .85fr) minmax(0, 1.2fr); }
+          .cs-overview-bottom:not(.is-year) > .cs-recent { grid-column: auto; }
+        }
+        @container cs-overview (min-width: 650px) and (max-width: 680px) {
+          .cs-overview-metrics { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.1fr) repeat(2, minmax(0, 1fr)); }
+          .cs-overview-metrics .cs-cycle, .cs-overview-metric-pair { padding-inline: 8px; }
+          .cs-overview-metrics .cs-cycle-today { padding-right: 27px; }
+        }
+      }
+      @media (max-height: 720px) {
+        .cs-overview-grid { gap: 6px; }
+        .cs-overview-grid .cs-card { padding-block: 8px; }
+        .cs-overview-bottom .cs-heatmap-card { --cs-heat-cell: clamp(10px, 1.35cqw, 13px); }
+        .cs-overview-bottom .cs-recent .cs-card-head { margin-bottom: 4px; }
+        .cs-overview-bottom .cs-recent-row { min-height: 0; padding-block: 2px; }
+      }
       /* 设置页留白：卡片按自然高度排，不再把两行卡强行拉到四行卡的高度。 */
       .cs-settings-grid { gap: 10px; align-content: start; }
       .cs-settings-card { align-self: start; }

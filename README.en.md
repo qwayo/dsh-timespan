@@ -6,13 +6,13 @@
   <a href="./README.md">简体中文</a> · <kbd>English</kbd>
 </p>
 
-> **dsh-timespan** is a DSH plugin that records and shows your online, active and task time in DSH.
+> **dsh-timespan** is a DSH plugin that records and shows your online, active and task time in DSH
 
 ## Three kinds of time
 
-- **Online**: all the time from when DSH starts until it exits, including time away from the computer.
-- **Active**: time when the page is visible and focused, and you have interacted within the idle threshold — or the foreground session is running a task.
-- **Task**: time from `turn/start` to `turn/end` for one task, split into model requests, tool execution, waiting for the user, and other.
+- **Online**: all the time from when DSH starts until it exits, including time away from the computer
+- **Active**: time when the page is visible and focused, and you have interacted within the idle threshold — or the foreground session is running a task
+- **Task**: time from `turn/start` to `turn/end` for one task, split into model requests, tool execution, waiting for the user, and other
 
 Scope: there is no separate "idle time" metric, and task time is not part of active time. When you first enable the plugin, only task time is backfilled; it never makes up online or active history.
 
@@ -22,15 +22,15 @@ Scope: there is no separate "idle time" metric, and task time is not part of act
   <img src="./assets/readme/dashboard.en.svg" width="100%" alt="dsh-timespan period overview (sample data): sidebar online entry, weekly active headline, today/week/month cards, 24-hour trend, task breakdown, workspace task ranking, recent sessions and the daily active heatmap">
 </p>
 
-- A permanent sidebar entry shows the duration you select (online by default) and today's ring; hovering for about 200 ms shows a tooltip.
+- A permanent sidebar entry shows the duration you select (online by default) and today's ring; hovering for about 200 ms shows a tooltip
 - The day / week / month dashboard has four views: Overview, Trend, Sessions and Settings. The active headline switches between five durations, and the share ring on its right changes to today's active, today's task, this week's active or this month's active basis; the active headline, trend chart and heatmap can each expand into a full page (focus view); the trend page also shows time distribution and trend analysis.
-- Overview card titles carry light line icons, recent sessions show 3–6 rows based on the bottom-row height, and the heatmap resets to the last 3 months each time the overview is entered.
-- The plugin mark swaps its ring lightness with the theme: dark mode has a light upper arc, dark lower-left arc and white needle; light mode reverses the two arcs and uses a deep-blue needle, so the white needle no longer disappears on white.
+- Overview card titles carry light line icons, recent sessions show 3–6 rows based on the bottom-row height, and the heatmap resets to the last 3 months each time the overview is entered
+- The plugin mark swaps its ring lightness with the theme: dark mode has a light upper arc, dark lower-left arc and white needle; light mode reverses the two arcs and uses a deep-blue needle, so the white needle no longer disappears on white
 - Workspace → Sessions: workspaces stay as collapsible groups with only a name and session count, while expanded session rows carry active time, task count, task composition, subagents and last activity. Each session row opens the host conversation page directly, falling back to highlighting the session in the session view when the host cannot open it. Switch the range between today, last 3 days, last week, last 30 days and all time; with all time, sessions load in batches.
-- The read-only agent tool `timespan_stats`: query by day, week, month or a custom date range in a conversation, using the same data as the dashboard.
+- The read-only agent tool `timespan_stats`: query by day, week, month or a custom date range in a conversation, using the same data as the dashboard
 - Settings: interface language (Chinese by default, English available; affects this plugin's wording only), idle threshold (1–15 min), week start (Monday / Sunday), appearance and color palette (follows the system by default), number format (compact units by default, e.g. `2h 48m`), whether to show subagent detail, and whether the sidebar shows status text and a permanent duration (online by default).
 - Export JSON / CSV, and import backups de-duplicated by ID. New exports use the `dsh-timespan-export` format; older `chronoscope-export` backups still import. Destructive actions such as clearing data ask for a second confirmation.
-- On first enable, task time is backfilled for existing historical sessions.
+- On first enable, task time is backfilled for existing historical sessions
 
 ## How it works
 
@@ -68,19 +68,19 @@ The repository is hosted on GitHub; use this route when you want a specific bran
 
 To change the source or develop locally, link the local directory into the current profile with `link:`; after a code change a restart is enough and no reinstall is needed:
 
-1. Put this repository at a fixed local path, written `<repo-path>` below (for example `C:\path\to\dsh-timespan` on Windows).
+1. Put this repository at a fixed local path, written `<repo-path>` below (for example `C:\path\to\dsh-timespan` on Windows)
 2. Say this in a session:
 
-   > Use plugin_manager to install `<repo-path>` as a bundle in the current profile.
+   > Use plugin_manager to install `<repo-path>` as a bundle in the current profile
 
-3. Act on the return value: `application: applied` means it is live; `restart-required` or a restart hint means restart DSH and open the page again; `failed` returns the error for the agent to investigate further.
+3. Act on the return value: `application: applied` means it is live; `restart-required` or a restart hint means restart DSH and open the page again; `failed` returns the error for the agent to investigate further
 
 ### Check the install
 
 - A **dsh-timespan** entry appears in the left sidebar and shows today's online time by default; you can switch it to active or task time in Settings. Status text is off by default — turn on "Show sidebar status" in Settings to show idle, active or in task. The status dot follows the duration by default; you can hide it or move it to the far right of the entry in Settings.
-- A **dsh-timespan** section appears on the settings page.
-- Ask the agent "use timespan_stats to check today's time" and it returns statistics.
-- When needed, verify with `plugin_manager`'s `list_bundles` / `list_plugins`: the bundle `@qwayo/dsh-timespan` and the plugin row `dsh-timespan` are enabled.
+- A **dsh-timespan** section appears on the settings page
+- Ask the agent "use timespan_stats to check today's time" and it returns statistics
+- When needed, verify with `plugin_manager`'s `list_bundles` / `list_plugins`: the bundle `@qwayo/dsh-timespan` and the plugin row `dsh-timespan` are enabled
 - Upgrading from the old `chrono-scope` name: remove the old `@local/chrono-scope` bundle first, then install this directory as above. The storage domain is still `chrono_scope`, so existing statistics and settings survive.
 
 <details>
@@ -93,11 +93,11 @@ To change the source or develop locally, link the local directory into the curre
   target: <repo-path> or github:qwayo/dsh-timespan
   ```
 
-- If the agent asks for authorization during install, confirm once.
+- If the agent asks for authorization during install, confirm once
 - Installing is a pnpm run underneath. If the error says pnpm is unavailable, install pnpm first or point `pnpmCommand` at it in the configuration.
-- With HMR the plugin is live immediately; without it you get `restart-required` and it takes effect after a restart.
-- When an install fails, `plugin_manager` restores the profile's `package.json` and `pnpm-lock.yaml` and leaves the error for the agent.
-- Changes limited to this repository's source need no reinstall: restart DSH (or reload the plugin) to load the new modules.
+- With HMR the plugin is live immediately; without it you get `restart-required` and it takes effect after a restart
+- When an install fails, `plugin_manager` restores the profile's `package.json` and `pnpm-lock.yaml` and leaves the error for the agent
+- Changes limited to this repository's source need no reinstall: restart DSH (or reload the plugin) to load the new modules
 
 </details>
 
@@ -156,16 +156,16 @@ Core files:
 
 | File | Purpose |
 | --- | --- |
-| `index.js` | Host entry: opens the `chrono_scope` v1 storage domain (legacy key, kept compatible), registers the 30-second heartbeat, the `session/event` listener, the in-package RPC and the `timespan_stats` tool. |
-| `client.js` | Client entry: the `sidebar.panellist` sidebar entry, the `shell.overlay` presence heartbeat, the `main` dashboard and the `settings.section` settings page. |
-| `src/domain/dsh-timespan-domain.js` | The core of every business rule: online/active/task intervals, the four-part task breakdown, attribution, union/sum, queries and data operations. |
-| `src/host/rpc.js` | The private channel between Client and Host: `presence`, `queryStats`, `queryDailySeries`, `getSettings`, `setSettings`, `resetSettings`, `exportData`, `importData`, `clearData`, `getBackfillStatus`, `markBackfillRead`, `retryBackfill`. |
-| `src/host/tool.js` | Turns `timespan_stats` arguments into a `queryStats` query; it never computes a second set of numbers. |
-| `package.json` | Declares the package name, version, `exports` and the published file list; `dsh.bundle.patch` points at `cordis.patch.yml` and `dsh.client` declares how the Web client loads it. |
+| `index.js` | Host entry: opens the `chrono_scope` v1 storage domain (legacy key, kept compatible), registers the 30-second heartbeat, the `session/event` listener, the in-package RPC and the `timespan_stats` tool |
+| `client.js` | Client entry: the `sidebar.panellist` sidebar entry, the `shell.overlay` presence heartbeat, the `main` dashboard and the `settings.section` settings page |
+| `src/domain/dsh-timespan-domain.js` | The core of every business rule: online/active/task intervals, the four-part task breakdown, attribution, union/sum, queries and data operations |
+| `src/host/rpc.js` | The private channel between Client and Host: `presence`, `queryStats`, `queryDailySeries`, `getSettings`, `setSettings`, `resetSettings`, `exportData`, `importData`, `clearData`, `getBackfillStatus`, `markBackfillRead`, `retryBackfill` |
+| `src/host/tool.js` | Turns `timespan_stats` arguments into a `queryStats` query; it never computes a second set of numbers |
+| `package.json` | Declares the package name, version, `exports` and the published file list; `dsh.bundle.patch` points at `cordis.patch.yml` and `dsh.client` declares how the Web client loads it |
 
 </details>
 
-> The storage domain still uses `chrono_scope` as its persistent key so existing statistics and settings are not lost; it is a legacy name — the public project name is **dsh-timespan**.
+> The storage domain still uses `chrono_scope` as its persistent key so existing statistics and settings are not lost; it is a legacy name — the public project name is **dsh-timespan**
 
 <details>
 <summary>Raster copies (for the plugin market to scrape)</summary>
@@ -181,17 +181,17 @@ The plugin market only accepts PNG / WebP / JPG screenshots and discards SVG, so
 
 ## Related documents
 
-- [README.md](README.md): the Chinese original of this page, kept in step section by section.
-- [DESIGN.md](DESIGN.md): page design spec (Chinese).
-- [GLOSSARY.md](GLOSSARY.md): domain vocabulary — online, active, task, actual occupied, accumulated time (Chinese).
+- [README.md](README.md): the Chinese original of this page, kept in step section by section
+- [DESIGN.md](DESIGN.md): page design spec (Chinese)
+- [GLOSSARY.md](GLOSSARY.md): domain vocabulary — online, active, task, actual occupied, accumulated time (Chinese)
 - Architecture decision records ([docs/adr/](docs/adr/)), all in Chinese:
-  - [0001 Recording architecture](docs/adr/0001-usage-recording-architecture.md): how online, active and task time are recorded.
-  - [0002 Period clipping and concurrency](docs/adr/0002-dashboard-period-clipping-and-concurrency.md): period clipping and concurrency semantics.
-  - [0003 Historical backfill](docs/adr/0003-historical-backfill.md): backfilling task time from history.
-  - [0004 The timespan_stats tool](docs/adr/0004-agent-stats-tool.md): the `timespan_stats` agent tool.
-  - [0005 Heatmap week grid](docs/adr/0005-全年热力图改为周网格与界面文案中文化.md): the year heatmap turned into a week grid, plus Chinese interface wording.
-  - [0006 Info overlay](docs/adr/0006-信息浮层反转回悬浮与聚焦触发.md): the info overlay moved back to hover, triggered by focus.
-  - [0007 Rename to dsh-timespan](docs/adr/0007-rename-to-dsh-timespan.md): the rename scope and the compatibility decisions for the storage domain and backup format.
-  - [0008 Interface language](docs/adr/0008-界面语言改为插件设置项.md): interface language as a plugin setting, Chinese by default with English available.
-  - [0009 Quality gates and release flow](docs/adr/0009-质量门禁与发布流程.md): the scope and limits of CI, the audit invariants, and the manual release flow.
-  - [0010 Package renamed to @qwayo/dsh-timespan](docs/adr/0010-包名改为-qwayo-scope.md): the package-name migration before going public and publishing to npm, and what installed users must do.
+  - [0001 Recording architecture](docs/adr/0001-usage-recording-architecture.md): how online, active and task time are recorded
+  - [0002 Period clipping and concurrency](docs/adr/0002-dashboard-period-clipping-and-concurrency.md): period clipping and concurrency semantics
+  - [0003 Historical backfill](docs/adr/0003-historical-backfill.md): backfilling task time from history
+  - [0004 The timespan_stats tool](docs/adr/0004-agent-stats-tool.md): the `timespan_stats` agent tool
+  - [0005 Heatmap week grid](docs/adr/0005-全年热力图改为周网格与界面文案中文化.md): the year heatmap turned into a week grid, plus Chinese interface wording
+  - [0006 Info overlay](docs/adr/0006-信息浮层反转回悬浮与聚焦触发.md): the info overlay moved back to hover, triggered by focus
+  - [0007 Rename to dsh-timespan](docs/adr/0007-rename-to-dsh-timespan.md): the rename scope and the compatibility decisions for the storage domain and backup format
+  - [0008 Interface language](docs/adr/0008-界面语言改为插件设置项.md): interface language as a plugin setting, Chinese by default with English available
+  - [0009 Quality gates and release flow](docs/adr/0009-质量门禁与发布流程.md): the scope and limits of CI, the audit invariants, and the manual release flow
+  - [0010 Package renamed to @qwayo/dsh-timespan](docs/adr/0010-包名改为-qwayo-scope.md): the package-name migration before going public and publishing to npm, and what installed users must do

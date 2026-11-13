@@ -6,13 +6,13 @@
   <kbd>简体中文</kbd> · <a href="./README.en.md">English</a>
 </p>
 
-> **dsh-timespan** 是一个 DSH 插件，记录并展示你在 DSH 里的在线、活跃和任务时长。
+> **dsh-timespan** 是一个 DSH 插件，记录并展示你在 DSH 里的在线、活跃和任务时长
 
 ## 三种时长
 
-- **在线**：DSH 从启动到退出的全部时间，包括你不在电脑前的时间。
-- **活跃**：页面可见、窗口聚焦，并且你在空闲阈值内有过操作，或者前台会话正在跑任务的时间。
-- **任务**：一次任务从 `turn/start` 到 `turn/end` 的耗时，分成模型请求、工具执行、等待用户和其他四部分。
+- **在线**：DSH 从启动到退出的全部时间，包括你不在电脑前的时间
+- **活跃**：页面可见、窗口聚焦，并且你在空闲阈值内有过操作，或者前台会话正在跑任务的时间
+- **任务**：一次任务从 `turn/start` 到 `turn/end` 的耗时，分成模型请求、工具执行、等待用户和其他四部分
 
 统计范围：没有单独的「空闲时长」指标，任务时长也不算活跃时长的一部分。启用后只回填历史任务时长，不会补出在线和活跃的历史记录。
 
@@ -22,15 +22,15 @@
   <img src="./assets/readme/dashboard.svg" width="100%" alt="dsh-timespan 周期概览界面示意（示例数据）：侧栏在线时长入口、本周活跃主数字、今日/本周/本月周期卡、今日 24 小时、任务时长构成、工作区任务排行、最近会话与每日活跃热力图">
 </p>
 
-- 侧边栏有常驻入口，实时显示你选定的时长（默认在线）和今日构成环；悬停约 200ms 会显示说明。
+- 侧边栏有常驻入口，实时显示你选定的时长（默认在线）和今日构成环；悬停约 200ms 会显示说明
 - 日/周/月仪表盘分概览、趋势、会话、设置四个视图；活跃主数字可切换五个时长项，右侧占比圆环随之切换今日活跃、今日任务、本周活跃或本月活跃口径；活跃主数字、趋势图和热力图都能放大成独立页（首屏）；趋势页还会显示时段分布和趋势分析。
-- 概览卡片标题带轻量线性图标，最近会话按底部行高显示 3–6 条；热力图每次进入默认回到近 3 个月，不记忆上次范围。
-- 插件标识跟随浅色/深色外观对调圆环明暗：深色模式上半浅、左下深、白色指针；浅色模式上半深、左下浅、深蓝指针，白针不再落在白底上。
+- 概览卡片标题带轻量线性图标，最近会话按底部行高显示 3–6 条；热力图每次进入默认回到近 3 个月，不记忆上次范围
+- 插件标识跟随浅色/深色外观对调圆环明暗：深色模式上半浅、左下深、白色指针；浅色模式上半深、左下浅、深蓝指针，白针不再落在白底上
 - 工作区 → 会话：工作区只作为可折叠分组保留名称与会话数，展开后的会话行才是主体，显示活跃时长、任务次数、任务构成、子代理和最后活动；会话行可整行打开宿主会话页面，宿主不可用时回到会话定位。统计范围可选今天、近 3 天、最近一周、近 30 天或全部，选全部时分批加载。
-- Agent 只读工具 `timespan_stats`：在对话里按日/周/月或自定义日期查询，数据与仪表盘同源。
+- Agent 只读工具 `timespan_stats`：在对话里按日/周/月或自定义日期查询，数据与仪表盘同源
 - 设置：界面语言（默认中文，可切英文，只影响本插件文案）、空闲阈值（1–15 分钟）、周起始（周一/周日）、外观与配色（默认跟随系统）、数字格式（默认紧凑单位，如 `2h 48m`）、子代理明细开关，以及侧栏是否显示状态文字和常驻时长（默认在线时长）。
 - 支持导出 JSON / CSV，导入备份时按 ID 去重。新格式是 `dsh-timespan-export`，旧的 `chronoscope-export` 备份也能导入。清空数据等破坏性操作会二次确认。
-- 首次启用时，自动回填已有历史会话的任务时长。
+- 首次启用时，自动回填已有历史会话的任务时长
 
 ## 运行机制
 
@@ -68,19 +68,19 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 
 想改源码或做本地开发，可以把本地目录以 `link:` 方式接进当前 profile。改完代码重启就能生效，不用重新安装：
 
-1. 把本仓库放在一个固定的本地路径，下文记作 `<仓库本地路径>`（例如 Windows 上的 `C:\path\to\dsh-timespan`）。
+1. 把本仓库放在一个固定的本地路径，下文记作 `<仓库本地路径>`（例如 Windows 上的 `C:\path\to\dsh-timespan`）
 2. 在会话里对 Agent 说：
 
-   > 用 plugin_manager 把 `<仓库本地路径>` 安装为当前 profile 的 bundle。
+   > 用 plugin_manager 把 `<仓库本地路径>` 安装为当前 profile 的 bundle
 
-3. 按返回值处理：`application: applied` 表示已激活；`restart-required` 或提示需要重启，重启 DSH 后再打开页面；`failed` 则保留错误信息，交给 Agent 继续排查。
+3. 按返回值处理：`application: applied` 表示已激活；`restart-required` 或提示需要重启，重启 DSH 后再打开页面；`failed` 则保留错误信息，交给 Agent 继续排查
 
 ### 装好后核对
 
 - 左侧栏出现 **dsh-timespan** 入口，默认显示今日在线时长，可在设置里切换成活跃或任务时长。状态文字默认关闭，在设置里打开「侧栏显示状态」后，会显示空闲、活跃中或任务中；状态点默认紧跟时长，可在设置里隐藏，或改到入口最右侧。
-- 设置页出现 **dsh-timespan** 分区。
-- 对 Agent 说「用 timespan_stats 查一下今天的时长」，能返回统计结果。
-- 需要时用 `plugin_manager` 的 `list_bundles` / `list_plugins` 核对：bundle `@qwayo/dsh-timespan` 和插件行 `dsh-timespan` 处于启用状态。
+- 设置页出现 **dsh-timespan** 分区
+- 对 Agent 说「用 timespan_stats 查一下今天的时长」，能返回统计结果
+- 需要时用 `plugin_manager` 的 `list_bundles` / `list_plugins` 核对：bundle `@qwayo/dsh-timespan` 和插件行 `dsh-timespan` 处于启用状态
 - 从旧名 `chrono-scope` 升级：先移除旧的 `@local/chrono-scope` bundle，再按上面的方式安装本目录；存储域仍是 `chrono_scope`，历史统计与设置不会丢。
 
 <details>
@@ -93,11 +93,11 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
   target: <仓库本地路径> 或 github:qwayo/dsh-timespan
   ```
 
-- 安装时如果 Agent 请求授权，确认一次即可。
+- 安装时如果 Agent 请求授权，确认一次即可
 - 安装本质是跑一次 pnpm。如果返回的错误提示 pnpm 不可用，先安装 pnpm，或在配置里指定 `pnpmCommand`。
-- 有 HMR 的环境里，安装完立即生效；没有 HMR 时会返回 `restart-required`，重启后生效。
-- 安装失败时，`plugin_manager` 会自动恢复 profile 的 `package.json` 和 `pnpm-lock.yaml`，并把错误信息留给 Agent 排查。
-- 只改了本仓库源码时不需要重新安装：重启 DSH（或重新加载插件）就能加载新的模块。
+- 有 HMR 的环境里，安装完立即生效；没有 HMR 时会返回 `restart-required`，重启后生效
+- 安装失败时，`plugin_manager` 会自动恢复 profile 的 `package.json` 和 `pnpm-lock.yaml`，并把错误信息留给 Agent 排查
+- 只改了本仓库源码时不需要重新安装：重启 DSH（或重新加载插件）就能加载新的模块
 
 </details>
 
@@ -156,16 +156,16 @@ dsh-timespan/
 
 | 文件 | 作用 |
 | --- | --- |
-| `index.js` | Host 侧入口：打开 `chrono_scope` v1 存储域（历史键，保持兼容），注册 30 秒心跳、`session/event` 监听、包内 RPC 与 `timespan_stats` 工具。 |
-| `client.js` | Client 侧入口：`sidebar.panellist` 侧栏入口、`shell.overlay` presence 心跳、`main` 仪表盘、`settings.section` 设置页。 |
-| `src/domain/dsh-timespan-domain.js` | 全部业务规则的核心：在线/活跃/任务区间、任务四段构成、归属、并集/求和、查询与数据操作。 |
-| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`queryDailySeries`、`getSettings`、`setSettings`、`resetSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill`。 |
-| `src/host/tool.js` | 把 `timespan_stats` 参数转为 `queryStats` 查询，不另算一套数字。 |
-| `package.json` | 声明包名、版本、`exports`、发布文件列表；`dsh.bundle.patch` 指向 `cordis.patch.yml`，`dsh.client` 声明 Web 客户端加载方式。 |
+| `index.js` | Host 侧入口：打开 `chrono_scope` v1 存储域（历史键，保持兼容），注册 30 秒心跳、`session/event` 监听、包内 RPC 与 `timespan_stats` 工具 |
+| `client.js` | Client 侧入口：`sidebar.panellist` 侧栏入口、`shell.overlay` presence 心跳、`main` 仪表盘、`settings.section` 设置页 |
+| `src/domain/dsh-timespan-domain.js` | 全部业务规则的核心：在线/活跃/任务区间、任务四段构成、归属、并集/求和、查询与数据操作 |
+| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`queryDailySeries`、`getSettings`、`setSettings`、`resetSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill` |
+| `src/host/tool.js` | 把 `timespan_stats` 参数转为 `queryStats` 查询，不另算一套数字 |
+| `package.json` | 声明包名、版本、`exports`、发布文件列表；`dsh.bundle.patch` 指向 `cordis.patch.yml`，`dsh.client` 声明 Web 客户端加载方式 |
 
 </details>
 
-> 存储域内部仍用 `chrono_scope` 作为持久化键，这样已有的统计和设置不会丢；这是历史遗留的名字，对外的项目名是 **dsh-timespan**。
+> 存储域内部仍用 `chrono_scope` 作为持久化键，这样已有的统计和设置不会丢；这是历史遗留的名字，对外的项目名是 **dsh-timespan**
 
 <details>
 <summary>位图版配图（供插件市场抓取）</summary>
@@ -181,17 +181,17 @@ dsh-timespan/
 
 ## 相关文档
 
-- [README.en.md](README.en.md)：本页的英文版，内容与配图一一对应。
-- [DESIGN.md](DESIGN.md)：页面设计规范。
-- [GLOSSARY.md](GLOSSARY.md)：领域术语（在线、活跃、任务、实际占用、累计工时）。
+- [README.en.md](README.en.md)：本页的英文版，内容与配图一一对应
+- [DESIGN.md](DESIGN.md)：页面设计规范
+- [GLOSSARY.md](GLOSSARY.md)：领域术语（在线、活跃、任务、实际占用、累计工时）
 - 架构决策记录（[docs/adr/](docs/adr/)）：
-  - [0001 录制架构](docs/adr/0001-usage-recording-architecture.md)：在线/活跃/任务录制架构。
-  - [0002 周期裁剪与并发](docs/adr/0002-dashboard-period-clipping-and-concurrency.md)：周期裁剪与并发口径。
-  - [0003 历史回填](docs/adr/0003-historical-backfill.md)：历史任务回填。
-  - [0004 timespan_stats 工具](docs/adr/0004-agent-stats-tool.md)：`timespan_stats` Agent 工具。
-  - [0005 热力图周网格](docs/adr/0005-全年热力图改为周网格与界面文案中文化.md)：全年热力图改为周网格与文案中文化。
-  - [0006 信息浮层](docs/adr/0006-信息浮层反转回悬浮与聚焦触发.md)：信息浮层反转回悬浮与聚焦触发。
-  - [0007 改名为 dsh-timespan](docs/adr/0007-rename-to-dsh-timespan.md)：改名范围、存储域与备份格式的兼容决策。
-  - [0008 界面语言](docs/adr/0008-界面语言改为插件设置项.md)：界面语言改为插件设置项，默认中文、可切英文。
-  - [0009 质量门禁与发布流程](docs/adr/0009-质量门禁与发布流程.md)：CI 的范围与边界、审计的不变量、手动发布流程。
-  - [0010 包名改为 @qwayo/dsh-timespan](docs/adr/0010-包名改为-qwayo-scope.md)：公开与发 npm 前的包名迁移，以及已安装用户的处理。
+  - [0001 录制架构](docs/adr/0001-usage-recording-architecture.md)：在线/活跃/任务录制架构
+  - [0002 周期裁剪与并发](docs/adr/0002-dashboard-period-clipping-and-concurrency.md)：周期裁剪与并发口径
+  - [0003 历史回填](docs/adr/0003-historical-backfill.md)：历史任务回填
+  - [0004 timespan_stats 工具](docs/adr/0004-agent-stats-tool.md)：`timespan_stats` Agent 工具
+  - [0005 热力图周网格](docs/adr/0005-全年热力图改为周网格与界面文案中文化.md)：全年热力图改为周网格与文案中文化
+  - [0006 信息浮层](docs/adr/0006-信息浮层反转回悬浮与聚焦触发.md)：信息浮层反转回悬浮与聚焦触发
+  - [0007 改名为 dsh-timespan](docs/adr/0007-rename-to-dsh-timespan.md)：改名范围、存储域与备份格式的兼容决策
+  - [0008 界面语言](docs/adr/0008-界面语言改为插件设置项.md)：界面语言改为插件设置项，默认中文、可切英文
+  - [0009 质量门禁与发布流程](docs/adr/0009-质量门禁与发布流程.md)：CI 的范围与边界、审计的不变量、手动发布流程
+  - [0010 包名改为 @qwayo/dsh-timespan](docs/adr/0010-包名改为-qwayo-scope.md)：公开与发 npm 前的包名迁移，以及已安装用户的处理
