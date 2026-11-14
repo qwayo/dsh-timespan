@@ -1,395 +1,468 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="dash-title dash-desc">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:lang="zh" width="1200" height="774" viewBox="0 0 1200 774" role="img" aria-labelledby="dash-title dash-desc">
   <title id="dash-title">TimeSpan 概览界面示意</title>
-  <desc id="dash-desc">TimeSpan 概览界面（示例数据）。首排统计卡汇总今日活跃、在线、任务时长与本周、本月数据。第二排是今日 24 小时趋势与任务时长构成，底排是每日活跃热力图、工作区任务排行与最近会话。</desc>
+  <desc id="dash-desc">TimeSpan 概览界面（示例数据）。首排统计卡汇总今日活跃、在线、任务时长和本周、本月数据。第二排展示今日 24 小时趋势与任务时长构成，底排展示每日活跃热力图、工作区任务排行与最近会话。</desc>
 
-  <!-- 画布 -->
-  <rect width="1200" height="900" rx="24" fill="#151718"/>
-  <rect x="0.75" y="0.75" width="1198.5" height="898.5" rx="23.25" fill="none" stroke="#2b3033" stroke-width="1.5"/>
+  <defs>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #181a1c; }
+      .mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace; }
+      .heading { font-size: 18px; font-weight: 600; }
+      .muted { fill: #606568; }
+      .signal { fill: #1f4e94; }
+      .signal-deep { fill: #133463; }
+      .task { fill: #7a5aa6; }
+      .card { fill: #fff; stroke: #dedfdd; }
+      .rule { fill: none; stroke: #dedfdd; }
+      .glyph { fill: none; stroke: #606568; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+    <g id="timespan-rings" fill="none" stroke-width="2.2" stroke-linecap="round">
+      <path d="M3.69 10.23A8.5 8.5 0 0 1 20.31 10.23" stroke="#1f4e94"/>
+      <path d="M20.31 13.77A8.5 8.5 0 0 1 13.77 20.31" stroke="#7a5aa6"/>
+      <path d="M10.23 20.31A8.5 8.5 0 0 1 3.69 13.77" stroke="#79b3f9"/>
+    </g>
+    <g id="monitor" stroke-linejoin="round" stroke-linecap="round">
+      <rect x="1.5" y="2.6" width="13" height="8.4" rx="1.7"/>
+      <path d="M8 11v2.7m-2.4 0h4.8"/>
+    </g>
+    <path id="compare-detail" d="M3 9v4h4m2-10h4v4"/>
+    <g id="info">
+      <circle cx="8" cy="8" r="6"/>
+      <path d="M8 7.5v3.2M8 5v.1"/>
+    </g>
+    <g id="folder">
+      <path d="M1.7 5V3.6c0-.6.5-1.1 1.1-1.1H6l1.6 1.6h5.6c.6 0 1.1.5 1.1 1.1v1.2M1.7 5.8h11.7c.6 0 1.1.5 1 1.1l-.6 5.4c-.1.6-.5 1-1.1 1H2.9c-.7 0-1.2-.5-1.2-1.2V5.8Z"/>
+    </g>
+    <clipPath id="window-outline">
+      <rect width="1200" height="774" rx="19"/>
+    </clipPath>
+  </defs>
 
-  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <g clip-path="url(#window-outline)">
+    <rect width="1200" height="774" fill="#f3f3f2"/>
 
-    <!-- ===== DSH 侧栏 ===== -->
+    <!-- 宿主侧栏 -->
     <g id="host-sidebar">
-      <rect x="24" y="24" width="196" height="852" rx="16" fill="#202324" stroke="#2e3336" stroke-width="1.5"/>
-
-      <!-- 品牌 -->
-      <g transform="translate(44 46)">
-        <g transform="translate(0 -2) scale(0.86)">
-          <path d="M23.748 4.651c-.254-.124-.364.113-.512.233-.051.04-.094.09-.137.137-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.155-.708-.311-.955-.65-.172-.24-.219-.509-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588M11.58 18.168c-2.088-1.642-3.101-2.183-3.52-2.16-.39.024-.32.472-.234.763.09.288.207.487.371.74.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.168-1.361-.801-2.5-1.86-3.301-3.306-.775-1.393-1.225-2.888-1.299-4.482-.02-.385.094-.522.477-.592a4.7 4.7 0 0 1 1.53-.038c2.131.311 3.946 1.264 5.467 2.774.868.86 1.525 1.887 2.202 2.89.72 1.066 1.494 2.082 2.48 2.915.348.291.626.513.892.677-.802.09-2.14.109-3.055-.615zm1.001-6.44a.306.306 0 0 1 .415-.287.3.3 0 0 1 .113.074.3.3 0 0 1 .086.214c0 .17-.136.307-.308.307a.303.303 0 0 1-.306-.307m3.11 1.596c-.2.081-.4.151-.591.16a1.25 1.25 0 0 1-.798-.254c-.274-.23-.47-.358-.551-.758a1.7 1.7 0 0 1 .015-.588c.07-.327-.007-.537-.238-.727-.188-.156-.426-.199-.689-.199a.6.6 0 0 1-.254-.078.253.253 0 0 1-.114-.358 1 1 0 0 1 .192-.21c.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.392.451.462.576.685.915.176.264.336.536.446.848.066.194-.02.353-.25.45" fill="#f1f2f1"/>
-        </g>
-        <text x="32" y="18" font-size="17" font-weight="700" fill="#f1f2f1">DSH</text>
-        <rect x="74" y="1" width="66" height="22" rx="6" fill="#303435"/>
-        <text x="107" y="17" text-anchor="middle" font-size="10" letter-spacing="1.4" fill="#b1b6b5">HARNESS</text>
+      <rect width="190" height="774" fill="#f7f8f9"/>
+      <path d="M189.5 0v774" class="rule"/>
+      <g transform="translate(14 18) scale(.88)">
+        <path d="M23.748 4.651c-.254-.124-.364.113-.512.233-.051.04-.094.09-.137.137-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.155-.708-.311-.955-.65-.172-.24-.219-.509-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.094.172.187.129.323-.082.28-.18.553-.266.833-.055.179-.137.218-.328.14a5.5 5.5 0 0 1-1.737-1.179c-.857-.828-1.631-1.743-2.597-2.46a12 12 0 0 0-.689-.47c-.985-.957.13-1.743.387-1.836.27-.098.094-.433-.778-.428-.872.003-1.67.295-2.687.685a3 3 0 0 1-.465.136 9.6 9.6 0 0 0-2.883-.101c-1.885.21-3.39 1.1-4.497 2.622C.082 8.776-.231 10.854.152 13.02c.403 2.284 1.568 4.175 3.36 5.653 1.857 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.132-.284 4.994-1.86.47.234.962.328 1.78.398.629.058 1.235-.031 1.705-.129.735-.155.684-.836.418-.961-2.155-1.004-1.682-.595-2.112-.926 1.095-1.295 2.768-3.598 3.284-6.733.05-.346.115-.834.108-1.114-.004-.171.035-.238.23-.257a4.2 4.2 0 0 0 1.545-.475c1.397-.763 1.96-2.016 2.093-3.517.02-.23-.004-.467-.247-.588M11.58 18.168c-2.088-1.642-3.101-2.183-3.52-2.16-.39.024-.32.472-.234.763.09.288.207.487.371.74.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.168-1.361-.801-2.5-1.86-3.301-3.306-.775-1.393-1.225-2.888-1.299-4.482-.02-.385.094-.522.477-.592a4.7 4.7 0 0 1 1.53-.038c2.131.311 3.946 1.264 5.467 2.774.868.86 1.525 1.887 2.202 2.89.72 1.066 1.494 2.082 2.48 2.915.348.291.626.513.892.677-.802.09-2.14.109-3.055-.615zm1.001-6.44a.306.306 0 0 1 .415-.287.3.3 0 0 1 .113.074.3.3 0 0 1 .086.214c0 .17-.136.307-.308.307a.303.303 0 0 1-.306-.307m3.11 1.596c-.2.081-.4.151-.591.16a1.25 1.25 0 0 1-.798-.254c-.274-.23-.47-.358-.551-.758a1.7 1.7 0 0 1 .015-.588c.07-.327-.007-.537-.238-.727-.188-.156-.426-.199-.689-.199a.6.6 0 0 1-.254-.078.253.253 0 0 1-.114-.358 1 1 0 0 1 .192-.21c.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.392.451.462.576.685.915.176.264.336.536.446.848.066.194-.02.353-.25.45" fill="#181a1c"/>
+      </g>
+      <text x="38" y="34" font-size="18" font-weight="650">deepseek</text>
+      <rect x="123" y="21" width="44" height="13" rx="2" fill="#181a1c"/>
+      <text x="145" y="30.5" text-anchor="middle" class="mono" font-size="8.3" style="fill:#fff">HARNESS</text>
+      <g class="glyph" transform="translate(173 21)">
+        <rect x="0" y="0" width="8" height="13" rx="1"/>
+        <path d="M3 0v13"/>
       </g>
 
-      <!-- 新会话 -->
-      <rect x="44" y="88" width="156" height="44" rx="10" fill="#303435"/>
-      <circle cx="66" cy="110" r="6.5" fill="none" stroke="#b1b6b5" stroke-width="1.8"/>
-      <path d="M66 106v4l2.6 1.6" fill="none" stroke="#b1b6b5" stroke-width="1.6" stroke-linecap="round"/>
-      <text x="86" y="116" font-size="17" fill="#f1f2f1">新会话</text>
+      <rect x="12.5" y="53.5" width="165" height="36" rx="9" class="card"/>
+      <g class="glyph" transform="translate(62 63)">
+        <circle cx="8" cy="8" r="5.5"/><path d="M5.6 8h4.8M8 5.6v4.8"/>
+      </g>
+      <text x="82" y="77" font-size="14">新会话</text>
 
-      <!-- 宿主导航 -->
-      <g font-size="16" fill="#b1b6b5">
-        <g transform="translate(46 150.5) scale(0.68)">
-          <path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z" fill="none" stroke="#8a9090" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </g>
-        <text x="74" y="162">插件</text>
-        <circle cx="51" cy="194" r="6.5" fill="none" stroke="#8a9090" stroke-width="1.6"/>
-        <path d="M51 191v3l2 1" fill="none" stroke="#8a9090" stroke-width="1.5" stroke-linecap="round"/>
-        <text x="74" y="198">自动化任务</text>
-        <circle cx="49" cy="228" r="2" fill="#8a9090"/><circle cx="55" cy="228" r="2" fill="#8a9090"/>
-        <circle cx="49" cy="234" r="2" fill="#8a9090"/><circle cx="55" cy="234" r="2" fill="#8a9090"/>
-        <text x="74" y="234">更多</text>
+      <g class="glyph">
+        <path d="M18 111.5l2-2 1.4 1.4a1.8 1.8 0 1 1 2.6-2.6l1.5-1.5 2.1 2.1c.7.7.7 1.5 0 2.2l-1.4 1.4a1.8 1.8 0 1 0-2.6 2.6l-2.1 2.1c-.7.7-1.5.7-2.2 0l-1.3-1.3a2 2 0 0 1 0-2.8Z"/>
+        <circle cx="23" cy="145" r="6.2"/><path d="M23 141.2v4.2l2.4 1.5"/>
+      </g>
+      <text x="38" y="117" font-size="14">插件</text>
+      <text x="38" y="150" font-size="14">自动化任务</text>
+
+      <rect x="12.5" y="162" width="165" height="30" rx="7" fill="#eaecee"/>
+      <g transform="rotate(-90 25 177)" fill="none" stroke-width="2.6">
+        <circle cx="25" cy="177" r="7.2" stroke="#ccdaec"/>
+        <circle cx="25" cy="177" r="7.2" pathLength="100" stroke="#79b3f9" stroke-dasharray="43.38 56.62"/>
+        <circle cx="25" cy="177" r="7.2" pathLength="100" stroke="#1f4e94" stroke-dasharray="31.44 68.56" stroke-dashoffset="-45.48"/>
+        <circle cx="25" cy="177" r="7.2" pathLength="100" stroke="#7a5aa6" stroke-dasharray="20.99 79.01" stroke-dashoffset="-78.31"/>
+      </g>
+      <text x="38" y="182" class="mono" font-size="15" font-weight="700">6h 0m</text>
+      <circle cx="92" cy="177" r="6" fill="none" stroke="#79b3f9" opacity=".27"/>
+      <circle cx="92" cy="177" r="3.3" fill="#79b3f9"/>
+
+      <path d="M18 206h.1m4.9 0h.1m4.9 0h.1" class="glyph" style="stroke-width:2"/>
+      <text x="38" y="211" font-size="14">更多</text>
+
+      <text x="17" y="253" font-size="13" class="muted">工作区</text>
+      <g class="glyph" transform="translate(118 240)">
+        <circle cx="5.6" cy="5.6" r="4.5"/><path d="M8.9 8.9l3.5 3.5M23 3.5h11m-11 6h11m-7-7.9v3.8m4.4 2.4v3.8m13-2h9m-4.5-4.5v9"/>
+      </g>
+      <use xlink:href="#folder" x="15" y="271" class="glyph" style="stroke:#1f4e94"/>
+      <use xlink:href="#folder" x="15" y="301" class="glyph"/>
+      <use xlink:href="#folder" x="15" y="331" class="glyph"/>
+      <g font-size="14">
+        <text x="38" y="283">核心</text>
+        <text x="38" y="313">文档</text>
+        <text x="38" y="343">调研</text>
       </g>
 
-      <!-- TimeSpan 入口 -->
-      <rect x="40" y="268" width="164" height="52" rx="12" fill="#303435"/>
-      <g transform="translate(46 282) scale(1.0000)" fill="none" stroke-linecap="round"><path d="M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23" stroke="#79B3F9" stroke-width="2.2"/><path d="M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31" stroke="#C29BE8" stroke-width="2.2"/><path d="M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77" stroke="#3f6ba8" stroke-width="2.2"/></g>
-      <text x="78" y="300" font-size="18" font-weight="700" fill="#79B3F9"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">10h 58m</text>
-      <circle cx="157" cy="294" r="3.5" fill="#C29BE8"/>
-
-      <!-- 工作区 -->
-      <g font-size="13" fill="#8a9090">
-        <text x="44" y="360">工作区</text>
-        <circle cx="164" cy="356" r="5.5" fill="none" stroke="#8a9090" stroke-width="1.4"/>
-        <path d="M168 360l3 3" stroke="#8a9090" stroke-width="1.4" stroke-linecap="round"/>
-        <path d="M186 352v8M182 356h8" stroke="#8a9090" stroke-width="1.4" stroke-linecap="round"/>
-      </g>
-      <g font-size="16">
-        <path d="M46 382h6l2 2h8v10H46z" fill="none" stroke="#79B3F9" stroke-width="1.5" stroke-linejoin="round"/>
-        <text x="72" y="394" fill="#f1f2f1">示例工作区</text>
-        <path d="M46 416h6l2 2h8v10H46z" fill="none" stroke="#8a9090" stroke-width="1.5" stroke-linejoin="round"/>
-        <text x="72" y="428" fill="#b1b6b5">Other</text>
-        <path d="M46 450h6l2 2h8v10H46z" fill="none" stroke="#8a9090" stroke-width="1.5" stroke-linejoin="round"/>
-        <text x="72" y="462" fill="#b1b6b5">Demo</text>
-        <path d="M46 484h6l2 2h8v10H46z" fill="none" stroke="#8a9090" stroke-width="1.5" stroke-linejoin="round"/>
-        <text x="72" y="496" fill="#b1b6b5">默认工作区</text>
-      </g>
-      <text x="44" y="848" font-size="15" fill="#8a9090">··· 更多</text>
+      <path d="M18 746h.1m4.9 0h.1m4.9 0h.1" class="glyph" style="stroke-width:2"/>
+      <text x="38" y="751" font-size="14">更多</text>
     </g>
 
-    <!-- ===== 顶栏 ===== -->
+    <!-- 同行的品牌、视图导航、运行状态与外观控件 -->
     <g id="page-header">
-      <g transform="translate(252 42) scale(1.5000)" fill="none" stroke-linecap="round"><path d="M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23" stroke="#79B3F9" stroke-width="2.2"/><path d="M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31" stroke="#C29BE8" stroke-width="2.2"/><path d="M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77" stroke="#3f6ba8" stroke-width="2.2"/><path d="M12 12l4-4" stroke="#f1f2f1" stroke-width="2"/><circle cx="12" cy="12" r="1.8" fill="#f1f2f1" stroke="none"/></g>
-<text x="298" y="72" font-size="27" fill="#f1f2f1" font-weight="700" text-anchor="start">TimeSpan</text>
-      <circle cx="934" cy="63" r="4.5" fill="#C29BE8"/>
-<text x="946" y="69" font-size="15" fill="#b1b6b5" font-weight="400" text-anchor="start">任务中</text>
-<line x1="1032" y1="54" x2="1032" y2="82" stroke="#3a4042" stroke-width="1.5"/>
-<rect x="1059" y="46" width="36" height="36" rx="8" fill="#202324" stroke="#414647" stroke-width="1.5"/>
-      <g transform="translate(1069 56)" stroke="#b1b6b5" stroke-width="1.4" fill="none" stroke-linejoin="round" stroke-linecap="round">
-        <path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8 5.7 5.7 0 1 0 13.2 9.6Z"/>
+      <g transform="translate(213 24) scale(1.45)">
+        <use xlink:href="#timespan-rings"/>
+        <path d="M12 12l4-4" fill="none" stroke="#133463" stroke-width="2.1" stroke-linecap="round"/>
+        <circle cx="12" cy="12" r="1.8" fill="#133463"/>
       </g>
-<rect x="1107" y="46" width="36" height="36" rx="8" fill="#202324" stroke="#414647" stroke-width="1.5"/>
-      <circle cx="1125" cy="64" r="7.2" fill="none" stroke="#ffffff" stroke-width="1.5"/>
-      <circle cx="1125" cy="64" r="2.7" fill="#79B3F9"/>
-    </g>
-    <!-- ===== 视图导航 ===== -->
-    <g id="view-tabs">
-<text x="252" y="136" font-size="17" fill="#f1f2f1" font-weight="700" text-anchor="start">概览</text>
-<text x="322" y="136" font-size="17" fill="#8a9090" font-weight="400" text-anchor="start">趋势</text>
-<text x="390" y="136" font-size="17" fill="#8a9090" font-weight="400" text-anchor="start">会话</text>
-<text x="458" y="136" font-size="17" fill="#8a9090" font-weight="400" text-anchor="start">设置</text>
-<rect x="248" y="144" width="38" height="3" rx="1.5" fill="#79B3F9"/>
-<line x1="244" y1="149" x2="1176" y2="149" stroke="#2b3033" stroke-width="1.5"/>
-    </g>
-    <g id="page-content" transform="translate(0 -36)">
-    <!-- ===== 第一行：主指标、副指标和周/月统计共用一张卡 ===== -->
-    <g id="overview-metrics">
-      <rect x="244" y="210" width="932" height="150" rx="12" fill="#202324" stroke="#2e3336" stroke-width="1.5"/>
-      <g transform="translate(265 230)" stroke="#a9cffa" stroke-width="1.35" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5.6"/><path d="M7 3.8v3.4l2.5 1.45"/></g>
-      <text x="286" y="243" font-size="17" fill="#a9cffa" font-weight="700">今日活跃</text>
-      <g transform="translate(509 221)" stroke="#b1b6b5" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h5v5M7 14H2V9"/></g>
-      <rect x="260" y="258" width="2" height="34" rx="1" fill="#79B3F9"/>
-      <text x="272" y="291" font-size="43" fill="#a9cffa" font-weight="700" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">4h 42m</text>
-      <text x="272" y="313" font-size="11" fill="#b1b6b5">11月13日 周五</text>
-      <text x="506" y="322" font-size="11" fill="#b1b6b5" text-anchor="end">活跃占比 43%</text>
-      <rect x="272" y="332" width="234" height="4" rx="2" fill="#303435"/>
-      <rect x="272" y="332" width="101" height="4" rx="2" fill="#79B3F9"/>
-      <g stroke="#79B3F9" stroke-width="1.4" fill="none" stroke-linecap="round">
-        <circle cx="547" cy="243" r="5.5"/><path d="M547 240v3l2 1"/>
+      <text x="255" y="50" font-size="25" font-weight="700">TimeSpan</text>
+      <path d="M384 29v25m718-25v25" class="rule"/>
+      <g font-size="15" text-anchor="middle">
+        <text x="424" y="47" font-weight="600">概览</text>
+        <text x="482" y="47" class="muted">趋势</text>
+        <text x="540" y="47" class="muted">会话</text>
+        <text x="598" y="47" class="muted">设置</text>
       </g>
-      <text x="560" y="247" font-size="12" fill="#b1b6b5">今日在线时长</text>
-      <text x="560" y="271" font-size="18" fill="#a9cffa" font-weight="600" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">10h 58m</text>
-      <path d="M540 282H705" stroke="#34393b"/>
-      <g stroke="#C29BE8" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="542" y="295" width="10" height="9" rx="1.5"/><path d="M545 295v-2h4v2"/>
-      </g>
-      <text x="560" y="303" font-size="12" fill="#b1b6b5">今日任务时长</text>
-      <text x="560" y="327" font-size="18" fill="#C29BE8" font-weight="600" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">4h 33m</text>
-      <g>
-        <text x="746" y="244" font-size="16" fill="#b1b6b5" font-weight="600">本周</text>
-        <text x="746" y="293" font-size="28" fill="#a9cffa" font-weight="700" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">9h 22m</text>
-        <text x="920" y="322" font-size="11" fill="#b1b6b5" text-anchor="end">活跃占比 37%</text>
-        <rect x="746" y="332" width="174" height="4" rx="2" fill="#303435"/>
-        <rect x="746" y="332" width="64" height="4" rx="2" fill="#79B3F9"/>
-      </g>
-      <g>
-        <text x="972" y="244" font-size="16" fill="#b1b6b5" font-weight="600">本月</text>
-        <text x="972" y="293" font-size="28" fill="#a9cffa" font-weight="700" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">21h 2m</text>
-        <text x="1146" y="322" font-size="11" fill="#b1b6b5" text-anchor="end">活跃占比 34%</text>
-        <rect x="972" y="332" width="174" height="4" rx="2" fill="#303435"/>
-        <rect x="972" y="332" width="59" height="4" rx="2" fill="#79B3F9"/>
-      </g>
-    </g>
-    <!-- ===== 第二行：今日 24 小时 + 任务构成 ===== -->
-    <g id="daily-trend-card">
-<rect x="244" y="372" width="624" height="236" rx="12" fill="#202324" stroke="#2e3336" stroke-width="1.5"/>
-<g transform="translate(260 384)" stroke="#b1b6b5" stroke-width="1.35" fill="none" stroke-linecap="round"><path d="M2.2 12V8.4M7 12V4M11.8 12V6.3"/><path d="M1.2 13.2h12"/></g><text x="282" y="399" font-size="18" fill="#f1f2f1" font-weight="700" text-anchor="start">今日 24 小时</text>
-<rect x="520" y="388" width="9" height="9" rx="2" fill="#79B3F9"/>
-<text x="534" y="397" font-size="13" fill="#b1b6b5" font-weight="400" text-anchor="start">活跃</text>
-<rect x="594" y="388" width="9" height="9" rx="2" fill="#C29BE8"/>
-<text x="608" y="397" font-size="13" fill="#b1b6b5" font-weight="400" text-anchor="start">任务</text>
-<g transform="translate(836 384)" stroke="#8a9090" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h5v5M7 14H2V9"/></g>
-<line x1="296" y1="426" x2="840" y2="426" stroke="#303435" stroke-width="1" stroke-dasharray="4 5"/>
-<line x1="296" y1="473" x2="840" y2="473" stroke="#303435" stroke-width="1" stroke-dasharray="4 5"/>
-<line x1="296" y1="521" x2="840" y2="521" stroke="#414647" stroke-width="1.5"/>
-<text x="288" y="430" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">50m 8s</text>
-<text x="288" y="477" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">25m 4s</text>
-<text x="288" y="524" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">0m 0s</text>
-<rect x="302.0" y="513" width="4" height="8" rx="1.6" fill="#79B3F9"/>
-<rect x="307.0" y="517" width="4" height="4" rx="1.6" fill="#C29BE8"/>
-<rect x="486.0" y="501" width="4" height="20" rx="1.6" fill="#79B3F9"/>
-<rect x="491.0" y="509" width="4" height="12" rx="1.6" fill="#C29BE8"/>
-<rect x="509.0" y="487" width="4" height="34" rx="1.6" fill="#79B3F9"/>
-<rect x="514.0" y="501" width="4" height="20" rx="1.6" fill="#C29BE8"/>
-<rect x="532.0" y="473" width="4" height="48" rx="1.6" fill="#79B3F9"/>
-<rect x="537.0" y="492" width="4" height="29" rx="1.6" fill="#C29BE8"/>
-<rect x="555.0" y="463" width="4" height="58" rx="1.6" fill="#79B3F9"/>
-<rect x="560.0" y="484" width="4" height="37" rx="1.6" fill="#C29BE8"/>
-<rect x="578.0" y="457" width="4" height="64" rx="1.6" fill="#79B3F9"/>
-<rect x="583.0" y="477" width="4" height="44" rx="1.6" fill="#C29BE8"/>
-<rect x="601.0" y="462" width="4" height="59" rx="1.6" fill="#79B3F9"/>
-<rect x="606.0" y="482" width="4" height="39" rx="1.6" fill="#C29BE8"/>
-<rect x="624.0" y="471" width="4" height="50" rx="1.6" fill="#79B3F9"/>
-<rect x="629.0" y="489" width="4" height="32" rx="1.6" fill="#C29BE8"/>
-<rect x="647.0" y="502" width="4" height="19" rx="1.6" fill="#79B3F9"/>
-<rect x="652.0" y="509" width="4" height="12" rx="1.6" fill="#C29BE8"/>
-<rect x="670.0" y="490" width="4" height="31" rx="1.6" fill="#79B3F9"/>
-<rect x="675.0" y="500" width="4" height="21" rx="1.6" fill="#C29BE8"/>
-<rect x="693.0" y="497" width="4" height="24" rx="1.6" fill="#79B3F9"/>
-<rect x="698.0" y="505" width="4" height="16" rx="1.6" fill="#C29BE8"/>
-<rect x="716.0" y="492" width="4" height="29" rx="1.6" fill="#79B3F9"/>
-<rect x="721.0" y="501" width="4" height="20" rx="1.6" fill="#C29BE8"/>
-<rect x="739.0" y="466" width="4" height="55" rx="1.6" fill="#79B3F9"/>
-<rect x="744.0" y="484" width="4" height="37" rx="1.6" fill="#C29BE8"/>
-<rect x="762.0" y="459" width="4" height="62" rx="1.6" fill="#79B3F9"/>
-<rect x="767.0" y="476" width="4" height="45" rx="1.6" fill="#C29BE8"/>
-<rect x="785.0" y="482" width="4" height="39" rx="1.6" fill="#79B3F9"/>
-<rect x="790.0" y="497" width="4" height="24" rx="1.6" fill="#C29BE8"/>
-<rect x="808.0" y="500" width="4" height="21" rx="1.6" fill="#79B3F9"/>
-<rect x="813.0" y="508" width="4" height="13" rx="1.6" fill="#C29BE8"/>
-<rect x="831.0" y="510" width="4" height="11" rx="1.6" fill="#79B3F9"/>
-<rect x="836.0" y="516" width="4" height="5" rx="1.6" fill="#C29BE8"/>
-<text x="304.0" y="540" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="middle" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">00:00</text>
-<text x="396.0" y="540" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="middle" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">04:00</text>
-<text x="488.0" y="540" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="middle" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">08:00</text>
-<text x="580.0" y="540" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="middle" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">12:00</text>
-<text x="672.0" y="540" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="middle" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">16:00</text>
-<text x="764.0" y="540" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="middle" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">20:00</text>
-<text x="833.0" y="540" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="middle" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">23:00</text>
-<line x1="296" y1="557" x2="840" y2="557" stroke="#303435" stroke-width="1"/>
-<text x="300" y="578" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="start">峰值活跃</text>
-<text x="300" y="598" font-size="15" fill="#f1f2f1" font-weight="700" text-anchor="start" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">39m 13s</text>
-<line x1="476" y1="566" x2="476" y2="598" stroke="#303435" stroke-width="1"/>
-<text x="494" y="578" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="start">最活跃时段</text>
-<text x="494" y="598" font-size="15" fill="#f1f2f1" font-weight="700" text-anchor="start" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">12:00</text>
-<line x1="664" y1="566" x2="664" y2="598" stroke="#303435" stroke-width="1"/>
-<text x="682" y="578" font-size="10.5" fill="#8a9090" font-weight="400" text-anchor="start">任务</text>
-<text x="682" y="598" font-size="15" fill="#f1f2f1" font-weight="700" text-anchor="start" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">4h 33m</text>
-    </g>
-    <g id="task-mix-card">
-<rect x="880" y="372" width="296" height="236" rx="12" fill="#202324" stroke="#2e3336" stroke-width="1.5"/>
-<g transform="translate(896 384)" stroke="#b1b6b5" stroke-width="1.35" fill="none"><circle cx="7" cy="7" r="5.5"/><circle cx="7" cy="7" r="2.2" stroke="#79B3F9"/></g><text x="918" y="399" font-size="18" fill="#f1f2f1" font-weight="700" text-anchor="start">任务时长构成</text>
-      <g transform="rotate(-90 958 500)">
-        <circle cx="958" cy="500" r="45" fill="none" stroke="#303435" stroke-width="16"/>
-        <circle cx="958" cy="500" r="45" fill="none" stroke="#A9CFFA" stroke-width="16" pathLength="100" stroke-dasharray="82 18" stroke-dashoffset="0"/>
-        <circle cx="958" cy="500" r="45" fill="none" stroke="#79B3F9" stroke-width="16" pathLength="100" stroke-dasharray="12 88" stroke-dashoffset="-82"/>
-        <circle cx="958" cy="500" r="45" fill="none" stroke="#3f6ba8" stroke-width="16" pathLength="100" stroke-dasharray="2 98" stroke-dashoffset="-94"/>
-        <circle cx="958" cy="500" r="45" fill="none" stroke="#4e5a68" stroke-width="16" pathLength="100" stroke-dasharray="5 95" stroke-dashoffset="-96"/>
-      </g>
-<text x="958" y="499" font-size="15" fill="#f1f2f1" font-weight="700" text-anchor="middle" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">5h 8m</text>
-<text x="958" y="516" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="middle">累计工时</text>
-<rect x="1016" y="436" width="8" height="8" rx="2" fill="#A9CFFA"/>
-<text x="1030" y="444" font-size="11.5" fill="#b1b6b5" font-weight="400" text-anchor="start">模型</text>
-<text x="1104" y="444" font-size="10" fill="#8a9090" font-weight="400" text-anchor="end">82%</text>
-<text x="1162" y="444" font-size="10.5" fill="#f1f2f1" font-weight="600" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">4h 11m</text>
-<rect x="1016" y="466" width="8" height="8" rx="2" fill="#79B3F9"/>
-<text x="1030" y="474" font-size="11.5" fill="#b1b6b5" font-weight="400" text-anchor="start">工具</text>
-<text x="1104" y="474" font-size="10" fill="#8a9090" font-weight="400" text-anchor="end">12%</text>
-<text x="1162" y="474" font-size="10.5" fill="#f1f2f1" font-weight="600" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">36m 29s</text>
-<rect x="1016" y="496" width="8" height="8" rx="2" fill="#3f6ba8"/>
-<text x="1030" y="504" font-size="11.5" fill="#b1b6b5" font-weight="400" text-anchor="start">等待</text>
-<text x="1104" y="504" font-size="10" fill="#8a9090" font-weight="400" text-anchor="end">2%</text>
-<text x="1162" y="504" font-size="10.5" fill="#f1f2f1" font-weight="600" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">5m 38s</text>
-<rect x="1016" y="526" width="8" height="8" rx="2" fill="#4e5a68"/>
-<text x="1030" y="534" font-size="11.5" fill="#b1b6b5" font-weight="400" text-anchor="start">其他</text>
-<text x="1104" y="534" font-size="10" fill="#8a9090" font-weight="400" text-anchor="end">5%</text>
-<text x="1162" y="534" font-size="10.5" fill="#f1f2f1" font-weight="600" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">14m 27s</text>
-    </g>
-    <!-- ===== 第三行：每日活跃 + 工作区任务排行 + 最近会话 ===== -->
-    <g id="daily-heatmap-card" transform="translate(-636 0)">
-<rect x="880" y="620" width="306" height="256" rx="12" fill="#202324" stroke="#2e3336" stroke-width="1.5"/>
-<g transform="translate(896 632)" fill="#b1b6b5"><rect x="1" y="1" width="3.2" height="3.2" rx=".8"/><rect x="5.2" y="1" width="3.2" height="3.2" rx=".8"/><rect x="9.4" y="1" width="3.2" height="3.2" rx=".8"/><rect x="1" y="5.2" width="3.2" height="3.2" rx=".8"/><rect x="5.2" y="5.2" width="3.2" height="3.2" rx=".8"/><rect x="9.4" y="5.2" width="3.2" height="3.2" rx=".8"/><rect x="1" y="9.4" width="3.2" height="3.2" rx=".8"/><rect x="5.2" y="9.4" width="3.2" height="3.2" rx=".8"/><rect x="9.4" y="9.4" width="3.2" height="3.2" rx=".8"/></g><text x="918" y="647" font-size="18" fill="#f1f2f1" font-weight="700" text-anchor="start">每日活跃</text><circle cx="1004" cy="641" r="6.5" fill="none" stroke="#8a9090" stroke-width="1.3"/><text x="1004" y="644" font-size="9" fill="#8a9090" font-weight="700" text-anchor="middle">i</text>
-<rect x="1070" y="634" width="88" height="20" rx="10" fill="#303435"/>
-<text x="1114" y="649" font-size="10.5" fill="#b1b6b5" font-weight="400" text-anchor="middle">近 3 个月 ▾</text>
-<text x="914" y="679" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">8月</text>
-<text x="972" y="679" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">9月</text>
-<text x="1030" y="679" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">10月</text>
-<text x="1088" y="679" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">11月</text>
-<text x="904" y="702" font-size="8" fill="#8a9090" font-weight="400" text-anchor="end">一</text>
-<text x="904" y="720" font-size="8" fill="#8a9090" font-weight="400" text-anchor="end">二</text>
-<text x="904" y="738" font-size="8" fill="#8a9090" font-weight="400" text-anchor="end">三</text>
-<text x="904" y="756" font-size="8" fill="#8a9090" font-weight="400" text-anchor="end">四</text>
-<text x="904" y="774" font-size="8" fill="#8a9090" font-weight="400" text-anchor="end">五</text>
-<text x="904" y="792" font-size="8" fill="#8a9090" font-weight="400" text-anchor="end">六</text>
-<text x="904" y="810" font-size="8" fill="#8a9090" font-weight="400" text-anchor="end">日</text>
-<rect x="914" y="692" width="13" height="13" rx="2.5" fill="#4d82b7"/>
-<rect x="930" y="692" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="946" y="692" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="962" y="692" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="978" y="692" width="13" height="13" rx="2.5" fill="#79B3F9"/>
-<rect x="994" y="692" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="1010" y="692" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1026" y="692" width="13" height="13" rx="2.5" fill="#a9cffa"/>
-<rect x="1042" y="692" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1058" y="692" width="13" height="13" rx="2.5" fill="#4d82b7"/>
-<rect x="1074" y="692" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="1090" y="692" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1106" y="692" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="914" y="710" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="930" y="710" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="946" y="710" width="13" height="13" rx="2.5" fill="#79B3F9"/>
-<rect x="962" y="710" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="978" y="710" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="994" y="710" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="1010" y="710" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1026" y="710" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="1042" y="710" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="1058" y="710" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1074" y="710" width="13" height="13" rx="2.5" fill="#4d82b7"/>
-<rect x="1090" y="710" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1106" y="710" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="914" y="728" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="930" y="728" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="946" y="728" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="962" y="728" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="978" y="728" width="13" height="13" rx="2.5" fill="#4d82b7"/>
-<rect x="994" y="728" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1010" y="728" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1026" y="728" width="13" height="13" rx="2.5" fill="#79B3F9"/>
-<rect x="1042" y="728" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="1058" y="728" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1074" y="728" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1090" y="728" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="1106" y="728" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="914" y="746" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="930" y="746" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="946" y="746" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="962" y="746" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="978" y="746" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="994" y="746" width="13" height="13" rx="2.5" fill="#4d82b7"/>
-<rect x="1010" y="746" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1026" y="746" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1042" y="746" width="13" height="13" rx="2.5" fill="#79B3F9"/>
-<rect x="1058" y="746" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1074" y="746" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="1090" y="746" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1106" y="746" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="914" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="930" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="946" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="962" y="764" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="978" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="994" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1010" y="764" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="1026" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1042" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1058" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1074" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1090" y="764" width="13" height="13" rx="2.5" fill="#79B3F9"/>
-<rect x="1106" y="764" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="914" y="782" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="930" y="782" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="946" y="782" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="962" y="782" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="978" y="782" width="13" height="13" rx="2.5" fill="#4d82b7"/>
-<rect x="994" y="782" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1010" y="782" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1026" y="782" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="1042" y="782" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="1058" y="782" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1074" y="782" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1090" y="782" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1106" y="782" width="13" height="13" rx="2.5" fill="#4d82b7"/>
-<rect x="914" y="800" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="930" y="800" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="946" y="800" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="962" y="800" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="978" y="800" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="994" y="800" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1010" y="800" width="13" height="13" rx="2.5" fill="#79B3F9"/>
-<rect x="1026" y="800" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1042" y="800" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1058" y="800" width="13" height="13" rx="2.5" fill="#315a83"/>
-<rect x="1074" y="800" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<rect x="1090" y="800" width="13" height="13" rx="2.5" fill="#233a53"/>
-<rect x="1106" y="800" width="13" height="13" rx="2.5" fill="#1b2b3c"/>
-<text x="896" y="848" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">范围活跃 38h 17m · 活跃天数 46/91</text>
-    </g>
-    <g id="workspace-rank-card" transform="translate(318 0)">
-<rect x="244" y="620" width="246" height="256" rx="12" fill="#202324" stroke="#2e3336" stroke-width="1.5"/>
-<g transform="translate(260 632)" stroke="#b1b6b5" stroke-width="1.35" fill="none" stroke-linecap="round"><path d="M2.5 3.4h2M2.5 7h4.8M2.5 10.6h7.8"/><path d="M12.2 3.4h.01M11 7h.01M10 10.6h.01"/></g><text x="282" y="647" font-size="16" fill="#f1f2f1" font-weight="700" text-anchor="start">工作区任务排行</text>
-<text x="262" y="694" font-size="11" fill="#8a9090" font-weight="400" text-anchor="start" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">01</text>
-<text x="290" y="694" font-size="12.5" fill="#f1f2f1" font-weight="600" text-anchor="start">dsh-timespan</text>
-<rect x="290" y="704" width="108" height="7" rx="3.5" fill="#303435"/>
-<rect x="290" y="704" width="92" height="7" rx="3.5" fill="#79B3F9"/>
-<text x="472" y="694" font-size="12" fill="#b1b6b5" font-weight="600" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">3h 29m</text>
-<line x1="262" y1="720" x2="472" y2="720" stroke="#2b3033" stroke-width="1"/>
-<text x="262" y="746" font-size="11" fill="#8a9090" font-weight="400" text-anchor="start" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">02</text>
-<text x="290" y="746" font-size="12.5" fill="#f1f2f1" font-weight="600" text-anchor="start">Other</text>
-<rect x="290" y="756" width="108" height="7" rx="3.5" fill="#303435"/>
-<rect x="290" y="756" width="34" height="7" rx="3.5" fill="#79B3F9"/>
-<text x="472" y="746" font-size="12" fill="#b1b6b5" font-weight="600" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">1h 1m</text>
-<line x1="262" y1="772" x2="472" y2="772" stroke="#2b3033" stroke-width="1"/>
-<text x="262" y="798" font-size="11" fill="#8a9090" font-weight="400" text-anchor="start" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">03</text>
-<text x="290" y="798" font-size="12.5" fill="#f1f2f1" font-weight="600" text-anchor="start">remotion</text>
-<rect x="290" y="808" width="108" height="7" rx="3.5" fill="#303435"/>
-<rect x="290" y="808" width="22" height="7" rx="3.5" fill="#79B3F9"/>
-<text x="472" y="798" font-size="12" fill="#b1b6b5" font-weight="600" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">37m 47s</text>
-    </g>
-    <g id="recent-sessions-card" transform="translate(250 0)">
-<rect x="570" y="620" width="356" height="256" rx="12" fill="#202324" stroke="#2e3336" stroke-width="1.5"/>
-<g transform="translate(586 632)" stroke="#b1b6b5" stroke-width="1.35" fill="none" stroke-linejoin="round"><rect x="1.8" y="3" width="10.4" height="7.8" rx="2"/><path d="M4.2 10.8 3 13l3.1-2.2"/></g><text x="608" y="647" font-size="18" fill="#f1f2f1" font-weight="700" text-anchor="start">最近会话</text>
-<rect x="876" y="634" width="34" height="20" rx="10" fill="none" stroke="#505659"/>
-<text x="893" y="649" font-size="11" fill="#b1b6b5" font-weight="600" text-anchor="middle">5</text>
-<circle cx="588" cy="676" r="3" fill="#C29BE8"/>
-<text x="600" y="680" font-size="12" fill="#f1f2f1" font-weight="600" text-anchor="start">示例会话 A</text>
-<text x="600" y="693" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">示例工作区</text>
-<text x="826" y="684" font-size="10.5" fill="#b1b6b5" font-weight="400" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">0m 0s</text>
-<text x="910" y="684" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="end">刚刚</text>
-<line x1="588" y1="703" x2="910" y2="703" stroke="#2b3033" stroke-width="1"/>
-<text x="600" y="717" font-size="12" fill="#f1f2f1" font-weight="600" text-anchor="start">示例会话 B</text>
-<text x="600" y="730" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">示例工作区</text>
-<text x="826" y="721" font-size="10.5" fill="#b1b6b5" font-weight="400" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">1h 23m</text>
-<text x="910" y="721" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="end">47分钟前</text>
-<line x1="588" y1="740" x2="910" y2="740" stroke="#2b3033" stroke-width="1"/>
-<text x="600" y="754" font-size="12" fill="#f1f2f1" font-weight="600" text-anchor="start">示例会话 C</text>
-<text x="600" y="767" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">Other</text>
-<text x="826" y="758" font-size="10.5" fill="#b1b6b5" font-weight="400" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">25m 45s</text>
-<text x="910" y="758" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="end">2小时前</text>
-<line x1="588" y1="777" x2="910" y2="777" stroke="#2b3033" stroke-width="1"/>
-<text x="600" y="791" font-size="12" fill="#f1f2f1" font-weight="600" text-anchor="start">示例会话 D</text>
-<text x="600" y="804" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">remotion</text>
-<text x="826" y="795" font-size="10.5" fill="#b1b6b5" font-weight="400" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">37m 47s</text>
-<text x="910" y="795" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="end">3小时前</text>
-<line x1="588" y1="814" x2="910" y2="814" stroke="#2b3033" stroke-width="1"/>
-<text x="600" y="828" font-size="12" fill="#f1f2f1" font-weight="600" text-anchor="start">示例会话 E</text>
-<text x="600" y="841" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="start">示例工作区</text>
-<text x="826" y="832" font-size="10.5" fill="#b1b6b5" font-weight="400" text-anchor="end" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">1h 39m</text>
-<text x="910" y="832" font-size="9.5" fill="#8a9090" font-weight="400" text-anchor="end">3小时前</text>
-    </g>
+      <rect x="398" y="61" width="52" height="2" rx="1" fill="#133463"/>
+      <circle cx="1034" cy="42" r="7" fill="none" stroke="#79b3f9" opacity=".22"/>
+      <circle cx="1034" cy="42" r="3.7" fill="#79b3f9"/>
+      <text x="1046" y="47" font-size="14" class="signal">活跃中</text>
+      <rect x="1112.5" y="26.5" width="29" height="30" rx="7" class="card"/>
+      <use xlink:href="#monitor" x="1119" y="33" class="glyph"/>
+      <rect x="1151.5" y="26.5" width="30" height="30" rx="7" class="card"/>
+      <circle cx="1166.5" cy="41.5" r="6.4" fill="#dde6f2"/>
+      <circle cx="1166.5" cy="41.5" r="3.5" fill="#1f4e94"/>
     </g>
 
+    <!-- 统计卡：今日主指标、副指标和周/月周期 -->
+    <g id="overview-metrics">
+      <rect x="210.5" y="75.5" width="971" height="149" rx="10" class="card"/>
+      <path d="M548.5 88v124M563 149.5h194" class="rule"/>
+
+      <path d="M234 106h3.6l2.5-4.7 3 9.2 2.8-5.1h3.8" class="glyph"/>
+      <text x="256" y="111" font-size="15" font-weight="600" class="signal-deep">今日活跃</text>
+      <use xlink:href="#compare-detail" x="522" y="98" class="glyph" opacity=".72"/>
+      <rect x="228" y="124" width="2" height="39" rx="1" fill="#1f4e94"/>
+      <text x="235" y="161" class="mono signal-deep" font-size="44" font-weight="700">4h 24m</text>
+      <text x="235" y="190" font-size="14" class="muted">11月14日周六</text>
+      <text x="519" y="200" font-size="11.5" text-anchor="end" class="muted">活跃占比 73%</text>
+      <rect x="235" y="206" width="284" height="4" rx="2" fill="#e7f0fe"/>
+      <rect x="235" y="206" width="207.3" height="4" rx="2" fill="#79b3f9"/>
+
+      <use xlink:href="#monitor" x="563" y="124" class="glyph" style="stroke:#1f4e94"/>
+      <text x="584" y="137" font-size="13.5" class="muted">今日在线时长</text>
+      <text x="757" y="137" font-size="16" font-weight="700" text-anchor="end" class="mono signal-deep">6h 0m</text>
+      <g transform="translate(563 156)" class="glyph" style="stroke:#7a5aa6">
+        <rect x="2" y="2" width="12" height="12" rx="2.4"/>
+        <path d="m5.3 8 1.8 1.9 3.8-4.2"/>
+      </g>
+      <text x="584" y="169" font-size="13.5" class="muted">今日任务时长</text>
+      <text x="757" y="169" font-size="16" font-weight="700" text-anchor="end" class="mono task">3h 0m</text>
+
+      <g font-size="13.5">
+        <rect x="775" y="113" width="42" height="22" rx="4" fill="#ececeb"/>
+        <text x="782" y="128.5" class="muted">本周</text>
+        <text x="958" y="128.5" font-weight="700" text-anchor="end" class="mono" style="fill:#7b8da8">11.09–11.14</text>
+        <text x="775" y="164" font-size="27" font-weight="700" class="mono signal-deep">15h 12m</text>
+        <text x="958" y="185" font-size="11.5" text-anchor="end" class="muted">活跃占比 76%</text>
+        <rect x="775" y="191" width="183" height="4" rx="2" fill="#ececeb"/>
+        <rect x="775" y="191" width="139.1" height="4" rx="2" fill="#79b3f9"/>
+
+        <rect x="977" y="113" width="42" height="22" rx="4" fill="#ececeb"/>
+        <text x="984" y="128.5" class="muted">本月</text>
+        <text x="1160" y="128.5" font-weight="700" text-anchor="end" class="mono" style="fill:#7b8da8">11.01–11.14</text>
+        <text x="977" y="164" font-size="27" font-weight="700" class="mono signal-deep">30h 24m</text>
+        <text x="1160" y="185" font-size="11.5" text-anchor="end" class="muted">活跃占比 72%</text>
+        <rect x="977" y="191" width="183" height="4" rx="2" fill="#ececeb"/>
+        <rect x="977" y="191" width="131.8" height="4" rx="2" fill="#79b3f9"/>
+      </g>
+    </g>
+
+    <!-- 今日趋势 -->
+    <g id="daily-trend-card">
+      <rect x="210.5" y="234.5" width="617" height="235" rx="10" class="card"/>
+      <path d="M230 269h12M232 269v-4m3 4v-7m3 7v-5m3 5v-10" class="glyph"/>
+      <text x="251" y="271" class="heading">今日 24 小时</text>
+      <rect x="708" y="262" width="9" height="9" rx="2" fill="#79b3f9"/>
+      <text x="723" y="271" font-size="12" class="muted">活跃</text>
+      <rect x="755" y="262" width="9" height="9" rx="2" fill="#7a5aa6"/>
+      <text x="770" y="271" font-size="12" class="muted">任务</text>
+      <use xlink:href="#compare-detail" x="802" y="246" class="glyph" opacity=".72"/>
+
+      <path d="M280 296.5h526M280 320h526M280 343.5h526M280 367h526" class="rule" stroke-dasharray="4 5"/>
+      <path d="M280 390.5h526M229 420.5h578M420.5 430v26M612.5 430v26" class="rule"/>
+      <g font-size="11.5" text-anchor="end">
+        <text x="272" y="300.5" class="muted">52m 0s</text>
+        <text x="272" y="347.5" class="muted">26m 0s</text>
+        <text x="272" y="394.5" class="muted">0m 0s</text>
+      </g>
+      <g fill="#79b3f9">
+        <rect x="457.5" y="368.8" width="7.5" height="21.7" rx="2.3"/>
+        <rect x="479.5" y="339.9" width="7.5" height="50.6" rx="2.3"/>
+        <rect x="501.5" y="314.6" width="7.5" height="75.9" rx="2.3"/>
+        <rect x="523.5" y="296.5" width="7.5" height="94.0" rx="2.3"/>
+        <rect x="545.5" y="372.4" width="7.5" height="18.1" rx="2.3"/>
+        <rect x="567.5" y="327.2" width="7.5" height="63.3" rx="2.3"/>
+        <rect x="589.5" y="368.8" width="7.5" height="21.7" rx="2.3"/>
+        <rect x="611.5" y="372.4" width="7.5" height="18.1" rx="2.3"/>
+        <rect x="633.5" y="339.9" width="7.5" height="50.6" rx="2.3"/>
+        <rect x="655.5" y="363.4" width="7.5" height="27.1" rx="2.3"/>
+        <rect x="677.5" y="354.3" width="7.5" height="36.2" rx="2.3"/>
+      </g>
+      <g fill="#7a5aa6">
+        <rect x="488.5" y="354.3" width="7.5" height="36.2" rx="2.3"/>
+        <rect x="510.5" y="339.9" width="7.5" height="50.6" rx="2.3"/>
+        <rect x="532.5" y="350.7" width="7.5" height="39.8" rx="2.3"/>
+        <rect x="576.5" y="336.3" width="7.5" height="54.2" rx="2.3"/>
+        <rect x="642.5" y="339.9" width="7.5" height="50.6" rx="2.3"/>
+        <rect x="664.5" y="363.4" width="7.5" height="27.1" rx="2.3"/>
+        <rect x="686.5" y="323.6" width="7.5" height="66.9" rx="2.3"/>
+      </g>
+      <g font-size="11.5" text-anchor="middle">
+        <text x="290" y="407" class="muted">00:00</text>
+        <text x="378" y="407" class="muted">04:00</text>
+        <text x="466" y="407" class="muted">08:00</text>
+        <text x="554" y="407" class="muted">12:00</text>
+        <text x="642" y="407" class="muted">16:00</text>
+        <text x="730" y="407" class="muted">20:00</text>
+        <text x="796" y="407" class="muted">23:00</text>
+      </g>
+      <g font-size="12">
+        <text x="229" y="440" class="muted">峰值活跃</text>
+        <text x="433" y="440" class="muted">最活跃时段</text>
+        <text x="625" y="440" class="muted">任务</text>
+      </g>
+      <g font-size="15" font-weight="600">
+        <text x="229" y="458" class="mono">52m 0s</text>
+        <text x="433" y="458" class="mono">11:00</text>
+        <text x="625" y="458" class="mono">3h 0m</text>
+      </g>
+    </g>
+
+    <!-- 任务时长构成：按占比分段，环段之间留白 -->
+    <g id="composition-card">
+      <rect x="837.5" y="234.5" width="344" height="235" rx="10" class="card"/>
+      <g class="glyph" transform="translate(857 257)">
+        <circle cx="7" cy="7" r="5.5"/><path d="M7 2v5h5"/>
+      </g>
+      <text x="880" y="271" class="heading">任务时长构成</text>
+      <g transform="rotate(-90 916 367)" fill="none" stroke-width="15">
+        <circle cx="916" cy="367" r="53" pathLength="100" stroke="#315fa8" stroke-dasharray="49.3 100" stroke-dashoffset="-.35"/>
+        <circle cx="916" cy="367" r="53" pathLength="100" stroke="#79b3f9" stroke-dasharray="24.3 100" stroke-dashoffset="-50.35"/>
+        <circle cx="916" cy="367" r="53" pathLength="100" stroke="#b1d3fc" stroke-dasharray="9.3 100" stroke-dashoffset="-75.35"/>
+        <circle cx="916" cy="367" r="53" pathLength="100" stroke="#d9eafe" stroke-dasharray="14.3 100" stroke-dashoffset="-85.35"/>
+      </g>
+      <text x="916" y="365" font-size="20" font-weight="700" text-anchor="middle">3h 0m</text>
+      <text x="916" y="384" font-size="12" text-anchor="middle" class="muted">累计工时</text>
+      <g font-size="13">
+        <rect x="993" y="323" width="9" height="9" rx="2" fill="#315fa8"/>
+        <text x="1009" y="332">模型</text>
+        <rect x="993" y="350" width="9" height="9" rx="2" fill="#79b3f9"/>
+        <text x="1009" y="359">工具</text>
+        <rect x="993" y="377" width="9" height="9" rx="2" fill="#b1d3fc"/>
+        <text x="1009" y="386">等待</text>
+        <rect x="993" y="404" width="9" height="9" rx="2" fill="#d9eafe"/>
+        <text x="1009" y="413">其他</text>
+        <g text-anchor="end">
+          <text x="1109" y="332" class="muted">50%</text>
+          <text x="1109" y="359" class="muted">25%</text>
+          <text x="1109" y="386" class="muted">10%</text>
+          <text x="1109" y="413" class="muted">15%</text>
+          <text x="1161" y="332" font-weight="600">1h 30m</text>
+          <text x="1161" y="359" font-weight="600">45m 0s</text>
+          <text x="1161" y="386" font-weight="600">18m 0s</text>
+          <text x="1161" y="413" font-weight="600">27m 0s</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- 每日活跃热力图 -->
+    <g id="heatmap-card">
+      <rect x="210.5" y="479.5" width="315" height="247" rx="10" class="card"/>
+      <text x="229" y="512" class="heading">每日活跃</text>
+      <use xlink:href="#info" x="310" y="498" class="glyph"/>
+      <rect x="411.5" y="492.5" width="75" height="27" rx="7" class="card"/>
+      <text x="420" y="510" font-size="12" class="muted">近3个月</text>
+      <path d="m473 504 3.4 3.4 3.4-3.4" class="glyph"/>
+      <use xlink:href="#compare-detail" x="501" y="489" class="glyph" opacity=".72"/>
+
+      <g font-size="11" text-anchor="start">
+        <text x="261" y="551" class="muted">8月</text>
+        <text x="310.5" y="551" class="muted">9月</text>
+        <text x="376.5" y="551" class="muted">10月</text>
+        <text x="442.5" y="551" class="muted">11月</text>
+        <text x="229" y="570.5" class="muted">一</text>
+        <text x="229" y="587" class="muted">二</text>
+        <text x="229" y="603.5" class="muted">三</text>
+        <text x="229" y="620" class="muted">四</text>
+        <text x="229" y="636.5" class="muted">五</text>
+        <text x="229" y="653" class="muted">六</text>
+        <text x="229" y="669.5" class="muted">日</text>
+      </g>
+      <g transform="translate(261 559)">
+        <rect x="16.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="33" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="49.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="66" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="82.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="99" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="115.5" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="132" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="148.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="165" width="14" height="14" rx="3" fill="#dbe9f7"/>
+        <rect x="181.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="198" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="214.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+      </g>
+      <g transform="translate(261 575.5)">
+        <rect x="16.5" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="33" width="14" height="14" rx="3" fill="#dbe9f7"/>
+        <rect x="49.5" width="14" height="14" rx="3" fill="#1b4c87"/>
+        <rect x="66" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="82.5" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="99" width="14" height="14" rx="3" fill="#1b4c87"/>
+        <rect x="115.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="132" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="148.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="165" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="181.5" width="14" height="14" rx="3" fill="#dbe9f7"/>
+        <rect x="198" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="214.5" width="14" height="14" rx="3" fill="#b8d4ef"/>
+      </g>
+      <g transform="translate(261 592)">
+        <rect x="16.5" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="33" width="14" height="14" rx="3" fill="#dbe9f7"/>
+        <rect x="49.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="66" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="82.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="99" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="115.5" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="132" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="148.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="165" width="14" height="14" rx="3" fill="#1b4c87"/>
+        <rect x="181.5" width="14" height="14" rx="3" fill="#1b4c87"/>
+        <rect x="198" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="214.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+      </g>
+      <g transform="translate(261 608.5)">
+        <rect x="16.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="33" width="14" height="14" rx="3" fill="#dbe9f7"/>
+        <rect x="49.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="66" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="82.5" width="14" height="14" rx="3" fill="#dbe9f7"/>
+        <rect x="99" width="14" height="14" rx="3" fill="#1b4c87"/>
+        <rect x="115.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="132" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="148.5" width="14" height="14" rx="3" fill="#1b4c87"/>
+        <rect x="165" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="181.5" width="14" height="14" rx="3" fill="#1b4c87"/>
+        <rect x="198" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="214.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+      </g>
+      <g transform="translate(261 625)">
+        <rect x="0" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="16.5" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="33" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="49.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="66" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="82.5" width="14" height="14" rx="3" fill="#1b4c87"/>
+        <rect x="99" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="115.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="132" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="148.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="165" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="181.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="198" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="214.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+      </g>
+      <g transform="translate(261 641.5)">
+        <rect x="0" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="16.5" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="33" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="49.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="66" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="82.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="99" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="115.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="132" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="148.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="165" width="14" height="14" rx="3" fill="#dbe9f7"/>
+        <rect x="181.5" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="198" width="14" height="14" rx="3" fill="#86b0dd"/>
+        <rect x="214.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+      </g>
+      <g transform="translate(261 658)">
+        <rect x="0" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="16.5" width="14" height="14" rx="3" fill="#dbe9f7"/>
+        <rect x="33" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="49.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="66" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="82.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="99" width="14" height="14" rx="3" fill="#b8d4ef"/>
+        <rect x="115.5" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="132" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="148.5" width="14" height="14" rx="3" fill="#eef5fc"/>
+        <rect x="165" width="14" height="14" rx="3" fill="#4f80bd"/>
+        <rect x="181.5" width="14" height="14" rx="3" fill="#dbe9f7"/>
+        <rect x="198" width="14" height="14" rx="3" fill="#b8d4ef"/>
+      </g>
+      <text x="229" y="704" font-size="12" class="muted">范围活跃 214h 0m · 活跃天数 73/93</text>
+    </g>
+
+    <!-- 当前周期的工作区排行 -->
+    <g id="workspace-rank-card">
+      <rect x="535.5" y="479.5" width="254" height="247" rx="10" class="card"/>
+      <path d="M552 502h10m-10 4h7m-7 4h4m6-1v3.5" class="glyph"/>
+      <text x="574" y="512" class="heading" style="font-size:17px">工作区任务排行</text>
+      <g font-size="12.5">
+        <text x="552" y="551" class="muted">01</text>
+        <text x="578" y="551" font-weight="600">核心</text>
+        <text x="771" y="551" font-weight="600" text-anchor="end">1h 40m</text>
+        <rect x="638" y="544" width="78" height="8" rx="4" fill="#ececeb"/>
+        <rect x="638" y="544" width="43.7" height="8" rx="4" fill="#79b3f9"/>
+        <text x="552" y="585" class="muted">02</text>
+        <text x="578" y="585" font-weight="600">文档</text>
+        <text x="771" y="585" font-weight="600" text-anchor="end">52m 0s</text>
+        <rect x="638" y="578" width="78" height="8" rx="4" fill="#ececeb"/>
+        <rect x="638" y="578" width="22.6" height="8" rx="4" fill="#79b3f9"/>
+        <text x="552" y="619" class="muted">03</text>
+        <text x="578" y="619" font-weight="600">调研</text>
+        <text x="771" y="619" font-weight="600" text-anchor="end">28m 0s</text>
+        <rect x="638" y="612" width="78" height="8" rx="4" fill="#ececeb"/>
+        <rect x="638" y="612" width="12.5" height="8" rx="4" fill="#79b3f9"/>
+      </g>
+    </g>
+
+    <!-- 最近会话：名称与工作区在左，时长与最近活动在右 -->
+    <g id="recent-sessions-card">
+      <rect x="799.5" y="479.5" width="382" height="247" rx="10" class="card"/>
+      <g class="glyph" transform="translate(818 499)">
+        <rect x="1" y="1.5" width="10" height="7.6" rx="1.8"/>
+        <path d="M4.2 11.3h6.4c1.5 0 2.5-1 2.5-2.4V5"/>
+      </g>
+      <text x="840" y="512" class="heading">最近会话</text>
+      <rect x="1139.5" y="494.5" width="22" height="19" rx="7" class="card"/>
+      <text x="1150.5" y="508" text-anchor="middle" class="muted" font-size="12">4</text>
+      <path d="M818 527.5h344M818 570.5h344M818 613.5h344M818 656.5h344" class="rule"/>
+      <g font-size="14" font-weight="600">
+        <text x="827" y="546">更新图表文案</text>
+        <text x="827" y="589">核对用量汇总</text>
+        <text x="827" y="632">检查任务分组</text>
+        <text x="827" y="675">调整侧栏布局</text>
+      </g>
+      <g font-size="12">
+        <text x="827" y="563" class="muted">文档</text>
+        <text x="827" y="606" class="muted">调研</text>
+        <text x="827" y="649" class="muted">核心</text>
+        <text x="827" y="692" class="muted">核心</text>
+      </g>
+      <g font-size="12" text-anchor="end">
+        <text x="1084" y="553" class="mono" font-weight="600">52m 0s</text>
+        <text x="1084" y="596" class="mono" font-weight="600">28m 0s</text>
+        <text x="1084" y="639" class="mono" font-weight="600">30m 0s</text>
+        <text x="1084" y="682" class="mono" font-weight="600">1h 10m</text>
+        <text x="1162" y="553" class="muted">刚刚</text>
+        <text x="1162" y="596" class="muted">1 小时前</text>
+        <text x="1162" y="639" class="muted">4 小时前</text>
+        <text x="1162" y="682" class="muted">6 小时前</text>
+      </g>
+    </g>
+
+    <g id="page-footer">
+      <text x="210" y="750" class="muted" font-size="12">今日活跃时长 4h 24m · 今日在线时长 6h 0m</text>
+      <use xlink:href="#info" x="1163" y="738" class="glyph"/>
+    </g>
   </g>
+  <rect x=".5" y=".5" width="1199" height="773" rx="18.5" fill="none" stroke="#dedfdd"/>
 </svg>

@@ -7,6 +7,7 @@ import vm from 'node:vm'
 function createTestReact() {
   let cursor = 0
   const hooks = []
+  const effects = []
   return {
     createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
     useState(initial) {
@@ -16,8 +17,17 @@ function createTestReact() {
         hooks[index] = typeof next === 'function' ? next(hooks[index]) : next
       }]
     },
-    useEffect() {
-      cursor += 1
+    useEffect(effect, deps) {
+      const index = cursor++
+      const previous = hooks[index]
+      if (deps && previous?.deps?.length === deps.length && deps.every((value, i) => Object.is(value, previous.deps[i]))) return
+      effects.push(() => {
+        previous?.cleanup?.()
+        hooks[index] = { deps, cleanup: effect() }
+      })
+    },
+    flushEffects() {
+      for (const effect of effects.splice(0)) effect()
     },
     useRef(initial) {
       const index = cursor++
@@ -26,6 +36,7 @@ function createTestReact() {
     },
     render(component, props) {
       cursor = 0
+      effects.length = 0
       const tree = component(props)
       cursor = 0
       return tree
@@ -44,7 +55,7 @@ async function loadClientFunctions(windowExtras = {}) {
       renderComposition, renderSessionBreakdown, renderSessionRow, renderWorkspaceRow,
       selectDetailsWorkspaces, summarizeDetailSessions, selectedDetailSession, importResultText, formatSelectedRange,
       openSessionInHost, sessionIsOpenable, recentLimitForRow, heroRingModel, heroMetaItems,
-      normalizeBackfill, normalizeDashboard, approximateNoticeVisible, renderApproximateNotice,
+      normalizeBackfill, normalizeDashboard, useDashboard, approximateNoticeVisible, renderApproximateNotice,
       localDayCount, averageMsPerDay, clampTipPosition, renderHoverTip,
       buildTrendTip, buildCompositionTip, renderTrendChart, HoverTip, useHoverTip,
       renderBackfillBanner, renderBackfillNotices, isBackfillUnread,
@@ -154,7 +165,7 @@ async function loadClientFunctions(windowExtras = {}) {
     };\n${anchor}`)
   const React = createTestReact()
   const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) }, ...windowExtras }
-  vm.runInNewContext(source, { window, crypto: { randomUUID: () => 'test-client' } })
+  vm.runInNewContext(source, { window, setInterval, clearInterval, crypto: { randomUUID: () => 'test-client' } })
   return { ...window.__testFunctions, React }
 }
 
@@ -2246,6 +2257,25 @@ test('客户端：明细「全部」范围按批次渐进展开会话', async ()
   const fixedRange = renderDetailsView({ ...common, detailsRange: '7d', progressiveSessions: false })
   assert.equal(allOf(fixedRange, byClass('cs-session')).length, 20, '非「全部」范围一次显示全部会话')
   assert.equal(allOf(fixedRange, byClass('cs-sessions-more')).length, 0, '非「全部」范围不做渐进展开')
+
+  const fallback = renderDetailsView({
+    ...common, expanded: { '旧分组': true }, selection: { sessionId: 'many-12' },
+    highlightSessionId: 'many-12', onSelectSession() {},
+    onShowMoreSessions: (key, total) => clicked.push([key, total]),
+  })
+  const highlighted = allOf(fallback, byClass('is-highlighted'))[0]
+  assert.equal(highlighted?.props['data-session-id'], 'many-12', '回退目标位于后续批次时仍可定位')
+  assert.equal(allOf(fallback, byClass('cs-session')).length, 9, '回退只额外展示目标会话')
+  const nextBatch = allOf(fallback, byClass('cs-sessions-more'))[0]
+  assert.match(textOf(nextBatch), /再显示 7 个会话/)
+  allOf(nextBatch, (node) => node.type === 'button')[0].props.onClick()
+  assert.deepEqual(clicked[1], ['ws-many', 20])
+
+  const withSelection = renderDetailsView({
+    ...common, selection: { workspaceKey: '之前的分组', sessionId: 'many-19' }, onSelectSession() {},
+  })
+  assert.equal(allOf(withSelection, byClass('cs-session')).length, 9, '普通选中项排序到后面时，仍只保留首批和选中项')
+  assert.equal(allOf(withSelection, byClass('is-selected'))[0]?.props['data-session-id'], 'many-19')
 })
 
 test('客户端：概览最近会话将工作区名放在标题下方，并标出运行中状态', async () => {
@@ -2849,7 +2879,9 @@ test('客户端：首屏缩放按钮、圆环与无边框样式，并尊重减�
   assert.match(zoom, /border:\s*0/, '无边框')
   assert.match(declarationsFor(css, '.cs-zoom-btn:hover'), /scale\(1\.15\)/, '悬浮放大')
   assert.match(declarationsFor(css, '.cs-zoom-btn svg'), /stroke:\s*var\(--cs-ink-2\)/, '图标用次级文字色')
-  assert.match(declarationsFor(css, '.cs-hero-focus .cs-hero-num'), /font-size:\s*clamp\(88px,\s*11\.2vw,\s*156px\)/, '首屏大数字放大为绝对主角')
+  const number = declarationsFor(css, '.cs-hero-focus .cs-hero-num')
+  assert.match(number, /font-size:[^;]+cqw[^;]+svh/, '首屏主数字同时受内容宽度和窗口高度约束')
+  assert.match(number, /overflow-wrap:\s*anywhere/, '长时长可以在窄窗换行')
   assert.doesNotMatch(css, /\.cs-focus-bar/, '大数字下方不再保留占比横条')
   assert.doesNotMatch(css, /\.cs-share-block/, '不再保留重复占比块的样式')
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-hero-focus/, '减少动效下首屏直接到位')
@@ -2857,11 +2889,15 @@ test('客户端：首屏缩放按钮、圆环与无边框样式，并尊重减�
 
 test('客户端：周期卡选中态的占比横条与纯色背景保持可分辨', async () => {
   const css = await loadClientCss()
-  assert.match(css, /\.cs-cycle\.is-current\s*\{[^}]*background:\s*var\(--dsw-alias-brand-primary\)/, '选中周期卡使用品牌实色底')
+  assert.match(declarationsFor(css, '.cs-cycle.is-current'), /background:\s*var\(--cs-selection\)/, '趋势周期卡使用选中底色')
+  assert.match(declarationsFor(css, '.cs-overview-metrics > .cs-cycle.is-current'), /background:\s*var\(--cs-selection\)/, '概览周期卡与趋势共用选中底色')
+  assert.match(declarationsFor(css, '.cs-page'), /--cs-selection:\s*var\(--cs-chart-active\)/, '选中底色跟随活跃柱')
+  assert.match(declarationsFor(css, '.cs-page.cs-palette-blue:not(.cs-appearance-dark)'), /--cs-on-selection:\s*var\(--cs-signal-deep\)/, '浅蓝选中底色配深色文字')
+  assert.match(declarationsFor(css, '.cs-appearance-light .cs-overview-metrics > .cs-cycle.is-current:focus-visible'), /outline-color:\s*var\(--cs-on-selection\)/, '已选卡片仍能看到键盘焦点')
   const track = declarationsFor(css, '.cs-cycle.is-current .cs-cycle-track')
-  assert.match(track, /--cs-on-accent/, '轨道改用与强调底色相反的文字色半透明')
+  assert.match(track, /--cs-on-selection/, '轨道用同一文字色半透明')
   const fill = declarationsFor(css, '.cs-cycle.is-current .cs-cycle-track i')
-  assert.match(fill, /background:\s*var\(--cs-on-accent\)/, '填充改用反色，不再与纯色背景混在一起')
+  assert.match(fill, /background:\s*var\(--cs-on-selection\)/, '填充使用与背景不同的颜色')
   assert.match(declarationsFor(css, '.cs-cycle'), /justify-content:\s*flex-start/, '标题与主数字从顶部排布')
   assert.match(declarationsFor(css, '.cs-cycle-tail'), /margin-top:\s*auto/, '占比与横条压到卡片底部')
   assert.match(declarationsFor(css, '.cs-cycle-share'), /font-size:\s*10px/, '占比文字缩小并贴到横条上方')
@@ -3450,11 +3486,13 @@ test('客户端：趋势页图表与右侧摘要同排，摘要保持两列', as
 
 test('客户端：条状图首屏按可用高度铺开、悬停分组放大并尊重减少动效', async () => {
   const css = await loadClientCss()
-  assert.match(declarationsFor(css, '.cs-trend-focus'), /min-height:\s*calc\(100vh - 260px\)/, '首屏页占满可用高度')
+  const focused = declarationsFor(css, '.cs-page.is-overview-focused')
+  assert.match(focused, /display:\s*flex/, '放大态以宿主内容区作为纵向布局容器')
+  assert.match(css, /\.is-overview-focused > \.cs-shell,\s*\.is-overview-focused \.cs-views,\s*\.is-overview-focused #cs-view-overview,\s*#cs-view-overview > :is\(\.cs-hero-focus, \.cs-trend-focus, \.cs-heatmap-focus-page\)\s*\{\s*flex:\s*1 0 auto/, '三个放大页共享剩余高度并保留内容的自然高度')
   const chart = declarationsFor(css, '.cs-trend-focus .cs-chart')
-  assert.match(chart, /height:\s*calc\(100vh - 420px\)/, '图表容器按视口高度铺开')
+  assert.match(chart, /flex:\s*1 0 auto/, '图表容器分配卡片的剩余高度')
   assert.match(declarationsFor(css, '.cs-trend-focus .cs-plot'), /flex:\s*1/, '绘图区弹性填满容器')
-  assert.match(declarationsFor(css, '.cs-trend-focus .cs-chart svg'), /height:\s*100%/, 'SVG 填满绘图区')
+  assert.match(declarationsFor(css, '.cs-trend-focus .cs-chart svg'), /flex:\s*1 0 auto/, 'SVG 填满绘图区')
   assert.match(
     declarationsFor(css, '.cs-trend-focus .cs-bar-group:hover .cs-bar-pair'),
     /scale\(1\.3/,
@@ -3894,15 +3932,14 @@ test('客户端：任务时长构成行的时长不撑出卡片边框', async ()
 
 test('客户端：热力图首屏上半区整幅热力图、下半区统计与月度条分层', async () => {
   const css = await loadClientCss()
-  assert.match(declarationsFor(css, '.cs-heatmap-focus-page'), /min-height:\s*calc\(100vh - 260px\)/, '首屏页占满可用高度')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus'), /flex:\s*1 0 auto/, '热力图卡片随放大页填充剩余高度')
   const layout = declarationsFor(css, '.heat-focus-layout')
   assert.match(layout, /display:\s*flex/, '首屏纵向分层')
   assert.match(layout, /flex-direction:\s*column/, '上半区热力图、下半区统计与月度条')
   assert.match(layout, /gap:\s*16px/)
   const main = declarationsFor(css, '.heat-focus-main')
   assert.match(main, /min-width:\s*0/)
-  assert.match(main, /flex:\s*1 1 auto/, '热力图区吃掉上半区全部剩余高度')
-  assert.match(main, /min-height:\s*clamp\(200px,\s*32vh,\s*360px\)/, '热力图区给足最小高度')
+  assert.match(main, /flex:\s*1 0 auto/, '热力图区使用剩余高度并容纳网格')
   const body = declarationsFor(css, '.cs-heatmap-focus .heatmap-body')
   assert.match(body, /width:\s*100%/, '周网格容器铺满宽度')
   assert.match(body, /flex:\s*0 1 auto/, '周网格按内容高度排，不拉伸变形')
@@ -3916,15 +3953,16 @@ test('客户端：热力图首屏上半区整幅热力图、下半区统计与�
   assert.match(focusCell, /aspect-ratio:\s*1/, '格子在放大态保持正方形')
   assert.doesNotMatch(focusCell, /height:\s*100%/, '同一块不给确定行高，否则 aspect-ratio 被忽略变竖条')
   assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-months'), /display:\s*grid/, '放大态月份刻度随周网格等比铺开')
-  assert.match(declarationsFor(css, '.cs-heatmap-focus:not([data-layout="year"]) .heatmap-body'), /width:\s*fit-content/, '3m/6m 首屏把星期刻度与网格作为整体居中')
-  assert.match(declarationsFor(css, '.cs-heatmap-focus:not([data-layout="year"]) .heat-plot'), /width:\s*max-content/, '3m/6m 首屏绘制区按网格实际宽度收缩')
-  assert.match(declarationsFor(css, '.cs-heatmap-focus:not([data-layout="year"]) .heat-months.is-grid'), /width:\s*max-content/, '3m/6m 首屏月份刻度与网格同宽')
+  const weekBody = declarationsFor(css, '.cs-heatmap-focus .heatmap-body:not(.is-year)')
+  assert.match(weekBody, /width:\s*fit-content/, '3m/6m 首屏把星期刻度与网格作为整体居中')
+  assert.match(weekBody, /--cs-heat-cell:[^;]+--cs-heat-cell-limit[^;]+cqw[^;]+--cs-heat-columns/, '周网格根据高度上限、内容宽度和实际周数计算格子大小')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus'), /--cs-heat-cell-limit:[^;]+svh/, '格子尺寸上限随窗高调整')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus .heatmap-body:not(.is-year) .heat-plot'), /width:\s*max-content/, '3m/6m 首屏绘制区按网格实际宽度收缩')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-months.is-grid:not(.is-year)'), /width:\s*max-content/, '3m/6m 首屏月份刻度与网格同宽')
   const month = declarationsFor(css, '.cs-heatmap-focus[data-layout="month"] .heat-month')
-  assert.match(month, /width:\s*min\(100%,\s*560px\)/, '单月日历收在适中宽度')
-  assert.match(month, /max-width:\s*560px/, '单月不再无限放大')
+  assert.match(month, /width:[^;]+svh/, '单月日历随窗高调整')
   assert.match(month, /margin:\s*0 auto/, '单月居中')
   assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-month-grid'), /width:\s*100%/, '单月 7 列网格铺满')
-  assert.match(declarationsFor(css, '.cs-heatmap-focus'), /--cs-heat-cell:\s*clamp\(16px,\s*1\.6vw,\s*28px\)/, '放大态格子尺寸随视口增长')
   const bottom = declarationsFor(css, '.heat-focus-bottom')
   assert.match(bottom, /display:\s*grid/, '下半区统计与月度条左右分栏')
   assert.match(bottom, /grid-template-columns:\s*minmax\(0,\s*1\.05fr\)\s+minmax\(0,\s*1fr\)/, '左侧统计、右侧月度条')
@@ -3934,8 +3972,9 @@ test('客户端：热力图首屏上半区整幅热力图、下半区统计与�
   assert.match(panel, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/, '六项统计三列两行')
   assert.match(declarationsFor(css, '.heat-focus-panel .cs-fs-item'), /border-left:\s*1px/, '统计项之间用细竖线分隔')
   assert.match(declarationsFor(css, '.heat-focus-bars'), /min-height:\s*96px/, '月度条区保持完整高度')
-  assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-month-bars'), /height:\s*92px/, '月度条填充右侧区域')
-  assert.match(mediaBlocks(css, 900), /\.heat-focus-bottom[^{]*\{[^}]*grid-template-columns:\s*1fr/, '窄屏下半区回落单列')
+  assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-month-bars'), /height:[^;]+svh/, '月度条随窗高调整')
+  assert.match(declarationsFor(css, '.heat-focus-layout.is-year .heat-focus-bars'), /height:[^;]+svh/, '全年格子按宽度定高，月度条随窗高放大')
+  assert.match(css, /@container cs-overview \(max-width: 680px\)\s*\{[\s\S]*?\.heat-focus-bottom\s*\{[^}]*grid-template-columns:\s*1fr/, '内容区较窄时下半区回落单列')
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-heatmap-focus-page/, '减少动效下首屏直接到位')
   assert.match(declarationsFor(css, '.cs-hero-ring'), /aspect-ratio:\s*1/, 'hero 右栏圆环保持正圆')
   assert.match(declarationsFor(css, '.cs-hero-ring-value'), /stroke:\s*var\(--cs-signal\)/, '圆环使用当前重点色')
@@ -4130,15 +4169,51 @@ test('客户端：列表只切换统计，右侧打开会话，收起一组保�
 
 test('客户端：会话范围加载和失败状态不会展示上一范围的记录', async () => {
   const { renderDetailsView, translate } = await loadClientFunctions()
-  const base = { data: { workspaces: [{ key: 'old', sessions: [{ sessionId: 'old', sessionTitle: '上一范围的会话' }] }] }, t: translate }
+  const base = { data: { workspaces: [{ key: 'old', sessions: [{ sessionId: 'old', sessionTitle: '上一范围的会话', taskRunning: true }] }] }, t: translate }
   let retried = false
   for (const status of ['loading', 'error']) {
     const tree = renderDetailsView({ ...base, loadStatus: status, onRetry() { retried = true } })
     assert.doesNotMatch(textOf(tree), /上一范围的会话/)
     assert.equal(allOf(tree, byClass('cs-record-columns')).length, 0)
+    const filter = allOf(tree, byClass('cs-details-filter'))[0]
+    assert.equal(textOf(allOf(filter, (node) => node.type === 'button')[1]), translate('detailsRunning'))
     if (status === 'error') allOf(tree, node => node.type === 'button' && textOf(node) === translate('settingsRetry'))[0].props.onClick()
   }
   assert.equal(retried, true)
+  const ready = renderDetailsView(base)
+  const filter = allOf(ready, byClass('cs-details-filter'))[0]
+  assert.equal(textOf(allOf(filter, (node) => node.type === 'button')[1]), `${translate('detailsRunning')} 1`)
+})
+
+test('客户端：切换会话范围的首帧和请求失败时清除旧快照', async (testContext) => {
+  const { React, useDashboard } = await loadClientFunctions()
+  const requests = []
+  const connection = { rpc: { call(_path, _name, { payload }) {
+    return new Promise((resolve) => requests.push({ payload, resolve }))
+  } } }
+  const ctx = { get: () => connection }
+  const first = { from: 0 }
+  const second = { from: 0, to: 3600000 }
+  const render = (range, enabled = true) => React.render(() =>
+    useDashboard(ctx, 'day', 60000, 0, { view: 'details', range, enabled }))
+  testContext.after(() => { render(first, false); React.flushEffects() })
+
+  render(first)
+  React.flushEffects()
+  requests[0].resolve({ ok: true, value: {} })
+  await new Promise(setImmediate)
+  assert.equal(render(first).status, 'ready')
+
+  const switching = render(second)
+  assert.equal(switching.status, 'loading')
+  assert.equal(switching.data, null)
+  React.flushEffects()
+  assert.equal(requests[1].payload.to, second.to)
+  requests[1].resolve({ ok: false })
+  await new Promise(setImmediate)
+  const failed = render(second)
+  assert.equal(failed.status, 'error')
+  assert.equal(failed.data, null)
 })
 
 test('客户端：趋势峰值跳转带完整边界，小时范围和整日范围显示准确', async () => {
@@ -4154,6 +4229,7 @@ test('客户端：趋势峰值跳转带完整边界，小时范围和整日范�
   const wholeDay = formatSelectedRange({ from: midnight, to: midnight + 86400000 }, translate, true)
   assert.match(wholeDay, /11月13日/)
   assert.doesNotMatch(wholeDay, /14日/)
+  assert.match(formatSelectedRange({ from: midnight, to: midnight + 30_000 }, translate, true), /00:00 – 00:00/)
 })
 
 test('客户端：导入反馈汇总 Host 分开的区间与任务数量', async () => {
