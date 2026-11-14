@@ -2,43 +2,43 @@
   <title id="hero-title">dsh-timespan: records online, active and task time in DSH</title>
   <desc id="hero-desc">dsh-timespan title panel: on the left the plugin name, a one-line value statement and four chips (zero dependencies, no build, local data, Node 24); on the right a three-segment ring of today's online, active and task time, with a small gap at each boundary.</desc>
 
-  <!-- Canvas: the same dark surface as the other README artwork -->
-  <rect width="1200" height="360" rx="24" fill="#151718"/>
-  <rect x="0.75" y="0.75" width="1198.5" height="358.5" rx="23.25" fill="none" stroke="#2b3033" stroke-width="1.5"/>
+  <!-- Canvas: white background with a light border -->
+  <rect width="1200" height="360" rx="24" fill="#ffffff"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="358.5" rx="23.25" fill="none" stroke="#dedfdd" stroke-width="1.5"/>
 
   <!-- Left: title block -->
   <g id="title-block">
     <!-- Eyebrow: the full three-segment mini ring -->
     <g transform="translate(72 54)">
-      <circle cx="9" cy="9" r="8" fill="none" stroke="#303435" stroke-width="2.4"/>
+      <circle cx="9" cy="9" r="8" fill="none" stroke="#eaecee" stroke-width="2.4"/>
       <g transform="rotate(-90 9 9)">
-        <circle cx="9" cy="9" r="8" fill="none" stroke="#3f6ba8" stroke-width="2.4"
+        <circle cx="9" cy="9" r="8" fill="none" stroke="#1f4e94" stroke-width="2.4"
                 pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>
         <circle cx="9" cy="9" r="8" fill="none" stroke="#79B3F9" stroke-width="2.4"
                 pathLength="100" stroke-dasharray="30 70" stroke-dashoffset="-50"/>
-        <circle cx="9" cy="9" r="8" fill="none" stroke="#C29BE8" stroke-width="2.4"
+        <circle cx="9" cy="9" r="8" fill="none" stroke="#7a5aa6" stroke-width="2.4"
                 pathLength="100" stroke-dasharray="20 80" stroke-dashoffset="-80"/>
       </g>
-      <text x="27" y="15" font-size="17" letter-spacing="2.8" fill="#8a9090"
+      <text x="27" y="15" font-size="17" letter-spacing="2.8" fill="#606568"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH PLUGIN · TIME TRACKING</text>
     </g>
 
-    <text x="70" y="162" font-size="74" font-weight="700" letter-spacing="-1" fill="#f1f2f1"
+    <text x="70" y="162" font-size="74" font-weight="700" letter-spacing="-1" fill="#181a1c"
           font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">dsh-timespan</text>
 
-    <text x="72" y="210" font-size="24" fill="#b1b6b5"
+    <text x="72" y="210" font-size="24" fill="#42494e"
           font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">Online, active and task time — kept on this device.</text>
 
     <!-- Metadata chips -->
-    <g id="meta-chips" font-size="15" fill="#b1b6b5"
+    <g id="meta-chips" font-size="15" fill="#42494e"
        font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">
-      <rect x="72" y="244" width="105" height="30" rx="15" fill="none" stroke="#414647" stroke-width="1.5"/>
+      <rect x="72" y="244" width="105" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
       <text x="124.5" y="264" text-anchor="middle">Zero deps</text>
-      <rect x="189" y="244" width="96" height="30" rx="15" fill="none" stroke="#414647" stroke-width="1.5"/>
+      <rect x="189" y="244" width="96" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
       <text x="237" y="264" text-anchor="middle">No build</text>
-      <rect x="297" y="244" width="114" height="30" rx="15" fill="none" stroke="#414647" stroke-width="1.5"/>
+      <rect x="297" y="244" width="114" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
       <text x="354" y="264" text-anchor="middle">Local data</text>
-      <rect x="423" y="244" width="87" height="30" rx="15" fill="none" stroke="#414647" stroke-width="1.5"/>
+      <rect x="423" y="244" width="87" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
       <text x="466.5" y="264" text-anchor="middle">Node 24</text>
     </g>
   </g>
@@ -48,41 +48,41 @@
     <g transform="rotate(-90 900 178)" stroke-linecap="round">
       <!-- Keep a ~2.2% visible gap at each boundary; round caps give each segment a semicircular end -->
       <!-- Online: 51.5%, 1.1% given up on both sides -->
-      <circle cx="900" cy="178" r="100" fill="none" stroke="#3f6ba8" stroke-width="26"
+      <circle cx="900" cy="178" r="100" fill="none" stroke="#1f4e94" stroke-width="26"
               pathLength="100" stroke-dasharray="45.16 54.84" stroke-dashoffset="-3.17"/>
       <!-- Active: 28.5%, 1.1% at the start and another 1.1% at the end -->
       <circle cx="900" cy="178" r="100" fill="none" stroke="#79B3F9" stroke-width="26"
               pathLength="100" stroke-dasharray="22.16 77.84" stroke-dashoffset="-54.67"/>
       <!-- Task: 20%, 1.1% on both sides, purple -->
-      <circle cx="900" cy="178" r="100" fill="none" stroke="#C29BE8" stroke-width="26"
+      <circle cx="900" cy="178" r="100" fill="none" stroke="#7a5aa6" stroke-width="26"
               pathLength="100" stroke-dasharray="13.66 86.34" stroke-dashoffset="-83.17"/>
     </g>
 
     <!-- Needle and hub -->
-    <path d="M900 178 952 126" fill="none" stroke="#f1f2f1" stroke-width="6" stroke-linecap="round"/>
-    <circle cx="900" cy="178" r="10" fill="#f1f2f1"/>
+    <path d="M900 178 952 126" fill="none" stroke="#133463" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="900" cy="178" r="10" fill="#133463"/>
 
     <!-- Segment labels -->
     <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="19">
       <g id="label-online">
-        <path d="M1004 185 1029 195" stroke="#414647" stroke-width="1.5" fill="none"/>
-        <circle cx="1038" cy="199" r="4.5" fill="#3f6ba8"/>
-        <text x="1050" y="206" fill="#b1b6b5">Online</text>
+        <path d="M1004 185 1029 195" stroke="#c3cad4" stroke-width="1.5" fill="none"/>
+        <circle cx="1038" cy="199" r="4.5" fill="#1f4e94"/>
+        <text x="1050" y="206" fill="#42494e">Online</text>
       </g>
       <g id="label-active">
-        <path d="M803 228 780 247" stroke="#414647" stroke-width="1.5" fill="none"/>
+        <path d="M803 228 780 247" stroke="#c3cad4" stroke-width="1.5" fill="none"/>
         <circle cx="772" cy="253" r="4.5" fill="#79B3F9"/>
-        <text x="760" y="260" text-anchor="end" fill="#b1b6b5">Active</text>
+        <text x="760" y="260" text-anchor="end" fill="#42494e">Active</text>
       </g>
       <g id="label-task">
-        <path d="M847 100 824 81" stroke="#414647" stroke-width="1.5" fill="none"/>
-        <circle cx="816" cy="75" r="4.5" fill="#C29BE8"/>
-        <text x="804" y="82" text-anchor="end" fill="#b1b6b5">Task</text>
+        <path d="M847 100 824 81" stroke="#c3cad4" stroke-width="1.5" fill="none"/>
+        <circle cx="816" cy="75" r="4.5" fill="#7a5aa6"/>
+        <text x="804" y="82" text-anchor="end" fill="#42494e">Task</text>
       </g>
     </g>
 
     <text x="900" y="332" text-anchor="middle"
           font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace"
-          font-size="17" fill="#8a9090">Today's ring · same as the sidebar entry</text>
+          font-size="17" fill="#606568">Today's ring · same as the sidebar entry</text>
   </g>
 </svg>

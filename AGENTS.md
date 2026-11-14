@@ -12,6 +12,10 @@
 
 单上下文（single-context）：仓库根目录共用一份 `GLOSSARY.md`，架构决策放在 `docs/adr/`。详见 `docs/agents/domain.md`。
 
+### 界面设计
+
+涉及界面布局、样式或交互时，先读 [DESIGN.md](DESIGN.md)。
+
 ### README 双语
 
 `README.md` 是默认中文版，`README.en.md` 是英文版，两版小节顺序一一对应；首屏 hero 图下方一行用 `<kbd>` 标当前语言、另一个做成链接。配图同样分两套，四张都有英文版：中文用 `assets/readme/*.svg`，英文用 `assets/readme/*.en.svg`（hero、仪表盘、运行机制、结构树）；改内容时两版同步更新，仪表盘示意图的英文版按英文文案重排过胶囊与表头宽度。
