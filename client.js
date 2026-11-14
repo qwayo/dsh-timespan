@@ -938,7 +938,12 @@ window.__ModuleLoader__.load({
         strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true,
       }
       if (name === 'active') {
-        return h('svg', common, h('circle', { cx: 8, cy: 8, r: 3.3, fill: 'currentColor', stroke: 'none' }))
+        return h('svg', common, h('path', { d: 'M1.5 8h3l2-4.5 3 9 2-4.5h3' }))
+      }
+      if (name === 'online') {
+        return h('svg', common,
+          h('rect', { x: 2, y: 2.5, width: 12, height: 8, rx: 1.8 }),
+          h('path', { d: 'M8 10.5v3M5.5 13.5h5' }))
       }
       if (name === 'task') {
         return h('svg', common,
@@ -2862,7 +2867,7 @@ window.__ModuleLoader__.load({
         const hot = hover?.kind === 'bucket' && hover.key === bucket.key
         const bars = []
         if (bucket.activeMs > 0) {
-          bars.push(renderBar(`active-${bucket.key}`, left, bucket.activeMs, 'var(--cs-live)'))
+          bars.push(renderBar(`active-${bucket.key}`, left, bucket.activeMs, 'var(--cs-chart-active)'))
         }
         if (bucket.taskMs > 0) {
           bars.push(renderBar(`task-${bucket.key}`, left + barWidth + gap, bucket.taskMs, 'var(--cs-task)'))
@@ -2965,12 +2970,21 @@ window.__ModuleLoader__.load({
      * 周期迷你卡：标题、主数字与贴底的活跃占比线。
      * 占比文字下沉到横条上方并缩小字号，让数字与标题更紧凑。
      */
-    function renderCycleCard(t, period, cycle, isCurrent, onSelect, format = 'hms') {
+    function renderCycleCard(t, period, cycle, isCurrent, onSelect, format = 'hms', dateStyle = 'inline') {
       const titleKey = period === 'day' ? 'cycleToday' : period === 'week' ? 'cycleWeek' : 'cycleMonth'
-      return h('button', { key: period, type: 'button', className: `cs-cycle${isCurrent ? ' is-current' : ''}`, 'aria-pressed': isCurrent, onClick: onSelect },
+      const hasRange = cycle.from > 0 && cycle.to > cycle.from
+      const dateLabel = hasRange ? formatRangeLabel(cycle, period, t, t('periodDay') === '日').replace(`${t('rangeLabel')} `, '') : ''
+      const watermark = hasRange && dateStyle === 'watermark'
+      const shortDate = (value) => {
+        const date = new Date(value)
+        return `${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`
+      }
+      return h('button', { key: period, type: 'button', className: `cs-cycle${isCurrent ? ' is-current' : ''}${watermark ? ' has-date-watermark' : ''}`, 'aria-pressed': isCurrent, onClick: onSelect },
         h('span', { className: 'cs-cycle-head' },
           h('span', { className: 'cs-cycle-title' }, t(titleKey)),
-          cycle.from > 0 && cycle.to > cycle.from ? h('span', { className: 'cs-cycle-date' }, formatRangeLabel(cycle, period, t, t('periodDay') === '日').replace(`${t('rangeLabel')} `, '')) : null),
+          hasRange ? h('span', { className: 'cs-cycle-date', 'aria-hidden': watermark || undefined },
+            watermark ? `${shortDate(cycle.from)}–${shortDate(cycle.to)}` : dateLabel) : null,
+          watermark ? h('span', { className: 'cs-sr-only' }, dateLabel) : null),
         h('span', { className: 'cs-cycle-value' }, formatDuration(cycle.activeMs, format)),
         renderCycleShare(cycle, t))
     }
@@ -3089,14 +3103,18 @@ window.__ModuleLoader__.load({
       const circumference = 2 * Math.PI * radius
       const segments = visibleParts.map((item) => {
         const fraction = item.ms / total
+        const length = fraction * circumference
+        // 两侧各留半个间隙；极小扇区最多扣掉四分之一，单一类别仍显示完整圆环。
+        const gap = visibleParts.length > 1 ? Math.min(1.8, length * .25) : 0
         const tip = buildCompositionTip(item, total, t, format)
         const props = {
           key: item.key,
           className: `cs-donut-seg is-${item.key}${hotKey === item.key ? ' is-hot' : ''}`,
           cx: 50, cy: 50, r: radius,
           fill: 'none', stroke: `var(--cs-series-${item.key})`, strokeWidth: 11,
-          strokeDasharray: `${fraction * circumference} ${circumference}`,
-          strokeDashoffset: -offset * circumference,
+          strokeDasharray: `${length - gap} ${circumference}`,
+          strokeDashoffset: -(offset * circumference + gap / 2),
+          strokeLinecap: 'butt',
           tabIndex: 0,
           role: 'button',
           'aria-label': `${item.label} · ${t('shareLabel')} ${formatPercent(fraction)} · ${t('durationLabel')} ${formatDuration(item.ms, format)}`,
@@ -3130,7 +3148,7 @@ window.__ModuleLoader__.load({
                 'aria-label': `${t('compositionTitle')} · ${t('accumulated')} ${formatDuration(total, format)}`,
               },
                 h('svg', { viewBox: '0 0 100 100' },
-                  h('circle', { cx: 50, cy: 50, r: radius, fill: 'none', stroke: 'var(--dsw-alias-bg-layer-2)', strokeWidth: 11 }),
+                  h('circle', { cx: 50, cy: 50, r: radius, fill: 'none', stroke: 'var(--dsw-alias-bg-layer-1)', strokeWidth: 11 }),
                   h('g', { transform: 'rotate(-90 50 50)' }, ...segments)),
                 h('div', { className: 'cs-donut-center' }, h('strong', null, formatDuration(total, format)), h('span', null, t('accumulated')))),
               h('div', { className: 'cs-composition-list' }, visibleParts.map((item) => {
@@ -4652,6 +4670,7 @@ window.__ModuleLoader__.load({
       const dateLabel = date.toLocaleDateString(locale, { month: 'short', day: 'numeric', weekday: 'short' })
       return h('section', {
         className: 'cs-card cs-overview-metrics',
+        lang: isZh ? 'zh-CN' : 'en',
         'data-focus': 'hero',
       },
         h('div', { className: 'cs-overview-today' },
@@ -4663,7 +4682,9 @@ window.__ModuleLoader__.load({
             onClick: () => onSelectPeriod?.('day'),
           },
             h('span', { className: 'cs-cycle-head' },
-              h('span', { className: 'cs-card-icon' }, h(DetailGlyph, { name: 'clock', size: 15 })),
+              h('span', { className: 'cs-card-icon' }, h(DetailGlyph, {
+                name: metric === 'online' ? 'online' : metric === 'task' ? 'task' : 'active', size: 16,
+              })),
               h('span', { className: 'cs-cycle-title' }, metric === 'active' ? t('focusTodayActive') : current.title),
               isLongRange ? h('span', { className: 'cs-cycle-period' }, t('cycleToday')) : null),
             h('strong', { className: metric === 'online' ? 'cs-hero-num is-today-online' : 'cs-hero-num' }, value),
@@ -4672,13 +4693,13 @@ window.__ModuleLoader__.load({
           renderZoomButton({ t, focus, onToggleFocus })),
         h('div', { className: 'cs-overview-metric-pair' },
           heroMetaItems(data, metric).map(([label, value]) => {
-            const glyph = label.endsWith('Task') ? 'task' : label.endsWith('Active') ? 'active' : 'clock'
+            const glyph = label.endsWith('Task') ? 'task' : label.endsWith('Active') ? 'active' : 'online'
             return h('div', { key: label, className: `cs-overview-metric is-${glyph}` },
               h('span', null, h(DetailGlyph, { name: glyph, size: 14 }), t(label)),
               h('strong', { className: label === 'todayOnline' ? 'is-today-online' : undefined }, formatDuration(value, format)))
           })),
         ['week', 'month'].map((item) => renderCycleCard(
-          t, item, data?.cycles?.[item] ?? {}, item === period, () => onSelectPeriod?.(item), format)))
+          t, item, data?.cycles?.[item] ?? {}, item === period, () => onSelectPeriod?.(item), format, 'watermark')))
     }
 
     /** 活跃占比：在线为 0 时按 0% 处理，结果夹在 0–100 之间。 */
@@ -4970,6 +4991,7 @@ window.__ModuleLoader__.load({
         } else {
           // 全年与 3m/6m 共用 7 行周网格；全年把月份刻度移到网格下方，贴近参考图的扁宽比例。
           const isYear = layout === 'year'
+          const fitQuarter = !focusPage && normalizedValue === '3m'
           const range = hasRangeValue ? resolved : (series.range ?? resolved)
           const grid = buildHeatGrid(scopedDays, range, monthLabels, weekdayLabels)
           const cells = renderWeekCells(grid)
@@ -4989,7 +5011,8 @@ window.__ModuleLoader__.load({
           }
           body = [
             h('div', {
-              className: `heatmap-body${isYear ? ' is-year' : ''}`,
+              className: `heatmap-body${isYear ? ' is-year' : ''}${fitQuarter ? ' is-fit-quarter' : ''}`,
+              style: fitQuarter ? { '--cs-heat-columns': grid.weeks.length } : undefined,
               ref: alignHeatScroll,
             },
               weekdayRow,
@@ -6226,6 +6249,8 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'cs-mark' }, h(DshTimespanIcon, { size: 36, active: true })),
                 h('div', { className: 'cs-brand-text' },
                   h('h1', null, t('title')))),
+              h('span', { className: 'cs-topbar-divider', 'aria-hidden': true }),
+              h(TabNav, { view, t, locale: isZh ? 'zh' : 'en', onChange: goToView }),
               h('div', { className: 'cs-topbar-right' },
                 h('div', { className: 'cs-topbar-group' },
                   h('span', {
@@ -6262,7 +6287,6 @@ window.__ModuleLoader__.load({
               retryError,
               onRetry: onRetryBackfill,
             }, t),
-            h(TabNav, { view, t, locale: isZh ? 'zh' : 'en', onChange: goToView }),
             h('div', { className: 'cs-views', ref: viewsRef },
               h('div', { className: `cs-curtain${switchingView ? ' is-on' : ''}`, 'aria-hidden': true }),
               h('section', {
@@ -6573,6 +6597,7 @@ window.__ModuleLoader__.load({
       .cs-page *::before,
       .cs-page *::after { box-sizing: border-box; }
       .cs-shell {
+        container: cs-shell / inline-size;
         width: 100%;
         max-width: 1320px;
         margin: 0 auto;
@@ -6581,7 +6606,7 @@ window.__ModuleLoader__.load({
         gap: 10px;
         min-width: 0;
       }
-      .cs-topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
+      .cs-topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; min-height: 44px; }
       .cs-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
       .cs-mark {
         width: 42px; height: 42px; border-radius: 0; flex: none;
@@ -6710,7 +6735,7 @@ window.__ModuleLoader__.load({
         color: inherit; font: inherit; text-align: left; cursor: pointer;
       }
       .cs-cycle-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-      .cs-cycle-date { margin-left: auto; font-size: 11px; line-height: 16px; color: var(--cs-ink-2); font-weight: 400; }
+      .cs-cycle-date { margin-left: auto; font-size: 12px; line-height: 18px; color: var(--cs-ink-2); font-weight: 500; }
       .cs-cycle-title { font-size: 13px; line-height: 18px; font-weight: 620; letter-spacing: .01em; }
       .cs-cycle-value {
         margin-top: 5px;
@@ -6726,7 +6751,7 @@ window.__ModuleLoader__.load({
         display: block; height: 4px; border-radius: 999px; overflow: hidden;
         background: var(--cs-tone-faint);
       }
-      .cs-cycle-track i { display: block; height: 100%; border-radius: inherit; background: var(--cs-signal); }
+      .cs-cycle-track i { display: block; height: 100%; border-radius: inherit; background: var(--cs-chart-active); }
       .cs-cycle.is-current {
         border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 48%, var(--dsw-alias-border-l1));
         background: linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-brand-primary) 8%, var(--dsw-alias-bg-layer-1)), var(--dsw-alias-bg-layer-1));
@@ -6751,7 +6776,7 @@ window.__ModuleLoader__.load({
       .cs-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .cs-legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
-      .cs-swatch.is-active { background: var(--cs-live); }
+      .cs-swatch.is-active { background: var(--cs-chart-active); }
       .cs-swatch.is-task { background: var(--cs-task); }
       .cs-detail-glyph { display: block; flex: 0 0 auto; }
       .cs-detail-meta {
@@ -7089,11 +7114,21 @@ window.__ModuleLoader__.load({
 
       /* 构成圆环与工作区排行均来自当前周期的真实会话累计数据；色阶全部由三档蓝派生。 */
       .cs-page {
+        --cs-chart-active: var(--cs-live);
         --cs-series-model: var(--cs-signal-deep);
         --cs-series-tool: color-mix(in srgb, var(--cs-signal) 72%, var(--cs-surface));
         --cs-series-wait: color-mix(in srgb, var(--cs-signal) 50%, var(--cs-surface));
         --cs-series-other: color-mix(in srgb, var(--cs-signal) 32%, var(--cs-surface));
         --cs-series-unknown: color-mix(in srgb, var(--cs-signal) 17%, var(--cs-surface));
+      }
+      /* 浅色蓝方案以浅蓝为主；模型用中蓝拉开类别差异，其余构成逐级变浅。 */
+      .cs-page.cs-palette-blue:not(.cs-appearance-dark) {
+        --cs-chart-active: var(--cs-signal-soft);
+        --cs-series-model: color-mix(in srgb, var(--cs-signal-soft) 20%, var(--cs-signal));
+        --cs-series-tool: var(--cs-signal-soft);
+        --cs-series-wait: color-mix(in srgb, var(--cs-signal-soft) 58%, var(--cs-surface));
+        --cs-series-other: color-mix(in srgb, var(--cs-signal-soft) 28%, var(--cs-surface));
+        --cs-series-unknown: color-mix(in srgb, var(--cs-signal-soft) 15%, var(--cs-surface));
       }
       /* 概览各行使用独立列宽：趋势与构成同排，底部给热力图与会话列表留出更多空间。 */
       .cs-overview-grid {
@@ -7107,6 +7142,8 @@ window.__ModuleLoader__.load({
       .cs-overview-grid > .cs-heatmap-card { grid-column: 1 / -1; }
       #cs-view-overview { container: cs-overview / inline-size; }
       @container cs-overview (max-width: 850px) {
+        /* 英文周期名称较长，提前分成两列，避免日期换行挤压时长。 */
+        .cs-overview-metrics:lang(en) { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 8px; }
         .cs-overview-analysis { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
         .cs-overview-bottom { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .cs-overview-bottom:not(.is-year) > .cs-recent { grid-column: 1 / -1; }
@@ -7153,6 +7190,7 @@ window.__ModuleLoader__.load({
       .cs-ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
       .cs-ranking-bar { height: 8px; border-radius: 5px; background: var(--dsw-alias-bg-layer-2); overflow: hidden; }
       .cs-ranking-bar i { display: block; height: 100%; background: var(--dsw-alias-brand-primary); border-radius: inherit; }
+      .cs-page.cs-palette-blue:not(.cs-appearance-dark) .cs-ranking-bar i { background: var(--cs-chart-active); }
       @media (max-width: 1000px) { .cs-analysis-grid { grid-template-columns: 1fr; } }
       @media (max-width: 520px) { .cs-composition-body { gap: 14px; } .cs-donut { width: 118px; } .cs-donut-center strong { font-size: 14px; } .cs-ranking-row { grid-template-columns: 20px minmax(55px, 1fr) minmax(30px, .7fr) auto; gap: 7px; } }
 
@@ -7206,6 +7244,8 @@ window.__ModuleLoader__.load({
       /* 圆环：扇区与右侧列表共享同一高亮状态。 */
       .cs-donut-seg { cursor: pointer; outline: none; transition: stroke-width 160ms ease, opacity 160ms ease, filter 160ms ease; }
       .cs-donut-seg.is-hot, .cs-donut-seg:focus-visible { stroke-width: 15; filter: brightness(1.1); }
+      /* 极浅分段只加粗，避免悬浮或聚焦时增亮至纯白而融入卡片背景。 */
+      .cs-page.cs-palette-blue:not(.cs-appearance-dark) .cs-donut-seg:is(.is-hot, :focus-visible) { filter: none; }
       .cs-donut.has-hot .cs-donut-seg:not(.is-hot) { opacity: .38; }
 
       /* 统一悬停浮层：固定定位后由 JS 按视口夹取，后续热力图可直接复用。 */
@@ -7336,6 +7376,18 @@ window.__ModuleLoader__.load({
       .cs-tab:hover { color: var(--dsw-alias-label-primary); }
       .cs-tab:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -2px; border-radius: 6px; }
       .cs-tab.is-active { color: var(--dsw-alias-label-primary); font-weight: 650; }
+      /* 四个同级视图紧随品牌标题，状态与外观控制保持靠右；窄窗导航独立换行。 */
+      .cs-topbar > .cs-brand { flex: none; width: auto; }
+      .cs-topbar > .cs-topbar-divider { height: 24px; }
+      .cs-topbar > .cs-tabs { flex: 1 1 240px; min-width: 0; margin: 0; border-bottom: 0; }
+      .cs-topbar .cs-tab-thumb { bottom: 0; }
+      .cs-topbar > .cs-topbar-right { flex: none; width: auto; margin-left: auto; }
+      @container cs-shell (max-width: 620px) {
+        .cs-topbar { gap: 6px 12px; }
+        .cs-topbar > .cs-topbar-divider { display: none; }
+        .cs-topbar > .cs-tabs { order: 3; flex-basis: 100%; }
+        .cs-topbar > .cs-topbar-right { justify-content: flex-end; }
+      }
       .cs-views { position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
       .cs-view { display: flex; flex-direction: column; gap: 10px; animation: viewIn var(--cs-dur-view) cubic-bezier(.2, .8, .2, 1) both; }
       .cs-view.is-leaving { animation: viewOut var(--cs-dur-exit) ease both; }
@@ -7589,7 +7641,19 @@ window.__ModuleLoader__.load({
         background: var(--dsw-alias-bg-layer-2);
       }
       .cs-overview-metrics > .cs-cycle.is-current .cs-cycle-title {
-        color: inherit; background: color-mix(in srgb, currentColor 14%, transparent);
+        color: inherit; background: transparent;
+      }
+      .cs-overview-metrics > .cs-cycle .cs-cycle-head { flex-wrap: wrap; row-gap: 3px; }
+      /* 小号粗体日期与周期名称同排，保留淡水印质感，不增加顶部留白或挤压主数字。 */
+      .cs-cycle.has-date-watermark .cs-cycle-head { column-gap: 4px; }
+      .cs-cycle.has-date-watermark .cs-cycle-date {
+        margin-left: auto;
+        font-family: var(--cs-mono); font-size: clamp(11px, 1.15cqw, 13px); line-height: 1;
+        font-weight: 800; letter-spacing: -.045em; white-space: nowrap;
+        color: color-mix(in srgb, var(--cs-signal-deep) 56%, transparent); pointer-events: none;
+      }
+      .cs-cycle.has-date-watermark.is-current .cs-cycle-date {
+        color: color-mix(in srgb, currentColor 60%, transparent);
       }
       .cs-overview-metrics .cs-cycle-value { font-size: clamp(18px, 2.5cqw, 26px); color: var(--cs-signal-deep); overflow-wrap: anywhere; }
       .cs-overview-metrics .cs-cycle-tail { padding-top: 2px; margin-top: 0; gap: 3px; }
@@ -7605,12 +7669,12 @@ window.__ModuleLoader__.load({
         content: ''; position: absolute; inset: 50% auto auto -7px; transform: translateY(-50%);
         width: 2px; height: .85em; border-radius: 2px; background: var(--cs-signal); pointer-events: none;
       }
-      .cs-cycle-today time { color: var(--dsw-alias-label-secondary); font-size: 11px; }
+      .cs-cycle-today time { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; font-weight: 500; }
       .cs-overview-metrics > .cs-cycle.is-current :is(.cs-cycle-share, .cs-cycle-value) { color: inherit; }
       .cs-cycle-today.is-current .cs-cycle-title { color: var(--cs-signal-deep); background: transparent; padding-inline: 0; }
       .cs-overview-metrics .cs-cycle-today.is-current .cs-cycle-share { color: var(--dsw-alias-label-secondary); }
       .cs-cycle-today.is-current .cs-cycle-track { background: var(--cs-tone-faint); }
-      .cs-cycle-today.is-current .cs-cycle-track i { background: var(--cs-signal); }
+      .cs-cycle-today.is-current .cs-cycle-track i { background: var(--cs-chart-active); }
       .cs-cycle-today .cs-cycle-track.is-task i { background: var(--cs-task); }
       @container cs-overview (max-width: 680px) {
         .cs-overview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 8px; }
@@ -7803,6 +7867,11 @@ window.__ModuleLoader__.load({
       .heat-range-select .cs-select-val { font-size: 11.5px; }
       .heat-card-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
       .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+      /* 普通概览近 3 个月按真实周列数适配卡宽；为中英星期列及 8px 间距预留 30px。 */
+      .heatmap-body.is-fit-quarter { container-type: inline-size; --cs-heat-gap: 2px; }
+      .heatmap-body.is-fit-quarter > * {
+        --cs-heat-cell: clamp(9px, calc((100cqw - 30px - (var(--cs-heat-columns) - 1) * var(--cs-heat-gap)) / var(--cs-heat-columns)), 16px);
+      }
       /* 全年 53 列压进卡片可用宽度：列宽等比分配、格子用 aspect-ratio 保持正方形，
          不再靠固定像素宽度撑出横向滚动条；月份刻度也走同一套等比列。 */
       .heatmap-body.is-year {

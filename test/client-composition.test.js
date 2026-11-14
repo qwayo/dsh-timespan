@@ -778,7 +778,7 @@ test('客户端：图表活跃与任务使用可区分的设计 token', async ()
     { key: 'a', from, to: from + 3_600_000, activeMs: 3_600_000, taskMs: 1_800_000 },
   ], 'day', (key) => key, true)
   const fills = findNodes(tree, (node) => node.type === 'rect' && String(node.props.className ?? '').split(/\s+/).includes('cs-bar')).map((node) => node.props.fill)
-  assert.ok(fills.includes('var(--cs-live)'), '活跃柱使用 --cs-live')
+  assert.ok(fills.includes('var(--cs-chart-active)'), '活跃柱使用图形专用 --cs-chart-active，独立于状态文字颜色')
   assert.ok(fills.includes('var(--cs-task)'), '任务柱使用 --cs-task')
   assert.ok(fills.every((fill) => typeof fill === 'string' && fill.startsWith('var(--cs-')), '图表只使用设计 token 着色')
 })
@@ -2511,12 +2511,17 @@ test('客户端：周期按钮切换下方统计，首排保留所选主指标�
   const t = (key) => ({
     focusTodayActive: '今日活跃', todayOnline: '今日在线时长', todayTask: '今日任务时长',
     cycleWeek: '本周', cycleMonth: '本月', activeShare: '活跃占比',
+    periodDay: '日', rangeLabel: '范围',
     focusSet: '设为首屏', focusUnset: '退出首屏',
   })[key] ?? key
   const selections = []
   const zooms = []
+  const data = heroSampleData()
+  const to = new Date(2026, 10, 13, 12).getTime()
+  Object.assign(data.cycles.week, { from: new Date(2026, 10, 9).getTime(), to })
+  Object.assign(data.cycles.month, { from: new Date(2026, 10, 1).getTime(), to })
   const common = {
-    data: heroSampleData(), t, isZh: true, nowMs: new Date(2026, 10, 13).getTime(), format: 'hms',
+    data, t, isZh: true, nowMs: new Date(2026, 10, 13).getTime(), format: 'hms',
     onSelectPeriod: (value) => selections.push(value),
     onToggleFocus: (value) => zooms.push(value),
   }
@@ -2530,6 +2535,10 @@ test('客户端：周期按钮切换下方统计，首排保留所选主指标�
     assert.equal(buttons.length, 3)
     assert.deepEqual(buttons.map((button) => button.props['aria-pressed']), [0, 1, 2].map((i) => i === index))
     assert.equal(allOf(metrics, byClass('cs-cycle-track')).length, 3)
+    const visualDates = allOf(metrics, byClass('cs-cycle-date'))
+    assert.deepEqual(visualDates.map(textOf), ['11.09–11.13', '11.01–11.13'], '水印保留真实日期范围')
+    assert.ok(visualDates.every((node) => node.props['aria-hidden'] === true), '简写日期不重复参与朗读')
+    assert.deepEqual(allOf(metrics, byClass('cs-sr-only')).map(textOf), ['11月9日 – 11月13日', '11月1日 – 11月13日'], '为辅助技术保留完整本地化日期')
     buttons[index].props.onClick()
   }
   assert.deepEqual(selections, ['day', 'week', 'month'])
