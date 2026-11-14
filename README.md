@@ -54,7 +54,7 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 
 > 帮我装插件 @qwayo/dsh-timespan
 
-`plugin_manager` 会从 registry 拉取最新版本，安装并默认启用。想固定版本就换成 `@qwayo/dsh-timespan@0.2.0`。提示需要重启时，重启 DSH 即可。
+`plugin_manager` 会从 registry 拉取最新版本，安装并默认启用。想固定版本就换成 `@qwayo/dsh-timespan@0.3.0`。提示需要重启时，重启 DSH 即可。
 
 ### 方式二：安装 GitHub 仓库
 
