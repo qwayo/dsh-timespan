@@ -193,15 +193,15 @@ window.__ModuleLoader__.load({
       peakActive: '峰值活跃',
       peakPeriod: '最活跃时段',
       trendBreakdownTitle: '时段分布',
-      trendBreakdownHint: '按活跃与任务合计排序，只展示最忙的 7 个时段。',
+      trendBreakdownHint: '按活跃与任务合计排序，展示最忙的 7 个时段',
       trendBreakdownEmpty: '暂无时段数据',
       trendInsightsTitle: '趋势洞察',
-      trendInsightsHint: '本周期峰值、活跃覆盖和前三集中度。',
+      trendInsightsHint: '查看活跃峰值，以及最活跃的三个时段占比',
       trendInsightPeak: '峰值时段',
       trendInsightCoverage: '活跃覆盖',
       trendInsightConcentration: '前三集中度',
       trendInsightTaskRatio: '任务/在线',
-      trendInsightNote: '前三集中度按活跃时长最高的三个时段计算。',
+      trendInsightNote: '前三集中度：最活跃的三个时段占本周期活跃时长的比例',
       trendFocusTitle: '活跃与任务趋势',
       heatmapFocusTitle: '每日活跃热力图',
       rangeOnline: '范围在线',
@@ -222,7 +222,7 @@ window.__ModuleLoader__.load({
       settingsRecheckError: '扫描失败，请稍后重试',
       periodLoading: '正在更新，暂时显示',
       periodLoadFailed: '更新失败，暂时显示',
-      trendInfo: '活跃时长和任务时长分别统计，可能重叠；悬停柱形可查看数值。',
+      trendInfo: '活跃与任务分别计时，可能重叠；悬停或聚焦柱形查看时长',
       heatmapTitle: '每日活跃',
       heatLegendLabel: '活跃程度图例',
       heatLegendLow: '低',
@@ -241,7 +241,7 @@ window.__ModuleLoader__.load({
       yearHeatTitle: '全年每日活跃',
       monthHeatTitle: '{month}每日活跃',
       monthBars: '月度活跃',
-      compositionInfo: '任务时长按会话累计；缺少构成记录的历史任务计入「未拆分」。',
+      compositionInfo: '任务时长按会话累加；历史任务缺少构成记录的部分计入「未拆分」',
       compositionTitle: '任务时长构成',
       shareLabel: '占比',
       durationLabel: '时长',
@@ -253,7 +253,7 @@ window.__ModuleLoader__.load({
       taskCountShort: '任务次数',
       dailyAverageActive: '日均活跃',
       dailyAverageTask: '日均任务',
-      dailyAverageHint: '日均：按自然日折算。',
+      dailyAverageHint: '日均按自然日计算',
       recordSinceBoot: '在线和活跃从插件启用时开始记录，历史数据只回填任务时长。',
       paletteBlue: '蓝',
       paletteStone: '石墨',
@@ -288,7 +288,7 @@ window.__ModuleLoader__.load({
       detailsCollapseAll: '收起全部',
       detailsFiltered: '当前结果：{workspaces} 个工作区 · {sessions} 个会话',
       detailsTaskScope: '任务时长 · 累计工时',
-      detailsIndependent: '活跃与任务分别计时；任务可在界面空闲时继续运行。',
+      detailsIndependent: '活跃与任务分别计时，任务可在空闲时继续运行',
       detailsRangeSelected: '选定时段',
       detailsLoading: '正在读取所选范围的会话…',
       detailsLoadError: '暂时无法读取所选范围的会话',
@@ -299,7 +299,7 @@ window.__ModuleLoader__.load({
       trendFutureHint: '虚线表示尚未开始',
       trendDistributionHour: '按小时 · 活跃时长',
       trendDistributionDay: '按天 · 活跃时长',
-      trendDistributionHint: '色阶表示当前周期各时段的活跃时长；无活跃时段保留为空，未来时段不计入统计。',
+      trendDistributionHint: '颜色越深，活跃越久；空白表示无活跃，虚线表示尚未开始',
       settingsSidebarPreview: '侧栏效果',
       settingsAutoSave: '更改后自动保存',
       settingsRulesGroup: '统计规则',
@@ -539,12 +539,12 @@ window.__ModuleLoader__.load({
       trendBreakdownHint: 'Top 7 busiest buckets by combined active and task time.',
       trendBreakdownEmpty: 'No time-bucket data',
       trendInsightsTitle: 'Trend insights',
-      trendInsightsHint: 'Peak, active coverage and top-3 concentration for this period.',
+      trendInsightsHint: 'Active peak and the share of time in the three busiest periods',
       trendInsightPeak: 'Peak period',
       trendInsightCoverage: 'Active coverage',
       trendInsightConcentration: 'Top-3 concentration',
       trendInsightTaskRatio: 'Task / online',
-      trendInsightNote: 'Top-3 concentration is computed from the three buckets with the most active time.',
+      trendInsightNote: 'Top-3 concentration: the three busiest periods as a share of total active time',
       trendFocusTitle: 'Active and task trend',
       heatmapFocusTitle: 'Daily activity heatmap',
       rangeOnline: 'Online in range',
@@ -565,7 +565,7 @@ window.__ModuleLoader__.load({
       settingsRecheckError: 'Scan failed; please retry later',
       periodLoading: 'Updating; still showing',
       periodLoadFailed: 'Update failed; still showing',
-      trendInfo: 'Active and task time are measured separately and may overlap. Hover a bar for its value.',
+      trendInfo: 'Active and task time may overlap; hover or focus a bar for durations',
       heatmapTitle: 'Daily active time',
       heatLegendLabel: 'Activity level legend',
       heatLegendLow: 'Less',
@@ -584,7 +584,7 @@ window.__ModuleLoader__.load({
       yearHeatTitle: 'Daily active time · year',
       monthHeatTitle: 'Daily active time · {month}',
       monthBars: 'Monthly active',
-      compositionInfo: 'Task time is summed across sessions. Historical tasks without a breakdown are counted as not broken down.',
+      compositionInfo: 'Task time is summed across sessions; missing historical breakdowns appear as unclassified',
       compositionTitle: 'Task time breakdown',
       shareLabel: 'Share',
       durationLabel: 'Duration',
@@ -596,7 +596,7 @@ window.__ModuleLoader__.load({
       taskCountShort: 'Tasks',
       dailyAverageActive: 'Daily active',
       dailyAverageTask: 'Daily task',
-      dailyAverageHint: 'Daily average: calculated across calendar days.',
+      dailyAverageHint: 'Daily averages use calendar days',
       recordSinceBoot: 'Online and active time are recorded from plugin enablement; history only backfills task time.',
       paletteBlue: 'Blue',
       paletteStone: 'Graphite',
@@ -631,7 +631,7 @@ window.__ModuleLoader__.load({
       detailsCollapseAll: 'Collapse all',
       detailsFiltered: 'Results: {workspaces} workspaces · {sessions} sessions',
       detailsTaskScope: 'Task time · Accumulated',
-      detailsIndependent: 'Active and task time are measured independently. Tasks can continue while the interface is idle.',
+      detailsIndependent: 'Active and task time are independent; tasks can continue while idle',
       detailsRangeSelected: 'Selected interval',
       detailsLoading: 'Loading sessions for the selected range…',
       detailsLoadError: 'Could not load sessions for this range',
@@ -642,7 +642,7 @@ window.__ModuleLoader__.load({
       trendFutureHint: 'Dashed cells have not started',
       trendDistributionHour: 'Hourly · Active time',
       trendDistributionDay: 'Daily · Active time',
-      trendDistributionHint: 'Color indicates active time in each bucket. Inactive buckets remain empty; future buckets are excluded.',
+      trendDistributionHint: 'Darker means more active time; empty means inactive, dashed means not yet started',
       settingsSidebarPreview: 'Sidebar preview',
       settingsAutoSave: 'Changes save automatically',
       settingsRulesGroup: 'Statistics',
@@ -1990,11 +1990,35 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** 首次进入可视区才播放；刷新数值、悬停和滚动返回都保留已显示状态。 */
+    function ChartReveal({ as = 'div', children, ...props }) {
+      const ref = React.useRef(null)
+      const [visible, setVisible] = React.useState(() => prefersReducedMotion()
+        || typeof window.IntersectionObserver !== 'function')
+      React.useEffect(() => {
+        if (visible || !ref.current) return undefined
+        const observer = new window.IntersectionObserver((entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            setVisible(true)
+            observer.disconnect()
+          }
+        }, { threshold: .08 })
+        observer.observe(ref.current)
+        return () => observer.disconnect()
+      }, [visible])
+      return h(as, { ...props, ref, 'data-chart-reveal': visible ? 'visible' : 'pending' }, children)
+    }
+
+    /** 顺序展开最多错开 180ms，长序列也在 600ms 内完成。 */
+    function chartStagger(index, count) {
+      return { '--cs-chart-delay': `${Math.round(index / Math.max(1, count - 1) * 180)}ms` }
+    }
+
     /** 用 SVG 画标准圆环；pathLength=100 让三段弧长直接按百分比分配。 */
     function renderSidebarRing(segments) {
       const visible = segments.filter((segment) => segment.ms > 0)
       const gap = visible.length > 1 ? 1.4 : 0
-      return h('span', { className: 'dsh-timespan-nav-ring', 'aria-hidden': true },
+      return h(ChartReveal, { as: 'span', className: 'dsh-timespan-nav-ring', 'aria-hidden': true },
         h('svg', { viewBox: '0 0 20 20', width: 18, height: 18, role: 'presentation', focusable: 'false' },
           h('circle', {
             className: 'dsh-timespan-nav-ring-track',
@@ -2005,7 +2029,8 @@ window.__ModuleLoader__.load({
             const offset = -(segment.from * 100 + (index === 0 ? 0 : gap / 2))
             return h('circle', {
               key: segment.key,
-              className: `dsh-timespan-nav-ring-seg is-${segment.key}`,
+              className: `dsh-timespan-nav-ring-seg cs-reveal-ring is-${segment.key}`,
+              style: chartStagger(index, visible.length),
               cx: 10, cy: 10, r: 8, pathLength: 100, fill: 'none',
               stroke: `var(${segment.color})`,
               strokeDasharray: `${roundRingPercent(dash)} ${roundRingPercent(100 - dash)}`,
@@ -2848,11 +2873,12 @@ window.__ModuleLoader__.load({
       const slot = width / Math.max(1, count)
       const barWidth = Math.max(1.5, Math.min(slot * 0.32, 16))
       const gap = Math.max(1, slot * 0.05)
-      const renderBar = (key, x, duration, fill) => {
+      const renderBar = (key, x, duration, fill, index) => {
         const barHeight = Math.max(1.5, (duration / peak) * usable)
         return h('rect', {
           key,
-          className: 'cs-bar',
+          className: 'cs-bar cs-reveal-y',
+          style: chartStagger(index, count),
           x,
           y: baseline - barHeight,
           width: barWidth,
@@ -2870,10 +2896,10 @@ window.__ModuleLoader__.load({
         const hot = hover?.kind === 'bucket' && hover.key === bucket.key
         const bars = []
         if (bucket.activeMs > 0) {
-          bars.push(renderBar(`active-${bucket.key}`, left, bucket.activeMs, 'var(--cs-chart-active)'))
+          bars.push(renderBar(`active-${bucket.key}`, left, bucket.activeMs, 'var(--cs-chart-active)', index))
         }
         if (bucket.taskMs > 0) {
-          bars.push(renderBar(`task-${bucket.key}`, left + barWidth + gap, bucket.taskMs, 'var(--cs-task)'))
+          bars.push(renderBar(`task-${bucket.key}`, left + barWidth + gap, bucket.taskMs, 'var(--cs-task)', index))
         }
         const groupProps = {
           key: bucket.key,
@@ -2920,7 +2946,7 @@ window.__ModuleLoader__.load({
         key: `axis-${index}`,
         style: { left: `${((index + 0.5) / count) * 100}%` },
       }, bucketLabel(trend[index], period, isZh), actions.showFuture && trend[index]?.future ? h('small', { className: 'cs-axis-future' }, t('trendNotStarted')) : null))
-      return h('div', { className: 'cs-chart' },
+      return h(ChartReveal, { className: 'cs-chart' },
         h('div', { className: 'cs-plot' },
         h('div', { className: 'cs-y-axis', 'aria-hidden': true }, [1, 0.5, 0].map((ratio) =>
           h('span', { key: ratio, style: { top: `${((baseline - usable * ratio) / height) * 100}%` } }, formatDuration(peak * ratio, format)))),
@@ -3000,8 +3026,8 @@ window.__ModuleLoader__.load({
     function renderShareTrack(label, share, tone = 'active') {
       return h('span', { className: 'cs-cycle-tail' },
         h('span', { className: 'cs-cycle-share' }, `${label} ${share}%`),
-        h('span', { className: `cs-cycle-track${tone === 'task' ? ' is-task' : ''}`, 'aria-hidden': true },
-          h('i', { style: { width: `${share}%` } })))
+        h(ChartReveal, { as: 'span', className: `cs-cycle-track${tone === 'task' ? ' is-task' : ''}`, 'aria-hidden': true },
+          h('i', { className: 'cs-reveal-x', style: { width: `${share}%` } })))
     }
 
     /** 热力图图例：只用当前主题的六档热力色从左到右排成低→高色带，不再重复解释文字。 */
@@ -3104,7 +3130,7 @@ window.__ModuleLoader__.load({
       let offset = 0
       const radius = 42
       const circumference = 2 * Math.PI * radius
-      const segments = visibleParts.map((item) => {
+      const segments = visibleParts.map((item, index) => {
         const fraction = item.ms / total
         const length = fraction * circumference
         // 两侧各留半个间隙；极小扇区最多扣掉四分之一，单一类别仍显示完整圆环。
@@ -3112,7 +3138,8 @@ window.__ModuleLoader__.load({
         const tip = buildCompositionTip(item, total, t, format)
         const props = {
           key: item.key,
-          className: `cs-donut-seg is-${item.key}${hotKey === item.key ? ' is-hot' : ''}`,
+          className: `cs-donut-seg cs-reveal-ring is-${item.key}${hotKey === item.key ? ' is-hot' : ''}`,
+          style: { ...chartStagger(index, visibleParts.length), '--cs-ring-length': circumference },
           cx: 50, cy: 50, r: radius,
           fill: 'none', stroke: `var(--cs-series-${item.key})`, strokeWidth: 11,
           strokeDasharray: `${length - gap} ${circumference}`,
@@ -3145,7 +3172,7 @@ window.__ModuleLoader__.load({
           renderCardTitle(t('compositionTitle'), 'breakdown')),
         total === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-composition-body' },
-              h('div', {
+              h(ChartReveal, {
                 className: `cs-donut${hotKey ? ' has-hot' : ''}`,
                 role: 'group',
                 'aria-label': `${t('compositionTitle')} · ${t('accumulated')} ${formatDuration(total, format)}`,
@@ -3204,8 +3231,8 @@ window.__ModuleLoader__.load({
               },
                 h('span', { className: 'cs-rank-index' }, String(index + 1).padStart(2, '0')),
                 h('span', { className: 'cs-ranking-name' }, name),
-                h('span', { className: 'cs-ranking-bar', 'aria-hidden': true },
-                  h('i', { style: { width: formatPercent(row.share) } })),
+                h(ChartReveal, { as: 'span', className: 'cs-ranking-bar', 'aria-hidden': true },
+                  h('i', { className: 'cs-reveal-x', style: { width: formatPercent(row.share), ...chartStagger(index, rows.length) } })),
                 h('span', { className: 'cs-ranking-time' }, formatDuration(row.taskMs, format)))
             })))
     }
@@ -4374,8 +4401,8 @@ window.__ModuleLoader__.load({
           session.taskRunning ? h('span', { className: 'cs-inspector-running' }, t('runningTag')) : null),
         h('strong', { className: 'cs-inspector-total' }, formatDuration(session.taskMs, format)),
         h('span', { className: 'cs-inspector-label' }, t('detailsTaskScope')),
-        h('div', { className: 'cs-inspector-breakdown', 'aria-hidden': true }, rows.map((row) =>
-          h('i', { key: row.key, className: swatchClass(row), style: { width: `${session.taskMs > 0 ? row.ms / session.taskMs * 100 : 0}%` } }))),
+        h(ChartReveal, { key: `${session.workspaceKey}:${session.sessionId}`, className: 'cs-inspector-breakdown', 'aria-hidden': true }, rows.map((row, index) =>
+          h('i', { key: row.key, className: `${swatchClass(row)} cs-reveal-x`, style: { width: `${session.taskMs > 0 ? row.ms / session.taskMs * 100 : 0}%`, ...chartStagger(index, rows.length) } }))),
         h('dl', { className: 'cs-inspector-rows' }, rows.length > 0 ? rows.map((row) =>
           h('div', { key: row.key }, h('dt', null, h('i', { className: swatchClass(row), 'aria-hidden': true }), row.label), h('dd', null, row.value)))
           : h('div', null, h('dt', null, t('noTaskComposition')))),
@@ -4482,13 +4509,16 @@ window.__ModuleLoader__.load({
             h('span', { className: 'cs-distribution-grain' }, t(shownPeriod === 'day' ? 'trendDistributionHour' : 'trendDistributionDay'), renderInfo(t('trendDistributionHint')))),
           buckets.length === 0 ? h('div', { className: 'cs-empty' }, t('trendBreakdownEmpty'))
             : h('div', { className: 'cs-distribution' },
-                h('div', { className: 'cs-distribution-strip', role: 'group', 'aria-label': t('trendBreakdownTitle') }, buckets.map((bucket) => {
+                h(ChartReveal, { className: 'cs-distribution-strip', role: 'group', 'aria-label': t('trendBreakdownTitle') }, buckets.map((bucket, index) => {
                   const level = bucket.future || finite(bucket.activeMs) <= 0 ? 0 : Math.max(1, Math.ceil(finite(bucket.activeMs) / max * 5))
                   const tip = buildTrendTip(bucket, shownPeriod, t, isZh, format)
                   return h('span', { key: bucket.key, tabIndex: 0,
                     className: `cs-distribution-cell is-level-${level}${bucket.future ? ' is-future' : ''}`,
+                    style: chartStagger(index, buckets.length),
+                    onKeyDown: (event) => moveFocusByKey(event, '.cs-distribution-cell'),
                     'aria-label': `${tip.title} · ${tip.rows.map((row) => `${row.label} ${row.value}`).join(' · ')}`,
-                    ...hoverTipProps(hoverTip, tip.title, tip.rows) })
+                    ...hoverTipProps(hoverTip, tip.title, tip.rows) },
+                    h('i', { className: 'cs-distribution-fill cs-reveal-y', 'aria-hidden': true }))
                 })),
                 h('div', { className: 'cs-distribution-axis', 'aria-hidden': true },
                   [0, Math.floor((buckets.length - 1) / 2), buckets.length - 1].map((index) =>
@@ -4797,7 +4827,7 @@ window.__ModuleLoader__.load({
               ...meta.map(([labelKey, value]) => h('span', { key: labelKey }, `${t(labelKey)} ${formatDuration(value, format)}`)),
               h('span', null, `${t('taskCountShort')} ${String(heroTaskCount(data, metric))}`))),
           h('div', { className: 'cs-hero-focus-aside' },
-            h('div', {
+            h(ChartReveal, {
               className: `cs-hero-ring${ring.tone === 'task' ? ' is-task' : ''}`,
               role: 'img',
               'aria-label': `${ring.label} ${ring.percent}%`,
@@ -4805,7 +4835,7 @@ window.__ModuleLoader__.load({
               h('svg', { viewBox: '0 0 160 160', 'aria-hidden': true },
                 h('circle', { className: 'cs-hero-ring-track', cx: 80, cy: 80, r: 68, fill: 'none', strokeWidth: 9 }),
                 h('circle', {
-                  className: 'cs-hero-ring-value', cx: 80, cy: 80, r: 68, fill: 'none', strokeWidth: 9,
+                  className: 'cs-hero-ring-value cs-reveal-ring', cx: 80, cy: 80, r: 68, fill: 'none', strokeWidth: 9,
                   pathLength: 100, strokeLinecap: ring.percent > 0 ? 'round' : 'butt',
                   strokeDasharray: `${ring.percent} ${100 - ring.percent}`, transform: 'rotate(-90 80 80)',
                 })),
@@ -4831,22 +4861,22 @@ window.__ModuleLoader__.load({
     function renderMonthBars(bars, t, format = 'hms', className = 'heat-month-bars') {
       const list = Array.isArray(bars) ? bars : []
       const maxBar = Math.max(0, ...list.map((bar) => finite(bar.activeMs)))
-      return h('div', {
+      return h(ChartReveal, {
         className,
         role: 'group',
         'aria-label': t('monthBars'),
-      }, list.map((bar) => {
+      }, list.map((bar, index) => {
         const activeMs = finite(bar.activeMs)
         const ratio = maxBar > 0 ? activeMs / maxBar : 0
         const height = activeMs > 0 ? Math.max(4, Math.round(ratio * 100)) : 0
         return h('div', {
           key: `bar-${bar.month}`,
           className: 'heat-month-bar',
-          style: { height: `${height}%` },
+          style: { height: `${height}%`, ...chartStagger(index, list.length) },
           'data-month': bar.abbr,
           'data-active-ms': activeMs,
           'aria-label': `${bar.abbr} · ${t('activeLabel')} ${formatDuration(activeMs, format)}`,
-        })
+        }, h('i', { className: 'cs-month-fill cs-reveal-y', 'aria-hidden': true }))
       }))
     }
 
@@ -5202,8 +5232,8 @@ window.__ModuleLoader__.load({
               h('div', { className: 'cs-trend-share-head' },
                 h('span', null, t('activeShare')),
                 h('b', null, `${share}%`)),
-              h('div', { className: 'cs-trend-share-track', 'aria-hidden': true },
-                h('i', { style: { width: `${share}%` } })),
+              h(ChartReveal, { className: 'cs-trend-share-track', 'aria-hidden': true },
+                h('i', { className: 'cs-reveal-x', style: { width: `${share}%` } })),
               h('div', { className: 'cs-trend-share-caption' },
                 `${t('activeLabel')} ${formatDuration(data?.activeMs, durationFormat)} · ${t('onlineLabel')} ${formatDuration(data?.onlineMs, durationFormat)}`)))),
         renderTrendBottom(data, t, isZh, shownPeriod, durationFormat, hoverTip, onOpenRange),
@@ -5242,7 +5272,7 @@ window.__ModuleLoader__.load({
           h('svg', { className: 'cs-search-icon', viewBox: '0 0 16 16', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, 'aria-hidden': true },
             h('circle', { cx: 7, cy: 7, r: 4.2 }), h('path', { d: 'M10.1 10.1 13.5 13.5' })),
           h('input', { className: 'cs-search', type: 'search', value: query ?? '', placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder'), onChange: (event) => onQueryChange?.(event.target.value) })),
-        h('div', { className: 'cs-details-filter', role: 'group', 'aria-label': runningLabel }, ['all', 'running'].map((value) =>
+        h('div', { className: 'cs-details-filter', 'data-status': statusFilter, role: 'group', 'aria-label': runningLabel }, ['all', 'running'].map((value) =>
           h('button', { key: value, type: 'button', 'aria-pressed': statusFilter === value, className: statusFilter === value ? 'is-on' : '', onClick: () => onStatusFilter?.(value) },
             value === 'all' ? t('detailsAll') : runningFilter))),
         h(Select, { value: sort, ariaLabel: t('detailsSortLabel'), className: 'cs-details-sort', onChange: onSort,
@@ -6406,7 +6436,28 @@ window.__ModuleLoader__.load({
      * 因此在这里按 cs-palette-* / cs-appearance-* 重新声明三档蓝，并给任务段
      * 指定与活跃段明显区分的紫罗兰辅助色；不使用宿主的 success 绿。
      */
+    const CS_CHART_MOTION_CSS = `
+      /* 绘入与悬停分别作用于内外层，避免入场过程覆盖交互缩放。 */
+      .cs-reveal-ring, .cs-reveal-x, .cs-reveal-y {
+        animation-duration: var(--cs-dur-enter, 420ms);
+        animation-delay: var(--cs-chart-delay, 0ms);
+        animation-timing-function: var(--cs-ease, cubic-bezier(.22,.7,.24,1));
+        animation-fill-mode: backwards;
+      }
+      .cs-reveal-ring { animation-name: cs-ring-draw; }
+      .cs-reveal-x { transform-origin: left center; animation-name: cs-bar-draw-x; }
+      .cs-reveal-y { transform-box: fill-box; transform-origin: center bottom; animation-name: cs-bar-draw-y; }
+      [data-chart-reveal="pending"] :is(.cs-reveal-ring, .cs-reveal-x, .cs-reveal-y) { animation-play-state: paused; }
+      @keyframes cs-ring-draw { from { stroke-dasharray: 0 var(--cs-ring-length, 100); } }
+      @keyframes cs-bar-draw-x { from { transform: scaleX(0); } }
+      @keyframes cs-bar-draw-y { from { transform: scaleY(0); } }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-reveal-ring, .cs-reveal-x, .cs-reveal-y { animation: none; }
+      }
+    `
+
     const DSH_TIMESPAN_SIDEBAR_CSS = `
+      ${CS_CHART_MOTION_CSS}
       .dsh-timespan-nav-entry {
         --cs-signal-deep: #133463;
         --cs-signal: #1F4E94;
@@ -6598,6 +6649,7 @@ window.__ModuleLoader__.load({
     `
 
     const DSH_TIMESPAN_CSS = `
+      ${CS_CHART_MOTION_CSS}
       ${CS_SELECT_CSS}
       .cs-page {
         box-sizing: border-box;
@@ -7230,7 +7282,7 @@ window.__ModuleLoader__.load({
       .cs-info button { appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
       .cs-info button:hover, .cs-info:hover button, .cs-info:focus-within button, .cs-info button:focus-visible { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); }
       .cs-info button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
-      .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: fixed; z-index: 90; width: max-content; max-width: min(280px, 68vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 12px 30px #0003; font-size: 12px; font-weight: 400; line-height: 1.55; white-space: normal; transition: opacity 120ms var(--cs-ease), transform 120ms var(--cs-ease); }
+      .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: fixed; z-index: 90; width: max-content; max-width: min(280px, 68vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 12px 30px #0003; font-size: 13px; font-weight: 400; line-height: 1.65; white-space: normal; transition: opacity 120ms var(--cs-ease), transform 120ms var(--cs-ease); }
       .cs-info:hover .cs-info-tip,
       .cs-info:focus-within .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); }
       .cs-info.is-escaped .cs-info-tip { visibility: hidden !important; opacity: 0 !important; }
@@ -7262,7 +7314,7 @@ window.__ModuleLoader__.load({
       .cs-bar-group:focus-visible .cs-bar-hit { fill: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent); }
 
       /* 圆环：扇区与右侧列表共享同一高亮状态。 */
-      .cs-donut-seg { cursor: pointer; outline: none; transition: stroke-width 160ms ease, opacity 160ms ease, filter 160ms ease; }
+      .cs-donut-seg { cursor: pointer; outline: none; transition: stroke-width 160ms ease, opacity 160ms ease, filter 160ms ease, stroke-dasharray 420ms var(--cs-ease); }
       .cs-donut-seg.is-hot, .cs-donut-seg:focus-visible { stroke-width: 15; filter: brightness(1.1); }
       /* 极浅分段只加粗，避免悬浮或聚焦时增亮至纯白而融入卡片背景。 */
       .cs-page.cs-palette-blue:not(.cs-appearance-dark) .cs-donut-seg:is(.is-hot, :focus-visible) { filter: none; }
@@ -7494,14 +7546,24 @@ window.__ModuleLoader__.load({
       .cs-distribution-grain { display: inline-flex; align-items: center; gap: 5px; color: var(--cs-ink-2); font-size: 11px; }
       .cs-distribution { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
       .cs-distribution-strip { display: flex; gap: 4px; min-height: 42px; }
-      .cs-distribution-cell { flex: 1 1 0; min-width: 0; border-radius: 4px; background: var(--cs-tone-faint); }
-      .cs-distribution-cell.is-level-1 { background: var(--cs-heat-1); }
-      .cs-distribution-cell.is-level-2 { background: var(--cs-heat-2); }
-      .cs-distribution-cell.is-level-3 { background: var(--cs-heat-3); }
-      .cs-distribution-cell.is-level-4 { background: var(--cs-heat-4); }
-      .cs-distribution-cell.is-level-5 { background: var(--cs-heat-5); }
-      .cs-distribution-cell.is-future { background: transparent; border: 1px dashed var(--cs-line); }
+      .cs-distribution-cell {
+        --cs-distribution-color: var(--cs-tone-faint);
+        position: relative; flex: 1 1 0; min-width: 0; border-radius: 4px; cursor: pointer;
+        transition: transform var(--cs-dur-tap) var(--cs-ease);
+      }
+      .cs-distribution-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--cs-distribution-color); }
+      .cs-distribution-cell.is-level-1 { --cs-distribution-color: var(--cs-heat-1); }
+      .cs-distribution-cell.is-level-2 { --cs-distribution-color: var(--cs-heat-2); }
+      .cs-distribution-cell.is-level-3 { --cs-distribution-color: var(--cs-heat-3); }
+      .cs-distribution-cell.is-level-4 { --cs-distribution-color: var(--cs-heat-4); }
+      .cs-distribution-cell.is-level-5 { --cs-distribution-color: var(--cs-heat-5); }
+      .cs-distribution-cell.is-future { --cs-distribution-color: transparent; }
+      .cs-distribution-cell.is-future .cs-distribution-fill { border: 1px dashed var(--cs-line); }
+      .cs-distribution-cell:is(:hover, :focus-visible) { z-index: 1; transform: translateY(-2px) scale(1.12, 1.08); }
       .cs-distribution-cell:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-distribution-cell:is(:hover, :focus-visible) { transform: none; }
+      }
       .cs-distribution-axis, .cs-distribution-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--cs-ink-2); font-size: 11px; }
       .cs-distribution-summary { border-top: 1px solid var(--cs-line); padding-top: 14px; margin-top: auto; }
       .cs-distribution-summary b { color: var(--cs-ink); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -7540,32 +7602,24 @@ window.__ModuleLoader__.load({
       }
       .cs-search:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
       .cs-details-stats {
-        display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0; padding: 9px 16px; border: 1px solid var(--dsw-alias-border-l1);
+        display: grid; grid-template-columns: minmax(0, .8fr) repeat(2, minmax(0, 1.2fr)) minmax(0, .8fr);
+        gap: 0; padding: 14px 18px; border: 1px solid var(--dsw-alias-border-l1);
         border-radius: 12px; background: var(--dsw-alias-bg-layer-1);
       }
       .cs-detail-stat {
-        display: flex; flex-direction: column; gap: 2px; min-width: 0;
-        padding: 3px 16px; border: 0; border-left: 1px solid var(--dsw-alias-border-l1);
+        display: flex; flex-direction: column; justify-content: flex-start; gap: 5px; min-width: 0;
+        padding: 2px 18px; border: 0; border-left: 1px solid var(--dsw-alias-border-l1);
         border-radius: 0; background: transparent;
       }
       .cs-detail-stat:first-child { border-left: 0; padding-left: 0; }
-      .cs-detail-stat-label { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      .cs-detail-stat-label { display: flex; align-items: center; justify-content: flex-start; gap: 6px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+      .cs-detail-stat-label .cs-detail-glyph { flex: 0 0 14px; width: 14px; height: 14px; }
       .cs-detail-stat-value {
         font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-        font-variant-numeric: tabular-nums; font-size: 20px; line-height: 26px; font-weight: 650;
-        letter-spacing: -0.03em; color: var(--dsw-alias-label-primary);
+        font-variant-numeric: tabular-nums; font-size: clamp(20px, 2vw, 26px); line-height: 1.25; font-weight: 600;
+        letter-spacing: -0.02em; color: var(--dsw-alias-label-primary); overflow-wrap: anywhere;
       }
-      .cs-detail-stat-hint { font-size: 10px; line-height: 14px; color: var(--dsw-alias-label-secondary); }
-      @media (max-width: 1080px) {
-        .cs-details-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .cs-detail-stat:nth-child(3) { border-left: 0; padding-left: 0; }
-      }
-      @media (max-width: 620px) {
-        .cs-details-stats { grid-template-columns: minmax(0, 1fr); padding: 6px 14px; }
-        .cs-detail-stat { border-left: 0; border-top: 1px solid var(--dsw-alias-border-l1); padding: 8px 0; }
-        .cs-detail-stat:first-child { border-top: 0; }
-      }
+      .cs-detail-stat-hint { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-settings-board { display: flex; flex-direction: column; gap: 14px; }
       .cs-settings-hero { display: flex; flex-direction: column; gap: 2px; }
       .cs-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
@@ -7741,7 +7795,7 @@ window.__ModuleLoader__.load({
       .cs-hero-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
       .cs-hero-ring-track { stroke: var(--cs-ring-track); }
       .cs-hero-ring-value {
-        stroke: var(--cs-signal); stroke-linecap: round;
+        stroke: var(--cs-signal);
         transition: stroke-dasharray 420ms var(--cs-ease), stroke 180ms var(--cs-ease);
       }
       /* 任务占比只换数据语义色：弧线与图例色块用任务紫，中心文字保持正文色。 */
@@ -7988,9 +8042,10 @@ window.__ModuleLoader__.load({
       }
       .heat-month-bar {
         position: relative; width: 100%; min-height: 2px; align-self: end;
-        border-radius: 3px 3px 0 0; background: var(--cs-heat-3);
+        border-radius: 3px 3px 0 0;
         transition: height 200ms var(--cs-ease);
       }
+      .cs-month-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--cs-heat-3); }
       .heat-month-bar::after {
         content: attr(data-month); position: absolute; top: calc(100% + 4px); left: 50%;
         transform: translateX(-50%); font-size: 10px; line-height: 12px;
@@ -8218,13 +8273,15 @@ window.__ModuleLoader__.load({
       .cs-details-toolbar { gap: 12px; }
       .cs-details-toolbar .cs-search-wrap { flex: 1 1 240px; max-width: none; }
       .cs-details-toolbar .cs-details-range { margin-left: auto; }
-      .cs-details-stats { padding: 10px 18px; }
-      .cs-detail-stat { padding: 2px 18px; gap: 1px; }
-      .cs-detail-stat-value { font-size: 22px; line-height: 30px; font-weight: 600; letter-spacing: -0.02em; }
-      .cs-detail-stat-hint { font-size: 10.5px; line-height: 15px; }
-      .cs-details-filter { display: flex; gap: 2px; padding: 3px; background: var(--cs-surface); border: 1px solid var(--cs-line); border-radius: 8px; }
-      .cs-details-filter button { border: 0; padding: 5px 10px; border-radius: 5px; background: transparent; color: var(--cs-ink-2); font: inherit; font-size: 12px; cursor: pointer; }
-      .cs-details-filter button.is-on { background: var(--cs-tone-faint); color: var(--cs-signal); }
+      .cs-details-filter { position: relative; isolation: isolate; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; padding: 3px; background: var(--cs-surface); border: 1px solid var(--cs-line); border-radius: 8px; }
+      .cs-details-filter::before {
+        content: ''; position: absolute; z-index: -1; left: 3px; top: 3px; bottom: 3px;
+        width: calc((100% - 8px) / 2); border-radius: 5px; background: var(--cs-tone-faint);
+        transform: translateX(0); transition: transform var(--cs-dur-view) var(--cs-ease);
+      }
+      .cs-details-filter[data-status="running"]::before { transform: translateX(calc(100% + 2px)); }
+      .cs-details-filter button { position: relative; border: 0; padding: 5px 10px; border-radius: 5px; background: transparent; color: var(--cs-ink-2); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; transition: color var(--cs-dur-tap) var(--cs-ease); }
+      .cs-details-filter button.is-on { color: var(--cs-signal); }
       .cs-details-filter button:focus-visible, .cs-session-inspect:focus-visible { outline: 2px solid var(--cs-focus); outline-offset: 2px; }
       .cs-details-sort .cs-select-btn { min-height: 34px; font-size: 12px; }
       .cs-record-columns { display: grid; grid-template-columns: minmax(0, 1fr) 285px; margin-top: 12px; border-top: 1px solid var(--cs-line); }
@@ -8237,22 +8294,23 @@ window.__ModuleLoader__.load({
       .cs-inspector-workspace { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--cs-ink-2); }
       .cs-inspector-running { color: var(--cs-task); }
       .cs-inspector-total { font: 650 27px/1.3 ui-monospace, Consolas, monospace; font-variant-numeric: tabular-nums; color: var(--cs-task); overflow-wrap: anywhere; }
-      .cs-inspector-breakdown { display: flex; gap: 2px; height: 7px; border-radius: 3px; overflow: hidden; background: var(--cs-tone-faint); }
+      .cs-inspector-breakdown { display: flex; gap: 3px; height: 9px; border-radius: 3px; overflow: hidden; background: var(--cs-tone-faint); }
       .cs-inspector-series.is-model { background: var(--cs-signal-deep); }
-      .cs-inspector-series.is-tool { background: var(--cs-signal); }
-      .cs-inspector-series.is-wait { background: var(--cs-signal-soft); }
+      .cs-inspector-series.is-tool { background: var(--cs-signal-soft); }
+      .cs-inspector-series.is-wait { background: #bd934e; }
+      .cs-palette-clay .cs-inspector-series.is-wait { background: #6099b8; }
       .cs-inspector-series.is-other { background: var(--cs-tone-other); }
       .cs-inspector-series.is-unknown { background: var(--cs-tone-faint); }
       /* 浅色明细保留当前配色，暖色等待和中性未拆分便于识别相邻小段。 */
-      .cs-appearance-light .cs-inspector-series.is-tool { background: color-mix(in srgb, var(--cs-signal) 72%, var(--cs-signal-soft)); }
       .cs-appearance-light .cs-inspector-series.is-wait { background: #a87522; }
       .cs-appearance-light.cs-palette-clay .cs-inspector-series.is-wait { background: #417b9b; }
-      .cs-appearance-light .cs-inspector-series.is-other { background: var(--cs-signal-soft); }
+      .cs-appearance-light .cs-inspector-series.is-other { background: color-mix(in srgb, var(--cs-signal-soft) 24%, var(--cs-surface)); }
+      .cs-inspector-series.is-other { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cs-signal) 30%, transparent); }
       .cs-appearance-light .cs-inspector-series.is-unknown { background: repeating-linear-gradient(135deg, #7f868b 0 2px, #edf0f2 2px 4px); }
       .cs-inspector-rows { display: flex; flex-direction: column; gap: 12px; margin: 0; padding-bottom: 16px; border-bottom: 1px solid var(--cs-line); }
       .cs-inspector-rows > div, .cs-inspector-active { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
       .cs-inspector-rows dt { display: flex; align-items: center; gap: 7px; color: var(--cs-ink-2); }
-      .cs-inspector-rows dt i { width: 7px; height: 7px; border-radius: 2px; }
+      .cs-inspector-rows dt i { width: 10px; height: 10px; flex: 0 0 10px; border-radius: 3px; }
       .cs-inspector-rows dd { margin: 0; font-variant-numeric: tabular-nums; }
       .cs-inspector-active { color: var(--cs-ink-2); }
       .cs-inspector-active b { color: var(--cs-signal); font-weight: 500; }
@@ -8318,7 +8376,8 @@ window.__ModuleLoader__.load({
       .cs-session-tail .cs-session-last { display: inline-flex; align-items: center; gap: 4px; padding: 0; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; white-space: nowrap; }
       .cs-session-tail .cs-session-last .cs-detail-glyph { width: 13px; height: 13px; vertical-align: middle; opacity: .7; }
       .cs-page .cs-session.is-highlighted { background: color-mix(in srgb, var(--cs-signal) 8%, transparent); }
-      .cs-appearance-light .cs-details-filter button.is-on,
+      .cs-appearance-light .cs-details-filter::before { background: var(--cs-selection); }
+      .cs-appearance-light .cs-details-filter button.is-on { color: var(--cs-on-selection); }
       .cs-appearance-light .cs-session-inspect[aria-pressed="true"] {
         background: var(--cs-selection); color: var(--cs-on-selection);
       }
@@ -8336,14 +8395,14 @@ window.__ModuleLoader__.load({
       @media (max-width: 760px) {
         .cs-details-toolbar .cs-search-wrap { flex-basis: 100%; max-width: none; }
         .cs-details-toolbar .cs-details-range { margin-left: 0; }
-        .cs-details-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 6px 10px; }
-        .cs-detail-stat { padding: 2px 6px; }
-        .cs-detail-stat:nth-child(2n+1) { border-left: 1px solid var(--dsw-alias-border-l1); padding-left: 6px; }
-        .cs-detail-stat:first-child { border-left: 0; padding-left: 0; }
-        .cs-detail-stat:nth-child(n+3) { border-top: 0; }
-        .cs-detail-stat-label { font-size: 10px; line-height: 14px; }
-        .cs-detail-stat-value { font-size: 14px; line-height: 20px; }
-        .cs-detail-stat-hint { font-size: 9.5px; line-height: 13px; }
+        .cs-details-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 4px 14px; }
+        .cs-detail-stat { padding: 12px 14px; border-top: 0; }
+        .cs-detail-stat:nth-child(2n+1) { border-left: 0; padding-left: 0; }
+        .cs-detail-stat:nth-child(2n) { padding-right: 0; }
+        .cs-detail-stat:nth-child(n+3) { border-top: 1px solid var(--cs-line); }
+        .cs-detail-stat-label { font-size: 12px; line-height: 18px; }
+        .cs-detail-stat-value { font-size: clamp(18px, 3.2vw, 24px); line-height: 1.3; }
+        .cs-detail-stat-hint { font-size: 11px; line-height: 16px; }
         .cs-sessions-card { padding: 12px 10px 6px; }
         .cs-sessions-card-head { flex-direction: column; gap: 2px; }
         .cs-sessions-heading { flex-direction: column; align-items: flex-start; }
@@ -8591,6 +8650,7 @@ window.__ModuleLoader__.load({
       }
       @media (prefers-reduced-motion: reduce) {
         .cs-settings *, .cs-settings *::before, .cs-settings *::after { transition-duration: 0s; animation-duration: 0s; }
+        .cs-page .cs-bar-group:is(.is-hot, :hover, :focus-visible) .cs-bar-pair { transform: none; }
       }
     `
 
