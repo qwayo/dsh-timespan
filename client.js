@@ -1520,15 +1520,18 @@ window.__ModuleLoader__.load({
 
     /** 恢复初始外观：配色回到蓝色、外观回到跟随系统，只写本机浏览器存储。 */
     function resetStoredTheme() {
+      let saved = false
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem('dsh-timespan.palette', 'blue')
           window.localStorage.setItem('dsh-timespan.appearance', 'system')
+          saved = true
         }
       } catch {
         // 隐私模式下写不进去时仍广播，让当前页面按内存值回到默认视觉。
       }
       notifyThemeChanged()
+      return saved
     }
 
     /** 侧栏入口在宿主侧栏里，读取与仪表盘同一份浏览器本地主题偏好。 */
@@ -1619,7 +1622,7 @@ window.__ModuleLoader__.load({
     /**
      * 数字格式即时预览事件：设置页选择卡片时只广播草稿值，不写 Host。
      * 页面与侧栏订阅后立即用同一格式重渲染；保存时 notifySettingsChanged
-     * 让它们清掉预览、重新向 Host 取权威设置。
+     * 让它们清掉预览、重新向 Host 取权威设置；null 用于撤销失败或离页时的预览。
      */
     const durationFormatPreviewListeners = new Set()
     function subscribeDurationFormatPreview(listener) {
@@ -1627,7 +1630,7 @@ window.__ModuleLoader__.load({
       return () => durationFormatPreviewListeners.delete(listener)
     }
     function notifyDurationFormatPreview(value) {
-      const format = normalizeDurationFormat(value)
+      const format = value === null ? null : normalizeDurationFormat(value)
       for (const listener of [...durationFormatPreviewListeners]) {
         try {
           listener(format)
@@ -1685,6 +1688,166 @@ window.__ModuleLoader__.load({
         sidebarDotPosition: normalizeSidebarDotPosition(draft.sidebarDotPosition),
         language: normalizeLanguage(draft.language),
         approximateNoticeDismissed: draft.approximateNoticeDismissed === true,
+      }
+    }
+
+    /**
+     * 两个设置入口共用的编辑流程。草稿、保存反馈和确认步骤只在当前视图存活，
+     * 设置值始终以 Host 为准；通知记录与备份文件操作仍由各自页面负责。
+     * 读取可以作废，已提交的写入仍会完成并广播；调用方不用协调这些先后关系。
+     */
+    function useSettingsEditor(ctx, enabled = true, onThemeReset) {
+      const [state, setState] = React.useState({
+        draft: null, phase: 'loading', messageKey: '', resetStep: false, resetting: false,
+      })
+      const runtimeRef = React.useRef({
+        state, mounted: false, active: false, lifecycle: 0, readId: 0, writing: false,
+        refreshPending: false, publishing: false, preview: false, timer: null,
+      })
+      const runtime = runtimeRef.current
+      runtime.onThemeReset = onThemeReset
+
+      function update(patch) {
+        runtime.state = { ...runtime.state, ...patch }
+        setState(runtime.state)
+      }
+
+      function clearFeedbackTimer() {
+        if (runtime.timer !== null) window.clearTimeout(runtime.timer)
+        runtime.timer = null
+      }
+
+      function clearPreview() {
+        if (!runtime.preview) return
+        runtime.preview = false
+        notifyDurationFormatPreview(null)
+      }
+
+      async function reload(keepFeedback = false) {
+        if (!runtime.active) return
+        if (runtime.writing) {
+          runtime.refreshPending = true
+          return
+        }
+        const readId = ++runtime.readId
+        const nextPhase = keepFeedback ? runtime.state.phase : 'ready'
+        if (!keepFeedback) {
+          clearFeedbackTimer()
+          update({ draft: null, phase: 'loading', messageKey: '', resetStep: false })
+        } else {
+          // 保留成功提示，但补读完成前不能用旧草稿覆盖刚导入或外部保存的设置。
+          update({ phase: 'loading' })
+        }
+        try {
+          // 先确认读取仍有效，再应用语言；旧响应不能把新保存的语言切回去。
+          const value = await callHost(ctx, 'getSettings', {})
+          if (!runtime.active || readId !== runtime.readId) return
+          applyLanguage(value?.language)
+          update({ draft: settingsDraft(value), phase: nextPhase })
+        } catch {
+          if (!runtime.active || readId !== runtime.readId) return
+          clearFeedbackTimer()
+          update({ draft: null, phase: 'load-error', messageKey: 'settingsLoadError' })
+        }
+      }
+
+      function canEdit() {
+        return runtime.active && !runtime.writing && runtime.state.draft !== null &&
+          runtime.state.phase !== 'loading' && runtime.state.phase !== 'load-error'
+      }
+
+      async function save(next, resetting = false) {
+        if (!canEdit()) return false
+        const lifecycle = runtime.lifecycle
+        const isCurrent = () => runtime.active && lifecycle === runtime.lifecycle
+        runtime.writing = true
+        runtime.readId += 1
+        clearFeedbackTimer()
+        update({ draft: next, phase: 'saving', messageKey: resetting ? '' : 'settingsSaving', resetting })
+        try {
+          const saved = resetting
+            ? await resetSettingsToDefaults(ctx)
+            : await callSettings(ctx, 'setSettings', settingsPayload(next))
+          if (resetting) {
+            const themeSaved = resetStoredTheme()
+            if (runtime.mounted) runtime.onThemeReset?.(themeSaved)
+          }
+          clearPreview()
+          if (isCurrent()) {
+            update({
+              draft: settingsDraft(saved), phase: 'saved', resetting: false, resetStep: false,
+              messageKey: resetting ? 'settingsResetDone' : 'savedBadge',
+            })
+            runtime.timer = window.setTimeout(() => {
+              runtime.timer = null
+              update({ messageKey: '' })
+            }, resetting ? 1800 : 1000)
+          }
+          // 自己已持有写入返回的权威值；其它入口重新读取，当前入口保留保存反馈。
+          runtime.publishing = true
+          try { notifySettingsChanged() } finally { runtime.publishing = false }
+          return true
+        } catch {
+          clearPreview()
+          if (isCurrent()) {
+            update({ phase: 'error', resetting: false, messageKey: resetting ? 'settingsResetError' : 'settingsSaveError' })
+          }
+          return false
+        } finally {
+          runtime.writing = false
+          // 导入或其它入口可能在保存期间改变设置；等写入结束再读取最新值。
+          if (runtime.active && (runtime.refreshPending || !isCurrent())) {
+            runtime.refreshPending = false
+            void reload(isCurrent() && runtime.state.phase === 'saved')
+          }
+        }
+      }
+
+      function patch(key, value) {
+        if (!canEdit()) return Promise.resolve(false)
+        const next = { ...runtime.state.draft, [key]: value }
+        if (key === 'durationFormat') {
+          next.durationFormat = normalizeDurationFormat(value)
+          runtime.preview = true
+          notifyDurationFormatPreview(next.durationFormat)
+        }
+        return save(next)
+      }
+
+      // 切到其它视图只关闭编辑流程；仍挂载的仪表盘需要接收已提交重置的主题结果。
+      React.useEffect(() => {
+        runtime.mounted = true
+        return () => { runtime.mounted = false }
+      }, [])
+
+      React.useEffect(() => {
+        runtime.lifecycle += 1
+        runtime.active = enabled
+        if (!enabled) {
+          update({ draft: null, phase: 'idle', messageKey: '', resetStep: false, resetting: false })
+          return undefined
+        }
+        void reload()
+        const unsubscribe = subscribeSettingsChanged(() => {
+          if (!runtime.publishing) void reload()
+        })
+        return () => {
+          runtime.active = false
+          runtime.readId += 1
+          unsubscribe()
+          clearFeedbackTimer()
+          clearPreview()
+        }
+      }, [ctx, enabled])
+
+      return {
+        ...state,
+        busy: !enabled || state.draft === null || state.phase === 'loading' || state.phase === 'load-error' || state.phase === 'saving',
+        patch,
+        reload: () => reload(),
+        requestReset: () => { if (canEdit()) update({ resetStep: true }) },
+        cancelReset: () => { if (!runtime.writing) update({ resetStep: false }) },
+        reset: () => runtime.state.resetStep ? save(runtime.state.draft, true) : Promise.resolve(false),
       }
     }
 
@@ -3388,7 +3551,7 @@ window.__ModuleLoader__.load({
       const hiddenCount = Math.max(0, sessions.length - shownSessions.length)
       const nextEnd = Math.min(sessions.length, visibleCount + DETAILS_SESSION_STEP)
       const nextCount = nextEnd - visibleCount - Number(selectedIndex >= visibleCount && selectedIndex < nextEnd)
-      return h('div', { className: `cs-group${isOpen ? ' is-open' : ''}`, key: row.key },
+      return h('div', { className: `cs-group${isOpen ? ' is-open' : ''}`, key: row.key, 'data-workspace-key': row.key },
         h('div', {
           className: 'cs-summary cs-workspace-head',
           role: 'button',
@@ -3804,33 +3967,12 @@ window.__ModuleLoader__.load({
         const t = props?.t ?? ((key) => key)
         // 语言切换后这一页自己也要重渲染：标题、标签与提示都来自字典。
         useLanguageRevision()
-        const [draft, setDraft] = React.useState(null)
-        const [phase, setPhase] = React.useState('loading')
-        const [message, setMessage] = React.useState('')
+        const editor = useSettingsEditor(ctx)
+        const { draft, phase, busy, resetting, resetStep } = editor
+        const message = editor.messageKey ? t(editor.messageKey) : ''
         const [loadNonce, setLoadNonce] = React.useState(0)
         const [noticeState, setNoticeState] = React.useState({ status: 'loading', data: null })
-        const [resetStep, setResetStep] = React.useState(false)
-        const [resetting, setResetting] = React.useState(false)
-
-        React.useEffect(() => {
-          let active = true
-          setPhase('loading')
-          callSettings(ctx, 'getSettings', {})
-            .then((value) => {
-              if (!active) return
-              setDraft(settingsDraft(value))
-              setMessage('')
-              setPhase('ready')
-            })
-            .catch(() => {
-              if (!active) return
-              // 读失败时表单留空并锁死保存：绝不能拿默认值覆盖 Host 的真实设置。
-              setDraft(null)
-              setMessage(t('settingsLoadError'))
-              setPhase('load-error')
-            })
-          return () => { active = false }
-        }, [ctx, loadNonce])
+        React.useEffect(() => subscribeSettingsChanged(() => setLoadNonce((value) => value + 1)), [])
 
         // 通知记录与设置分开加载：旧 Host 没有这个读方法时，设置表单仍可使用。
         React.useEffect(() => {
@@ -3848,67 +3990,7 @@ window.__ModuleLoader__.load({
           return () => { active = false }
         }, [ctx, loadNonce])
 
-        // 即点即存：与 Dashboard 设置页同一套行为，改动立刻写 Host。
-        const savedBadgeTimerRef = React.useRef(null)
-        const showSavedBadge = () => {
-          setMessage(t('savedBadge'))
-          setPhase('saved')
-          if (savedBadgeTimerRef.current !== null) window.clearTimeout(savedBadgeTimerRef.current)
-          savedBadgeTimerRef.current = window.setTimeout(() => {
-            savedBadgeTimerRef.current = null
-            setMessage('')
-          }, 1000)
-        }
-        const autoSave = async (next) => {
-          try {
-            const saved = await callSettings(ctx, 'setSettings', settingsPayload(next))
-            setDraft(settingsDraft(saved))
-            showSavedBadge()
-            // 只广播「变了」，具体值由仪表盘重新向 Host 取。
-            notifySettingsChanged()
-          } catch {
-            setMessage(t('settingsSaveError'))
-            setPhase('error')
-          }
-        }
-        const patch = (key, value) => {
-          if (draft === null || phase === 'load-error') return
-          const next = { ...draft, [key]: value }
-          setDraft(next)
-          setMessage('')
-          void autoSave(next)
-        }
-        const selectDurationFormat = (value) => {
-          const format = normalizeDurationFormat(value)
-          if (draft === null || phase === 'load-error') return
-          const next = { ...draft, durationFormat: format }
-          setDraft(next)
-          setMessage('')
-          notifyDurationFormatPreview(format)
-          void autoSave(next)
-        }
-        const resetInitialSettings = async () => {
-          if (resetting || draft === null || phase === 'load-error') return
-          setResetting(true)
-          setMessage('')
-          try {
-            const saved = await resetSettingsToDefaults(ctx)
-            setDraft(settingsDraft(saved))
-            resetStoredTheme()
-            setResetStep(false)
-            setPhase('saved')
-            setMessage(t('settingsResetDone'))
-            notifySettingsChanged()
-          } catch {
-            setMessage(t('settingsResetError'))
-            setPhase('error')
-          } finally {
-            setResetting(false)
-          }
-        }
-
         const loadFailed = phase === 'load-error'
-        const busy = phase === 'saving' || draft === null || loadFailed
         const statusClass = `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`
 
         return h('div', { className: 'cs-settings' },
@@ -3918,19 +4000,19 @@ window.__ModuleLoader__.load({
               h('h2', { className: 'cs-settings-title' }, t('settingsTitle')),
               h('p', { className: 'cs-settings-hint' }, t('settingsHint'))),
             h('section', { className: 'cs-settings-group' },
-              ...renderBasicSettingsBody(t, draft, busy, patch)),
+              ...renderBasicSettingsBody(t, draft, busy, editor.patch)),
             renderDurationFormatSection(t, draft?.durationFormat, {
               disabled: busy,
-              onSelect: selectDurationFormat,
+              onSelect: (value) => editor.patch('durationFormat', value),
             }),
             h('section', { className: 'cs-settings-group cs-settings-reset-group' },
               ...renderResetSettingsBody(t, {
                 disabled: busy,
                 resetting,
                 resetStep,
-                onRequest: () => setResetStep(true),
-                onCancel: () => setResetStep(false),
-                onReset: resetInitialSettings,
+                onRequest: editor.requestReset,
+                onCancel: editor.cancelReset,
+                onReset: editor.reset,
               })),
             h('section', { className: 'cs-settings-group' },
               h('h3', null, t('settingsSectionNotices')),
@@ -3942,7 +4024,7 @@ window.__ModuleLoader__.load({
             h('div', { className: 'cs-settings-footer' },
               loadFailed
                 ? h('button', {
-                    type: 'button', className: 'cs-btn', onClick: () => setLoadNonce((value) => value + 1),
+                    type: 'button', className: 'cs-btn', onClick: () => { void editor.reload(); setLoadNonce((value) => value + 1) },
                   }, t('settingsRetry'))
                 : null,
               message ? h('span', { className: statusClass, role: 'status' }, message) : null)))
@@ -4385,6 +4467,136 @@ window.__ModuleLoader__.load({
       }
       const workspace = rows.find((row) => row.sessions.length > 0)
       return workspace ? { ...workspace.sessions[0], workspaceKey: workspace.key, workspaceTitle: workspace.workspaceTitle } : null
+    }
+
+    /** 浏览状态只保存用户意图；列表、累计摘要、选择与展开都由当前范围快照派生。 */
+    function sessionBrowserModel(browser, snapshot) {
+      const data = snapshot.status === 'ready' ? snapshot.data : null
+      const rows = selectDetailsWorkspaces(data?.workspaces, browser.query, browser.statusFilter, browser.sort)
+      const session = selectedDetailSession(rows, browser.selection)
+      const filtered = browser.query.trim() !== '' || browser.statusFilter === 'running'
+      const saved = rows.some((row) => Object.hasOwn(browser.expanded, row.key))
+      let expanded = saved ? browser.expanded
+        : Object.fromEntries((filtered ? rows : rows.slice(0, 2)).map((row) => [row.key, true]))
+      const target = browser.highlight ? selectedDetailSession(rows, browser.highlight) : null
+      const highlight = target ? { ...browser.highlight, workspaceKey: target.workspaceKey } : null
+      if (highlight) expanded = { ...expanded, [highlight.workspaceKey]: true }
+      return {
+        query: browser.query, statusFilter: browser.statusFilter, sort: browser.sort,
+        detailsRange: browser.range, customRange: browser.customRange,
+        selection: browser.selection, session, highlight, expanded,
+        rows, summary: summarizeDetailSessions(rows), filtered,
+        allOpen: rows.length > 0 && rows.every((row) => expanded[row.key] === true),
+        runningCount: summarizeDetailSessions(data?.workspaces ?? []).runningCount,
+        subagentByParent: groupSubagentTasks(data?.subagentTasks),
+        range: data?.range, loadStatus: snapshot.status,
+        openMessageKey: browser.openFallback ? 'detailsOpenFallback' : '',
+        progressiveSessions: browser.range === 'all' && browser.customRange === null,
+        visibleSessionCounts: browser.visibleCounts,
+      }
+    }
+
+    /** 会话浏览统一管理范围取数和联动；界面只提交动作，不拼接展开表或批次数。 */
+    function useSessionBrowser(ctx, { period, enabled, refreshMs, refreshNonce }) {
+      const [stored, setBrowser] = React.useState(() => {
+        let expanded = {}
+        try {
+          const value = JSON.parse(window.sessionStorage.getItem('dsh-timespan.expanded') || '{}')
+          if (value && typeof value === 'object' && !Array.isArray(value)) expanded = value
+        } catch {}
+        return {
+          period, range: detailsRangeForPeriod(period), customRange: null,
+          query: '', statusFilter: 'all', sort: 'recent', selection: null,
+          expanded, visibleCounts: {}, highlight: null, openFallback: false,
+        }
+      })
+      // 周期变化的首帧就使用新范围，避免先以旧临时时段发起请求。
+      let browser = stored
+      if (browser.period !== period) {
+        browser = { ...browser, period, range: detailsRangeForPeriod(period), customRange: null,
+          selection: null, visibleCounts: {}, highlight: null, openFallback: false }
+        setBrowser(browser)
+      }
+      const [retryNonce, setRetryNonce] = React.useState(0)
+      const snapshot = useDashboard(ctx, 'day', refreshMs, `${refreshNonce}:${retryNonce}`, {
+        view: 'details', enabled,
+        range: browser.customRange ?? resolveDetailsRange(browser.range, Date.now()),
+      })
+      const model = sessionBrowserModel(browser, snapshot)
+      React.useEffect(() => {
+        try { window.sessionStorage.setItem('dsh-timespan.expanded', JSON.stringify(browser.expanded)) } catch {}
+      }, [browser.expanded])
+      React.useEffect(() => {
+        const highlight = browser.highlight
+        if (!enabled || !highlight?.located) return undefined
+        const timer = window.setTimeout(() => setBrowser((previous) => previous.highlight === highlight
+          ? { ...previous, highlight: null } : previous), 3000)
+        return () => window.clearTimeout(timer)
+      }, [enabled, browser.highlight])
+      const actions = {
+        search(query) {
+          setBrowser((previous) => ({ ...previous, query, expanded: {}, highlight: null, openFallback: false }))
+        },
+        filter(statusFilter) {
+          setBrowser((previous) => ({ ...previous, statusFilter, expanded: {}, highlight: null, openFallback: false }))
+        },
+        sort(sort) { setBrowser((previous) => ({ ...previous, sort })) },
+        selectRange(value) {
+          setBrowser((previous) => ({ ...previous, range: normalizeDetailsRange(value), customRange: null,
+            selection: null, visibleCounts: {}, highlight: null, openFallback: false }))
+        },
+        openRange(range) {
+          if (!Number.isFinite(range?.from) || !Number.isFinite(range?.to) || range.from >= range.to) return false
+          setBrowser((previous) => ({ ...previous, customRange: { from: range.from, to: range.to },
+            query: '', statusFilter: 'all', selection: null, visibleCounts: {}, highlight: null, openFallback: false }))
+          return true
+        },
+        selectSession(session) {
+          setBrowser((previous) => ({ ...previous,
+            selection: { workspaceKey: session.workspaceKey, sessionId: session.sessionId },
+            highlight: null, openFallback: false }))
+        },
+        revealSession(session) {
+          if (!sessionIsOpenable(session)) return false
+          setBrowser((previous) => ({ ...previous,
+            ...(!enabled ? { query: '', statusFilter: 'all', customRange: null, range: 'all', visibleCounts: {} } : {}),
+            // 入口可能来自旧快照；按真实会话 ID 在当前快照中重新确定工作区。
+            selection: { sessionId: session.sessionId }, highlight: { sessionId: session.sessionId, located: false },
+            openFallback: true }))
+          return true
+        },
+        toggleWorkspace(key) {
+          setBrowser((previous) => {
+            const current = sessionBrowserModel(previous, snapshot)
+            return { ...previous, expanded: { ...current.expanded, [key]: current.expanded[key] !== true }, highlight: null }
+          })
+        },
+        toggleAll() {
+          setBrowser((previous) => {
+            const current = sessionBrowserModel(previous, snapshot)
+            return { ...previous, expanded: Object.fromEntries(current.rows.map((row) => [row.key, !current.allOpen])), highlight: null }
+          })
+        },
+        showMore(key) {
+          setBrowser((previous) => {
+            const row = sessionBrowserModel(previous, snapshot).rows.find((row) => row.key === key)
+            if (!row) return previous
+            const count = Number.isFinite(previous.visibleCounts[key]) ? previous.visibleCounts[key] : DETAILS_SESSION_INITIAL
+            return { ...previous, visibleCounts: { ...previous.visibleCounts, [key]: Math.min(row.sessions.length, count + DETAILS_SESSION_STEP) } }
+          })
+        },
+        markLocated() {
+          setBrowser((previous) => {
+            if (previous.highlight !== browser.highlight) return previous
+            const current = sessionBrowserModel(previous, snapshot)
+            if (!current.highlight || previous.highlight.located) return previous
+            return { ...previous, expanded: current.expanded, highlight: { ...current.highlight, located: true } }
+          })
+        },
+        clearHighlight() { setBrowser((previous) => previous.highlight ? { ...previous, highlight: null } : previous) },
+        retry() { setRetryNonce((value) => value + 1) },
+      }
+      return { model, actions }
     }
 
     function renderSessionInspector(session, t, format, onOpenSession, selection, hoverTip) {
@@ -5256,44 +5468,33 @@ window.__ModuleLoader__.load({
     /** 会话 B：筛选、累计摘要、分组列表与就地统计共用同一份当前范围快照。 */
     function renderDetailsView(props) {
       const {
-        data, t, isZh, query, onQueryChange, durationFormat, expanded, onToggleRow, nowMs,
-        hoverTip = null, highlightSessionId = null, onOpenSession = null,
-        detailsRange = DETAILS_RANGE_DEFAULT, onSelectDetailsRange = null,
-        progressiveSessions = false, visibleSessionCounts = {}, onShowMoreSessions = null,
-        statusFilter = 'all', onStatusFilter = null, sort = 'recent', onSort = null,
-        selection = null, onSelectSession = null, onToggleAll = null,
-        customRange = null, loadStatus = 'ready', onRetry = null, openMessage = '',
+        browser: { model, actions }, t, isZh, durationFormat, nowMs,
+        hoverTip = null, onOpenSession = null, onInspectSession = null,
       } = props
+      const {
+        query, statusFilter, sort, detailsRange, customRange, loadStatus,
+        rows, summary, session, selection, expanded, allOpen, filtered,
+        highlight, progressiveSessions, visibleSessionCounts, subagentByParent, range, openMessageKey,
+      } = model
+      const selectSession = (value) => { actions.selectSession(value); onInspectSession?.() }
       const runningLabel = t('detailsRunning')
       const runningFilter = loadStatus === 'ready'
-        ? `${runningLabel} ${summarizeDetailSessions(data?.workspaces ?? []).runningCount}` : runningLabel
+        ? `${runningLabel} ${model.runningCount}` : runningLabel
       const toolbar = h('div', { className: 'cs-details-toolbar' },
         h('div', { className: 'cs-search-wrap' },
           h('svg', { className: 'cs-search-icon', viewBox: '0 0 16 16', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, 'aria-hidden': true },
             h('circle', { cx: 7, cy: 7, r: 4.2 }), h('path', { d: 'M10.1 10.1 13.5 13.5' })),
-          h('input', { className: 'cs-search', type: 'search', value: query ?? '', placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder'), onChange: (event) => onQueryChange?.(event.target.value) })),
+          h('input', { className: 'cs-search', type: 'search', value: query, placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder'), onChange: (event) => actions.search(event.target.value) })),
         h('div', { className: 'cs-details-filter', 'data-status': statusFilter, role: 'group', 'aria-label': runningLabel }, ['all', 'running'].map((value) =>
-          h('button', { key: value, type: 'button', 'aria-pressed': statusFilter === value, className: statusFilter === value ? 'is-on' : '', onClick: () => onStatusFilter?.(value) },
+          h('button', { key: value, type: 'button', 'aria-pressed': statusFilter === value, className: statusFilter === value ? 'is-on' : '', onClick: () => actions.filter(value) },
             value === 'all' ? t('detailsAll') : runningFilter))),
-        h(Select, { value: sort, ariaLabel: t('detailsSortLabel'), className: 'cs-details-sort', onChange: onSort,
+        h(Select, { value: sort, ariaLabel: t('detailsSortLabel'), className: 'cs-details-sort', onChange: actions.sort,
           options: [{ value: 'recent', label: t('detailsSortRecent') }, { value: 'task', label: t('detailsSortTask') }, { value: 'active', label: t('detailsSortActive') }] }),
-        renderDetailsRangePicker({ value: detailsRange, t, onSelect: onSelectDetailsRange, customRange, isZh }))
+        renderDetailsRangePicker({ value: detailsRange, t, onSelect: actions.selectRange, customRange, isZh }))
       if (loadStatus !== 'ready') return [toolbar,
         h('div', { className: 'cs-card cs-details-loading', role: 'status' },
           h('p', null, t(loadStatus === 'error' ? 'detailsLoadError' : 'detailsLoading')),
-          loadStatus === 'error' ? h('button', { type: 'button', className: 'cs-btn', onClick: onRetry }, t('settingsRetry')) : null)]
-      const rows = selectDetailsWorkspaces(data?.workspaces, query, statusFilter, sort)
-      const summary = summarizeDetailSessions(rows)
-      const session = selectedDetailSession(rows, selection)
-      const sessionSubagentByParent = groupSubagentTasks(data?.subagentTasks)
-      const filtered = String(query ?? '').trim() !== '' || statusFilter === 'running'
-      const saved = expanded && Object.keys(expanded).length > 0
-      let expandedMap = saved ? expanded
-        : Object.fromEntries((filtered ? rows : rows.slice(0, 2)).map((row) => [row.key, true]))
-      if (highlightSessionId !== null && session?.sessionId === highlightSessionId) {
-        expandedMap = { ...expandedMap, [session.workspaceKey]: true }
-      }
-      const allOpen = rows.length > 0 && rows.every((row) => expandedMap[row.key] === true)
+          loadStatus === 'error' ? h('button', { type: 'button', className: 'cs-btn', onClick: actions.retry }, t('settingsRetry')) : null)]
       const detailStats = [
         [t('detailsSessionCount'), String(summary.sessionCount), `${rows.length} ${t('colWorkspace')}`, 'sessions'],
         [t('colActive'), formatDuration(summary.activeMs, durationFormat), t('sumTag'), 'active'],
@@ -5301,7 +5502,7 @@ window.__ModuleLoader__.load({
         [t('taskCountShort'), String(summary.taskCount), '', 'count'],
       ]
       return [toolbar,
-        openMessage ? h('div', { className: 'cs-details-notice', role: 'status' }, openMessage) : null,
+        openMessageKey ? h('div', { className: 'cs-details-notice', role: 'status' }, t(openMessageKey)) : null,
         h('div', { className: 'cs-details-stats' }, detailStats.map(([label, value, hint, glyph]) =>
           h('div', { className: `cs-detail-stat is-${glyph}`, key: glyph },
             h('span', { className: 'cs-detail-stat-label' }, h(DetailGlyph, { name: glyph, size: 14 }), label),
@@ -5312,18 +5513,18 @@ window.__ModuleLoader__.load({
             h('div', { className: 'cs-card-heading cs-sessions-heading' }, h('div', { className: 'cs-sessions-title-line' },
               h('h2', null, t('detailsSessionsTitle')), h('span', { className: 'cs-sessions-count' }, `${summary.sessionCount} ${t('sessionsUnit')}`))),
             h('div', { className: 'cs-sessions-tools' }, h('span', { className: 'cs-sessions-scope' }, t('sumTag')),
-              !filtered && rows.length > 0 ? h('button', { type: 'button', className: 'cs-text-link', onClick: () => onToggleAll?.(Object.fromEntries(rows.map((row) => [row.key, !allOpen]))) }, t(allOpen ? 'detailsCollapseAll' : 'detailsExpandAll')) : null)),
+              !filtered && rows.length > 0 ? h('button', { type: 'button', className: 'cs-text-link', onClick: actions.toggleAll }, t(allOpen ? 'detailsCollapseAll' : 'detailsExpandAll')) : null)),
           h('div', { className: 'cs-record-columns' },
             rows.length === 0 ? h('div', { className: 'cs-empty' }, t(filtered ? 'detailsEmpty' : 'emptyDashboard'))
               : h('div', { className: 'cs-workspace-list' }, rows.map((row) => renderWorkspaceRow(
-                  row, expandedMap[row.key] === true, () => onToggleRow?.(row.key, expandedMap[row.key] === true, expandedMap),
-                  t, nowMs, sessionSubagentByParent, durationFormat, hoverTip, highlightSessionId,
-                  progressiveSessions ? { enabled: true, visibleCount: visibleSessionCounts[row.key] ?? DETAILS_SESSION_INITIAL, onShowMore: () => onShowMoreSessions?.(row.key, row.sessions.length) } : null,
-                  typeof onSelectSession === 'function' ? { sessionId: session?.workspaceKey === row.key ? session.sessionId : null, onSelect: onSelectSession } : null,
+                  row, expanded[row.key] === true, () => actions.toggleWorkspace(row.key),
+                  t, nowMs, subagentByParent, durationFormat, hoverTip, highlight?.workspaceKey === row.key ? highlight.sessionId : null,
+                  progressiveSessions ? { enabled: true, visibleCount: visibleSessionCounts[row.key] ?? DETAILS_SESSION_INITIAL, onShowMore: () => actions.showMore(row.key) } : null,
+                  { sessionId: session?.workspaceKey === row.key ? session.sessionId : null, onSelect: selectSession },
                 ))),
             renderSessionInspector(session, t, durationFormat, onOpenSession, selection, hoverTip)),
           h('div', { className: 'cs-record-footer' },
-            h('span', null, customRange ? formatSelectedRange(customRange, t, isZh) : formatRangeLabel(data?.range, 'month', t, isZh)),
+            h('span', null, customRange ? formatSelectedRange(customRange, t, isZh) : formatRangeLabel(range, 'month', t, isZh)),
             h('span', null, t('detailsFiltered').replace('{workspaces}', String(rows.length)).replace('{sessions}', String(summary.sessionCount)))))),
       ]
     }
@@ -5371,7 +5572,7 @@ window.__ModuleLoader__.load({
         onRequestReset, onCancelReset, onResetSettings,
       } = props
       const loadFailed = phase === 'load-error'
-      const busy = phase === 'saving' || draft === null || loadFailed
+      const busy = props.busy ?? (phase === 'loading' || phase === 'saving' || draft === null || loadFailed)
       const appearanceMode = normalizeAppearance(appearance)
       const importRange = importPreview ? importPreviewRange(importPreview.payload) : ''
       const saveStatus = h('div', { className: 'cs-settings-feedback' },
@@ -5622,27 +5823,8 @@ window.__ModuleLoader__.load({
         const paletteNameKey = palette === 'stone' ? 'paletteStone' : palette === 'clay' ? 'paletteClay' : 'paletteBlue'
         const paletteOrder = PALETTES.map((key) => t(key === 'stone' ? 'paletteStone' : key === 'clay' ? 'paletteClay' : 'paletteBlue')).join(' → ')
         const paletteToggleLabel = t('paletteToggle').replace('{name}', t(paletteNameKey)).replace('{order}', paletteOrder)
-        const [expanded, setExpanded] = React.useState(() => {
-          try {
-            const value = JSON.parse(window.sessionStorage.getItem('dsh-timespan.expanded') || '{}')
-            return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
-          } catch { return {} }
-        })
-        const [detailsQuery, setDetailsQuery] = React.useState('')
-        const [detailsRange, setDetailsRange] = React.useState(() => detailsRangeForPeriod(period))
-        const [detailsVisibleCounts, setDetailsVisibleCounts] = React.useState({})
-        const [detailsCustomRange, setDetailsCustomRange] = React.useState(null)
-        const [detailsStatusFilter, setDetailsStatusFilter] = React.useState('all')
-        const [detailsSort, setDetailsSort] = React.useState('recent')
-        const [detailsSelection, setDetailsSelection] = React.useState(null)
-        const [detailsOpenMessage, setDetailsOpenMessage] = React.useState('')
-        const [detailHighlight, setDetailHighlight] = React.useState(null)
-        // 顶部周期变化时把明细范围同步到语义相近的预设；手动选择后保持到下次周期切换。
-        React.useEffect(() => { setDetailsRange(detailsRangeForPeriod(period)); setDetailsCustomRange(null); setDetailsSelection(null); setDetailsOpenMessage('') }, [period])
-        React.useEffect(() => { setDetailsVisibleCounts({}) }, [detailsRange, detailsCustomRange])
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.period', period) } catch {} }, [period])
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.view', view) } catch {} }, [view])
-        React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
         const [pollMs, setPollMs] = React.useState(PAGE_REFRESH_MS)
         const [refreshNonce, setRefreshNonce] = React.useState(0)
         // 设置页选择格式后的即时预览；保存/取消后清空，回到 Host 的已保存值。
@@ -5654,21 +5836,19 @@ window.__ModuleLoader__.load({
         const [retryError, setRetryError] = React.useState(null)
         // 设置页「重新扫描历史任务」的可见结果；与概览页回填横幅的 retryError 分开，避免点了没反馈。
         const [recheckMessage, setRecheckMessage] = React.useState(null)
-        // Dashboard 内设置页的独立草稿：进入视图时从 Host getSettings 拉取。
-        const [settingsForm, setSettingsForm] = React.useState(null)
-        const [settingsPhase, setSettingsPhase] = React.useState('idle')
-        const [settingsMessage, setSettingsMessage] = React.useState('')
+        const settingsOpen = view === 'settings'
+        const settingsEditor = useSettingsEditor(ctx, settingsOpen, (themeSaved) => {
+          setAppearance('system')
+          setPalette('blue')
+          setPaletteSaveError(!themeSaved)
+        })
+        // 数据变更后重读近似说明；设置表单的刷新由共用编辑流程处理。
         const [settingsLoadNonce, setSettingsLoadNonce] = React.useState(0)
-        const [settingsResetStep, setSettingsResetStep] = React.useState(false)
-        const [settingsResetting, setSettingsResetting] = React.useState(false)
-        // 保存成功后 notifySettingsChanged 会触发一次重取；保留「已保存」反馈，
-        // 不把设置页闪回加载态。重新进入设置页时再恢复正常加载态。
-        const settingsSavedRef = React.useRef(false)
         // 近似说明的关闭状态只存 Host；清空/恢复数据后自动重置为未关闭。
         const [approxDismissed, setApproxDismissed] = React.useState(false)
         React.useEffect(() => {
           let active = true
-          callSettings(ctx, 'getSettings', {}).then((value) => {
+          callHost(ctx, 'getSettings', {}).then((value) => {
             if (active) setApproxDismissed(value?.approximateNoticeDismissed === true)
           }).catch(() => {})
           return () => { active = false }
@@ -5676,20 +5856,10 @@ window.__ModuleLoader__.load({
         const [noticeState, setNoticeState] = React.useState({ status: 'idle', data: null })
         const [noticeNonce, setNoticeNonce] = React.useState(0)
         const state = useDashboard(ctx, period, pollMs, refreshNonce)
-        const detailsRangeBounds = detailsCustomRange ?? resolveDetailsRange(detailsRange, Date.now())
-        const detailsState = useDashboard(ctx, 'day', pollMs, refreshNonce, {
-          view: 'details',
-          range: detailsRangeBounds,
+        const sessionBrowser = useSessionBrowser(ctx, {
+          period, refreshMs: pollMs, refreshNonce,
           enabled: view === 'details',
         })
-        const showMoreDetailsSessions = (workspaceKey, total) => {
-          setDetailsVisibleCounts((previous) => {
-            const current = Number.isFinite(previous[workspaceKey])
-              ? previous[workspaceKey]
-              : DETAILS_SESSION_INITIAL
-            return { ...previous, [workspaceKey]: Math.min(total, current + DETAILS_SESSION_STEP) }
-          })
-        }
         const hoverTip = useHoverTip()
         React.useEffect(() => { hoverTip.hide() }, [period])
         const [, setTick] = React.useState(0)
@@ -5797,7 +5967,7 @@ window.__ModuleLoader__.load({
         const goToView = (target) => {
           const next = normalizeView(target)
           if (next === view || switchingView) return
-          if (view === 'details') setDetailHighlight(null)
+          if (view === 'details') sessionBrowser.actions.clearHighlight()
           if (previewFormat !== null) {
             setPreviewFormat(null)
             notifySettingsChanged()
@@ -5822,20 +5992,16 @@ window.__ModuleLoader__.load({
           const page = viewsRef.current?.closest('.cs-page')
           if (page) page.scrollTop = 0
         }, [view, focus])
+        const detailHighlight = sessionBrowser.model.highlight
         React.useEffect(() => {
-          if (view !== 'details' || detailsState.status !== 'ready' || detailHighlight === null) return undefined
+          if (view !== 'details' || !detailHighlight || detailHighlight.located) return
           const target = Array.from(viewsRef.current?.querySelectorAll('.cs-session[data-session-id]') ?? [])
-            .find((row) => row.getAttribute('data-session-id') === detailHighlight.sessionId)
-          if (!target) return undefined
-          const session = selectedDetailSession(detailsState.data.workspaces, detailHighlight)
-          if (session) {
-            const { workspaceKey } = session
-            setExpanded((previous) => previous[workspaceKey] === true ? previous : { ...previous, [workspaceKey]: true })
-          }
+            .find((row) => row.getAttribute('data-session-id') === detailHighlight.sessionId &&
+              row.closest('[data-workspace-key]')?.getAttribute('data-workspace-key') === detailHighlight.workspaceKey)
+          if (!target) return
           target.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
-          const timer = window.setTimeout(() => setDetailHighlight(null), 3000)
-          return () => window.clearTimeout(timer)
-        }, [view, detailsState.status, detailHighlight])
+          sessionBrowser.actions.markLocated()
+        }, [view, detailHighlight])
         // 每次进入概览都回到近 3 个月，不记住上一次的范围选择。
         React.useEffect(() => {
           if (view === 'overview' && focus === null) setHeatRangeValue(HEAT_DEFAULT_RANGE)
@@ -5909,31 +6075,7 @@ window.__ModuleLoader__.load({
           }
         }, [view, focus, heatRangeValue, state.status, isZh, period])
 
-        // 打开设置页时读取 Host 权威设置与通知记录；关闭时丢弃未保存草稿。
-        const settingsOpen = view === 'settings'
-        React.useEffect(() => {
-          if (!settingsOpen) {
-            setSettingsResetStep(false)
-            return undefined
-          }
-          let active = true
-          const keepSaved = settingsSavedRef.current === true
-          settingsSavedRef.current = false
-          if (!keepSaved) {
-            setSettingsPhase('loading')
-            setSettingsMessage('')
-          }
-          callSettings(ctx, 'getSettings', {}).then((value) => {
-            if (!active) return
-            setSettingsForm(settingsDraft(value))
-            setSettingsPhase(keepSaved ? 'saved' : 'ready')
-          }).catch(() => {
-            if (!active) return
-            setSettingsPhase('load-error')
-            setSettingsMessage(t('settingsLoadError'))
-          })
-          return () => { active = false }
-        }, [ctx, settingsOpen, settingsLoadNonce])
+        // 通知记录独立加载；旧 Host 缺少通知方法不影响设置编辑。
         React.useEffect(() => {
           if (!settingsOpen) return undefined
           let active = true
@@ -5947,79 +6089,6 @@ window.__ModuleLoader__.load({
           })
           return () => { active = false }
         }, [ctx, settingsOpen, noticeNonce])
-
-        // 即点即存：任何设置控件改动都立刻写 Host，只给约 1 秒的轻量「已保存」角标。
-        const savedBadgeTimerRef = React.useRef(null)
-        const showSavedBadge = () => {
-          setSettingsMessage(t('savedBadge'))
-          setSettingsPhase('saved')
-          settingsSavedRef.current = true
-          if (savedBadgeTimerRef.current !== null) window.clearTimeout(savedBadgeTimerRef.current)
-          savedBadgeTimerRef.current = window.setTimeout(() => {
-            savedBadgeTimerRef.current = null
-            setSettingsMessage('')
-          }, 1000)
-        }
-        const autoSaveSettings = async (next) => {
-          if (savedBadgeTimerRef.current !== null) {
-            window.clearTimeout(savedBadgeTimerRef.current)
-            savedBadgeTimerRef.current = null
-          }
-          setSettingsPhase('saving')
-          setSettingsMessage(t('settingsSaving'))
-          try {
-            const saved = await callSettings(ctx, 'setSettings', settingsPayload(next))
-            setSettingsForm(settingsDraft(saved))
-            showSavedBadge()
-            notifySettingsChanged()
-          } catch {
-            setSettingsPhase('error')
-            setSettingsMessage(t('settingsSaveError'))
-          }
-        }
-        const patchSetting = (key, value) => {
-          if (settingsForm === null || settingsPhase === 'load-error') return
-          const next = { ...settingsForm, [key]: value }
-          setSettingsForm(next)
-          setSettingsMessage('')
-          void autoSaveSettings(next)
-        }
-        const onSelectSettingsFormat = (value) => {
-          const format = normalizeDurationFormat(value)
-          if (settingsForm === null || settingsPhase === 'load-error') return
-          const next = { ...settingsForm, durationFormat: format }
-          setSettingsForm(next)
-          setSettingsMessage('')
-          notifyDurationFormatPreview(format)
-          void autoSaveSettings(next)
-        }
-        const resetInitialSettings = async () => {
-          if (settingsResetting || settingsForm === null || settingsPhase === 'load-error') return
-          setSettingsResetting(true)
-          setSettingsMessage('')
-          try {
-            const saved = await resetSettingsToDefaults(ctx)
-            setSettingsForm(settingsDraft(saved))
-            setPreviewFormat(null)
-            applyAppearance('system')
-            changePalette('blue')
-            setSettingsResetStep(false)
-            setSettingsPhase('saved')
-            settingsSavedRef.current = true
-            setSettingsMessage(t('settingsResetDone'))
-            if (savedBadgeTimerRef.current !== null) window.clearTimeout(savedBadgeTimerRef.current)
-            savedBadgeTimerRef.current = window.setTimeout(() => {
-              savedBadgeTimerRef.current = null
-              setSettingsMessage('')
-            }, 1800)
-            notifySettingsChanged()
-          } catch {
-            setSettingsPhase('error')
-            setSettingsMessage(t('settingsResetError'))
-          } finally {
-            setSettingsResetting(false)
-          }
-        }
 
         const onExport = async (format) => {
           if (dataBusy !== '') return
@@ -6092,35 +6161,14 @@ window.__ModuleLoader__.load({
             setDismissingBackfill(false)
           }
         }
-        const openSessionInDetails = (session) => {
-          const sessionId = typeof session?.sessionId === 'string' ? session.sessionId : ''
-          if (sessionId === '') return
-          if (view !== 'details') {
-            setDetailsQuery('')
-            setDetailsStatusFilter('all')
-            setDetailsCustomRange(null)
-            setDetailsRange('all')
-          }
-          setDetailsSelection({ sessionId })
-          setDetailsOpenMessage(t('detailsOpenFallback'))
-          setDetailHighlight({ sessionId })
-          goToView('details')
-        }
         // 优先打开宿主会话页；服务缺失、归档或未知会话时回落到插件内的定位高亮。
         const openSessionFromPage = (session) => {
           if (!sessionIsOpenable(session)) return
           if (openSessionInHost(ctx, session)) return
-          openSessionInDetails(session)
+          if (sessionBrowser.actions.revealSession(session)) goToView('details')
         }
-        const onToggleRow = (key, current, expandedMap) => setExpanded((previous) => ({ ...(expandedMap ?? previous), [key]: !(current ?? previous[key]) }))
         const openTrendSessions = (range) => {
-          if (!Number.isFinite(range?.from) || !Number.isFinite(range?.to) || range.from >= range.to) return
-          setDetailsCustomRange({ from: range.from, to: range.to })
-          setDetailsOpenMessage('')
-          setDetailsQuery('')
-          setDetailsStatusFilter('all')
-          setDetailsSelection(null)
-          goToView('details')
+          if (sessionBrowser.actions.openRange(range)) goToView('details')
         }
         // 同一个首屏值再次点击即缩回；写入失败只放弃持久化，页面内状态照常切换。
         const toggleFocus = (value) => {
@@ -6194,40 +6242,21 @@ window.__ModuleLoader__.load({
           }
           if (view === 'details') {
             return renderDetailsView({
-              data: detailsState.data, t, isZh, query: detailsQuery, onQueryChange: (value) => { setDetailsQuery(value); setExpanded({}); setDetailsOpenMessage('') },
-              durationFormat, expanded, onToggleRow, nowMs, hoverTip,
-              highlightSessionId: detailHighlight?.sessionId ?? null,
+              browser: sessionBrowser, t, isZh, durationFormat, nowMs, hoverTip,
               onOpenSession: openSessionFromPage,
-              detailsRange, customRange: detailsCustomRange,
-              onSelectDetailsRange: (value) => {
-                setDetailsCustomRange(null)
-                setDetailsRange(value)
-                setDetailsSelection(null)
-                setDetailsOpenMessage('')
-                setDetailHighlight(null)
-              },
-              statusFilter: detailsStatusFilter, onStatusFilter: (value) => { setDetailsStatusFilter(value); setExpanded({}) },
-              sort: detailsSort, onSort: setDetailsSort,
-              selection: detailsSelection, onSelectSession: (session) => {
-                setDetailsSelection({ workspaceKey: session.workspaceKey, sessionId: session.sessionId })
-                setDetailsOpenMessage('')
-                setDetailHighlight(null)
+              onInspectSession: () => {
                 if (window.innerWidth <= 900) window.requestAnimationFrame(() =>
                   document.getElementById('cs-session-inspector')?.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'instant' : 'smooth' }))
               },
-              onToggleAll: setExpanded, loadStatus: detailsState.status, openMessage: detailsOpenMessage,
-              onRetry: () => setRefreshNonce((value) => value + 1),
-              progressiveSessions: detailsRange === 'all' && detailsCustomRange === null,
-              visibleSessionCounts: detailsVisibleCounts,
-              onShowMoreSessions: showMoreDetailsSessions,
             })
           }
           if (view === 'settings') {
             return renderSettingsView({
               t,
-              draft: settingsForm,
-              phase: settingsPhase,
-              message: settingsMessage,
+              draft: settingsEditor.draft,
+              phase: settingsEditor.phase,
+              busy: settingsEditor.busy,
+              message: settingsEditor.messageKey ? t(settingsEditor.messageKey) : '',
               noticeState,
               sidebarStats: { ...data?.cycles?.day, receivedAt: state.receivedAt, activeRunning: data?.activeRunning, taskRunning: data?.taskRunning, running: data?.running },
               systemDark,
@@ -6240,14 +6269,14 @@ window.__ModuleLoader__.load({
               retryError,
               recheckMessage,
               approximateMessage,
-              resetStep: settingsResetStep,
-              resetting: settingsResetting,
-              onPatch: patchSetting,
-              onSelectFormat: onSelectSettingsFormat,
-              onRequestReset: () => setSettingsResetStep(true),
-              onCancelReset: () => setSettingsResetStep(false),
-              onResetSettings: resetInitialSettings,
-              onRetryLoad: () => setSettingsLoadNonce((value) => value + 1),
+              resetStep: settingsEditor.resetStep,
+              resetting: settingsEditor.resetting,
+              onPatch: settingsEditor.patch,
+              onSelectFormat: (value) => settingsEditor.patch('durationFormat', value),
+              onRequestReset: settingsEditor.requestReset,
+              onCancelReset: settingsEditor.cancelReset,
+              onResetSettings: settingsEditor.reset,
+              onRetryLoad: settingsEditor.reload,
               onExport,
               importPreview,
               importRestoreSettings,
