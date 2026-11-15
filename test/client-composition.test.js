@@ -1093,7 +1093,7 @@ test('客户端：会话模块样式让工作区退后、会话行成为主体',
 
   const mobile = mediaBlocks(css, 760)
   assert.ok(mobile.length > 0, '存在平板与手机断点')
-  assert.match(mobile, /\.cs-details-stats\s*\{[^}]*grid-template-columns:\s*repeat\(4/, '窄屏统计带压成单行四列，把首屏高度留给会话列表')
+  assert.match(mobile, /\.cs-details-stats\s*\{[^}]*grid-template-columns:\s*repeat\(2/, '窄屏统计带分成两列，保留标题图标与完整时长的阅读空间')
   assert.match(mobile, /\.cs-session-meta\s*\{[^}]*gap:/, '窄屏会话指标收紧间距')
   assert.match(mobile, /\.cs-sessions-card-head\s*\{[^}]*flex-direction:\s*column/, '窄屏卡片头改为纵向排布')
 })
