@@ -29,6 +29,12 @@ function createTestReact() {
     flushEffects() {
       for (const effect of effects.splice(0)) effect()
     },
+    unmount() {
+      for (const hook of hooks) hook?.cleanup?.()
+      hooks.length = 0
+      effects.length = 0
+      cursor = 0
+    },
     useRef(initial) {
       const index = cursor++
       if (!(index in hooks)) hooks[index] = { current: initial }
@@ -46,7 +52,7 @@ function createTestReact() {
 
 // 通过插件原有装载入口运行实际客户端函数，使用轻量节点记录渲染结果。
 // windowExtras 只用于给隔离上下文补 localStorage / matchMedia 等浏览器表面。
-async function loadClientFunctions(windowExtras = {}) {
+async function loadClientFunctions(windowExtras = {}, globals = {}) {
   let source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
   const anchor = '    const DSH_TIMESPAN_CSS = `'
   assert.ok(source.includes(anchor), '客户端测试入口不存在')
@@ -104,6 +110,7 @@ async function loadClientFunctions(windowExtras = {}) {
       LANGUAGE_OPTIONS: typeof LANGUAGE_OPTIONS !== 'undefined' ? LANGUAGE_OPTIONS : undefined,
       DEFAULT_LANGUAGE: typeof DEFAULT_LANGUAGE === 'string' ? DEFAULT_LANGUAGE : undefined,
       createSettingsSection: typeof createSettingsSection === 'function' ? createSettingsSection : undefined,
+      createPage, useSettingsEditor, subscribeSettingsChanged, notifySettingsChanged,
       normalizeView: typeof normalizeView === 'function' ? normalizeView : undefined,
       nextTabIndex: typeof nextTabIndex === 'function' ? nextTabIndex : undefined,
       viewLabels: typeof viewLabels === 'function' ? viewLabels : undefined,
@@ -165,9 +172,348 @@ async function loadClientFunctions(windowExtras = {}) {
     };\n${anchor}`)
   const React = createTestReact()
   const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) }, ...windowExtras }
-  vm.runInNewContext(source, { window, setInterval, clearInterval, crypto: { randomUUID: () => 'test-client' } })
+  vm.runInNewContext(source, { window, setInterval, clearInterval, crypto: { randomUUID: () => 'test-client' }, ...globals })
   return { ...window.__testFunctions, React }
 }
+
+/** 沿真实 RPC 入口控制响应顺序；计时器只推进保存反馈，不模拟 React 或宿主调度。 */
+async function createSettingsEditorHarness(testContext) {
+  const requests = []
+  const timers = new Map()
+  const stored = new Map([['dsh-timespan.palette', 'clay'], ['dsh-timespan.appearance', 'dark']])
+  let nextTimer = 0
+  const functions = await loadClientFunctions({
+    setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id },
+    clearTimeout(id) { timers.delete(id) },
+    localStorage: { getItem: (key) => stored.get(key), setItem: (key, value) => stored.set(key, value) },
+  })
+  const connection = { rpc: { call(_path, _channel, { method, payload }) {
+    return new Promise((resolve) => requests.push({
+      method, payload,
+      succeed: (value) => resolve({ ok: true, value }),
+      fail: () => resolve({ ok: false, error: { message: '隔离的 RPC 失败' } }),
+    }))
+  } } }
+  const ctx = { get: () => connection }
+  const previews = []
+  const themes = []
+  let changes = 0
+  let enabled = true
+  const stopPreview = functions.subscribeDurationFormatPreview((value) => previews.push(value))
+  const stopChanges = functions.subscribeSettingsChanged(() => { changes++ })
+  const render = () => {
+    const result = functions.React.render(() => functions.useSettingsEditor(ctx, enabled, (saved) => themes.push(saved)))
+    functions.React.flushEffects()
+    return result
+  }
+  testContext.after(() => { functions.React.unmount(); stopPreview(); stopChanges() })
+  render()
+  return {
+    ...functions, requests, timers, stored, previews, themes, render,
+    changes: () => changes,
+    setEnabled(value) { enabled = value; return render() },
+    async ready(value = { language: 'zh', durationFormat: 'short', sidebarDotPosition: 'inline' }) {
+      requests[0].succeed(value)
+      await new Promise(setImmediate)
+      return render()
+    },
+  }
+}
+
+test('客户端设置编辑：读取失败时禁止写入，重试只使用 Host 返回的设置', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  harness.requests[0].fail()
+  await new Promise(setImmediate)
+  const failed = harness.render()
+  assert.equal(failed.phase, 'load-error')
+  assert.equal(failed.draft, null)
+  assert.equal(failed.busy, true)
+  assert.equal(await failed.patch('language', 'en'), false)
+  failed.requestReset()
+  assert.equal(await harness.render().reset(), false)
+  assert.equal(harness.requests.length, 1, '读取失败不能用默认值覆盖 Host')
+
+  const reloading = failed.reload()
+  harness.requests[1].succeed({ idleThresholdMinutes: 12, language: 'en', durationFormat: 'hms' })
+  await reloading
+  const ready = harness.render()
+  assert.equal(ready.phase, 'ready')
+  assert.equal(ready.draft.idleThresholdMinutes, '12')
+  assert.equal(ready.draft.durationFormat, 'hms')
+  assert.equal(harness.currentLanguage(), 'en')
+})
+
+test('客户端设置编辑：自动保存期间互斥，返回值权威且自发刷新保留反馈', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  const editor = await harness.ready()
+  const saving = editor.patch('durationFormat', 'sec')
+  assert.equal(harness.render().phase, 'saving')
+  assert.equal(harness.render().busy, true)
+  assert.equal(await editor.patch('language', 'en'), false, '同一帧的旧回调也不能重复保存')
+  editor.requestReset()
+  assert.equal(harness.render().resetStep, false)
+  assert.deepEqual(harness.previews, ['sec'])
+  harness.requests[1].succeed({ ...harness.requests[1].payload, durationFormat: 'hms', language: 'en' })
+  assert.equal(await saving, true)
+  const saved = harness.render()
+  assert.equal(saved.draft.durationFormat, 'hms')
+  assert.equal(saved.phase, 'saved')
+  assert.equal(saved.messageKey, 'savedBadge')
+  assert.equal(harness.requests.length, 2, '自己的变更广播不再重复取设置或闪回加载态')
+  assert.equal(harness.changes(), 1)
+  assert.deepEqual(harness.previews, ['sec', null])
+  assert.equal(harness.timers.size, 1)
+
+  const nextSave = saved.patch('language', 'zh')
+  assert.equal(harness.timers.size, 0, '下一次保存前清理上一条反馈的计时器')
+  harness.requests[2].fail()
+  await nextSave
+  assert.equal(harness.render().messageKey, 'settingsSaveError')
+  assert.equal(harness.timers.size, 0, '旧计时器不能擦掉新的失败提示')
+})
+
+test('客户端设置编辑：格式保存失败撤销全局预览，保留草稿供重试', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  const editor = await harness.ready()
+  const saving = editor.patch('durationFormat', 'sec')
+  harness.requests[1].fail()
+  assert.equal(await saving, false)
+  const failed = harness.render()
+  assert.equal(failed.phase, 'error')
+  assert.equal(failed.draft.durationFormat, 'sec')
+  assert.equal(failed.busy, false)
+  assert.deepEqual(harness.previews, ['sec', null], '侧栏与仪表盘回到 Host 已保存的格式')
+  assert.equal(harness.changes(), 0)
+  const retry = failed.patch('durationFormat', 'padded')
+  harness.requests[2].succeed(harness.requests[2].payload)
+  await retry
+  assert.equal(harness.render().draft.durationFormat, 'padded')
+  assert.equal(harness.render().phase, 'saved')
+})
+
+test('客户端设置编辑：迟到的读取不能覆盖新保存的草稿、语言与反馈', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  const reloading = harness.render().reload()
+  harness.requests[1].succeed({ language: 'en', durationFormat: 'short' })
+  await reloading
+  const saving = harness.render().patch('durationFormat', 'padded')
+  harness.requests[2].succeed(harness.requests[2].payload)
+  await saving
+  harness.requests[0].succeed({ language: 'zh', durationFormat: 'sec' })
+  await new Promise(setImmediate)
+  const result = harness.render()
+  assert.equal(result.draft.durationFormat, 'padded')
+  assert.equal(result.phase, 'saved')
+  assert.equal(result.messageKey, 'savedBadge')
+  assert.equal(harness.currentLanguage(), 'en')
+})
+
+test('客户端设置编辑：保存期间的外部变更延后读取，导入后的设置重新生效', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  const editor = await harness.ready()
+  const saving = editor.patch('language', 'en')
+  harness.notifySettingsChanged()
+  assert.equal(harness.requests.length, 2, '写入期间不读取可能过时的设置')
+  harness.requests[1].succeed(harness.requests[1].payload)
+  await saving
+  assert.equal(harness.requests[2].method, 'getSettings')
+  assert.equal(harness.render().messageKey, 'savedBadge')
+  assert.equal(harness.render().busy, true, '补读期间保留提示，但不能继续编辑旧草稿')
+  assert.equal(await harness.render().patch('showSubagents', false), false)
+  assert.equal(harness.requests.length, 3, '补读前不允许把旧的每周起始写回 Host')
+  harness.requests[2].succeed({ language: 'zh', durationFormat: 'sec', weekStartsOn: 7 })
+  await new Promise(setImmediate)
+  const refreshed = harness.render()
+  assert.equal(refreshed.draft.weekStartsOn, '7')
+  assert.equal(refreshed.draft.durationFormat, 'sec')
+  assert.equal(harness.currentLanguage(), 'zh')
+  assert.equal(refreshed.messageKey, 'savedBadge')
+  const nextSave = refreshed.patch('showSubagents', false)
+  assert.equal(harness.requests[3].payload.weekStartsOn, 7, '后续编辑必须基于刚读回的导入设置')
+  harness.requests[3].succeed(harness.requests[3].payload)
+  await nextSave
+})
+
+test('客户端设置编辑：确认后恢复默认，兼容旧 Host 并统一重置浏览器外观', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  const editor = await harness.ready({ language: 'en', durationFormat: 'sec' })
+  assert.equal(await editor.reset(), false, '没有确认步骤不能直接重置')
+  editor.requestReset()
+  const resetting = harness.render().reset()
+  assert.equal(harness.render().busy, true)
+  assert.equal(harness.render().resetting, true)
+  harness.requests[1].succeed({ language: 'zh', durationFormat: 'short', sidebarDotPosition: 'end' })
+  await new Promise(setImmediate)
+  assert.equal(harness.requests[2].method, 'setSettings')
+  assert.equal(JSON.stringify(harness.requests[2].payload), JSON.stringify({ sidebarDotPosition: 'inline' }))
+  harness.requests[2].succeed({ language: 'zh', durationFormat: 'short', sidebarDotPosition: 'inline' })
+  assert.equal(await resetting, true)
+  const result = harness.render()
+  assert.equal(result.resetStep, false)
+  assert.equal(result.resetting, false)
+  assert.equal(result.messageKey, 'settingsResetDone')
+  assert.equal(result.draft.sidebarDotPosition, 'inline')
+  assert.equal(harness.stored.get('dsh-timespan.palette'), 'blue')
+  assert.equal(harness.stored.get('dsh-timespan.appearance'), 'system')
+  assert.deepEqual(harness.themes, [true])
+  assert.equal(harness.changes(), 1)
+  assert.equal([...harness.timers.values()][0].delay, 1800)
+  harness.React.unmount()
+  assert.equal(harness.timers.size, 0, '卸载时清理保存反馈计时器')
+})
+
+test('客户端设置编辑：重置失败保留确认步骤与外观，允许取消', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  const editor = await harness.ready()
+  editor.requestReset()
+  const resetting = harness.render().reset()
+  harness.requests[1].fail()
+  await resetting
+  const result = harness.render()
+  assert.equal(result.phase, 'error')
+  assert.equal(result.messageKey, 'settingsResetError')
+  assert.equal(result.resetStep, true)
+  assert.equal(result.resetting, false)
+  assert.equal(harness.stored.get('dsh-timespan.palette'), 'clay')
+  assert.deepEqual(harness.themes, [])
+  result.cancelReset()
+  assert.equal(harness.render().resetStep, false)
+})
+
+test('客户端设置编辑：离开后写入仍广播，重新进入时读取权威值且卸载后不再订阅', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  const editor = await harness.ready()
+  const saving = editor.patch('durationFormat', 'sec')
+  harness.setEnabled(false)
+  assert.deepEqual(harness.previews, ['sec', null])
+  harness.setEnabled(true)
+  harness.requests[1].succeed(harness.requests[1].payload)
+  await saving
+  assert.equal(harness.changes(), 1, '离开页面不能吞掉已完成写入的变更通知')
+  assert.equal(harness.timers.size, 0, '旧生命周期的成功不能留下反馈计时器')
+  assert.equal(harness.requests[2].method, 'getSettings')
+  harness.requests[2].succeed({ language: 'en', durationFormat: 'sec' })
+  await new Promise(setImmediate)
+  assert.equal(harness.render().phase, 'ready')
+  assert.equal(harness.render().draft.durationFormat, 'sec')
+  harness.React.unmount()
+  const count = harness.requests.length
+  harness.notifySettingsChanged()
+  assert.equal(harness.requests.length, count)
+})
+
+test('客户端设置入口：宿主面板与仪表盘共用保存、重置流程，导入后表单同步', async (t) => {
+  for (const entrance of ['宿主面板', '仪表盘']) {
+    await t.test(entrance, async (testContext) => {
+      const stored = new Map([['dsh-timespan.palette', 'clay'], ['dsh-timespan.appearance', 'dark']])
+      const session = new Map([['dsh-timespan.view', 'settings']])
+      const storage = (values) => ({ getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) })
+      const functions = await loadClientFunctions({
+        setTimeout, clearTimeout,
+        localStorage: storage(stored), sessionStorage: storage(session),
+        matchMedia: (query) => ({ matches: query === '(prefers-color-scheme: dark)' || query === '(prefers-reduced-motion: reduce)', addEventListener() {}, removeEventListener() {} }),
+      }, { FileReader: class {
+        readAsText(file) { this.result = file.content; this.onload() }
+      } })
+      const { React, translate, Select } = functions
+      testContext.after(() => React.unmount())
+      let settings = { language: 'zh', durationFormat: 'short', sidebarDotPosition: 'inline' }
+      const pending = []
+      let deferReset = false
+      const connection = { rpc: { async call(_path, _channel, { method, payload }) {
+        if (method === 'setSettings' && Object.keys(payload).length > 1) {
+          return new Promise((resolve) => pending.push(() => {
+            settings = { ...settings, ...payload }
+            resolve({ ok: true, value: { ...settings } })
+          }))
+        }
+        if (method === 'resetSettings') {
+          const reset = () => { settings = { language: 'zh', durationFormat: 'short', sidebarDotPosition: 'inline' }; return { ok: true, value: settings } }
+          if (deferReset) return new Promise((resolve) => pending.push(() => resolve(reset())))
+          return reset()
+        }
+        if (method === 'importData' && payload.restoreSettings) settings = { ...settings, ...payload.settings }
+        if (method === 'setSettings') settings = { ...settings, ...payload }
+        if (method === 'getSettings' || method === 'setSettings' || method === 'resetSettings') return { ok: true, value: { ...settings } }
+        if (method === 'queryStats') return { ok: true, value: { ...settings, period: 'day' } }
+        if (method === 'getBackfillStatus') return { ok: true, value: { status: 'done' } }
+        if (method === 'importData') return { ok: true, value: { imported: { intervals: 0, tasks: 0 }, skipped: { intervals: 0, tasks: 0 } } }
+        throw new Error(`未预期的测试调用：${method}`)
+      } } }
+      const ctx = { get: () => connection }
+      const Entry = entrance === '仪表盘' ? functions.createPage(ctx) : functions.createSettingsSection(ctx)
+      const render = () => {
+        const tree = React.render(Entry, { t: translate })
+        React.flushEffects()
+        return tree
+      }
+      const settle = async () => {
+        for (let i = 0; i < 3; i++) { render(); await new Promise(setImmediate) }
+        return render()
+      }
+      const languageControl = (tree) => findAll(tree, (node) => node.type === Select && node.props.ariaLabel === translate('settingsLanguageLabel'))[0]
+      const button = (tree, label) => findAll(tree, (node) => node.type === 'button' && textOf(node).trim() === translate(label))[0]
+      let tree = await settle()
+      assert.equal(languageControl(tree).props.disabled, false)
+      languageControl(tree).props.onChange('en')
+      tree = render()
+      assert.equal(languageControl(tree).props.disabled, true, '两个入口在保存期间都禁用表单')
+      assert.equal(button(tree, 'settingsResetButton').props.disabled, true)
+      pending.shift()()
+      tree = await settle()
+      assert.equal(languageControl(tree).props.value, 'en')
+      assert.equal(textOf(findAll(tree, (node) => hasClass(node, 'cs-settings-status'))), translate('savedBadge'))
+
+      button(tree, 'settingsResetButton').props.onClick()
+      tree = render()
+      assert.ok(button(tree, 'settingsResetConfirm'))
+      await button(tree, 'settingsResetConfirm').props.onClick()
+      tree = await settle()
+      assert.equal(languageControl(tree).props.value, 'zh')
+      assert.equal(textOf(findAll(tree, (node) => hasClass(node, 'cs-settings-status'))), translate('settingsResetDone'))
+      assert.equal(stored.get('dsh-timespan.palette'), 'blue')
+      assert.equal(stored.get('dsh-timespan.appearance'), 'system')
+
+      if (entrance === '仪表盘') {
+        assert.ok(hasClass(tree, 'cs-palette-blue'))
+        assert.ok(hasClass(tree, 'cs-appearance-dark'), '恢复为跟随系统后采用系统深色外观')
+        const input = findAll(tree, (node) => node.type === 'input' && node.props.type === 'file')[0]
+        input.props.onChange({ target: { files: [{ name: '备份.json', content: JSON.stringify({
+          format: 'dsh-timespan-export', version: 1, intervals: [], tasks: [],
+          settings: { language: 'en', durationFormat: 'sec' },
+        }) }] } })
+        tree = render()
+        const preview = findAll(tree, (node) => hasClass(node, 'cs-import-preview'))[0]
+        findAll(preview, (node) => node.type === 'input' && node.props.type === 'checkbox')[0].props.onChange({ target: { checked: true } })
+        tree = render()
+        await button(tree, 'importConfirm').props.onClick()
+        tree = await settle()
+        assert.equal(languageControl(tree).props.value, 'en', '恢复备份中的设置后，当前编辑入口重新读取 Host')
+        const selectedFormat = findAll(tree, (node) => hasClass(node, 'cs-format-opt') && node.props['aria-checked'] === true)[0]
+        assert.match(textOf(selectedFormat), /10096/)
+        assert.equal(settings.approximateNoticeDismissed, false)
+
+        button(tree, 'paletteClay').props.onClick()
+        findAll(tree, (node) => hasClass(node, 'cs-appearance-opt-light'))[0].props.onClick()
+        tree = render()
+        assert.ok(hasClass(tree, 'cs-palette-clay'))
+        assert.ok(hasClass(tree, 'cs-appearance-light'))
+        button(tree, 'settingsResetButton').props.onClick()
+        tree = render()
+        deferReset = true
+        const resetting = button(tree, 'settingsResetConfirm').props.onClick()
+        findAll(tree, (node) => node.type === functions.TabNav)[0].props.onChange('trend')
+        render()
+        pending.shift()()
+        await resetting
+        tree = await settle()
+        assert.equal(findAll(tree, (node) => hasClass(node, 'cs-view'))[0].props['data-view'], 'trend')
+        assert.ok(hasClass(tree, 'cs-palette-blue'), '离开设置页后完成的重置仍更新仪表盘配色')
+        assert.ok(hasClass(tree, 'cs-appearance-dark'), '离开设置页后完成的重置仍恢复跟随系统')
+      }
+    })
+  }
+})
 
 function walkTree(node, visit) {
   if (node == null || node === false) return
@@ -1228,9 +1574,6 @@ test('客户端：首次安装与恢复初始设置的外观都跟随系统', as
   resetStoredTheme()
   assert.equal(store.get('dsh-timespan.appearance'), 'system', '恢复初始设置写入跟随系统')
   assert.equal(store.get('dsh-timespan.palette'), 'blue', '配色仍恢复默认蓝')
-  const source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
-  assert.match(source, /applyAppearance\('system'\)/, '仪表盘内恢复初始设置也回到跟随系统')
-  assert.doesNotMatch(source, /applyAppearance\('light'\)/, '恢复初始设置不得再写死浅色')
 })
 
 test('客户端：侧栏主题跟随 localStorage 的配色与外观，system 解析为实际明暗', async () => {
