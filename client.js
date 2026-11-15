@@ -3551,7 +3551,7 @@ window.__ModuleLoader__.load({
       const hiddenCount = Math.max(0, sessions.length - shownSessions.length)
       const nextEnd = Math.min(sessions.length, visibleCount + DETAILS_SESSION_STEP)
       const nextCount = nextEnd - visibleCount - Number(selectedIndex >= visibleCount && selectedIndex < nextEnd)
-      return h('div', { className: `cs-group${isOpen ? ' is-open' : ''}`, key: row.key },
+      return h('div', { className: `cs-group${isOpen ? ' is-open' : ''}`, key: row.key, 'data-workspace-key': row.key },
         h('div', {
           className: 'cs-summary cs-workspace-head',
           role: 'button',
@@ -4469,6 +4469,136 @@ window.__ModuleLoader__.load({
       return workspace ? { ...workspace.sessions[0], workspaceKey: workspace.key, workspaceTitle: workspace.workspaceTitle } : null
     }
 
+    /** 浏览状态只保存用户意图；列表、累计摘要、选择与展开都由当前范围快照派生。 */
+    function sessionBrowserModel(browser, snapshot) {
+      const data = snapshot.status === 'ready' ? snapshot.data : null
+      const rows = selectDetailsWorkspaces(data?.workspaces, browser.query, browser.statusFilter, browser.sort)
+      const session = selectedDetailSession(rows, browser.selection)
+      const filtered = browser.query.trim() !== '' || browser.statusFilter === 'running'
+      const saved = rows.some((row) => Object.hasOwn(browser.expanded, row.key))
+      let expanded = saved ? browser.expanded
+        : Object.fromEntries((filtered ? rows : rows.slice(0, 2)).map((row) => [row.key, true]))
+      const target = browser.highlight ? selectedDetailSession(rows, browser.highlight) : null
+      const highlight = target ? { ...browser.highlight, workspaceKey: target.workspaceKey } : null
+      if (highlight) expanded = { ...expanded, [highlight.workspaceKey]: true }
+      return {
+        query: browser.query, statusFilter: browser.statusFilter, sort: browser.sort,
+        detailsRange: browser.range, customRange: browser.customRange,
+        selection: browser.selection, session, highlight, expanded,
+        rows, summary: summarizeDetailSessions(rows), filtered,
+        allOpen: rows.length > 0 && rows.every((row) => expanded[row.key] === true),
+        runningCount: summarizeDetailSessions(data?.workspaces ?? []).runningCount,
+        subagentByParent: groupSubagentTasks(data?.subagentTasks),
+        range: data?.range, loadStatus: snapshot.status,
+        openMessageKey: browser.openFallback ? 'detailsOpenFallback' : '',
+        progressiveSessions: browser.range === 'all' && browser.customRange === null,
+        visibleSessionCounts: browser.visibleCounts,
+      }
+    }
+
+    /** 会话浏览统一管理范围取数和联动；界面只提交动作，不拼接展开表或批次数。 */
+    function useSessionBrowser(ctx, { period, enabled, refreshMs, refreshNonce }) {
+      const [stored, setBrowser] = React.useState(() => {
+        let expanded = {}
+        try {
+          const value = JSON.parse(window.sessionStorage.getItem('dsh-timespan.expanded') || '{}')
+          if (value && typeof value === 'object' && !Array.isArray(value)) expanded = value
+        } catch {}
+        return {
+          period, range: detailsRangeForPeriod(period), customRange: null,
+          query: '', statusFilter: 'all', sort: 'recent', selection: null,
+          expanded, visibleCounts: {}, highlight: null, openFallback: false,
+        }
+      })
+      // 周期变化的首帧就使用新范围，避免先以旧临时时段发起请求。
+      let browser = stored
+      if (browser.period !== period) {
+        browser = { ...browser, period, range: detailsRangeForPeriod(period), customRange: null,
+          selection: null, visibleCounts: {}, highlight: null, openFallback: false }
+        setBrowser(browser)
+      }
+      const [retryNonce, setRetryNonce] = React.useState(0)
+      const snapshot = useDashboard(ctx, 'day', refreshMs, `${refreshNonce}:${retryNonce}`, {
+        view: 'details', enabled,
+        range: browser.customRange ?? resolveDetailsRange(browser.range, Date.now()),
+      })
+      const model = sessionBrowserModel(browser, snapshot)
+      React.useEffect(() => {
+        try { window.sessionStorage.setItem('dsh-timespan.expanded', JSON.stringify(browser.expanded)) } catch {}
+      }, [browser.expanded])
+      React.useEffect(() => {
+        const highlight = browser.highlight
+        if (!enabled || !highlight?.located) return undefined
+        const timer = window.setTimeout(() => setBrowser((previous) => previous.highlight === highlight
+          ? { ...previous, highlight: null } : previous), 3000)
+        return () => window.clearTimeout(timer)
+      }, [enabled, browser.highlight])
+      const actions = {
+        search(query) {
+          setBrowser((previous) => ({ ...previous, query, expanded: {}, highlight: null, openFallback: false }))
+        },
+        filter(statusFilter) {
+          setBrowser((previous) => ({ ...previous, statusFilter, expanded: {}, highlight: null, openFallback: false }))
+        },
+        sort(sort) { setBrowser((previous) => ({ ...previous, sort })) },
+        selectRange(value) {
+          setBrowser((previous) => ({ ...previous, range: normalizeDetailsRange(value), customRange: null,
+            selection: null, visibleCounts: {}, highlight: null, openFallback: false }))
+        },
+        openRange(range) {
+          if (!Number.isFinite(range?.from) || !Number.isFinite(range?.to) || range.from >= range.to) return false
+          setBrowser((previous) => ({ ...previous, customRange: { from: range.from, to: range.to },
+            query: '', statusFilter: 'all', selection: null, visibleCounts: {}, highlight: null, openFallback: false }))
+          return true
+        },
+        selectSession(session) {
+          setBrowser((previous) => ({ ...previous,
+            selection: { workspaceKey: session.workspaceKey, sessionId: session.sessionId },
+            highlight: null, openFallback: false }))
+        },
+        revealSession(session) {
+          if (!sessionIsOpenable(session)) return false
+          setBrowser((previous) => ({ ...previous,
+            ...(!enabled ? { query: '', statusFilter: 'all', customRange: null, range: 'all', visibleCounts: {} } : {}),
+            // 入口可能来自旧快照；按真实会话 ID 在当前快照中重新确定工作区。
+            selection: { sessionId: session.sessionId }, highlight: { sessionId: session.sessionId, located: false },
+            openFallback: true }))
+          return true
+        },
+        toggleWorkspace(key) {
+          setBrowser((previous) => {
+            const current = sessionBrowserModel(previous, snapshot)
+            return { ...previous, expanded: { ...current.expanded, [key]: current.expanded[key] !== true }, highlight: null }
+          })
+        },
+        toggleAll() {
+          setBrowser((previous) => {
+            const current = sessionBrowserModel(previous, snapshot)
+            return { ...previous, expanded: Object.fromEntries(current.rows.map((row) => [row.key, !current.allOpen])), highlight: null }
+          })
+        },
+        showMore(key) {
+          setBrowser((previous) => {
+            const row = sessionBrowserModel(previous, snapshot).rows.find((row) => row.key === key)
+            if (!row) return previous
+            const count = Number.isFinite(previous.visibleCounts[key]) ? previous.visibleCounts[key] : DETAILS_SESSION_INITIAL
+            return { ...previous, visibleCounts: { ...previous.visibleCounts, [key]: Math.min(row.sessions.length, count + DETAILS_SESSION_STEP) } }
+          })
+        },
+        markLocated() {
+          setBrowser((previous) => {
+            if (previous.highlight !== browser.highlight) return previous
+            const current = sessionBrowserModel(previous, snapshot)
+            if (!current.highlight || previous.highlight.located) return previous
+            return { ...previous, expanded: current.expanded, highlight: { ...current.highlight, located: true } }
+          })
+        },
+        clearHighlight() { setBrowser((previous) => previous.highlight ? { ...previous, highlight: null } : previous) },
+        retry() { setRetryNonce((value) => value + 1) },
+      }
+      return { model, actions }
+    }
+
     function renderSessionInspector(session, t, format, onOpenSession, selection, hoverTip) {
       if (!session) return h('aside', { id: 'cs-session-inspector', className: 'cs-session-inspector is-empty', 'aria-label': t('detailsInspector') },
         h(DetailGlyph, { name: 'sessions', size: 24 }),
@@ -5338,44 +5468,33 @@ window.__ModuleLoader__.load({
     /** 会话 B：筛选、累计摘要、分组列表与就地统计共用同一份当前范围快照。 */
     function renderDetailsView(props) {
       const {
-        data, t, isZh, query, onQueryChange, durationFormat, expanded, onToggleRow, nowMs,
-        hoverTip = null, highlightSessionId = null, onOpenSession = null,
-        detailsRange = DETAILS_RANGE_DEFAULT, onSelectDetailsRange = null,
-        progressiveSessions = false, visibleSessionCounts = {}, onShowMoreSessions = null,
-        statusFilter = 'all', onStatusFilter = null, sort = 'recent', onSort = null,
-        selection = null, onSelectSession = null, onToggleAll = null,
-        customRange = null, loadStatus = 'ready', onRetry = null, openMessage = '',
+        browser: { model, actions }, t, isZh, durationFormat, nowMs,
+        hoverTip = null, onOpenSession = null, onInspectSession = null,
       } = props
+      const {
+        query, statusFilter, sort, detailsRange, customRange, loadStatus,
+        rows, summary, session, selection, expanded, allOpen, filtered,
+        highlight, progressiveSessions, visibleSessionCounts, subagentByParent, range, openMessageKey,
+      } = model
+      const selectSession = (value) => { actions.selectSession(value); onInspectSession?.() }
       const runningLabel = t('detailsRunning')
       const runningFilter = loadStatus === 'ready'
-        ? `${runningLabel} ${summarizeDetailSessions(data?.workspaces ?? []).runningCount}` : runningLabel
+        ? `${runningLabel} ${model.runningCount}` : runningLabel
       const toolbar = h('div', { className: 'cs-details-toolbar' },
         h('div', { className: 'cs-search-wrap' },
           h('svg', { className: 'cs-search-icon', viewBox: '0 0 16 16', width: 14, height: 14, fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, 'aria-hidden': true },
             h('circle', { cx: 7, cy: 7, r: 4.2 }), h('path', { d: 'M10.1 10.1 13.5 13.5' })),
-          h('input', { className: 'cs-search', type: 'search', value: query ?? '', placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder'), onChange: (event) => onQueryChange?.(event.target.value) })),
+          h('input', { className: 'cs-search', type: 'search', value: query, placeholder: t('searchPlaceholder'), 'aria-label': t('searchPlaceholder'), onChange: (event) => actions.search(event.target.value) })),
         h('div', { className: 'cs-details-filter', 'data-status': statusFilter, role: 'group', 'aria-label': runningLabel }, ['all', 'running'].map((value) =>
-          h('button', { key: value, type: 'button', 'aria-pressed': statusFilter === value, className: statusFilter === value ? 'is-on' : '', onClick: () => onStatusFilter?.(value) },
+          h('button', { key: value, type: 'button', 'aria-pressed': statusFilter === value, className: statusFilter === value ? 'is-on' : '', onClick: () => actions.filter(value) },
             value === 'all' ? t('detailsAll') : runningFilter))),
-        h(Select, { value: sort, ariaLabel: t('detailsSortLabel'), className: 'cs-details-sort', onChange: onSort,
+        h(Select, { value: sort, ariaLabel: t('detailsSortLabel'), className: 'cs-details-sort', onChange: actions.sort,
           options: [{ value: 'recent', label: t('detailsSortRecent') }, { value: 'task', label: t('detailsSortTask') }, { value: 'active', label: t('detailsSortActive') }] }),
-        renderDetailsRangePicker({ value: detailsRange, t, onSelect: onSelectDetailsRange, customRange, isZh }))
+        renderDetailsRangePicker({ value: detailsRange, t, onSelect: actions.selectRange, customRange, isZh }))
       if (loadStatus !== 'ready') return [toolbar,
         h('div', { className: 'cs-card cs-details-loading', role: 'status' },
           h('p', null, t(loadStatus === 'error' ? 'detailsLoadError' : 'detailsLoading')),
-          loadStatus === 'error' ? h('button', { type: 'button', className: 'cs-btn', onClick: onRetry }, t('settingsRetry')) : null)]
-      const rows = selectDetailsWorkspaces(data?.workspaces, query, statusFilter, sort)
-      const summary = summarizeDetailSessions(rows)
-      const session = selectedDetailSession(rows, selection)
-      const sessionSubagentByParent = groupSubagentTasks(data?.subagentTasks)
-      const filtered = String(query ?? '').trim() !== '' || statusFilter === 'running'
-      const saved = expanded && Object.keys(expanded).length > 0
-      let expandedMap = saved ? expanded
-        : Object.fromEntries((filtered ? rows : rows.slice(0, 2)).map((row) => [row.key, true]))
-      if (highlightSessionId !== null && session?.sessionId === highlightSessionId) {
-        expandedMap = { ...expandedMap, [session.workspaceKey]: true }
-      }
-      const allOpen = rows.length > 0 && rows.every((row) => expandedMap[row.key] === true)
+          loadStatus === 'error' ? h('button', { type: 'button', className: 'cs-btn', onClick: actions.retry }, t('settingsRetry')) : null)]
       const detailStats = [
         [t('detailsSessionCount'), String(summary.sessionCount), `${rows.length} ${t('colWorkspace')}`, 'sessions'],
         [t('colActive'), formatDuration(summary.activeMs, durationFormat), t('sumTag'), 'active'],
@@ -5383,7 +5502,7 @@ window.__ModuleLoader__.load({
         [t('taskCountShort'), String(summary.taskCount), '', 'count'],
       ]
       return [toolbar,
-        openMessage ? h('div', { className: 'cs-details-notice', role: 'status' }, openMessage) : null,
+        openMessageKey ? h('div', { className: 'cs-details-notice', role: 'status' }, t(openMessageKey)) : null,
         h('div', { className: 'cs-details-stats' }, detailStats.map(([label, value, hint, glyph]) =>
           h('div', { className: `cs-detail-stat is-${glyph}`, key: glyph },
             h('span', { className: 'cs-detail-stat-label' }, h(DetailGlyph, { name: glyph, size: 14 }), label),
@@ -5394,18 +5513,18 @@ window.__ModuleLoader__.load({
             h('div', { className: 'cs-card-heading cs-sessions-heading' }, h('div', { className: 'cs-sessions-title-line' },
               h('h2', null, t('detailsSessionsTitle')), h('span', { className: 'cs-sessions-count' }, `${summary.sessionCount} ${t('sessionsUnit')}`))),
             h('div', { className: 'cs-sessions-tools' }, h('span', { className: 'cs-sessions-scope' }, t('sumTag')),
-              !filtered && rows.length > 0 ? h('button', { type: 'button', className: 'cs-text-link', onClick: () => onToggleAll?.(Object.fromEntries(rows.map((row) => [row.key, !allOpen]))) }, t(allOpen ? 'detailsCollapseAll' : 'detailsExpandAll')) : null)),
+              !filtered && rows.length > 0 ? h('button', { type: 'button', className: 'cs-text-link', onClick: actions.toggleAll }, t(allOpen ? 'detailsCollapseAll' : 'detailsExpandAll')) : null)),
           h('div', { className: 'cs-record-columns' },
             rows.length === 0 ? h('div', { className: 'cs-empty' }, t(filtered ? 'detailsEmpty' : 'emptyDashboard'))
               : h('div', { className: 'cs-workspace-list' }, rows.map((row) => renderWorkspaceRow(
-                  row, expandedMap[row.key] === true, () => onToggleRow?.(row.key, expandedMap[row.key] === true, expandedMap),
-                  t, nowMs, sessionSubagentByParent, durationFormat, hoverTip, highlightSessionId,
-                  progressiveSessions ? { enabled: true, visibleCount: visibleSessionCounts[row.key] ?? DETAILS_SESSION_INITIAL, onShowMore: () => onShowMoreSessions?.(row.key, row.sessions.length) } : null,
-                  typeof onSelectSession === 'function' ? { sessionId: session?.workspaceKey === row.key ? session.sessionId : null, onSelect: onSelectSession } : null,
+                  row, expanded[row.key] === true, () => actions.toggleWorkspace(row.key),
+                  t, nowMs, subagentByParent, durationFormat, hoverTip, highlight?.workspaceKey === row.key ? highlight.sessionId : null,
+                  progressiveSessions ? { enabled: true, visibleCount: visibleSessionCounts[row.key] ?? DETAILS_SESSION_INITIAL, onShowMore: () => actions.showMore(row.key) } : null,
+                  { sessionId: session?.workspaceKey === row.key ? session.sessionId : null, onSelect: selectSession },
                 ))),
             renderSessionInspector(session, t, durationFormat, onOpenSession, selection, hoverTip)),
           h('div', { className: 'cs-record-footer' },
-            h('span', null, customRange ? formatSelectedRange(customRange, t, isZh) : formatRangeLabel(data?.range, 'month', t, isZh)),
+            h('span', null, customRange ? formatSelectedRange(customRange, t, isZh) : formatRangeLabel(range, 'month', t, isZh)),
             h('span', null, t('detailsFiltered').replace('{workspaces}', String(rows.length)).replace('{sessions}', String(summary.sessionCount)))))),
       ]
     }
@@ -5704,27 +5823,8 @@ window.__ModuleLoader__.load({
         const paletteNameKey = palette === 'stone' ? 'paletteStone' : palette === 'clay' ? 'paletteClay' : 'paletteBlue'
         const paletteOrder = PALETTES.map((key) => t(key === 'stone' ? 'paletteStone' : key === 'clay' ? 'paletteClay' : 'paletteBlue')).join(' → ')
         const paletteToggleLabel = t('paletteToggle').replace('{name}', t(paletteNameKey)).replace('{order}', paletteOrder)
-        const [expanded, setExpanded] = React.useState(() => {
-          try {
-            const value = JSON.parse(window.sessionStorage.getItem('dsh-timespan.expanded') || '{}')
-            return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
-          } catch { return {} }
-        })
-        const [detailsQuery, setDetailsQuery] = React.useState('')
-        const [detailsRange, setDetailsRange] = React.useState(() => detailsRangeForPeriod(period))
-        const [detailsVisibleCounts, setDetailsVisibleCounts] = React.useState({})
-        const [detailsCustomRange, setDetailsCustomRange] = React.useState(null)
-        const [detailsStatusFilter, setDetailsStatusFilter] = React.useState('all')
-        const [detailsSort, setDetailsSort] = React.useState('recent')
-        const [detailsSelection, setDetailsSelection] = React.useState(null)
-        const [detailsOpenMessage, setDetailsOpenMessage] = React.useState('')
-        const [detailHighlight, setDetailHighlight] = React.useState(null)
-        // 顶部周期变化时把明细范围同步到语义相近的预设；手动选择后保持到下次周期切换。
-        React.useEffect(() => { setDetailsRange(detailsRangeForPeriod(period)); setDetailsCustomRange(null); setDetailsSelection(null); setDetailsOpenMessage('') }, [period])
-        React.useEffect(() => { setDetailsVisibleCounts({}) }, [detailsRange, detailsCustomRange])
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.period', period) } catch {} }, [period])
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.view', view) } catch {} }, [view])
-        React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.expanded', JSON.stringify(expanded)) } catch {} }, [expanded])
         const [pollMs, setPollMs] = React.useState(PAGE_REFRESH_MS)
         const [refreshNonce, setRefreshNonce] = React.useState(0)
         // 设置页选择格式后的即时预览；保存/取消后清空，回到 Host 的已保存值。
@@ -5756,20 +5856,10 @@ window.__ModuleLoader__.load({
         const [noticeState, setNoticeState] = React.useState({ status: 'idle', data: null })
         const [noticeNonce, setNoticeNonce] = React.useState(0)
         const state = useDashboard(ctx, period, pollMs, refreshNonce)
-        const detailsRangeBounds = detailsCustomRange ?? resolveDetailsRange(detailsRange, Date.now())
-        const detailsState = useDashboard(ctx, 'day', pollMs, refreshNonce, {
-          view: 'details',
-          range: detailsRangeBounds,
+        const sessionBrowser = useSessionBrowser(ctx, {
+          period, refreshMs: pollMs, refreshNonce,
           enabled: view === 'details',
         })
-        const showMoreDetailsSessions = (workspaceKey, total) => {
-          setDetailsVisibleCounts((previous) => {
-            const current = Number.isFinite(previous[workspaceKey])
-              ? previous[workspaceKey]
-              : DETAILS_SESSION_INITIAL
-            return { ...previous, [workspaceKey]: Math.min(total, current + DETAILS_SESSION_STEP) }
-          })
-        }
         const hoverTip = useHoverTip()
         React.useEffect(() => { hoverTip.hide() }, [period])
         const [, setTick] = React.useState(0)
@@ -5877,7 +5967,7 @@ window.__ModuleLoader__.load({
         const goToView = (target) => {
           const next = normalizeView(target)
           if (next === view || switchingView) return
-          if (view === 'details') setDetailHighlight(null)
+          if (view === 'details') sessionBrowser.actions.clearHighlight()
           if (previewFormat !== null) {
             setPreviewFormat(null)
             notifySettingsChanged()
@@ -5902,20 +5992,16 @@ window.__ModuleLoader__.load({
           const page = viewsRef.current?.closest('.cs-page')
           if (page) page.scrollTop = 0
         }, [view, focus])
+        const detailHighlight = sessionBrowser.model.highlight
         React.useEffect(() => {
-          if (view !== 'details' || detailsState.status !== 'ready' || detailHighlight === null) return undefined
+          if (view !== 'details' || !detailHighlight || detailHighlight.located) return
           const target = Array.from(viewsRef.current?.querySelectorAll('.cs-session[data-session-id]') ?? [])
-            .find((row) => row.getAttribute('data-session-id') === detailHighlight.sessionId)
-          if (!target) return undefined
-          const session = selectedDetailSession(detailsState.data.workspaces, detailHighlight)
-          if (session) {
-            const { workspaceKey } = session
-            setExpanded((previous) => previous[workspaceKey] === true ? previous : { ...previous, [workspaceKey]: true })
-          }
+            .find((row) => row.getAttribute('data-session-id') === detailHighlight.sessionId &&
+              row.closest('[data-workspace-key]')?.getAttribute('data-workspace-key') === detailHighlight.workspaceKey)
+          if (!target) return
           target.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
-          const timer = window.setTimeout(() => setDetailHighlight(null), 3000)
-          return () => window.clearTimeout(timer)
-        }, [view, detailsState.status, detailHighlight])
+          sessionBrowser.actions.markLocated()
+        }, [view, detailHighlight])
         // 每次进入概览都回到近 3 个月，不记住上一次的范围选择。
         React.useEffect(() => {
           if (view === 'overview' && focus === null) setHeatRangeValue(HEAT_DEFAULT_RANGE)
@@ -6075,35 +6161,14 @@ window.__ModuleLoader__.load({
             setDismissingBackfill(false)
           }
         }
-        const openSessionInDetails = (session) => {
-          const sessionId = typeof session?.sessionId === 'string' ? session.sessionId : ''
-          if (sessionId === '') return
-          if (view !== 'details') {
-            setDetailsQuery('')
-            setDetailsStatusFilter('all')
-            setDetailsCustomRange(null)
-            setDetailsRange('all')
-          }
-          setDetailsSelection({ sessionId })
-          setDetailsOpenMessage(t('detailsOpenFallback'))
-          setDetailHighlight({ sessionId })
-          goToView('details')
-        }
         // 优先打开宿主会话页；服务缺失、归档或未知会话时回落到插件内的定位高亮。
         const openSessionFromPage = (session) => {
           if (!sessionIsOpenable(session)) return
           if (openSessionInHost(ctx, session)) return
-          openSessionInDetails(session)
+          if (sessionBrowser.actions.revealSession(session)) goToView('details')
         }
-        const onToggleRow = (key, current, expandedMap) => setExpanded((previous) => ({ ...(expandedMap ?? previous), [key]: !(current ?? previous[key]) }))
         const openTrendSessions = (range) => {
-          if (!Number.isFinite(range?.from) || !Number.isFinite(range?.to) || range.from >= range.to) return
-          setDetailsCustomRange({ from: range.from, to: range.to })
-          setDetailsOpenMessage('')
-          setDetailsQuery('')
-          setDetailsStatusFilter('all')
-          setDetailsSelection(null)
-          goToView('details')
+          if (sessionBrowser.actions.openRange(range)) goToView('details')
         }
         // 同一个首屏值再次点击即缩回；写入失败只放弃持久化，页面内状态照常切换。
         const toggleFocus = (value) => {
@@ -6177,32 +6242,12 @@ window.__ModuleLoader__.load({
           }
           if (view === 'details') {
             return renderDetailsView({
-              data: detailsState.data, t, isZh, query: detailsQuery, onQueryChange: (value) => { setDetailsQuery(value); setExpanded({}); setDetailsOpenMessage('') },
-              durationFormat, expanded, onToggleRow, nowMs, hoverTip,
-              highlightSessionId: detailHighlight?.sessionId ?? null,
+              browser: sessionBrowser, t, isZh, durationFormat, nowMs, hoverTip,
               onOpenSession: openSessionFromPage,
-              detailsRange, customRange: detailsCustomRange,
-              onSelectDetailsRange: (value) => {
-                setDetailsCustomRange(null)
-                setDetailsRange(value)
-                setDetailsSelection(null)
-                setDetailsOpenMessage('')
-                setDetailHighlight(null)
-              },
-              statusFilter: detailsStatusFilter, onStatusFilter: (value) => { setDetailsStatusFilter(value); setExpanded({}) },
-              sort: detailsSort, onSort: setDetailsSort,
-              selection: detailsSelection, onSelectSession: (session) => {
-                setDetailsSelection({ workspaceKey: session.workspaceKey, sessionId: session.sessionId })
-                setDetailsOpenMessage('')
-                setDetailHighlight(null)
+              onInspectSession: () => {
                 if (window.innerWidth <= 900) window.requestAnimationFrame(() =>
                   document.getElementById('cs-session-inspector')?.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'instant' : 'smooth' }))
               },
-              onToggleAll: setExpanded, loadStatus: detailsState.status, openMessage: detailsOpenMessage,
-              onRetry: () => setRefreshNonce((value) => value + 1),
-              progressiveSessions: detailsRange === 'all' && detailsCustomRange === null,
-              visibleSessionCounts: detailsVisibleCounts,
-              onShowMoreSessions: showMoreDetailsSessions,
             })
           }
           if (view === 'settings') {

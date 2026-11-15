@@ -59,7 +59,7 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
   source = source.replace(anchor,
     `    window.__testFunctions = {
       renderComposition, renderSessionBreakdown, renderSessionRow, renderWorkspaceRow,
-      selectDetailsWorkspaces, summarizeDetailSessions, selectedDetailSession, importResultText, formatSelectedRange,
+      useSessionBrowser, importResultText, formatSelectedRange,
       openSessionInHost, sessionIsOpenable, recentLimitForRow, heroRingModel, heroMetaItems,
       normalizeBackfill, normalizeDashboard, useDashboard, approximateNoticeVisible, renderApproximateNotice,
       localDayCount, averageMsPerDay, clampTipPosition, renderHoverTip,
@@ -174,6 +174,57 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
   const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) }, ...windowExtras }
   vm.runInNewContext(source, { window, setInterval, clearInterval, crypto: { randomUUID: () => 'test-client' }, ...globals })
   return { ...window.__testFunctions, React }
+}
+
+/** 用真实浏览模块和 RPC 信封推动交互；范围响应与定位计时可单独完成。 */
+async function createSessionBrowserHarness(testContext, savedExpanded = {}) {
+  const requests = []
+  const timers = new Map()
+  const stored = new Map([['dsh-timespan.expanded', JSON.stringify(savedExpanded)]])
+  let nextTimer = 0
+  const functions = await loadClientFunctions({
+    sessionStorage: { getItem: (key) => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) },
+    setTimeout(callback) { const id = ++nextTimer; timers.set(id, callback); return id },
+    clearTimeout(id) { timers.delete(id) },
+  })
+  const connection = { rpc: { call(_path, _channel, { method, payload }) {
+    assert.equal(method, 'queryStats')
+    return new Promise((resolve) => requests.push({ payload, resolve }))
+  } } }
+  const ctx = { get: () => connection }
+  let options = { period: 'day', enabled: true, refreshMs: 60000, refreshNonce: 0 }
+  const render = () => {
+    const browser = functions.React.render(() => functions.useSessionBrowser(ctx, options))
+    functions.React.flushEffects()
+    return browser
+  }
+  testContext.after(() => functions.React.unmount())
+  render()
+  return {
+    ...functions, requests, timers, stored, render,
+    setOptions(next) { options = { ...options, ...next }; return render() },
+    view(props = {}) {
+      return functions.renderDetailsView({ browser: render(), t: functions.translate, isZh: true,
+        durationFormat: 'hms', nowMs: Date.now(), ...props })
+    },
+    async respond(index, data) {
+      // 视图样例的 key 对应 Host 响应中的 workspaceId。
+      const value = { ...data, workspaces: data?.workspaces?.map((row) => ({ ...row, workspaceId: row.workspaceId ?? row.key })) }
+      requests[index].resolve({ ok: true, value })
+      await new Promise(setImmediate)
+      return render()
+    },
+    async ready(data) { return this.respond(requests.length - 1, data) },
+    async fail() {
+      requests.at(-1).resolve({ ok: false })
+      await new Promise(setImmediate)
+      return render()
+    },
+    async refresh(data) {
+      this.setOptions({ refreshNonce: options.refreshNonce + 1 })
+      return this.ready(data)
+    },
+  }
 }
 
 /** 沿真实 RPC 入口控制响应顺序；计时器只推进保存反馈，不模拟 React 或宿主调度。 */
@@ -2359,8 +2410,9 @@ function sampleDashboardData() {
   }
 }
 
-test('客户端：概览、趋势、明细三个视图各有真实内容', async () => {
-  const { renderOverviewView, renderTrendView, renderDetailsView } = await loadClientFunctions()
+test('客户端：概览、趋势、明细三个视图各有真实内容', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext)
+  const { renderOverviewView, renderTrendView } = harness
   const labels = {
     overviewTitle: '周期概览', actualOccupied: '实际占用', cycleToday: '今日', cycleWeek: '本周', cycleMonth: '本月',
     taskCountUnit: '次任务', activeLabel: '活跃', taskLabel: '任务', selectedPeriod: '当前',
@@ -2429,24 +2481,17 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
   assert.equal(allOf(trend, byClass('cs-trend-insight-row')).length, 2, '洞察保留峰值和集中度，覆盖率位于分布卡')
   assert.match(textOf(allOf(trend, byClass('cs-trend-insights'))[0]), /峰值时段/, '趋势洞察包含峰值时段')
 
-  const details = renderDetailsView({
-    data, t, query: '', onQueryChange() {}, durationFormat: 'hms', expanded: {}, onToggleRow() {},
-    nowMs: now, subagentByParent: {},
-  })
-  const highlightedDetails = renderDetailsView({
-    data, t, query: '', onQueryChange() {}, durationFormat: 'hms', expanded: { 'ws-1': true },
-    onToggleRow() {}, nowMs: now, subagentByParent: {}, highlightSessionId: 's-1',
-  })
+  await harness.ready(data)
+  const details = harness.view({ t })
+  harness.render().actions.revealSession({ sessionId: 's-1' })
+  const highlightedDetails = harness.view({ t })
   const highlightedSession = allOf(highlightedDetails, byClass('cs-session'))[0]
   assert.match(highlightedSession?.props?.className ?? '', /is-highlighted/, '目标会话行获得定位高亮')
-  const detailsWithSubagents = renderDetailsView({
-    data: {
-      ...data,
-      subagentTasks: [{ sessionId: 'a-1', sessionTitle: '子任务一', parentSessionId: 's-1', durationMs: 60_000, start: now - 120_000 }],
-    },
-    t, query: '', onQueryChange() {}, durationFormat: 'hms', expanded: { 'ws-1': true },
-    onToggleRow() {}, nowMs: now, highlightSessionId: 's-1',
+  await harness.refresh({
+    ...data,
+    subagentTasks: [{ sessionId: 'a-1', sessionTitle: '子任务一', parentSessionId: 's-1', durationMs: 60_000, start: now - 120_000 }],
   })
+  const detailsWithSubagents = harness.view({ t })
   const detailsSubagent = allOf(detailsWithSubagents, (node) =>
     hasClass(node, 'cs-session-tool') && String(node.props['aria-label']).includes('子代理任务'))[0]
   assert.ok(detailsSubagent, '明细会话使用同一份明细数据里的子代理任务，切到更早范围也不会丢图标')
@@ -2466,15 +2511,11 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
   assert.match(textOf(allOf(details, byClass('cs-sessions-count'))[0]), /个会话/, '卡片头显示会话总数')
   assert.equal(allOf(details, byClass('cs-details-layout')).length, 1, '明细保持单一内容容器')
 
-  const searched = renderDetailsView({
-    data, t, query: '会话一', onQueryChange() {}, durationFormat: 'hms', expanded: {}, onToggleRow() {},
-    nowMs: now, subagentByParent: {},
-  })
+  search.props.onChange({ target: { value: '会话一' } })
+  const searched = harness.view({ t })
   assert.ok(allOf(searched, byClass('cs-session')).length >= 1, '搜索命中时自动展开分组，不把结果藏在折叠工作区里')
-  const filtered = renderDetailsView({
-    data, t, query: '不存在的关键词', onQueryChange() {}, durationFormat: 'hms', expanded: {}, onToggleRow() {},
-    nowMs: now, subagentByParent: {},
-  })
+  search.props.onChange({ target: { value: '不存在的关键词' } })
+  const filtered = harness.view({ t })
   assert.match(textOf(filtered), /没有匹配的工作区或会话/, '本地过滤无结果时给出空状态')
 })
 
@@ -2526,8 +2567,8 @@ test('客户端：明细统计范围预设解析为本地自然日，并覆盖�
   assert.deepEqual(picked, ['all'])
 })
 
-test('客户端：明细「全部」范围按批次渐进展开会话', async () => {
-  const { renderDetailsView } = await loadClientFunctions()
+test('客户端：明细「全部」范围按批次渐进展开会话', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext, { '旧分组': true })
   const labels = {
     workspaceTitle: '工作区明细', sumFoot: '明细按会话逐条累加', colWorkspace: '工作区', colActive: '活跃',
     colTask: '任务', colShare: '任务占比', colLast: '最近活动', sessionsUnit: '个会话', activeShare: '活跃占比',
@@ -2565,17 +2606,10 @@ test('客户端：明细「全部」范围按批次渐进展开会话', async ()
     workspaceTitle: '大工作区',
     sessions,
   }]
-  const common = {
-    data, t, query: '', onQueryChange() {}, durationFormat: 'hms', expanded: { 'ws-many': true },
-    onToggleRow() {}, nowMs: now, subagentByParent: {}, detailsRange: 'all',
-    progressiveSessions: true, onSelectDetailsRange() {},
-  }
-  const clicked = []
-  const first = renderDetailsView({
-    ...common,
-    visibleSessionCounts: {},
-    onShowMoreSessions: (key, total) => clicked.push([key, total]),
-  })
+  harness.render().actions.selectRange('all')
+  harness.render()
+  await harness.ready(data)
+  const first = harness.view({ t })
   const searchWrap = allOf(first, byClass('cs-search-wrap'))[0]
   assert.ok(searchWrap, '明细搜索框外层容器存在')
   assert.ok(allOf(searchWrap, byClass('cs-search-icon'))[0], '搜索框内部左侧显示搜索图标')
@@ -2586,37 +2620,38 @@ test('客户端：明细「全部」范围按批次渐进展开会话', async ()
   assert.match(textOf(more), /再显示 8 个会话/)
   assert.match(textOf(more), /已显示 8\/20/)
   findAll(more, (node) => node.type === 'button' && /再显示/.test(textOf(node)))[0].props.onClick()
-  assert.deepEqual(clicked, [['ws-many', 20]], '点二次展开时把工作区与总数交给页面累加')
-
-  const second = renderDetailsView({ ...common, visibleSessionCounts: { 'ws-many': 16 } })
+  const second = harness.view({ t })
   assert.equal(allOf(second, byClass('cs-session')).length, 16, '再次展开后累计到 16 个')
   assert.match(textOf(allOf(second, byClass('cs-sessions-more'))[0]), /再显示 4 个会话/)
   assert.match(textOf(allOf(second, byClass('cs-sessions-more'))[0]), /已显示 16\/20/)
 
-  const done = renderDetailsView({ ...common, visibleSessionCounts: { 'ws-many': 24 } })
+  allOf(second, byClass('cs-sessions-more'))[0].children[0].props.onClick()
+  const done = harness.view({ t })
   assert.equal(allOf(done, byClass('cs-session')).length, 20, '累计超过总数时显示全部')
   assert.equal(allOf(done, byClass('cs-sessions-more')).length, 0, '全部显示后不再出现展开入口')
 
-  const fixedRange = renderDetailsView({ ...common, detailsRange: '7d', progressiveSessions: false })
+  harness.render().actions.selectRange('7d')
+  harness.render()
+  await harness.ready(data)
+  const fixedRange = harness.view({ t })
   assert.equal(allOf(fixedRange, byClass('cs-session')).length, 20, '非「全部」范围一次显示全部会话')
   assert.equal(allOf(fixedRange, byClass('cs-sessions-more')).length, 0, '非「全部」范围不做渐进展开')
 
-  const fallback = renderDetailsView({
-    ...common, expanded: { '旧分组': true }, selection: { sessionId: 'many-12' },
-    highlightSessionId: 'many-12', onSelectSession() {},
-    onShowMoreSessions: (key, total) => clicked.push([key, total]),
-  })
+  harness.render().actions.selectRange('all')
+  harness.render()
+  await harness.ready(data)
+  harness.render().actions.revealSession({ sessionId: 'many-12', workspaceKey: '旧分组' })
+  const fallback = harness.view({ t })
   const highlighted = allOf(fallback, byClass('is-highlighted'))[0]
   assert.equal(highlighted?.props['data-session-id'], 'many-12', '回退目标位于后续批次时仍可定位')
   assert.equal(allOf(fallback, byClass('cs-session')).length, 9, '回退只额外展示目标会话')
   const nextBatch = allOf(fallback, byClass('cs-sessions-more'))[0]
   assert.match(textOf(nextBatch), /再显示 7 个会话/)
   allOf(nextBatch, (node) => node.type === 'button')[0].props.onClick()
-  assert.deepEqual(clicked[1], ['ws-many', 20])
-
-  const withSelection = renderDetailsView({
-    ...common, selection: { workspaceKey: '之前的分组', sessionId: 'many-19' }, onSelectSession() {},
-  })
+  assert.equal(allOf(harness.view({ t }), byClass('cs-session')).length, 16, '下一批包含已选会话时不重复渲染')
+  harness.render().actions.selectRange('all')
+  harness.render().actions.selectSession({ workspaceKey: '之前的分组', sessionId: 'many-19' })
+  const withSelection = harness.view({ t })
   assert.equal(allOf(withSelection, byClass('cs-session')).length, 9, '普通选中项排序到后面时，仍只保留首批和选中项')
   assert.equal(allOf(withSelection, byClass('is-selected'))[0]?.props['data-session-id'], 'many-19')
 })
@@ -4458,8 +4493,8 @@ test('客户端：全年 Bento 跨行、范围选择器紧凑尺寸与顶栏图�
 })
 
 
-test('客户端：会话筛选和排序不修改快照，累计摘要只统计当前结果', async () => {
-  const { selectDetailsWorkspaces, summarizeDetailSessions, selectedDetailSession } = await loadClientFunctions()
+test('客户端：会话浏览的筛选、排序与选择始终基于同一份快照', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext)
   const workspaces = [
     { key: 'main', workspaceTitle: '主工作区', sessions: [
       { sessionId: 'one', sessionTitle: '查日志', activeMs: 20, taskMs: 90, taskCount: 2, lastActivityAt: 100, taskRunning: false },
@@ -4470,62 +4505,348 @@ test('客户端：会话筛选和排序不修改快照，累计摘要只统计�
     ] },
   ]
   const original = JSON.stringify(workspaces)
-  const taskSorted = selectDetailsWorkspaces(workspaces, '', 'all', 'task')
-  assert.equal(taskSorted[0].sessions[0].sessionId, 'one')
-  assert.equal(selectDetailsWorkspaces(workspaces, '', 'all', 'recent')[0].sessions[0].sessionId, 'two')
-  const running = selectDetailsWorkspaces(workspaces, '', 'running', 'active')
-  assert.equal(running.length, 1)
-  assert.equal(running[0].sessions[0].sessionId, 'two')
-  assert.deepEqual(JSON.parse(JSON.stringify(summarizeDetailSessions(running))), { sessionCount: 1, activeMs: 50, taskMs: 10, taskCount: 1, runningCount: 1 })
-  assert.equal(selectDetailsWorkspaces(workspaces, '主工作区')[0].sessions.length, 2)
-  assert.equal(selectDetailsWorkspaces(workspaces, '不存在').length, 0)
+  let browser = await harness.ready({ workspaces })
+  assert.equal(browser.model.session.sessionId, 'two', '没有显式选择时预览第一条')
+  browser.actions.sort('task')
+  browser = harness.render()
+  assert.equal(browser.model.rows[0].sessions[0].sessionId, 'one')
+  browser.actions.selectSession({ workspaceKey: 'lab', sessionId: 'one' })
+  assert.equal(harness.render().model.session.sessionTitle, '另一条日志', '同 ID 优先采用指定工作区')
+  browser.actions.filter('running')
+  browser = harness.render()
+  assert.equal(browser.model.rows.length, 1)
+  assert.equal(browser.model.rows[0].sessions[0].sessionId, 'two')
+  assert.deepEqual(JSON.parse(JSON.stringify(browser.model.summary)), { sessionCount: 1, activeMs: 50, taskMs: 10, taskCount: 1, runningCount: 1 })
+  assert.equal(browser.model.session, null, '显式选择被筛选隐藏时不自动改选')
+  assert.match(textOf(harness.view()), /所选会话不在当前筛选结果中/)
+  browser.actions.filter('all')
+  browser.actions.search('主工作区')
+  assert.equal(harness.render().model.rows[0].sessions.length, 2)
+  browser.actions.search('不存在')
+  assert.equal(harness.render().model.rows.length, 0)
+  browser.actions.search('')
+  assert.equal(harness.render().model.session.workspaceKey, 'lab', '撤销筛选后恢复显式选择')
+  browser.actions.sort('active')
+  assert.equal(harness.render().model.rows[0].sessions[0].sessionId, 'two')
+  assert.equal(harness.render().model.session.workspaceKey, 'lab', '排序保留显式选择')
   assert.equal(JSON.stringify(workspaces), original)
-  assert.equal(selectedDetailSession(taskSorted, { workspaceKey: 'lab', sessionId: 'one' }).sessionTitle, '另一条日志')
-  assert.equal(selectedDetailSession(running, { workspaceKey: 'main', sessionId: 'one' }), null, '隐藏选择不暗中替换成另一会话')
-  assert.equal(selectedDetailSession([], null), null)
 })
 
-test('客户端：列表只切换统计，右侧打开会话，收起一组保留其余展开状态', async () => {
-  const { renderDetailsView, translate } = await loadClientFunctions()
-  const selected = [], opened = [], toggled = []
+test('客户端：列表只切换统计，右侧打开会话，收起一组保留其余展开状态', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext)
+  const opened = []
   const session = { sessionId: 'real-one', hasSessionId: true, sessionTitle: '真实会话', activeMs: 60_000, taskMs: 120_000, taskCount: 1, modelMs: 60_000, toolMs: 30_000, waitMs: 0, otherMs: 0, lastActivityAt: 10 }
   const data = { workspaces: [{ key: 'one', workspaceTitle: '工作区一', sessions: [session] }, { key: 'two', workspaceTitle: '工作区二', sessions: [{ ...session, sessionId: 'real-two' }] }], range: { from: 1, to: 100 } }
-  const tree = renderDetailsView({ data, t: translate, isZh: true, expanded: {}, durationFormat: 'short', onSelectSession: value => selected.push(value), onOpenSession: value => opened.push(value), onToggleRow: (...args) => toggled.push(args) })
+  await harness.ready(data)
+  let inspected = 0
+  const tree = harness.view({ durationFormat: 'short', onOpenSession: value => opened.push(value), onInspectSession: () => inspected++ })
   const inspect = allOf(tree, byClass('cs-session-inspect'))[0]
   let stopped = 0
   inspect.props.onClick({ stopPropagation() { stopped++ } })
-  assert.equal(selected[0].workspaceKey, 'one')
+  assert.equal(harness.render().model.selection.workspaceKey, 'one')
   assert.equal(opened.length, 0)
   const row = allOf(tree, byClass('cs-session'))[0]
   assert.equal(allOf(row, byClass('cs-session-title'))[0].props.onClick, undefined)
   row.props.onClick()
-  assert.equal(selected.length, 2, '标题点击冒泡到行后仍只切换统计')
+  assert.equal(inspected, 2, '标题点击冒泡到行后仍只切换统计')
   assert.equal(opened.length, 0)
   allOf(tree, byClass('cs-inspector-open'))[0].props.onClick()
   assert.equal(opened[0].sessionId, 'real-one')
   assert.equal(opened[0].workspaceKey, 'one', '宿主失败回退时保留所属工作区')
   assert.equal(stopped, 1)
   allOf(tree, byClass('cs-workspace-head'))[0].props.onClick()
-  assert.equal(toggled[0][2].two, true)
+  assert.equal(harness.render().model.expanded.one, false)
+  assert.equal(harness.render().model.expanded.two, true)
+  allOf(tree, byClass('cs-workspace-head'))[1].props.onClick()
+  assert.equal(harness.render().model.expanded.one, false, '同一帧连续收起时不覆盖前一次操作')
+  assert.equal(harness.render().model.expanded.two, false)
+  harness.render().actions.toggleAll()
+  assert.equal(harness.render().model.allOpen, true)
+  harness.render().actions.toggleAll()
+  assert.equal(allOf(harness.view(), byClass('cs-session')).length, 0, '全 false 是明确收起，不退回默认展开')
   assert.match(textOf(allOf(tree, byClass('cs-session-inspector'))[0]), /未拆分/, '已知构成与历史未拆分时长同时可见')
 })
 
-test('客户端：会话范围加载和失败状态不会展示上一范围的记录', async () => {
-  const { renderDetailsView, translate } = await loadClientFunctions()
-  const base = { data: { workspaces: [{ key: 'old', sessions: [{ sessionId: 'old', sessionTitle: '上一范围的会话', taskRunning: true }] }] }, t: translate }
-  let retried = false
+test('客户端：会话范围加载、失败与重试不展示上一范围的记录', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext)
+  const { translate } = harness
+  const data = { workspaces: [{ key: 'old', sessions: [{ sessionId: 'old', sessionTitle: '上一范围的会话', taskRunning: true }] }] }
+  await harness.ready(data)
+  const filter = allOf(harness.view(), byClass('cs-details-filter'))[0]
+  assert.equal(textOf(allOf(filter, (node) => node.type === 'button')[1]), `${translate('detailsRunning')} 1`)
+  harness.render().actions.selectRange('7d')
   for (const status of ['loading', 'error']) {
-    const tree = renderDetailsView({ ...base, loadStatus: status, onRetry() { retried = true } })
+    if (status === 'error') await harness.fail()
+    assert.equal(harness.render().model.loadStatus, status)
+    const tree = harness.view()
     assert.doesNotMatch(textOf(tree), /上一范围的会话/)
     assert.equal(allOf(tree, byClass('cs-record-columns')).length, 0)
     const filter = allOf(tree, byClass('cs-details-filter'))[0]
     assert.equal(textOf(allOf(filter, (node) => node.type === 'button')[1]), translate('detailsRunning'))
-    if (status === 'error') allOf(tree, node => node.type === 'button' && textOf(node) === translate('settingsRetry'))[0].props.onClick()
+    if (status === 'error') {
+      const before = harness.requests.length
+      allOf(tree, node => node.type === 'button' && textOf(node) === translate('settingsRetry'))[0].props.onClick()
+      harness.render()
+      assert.equal(harness.requests.length, before + 1, '重试从真实入口重新读取当前范围')
+    }
   }
-  assert.equal(retried, true)
-  const ready = renderDetailsView(base)
-  const filter = allOf(ready, byClass('cs-details-filter'))[0]
-  assert.equal(textOf(allOf(filter, (node) => node.type === 'button')[1]), `${translate('detailsRunning')} 1`)
+  await harness.ready({ workspaces: [] })
+  assert.equal(harness.render().model.loadStatus, 'ready')
+})
+
+test('客户端：会话范围与顶部周期在首帧同步，旧范围迟到响应无效', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext)
+  const data = sampleDashboardData()
+  await harness.ready(data)
+  const original = harness.render().actions
+  original.selectRange('all')
+  harness.render()
+  const allRequest = harness.requests.length - 1
+  await harness.ready(data)
+  harness.render().actions.showMore('ws-1')
+  harness.render().actions.selectSession({ workspaceKey: 'ws-1', sessionId: 's-1' })
+  assert.equal(harness.render().actions.openRange({ from: 0, to: 3600000 }), true)
+  let browser = harness.render()
+  const customRequest = harness.requests.length - 1
+  assert.equal(harness.requests[customRequest].payload.from, 0)
+  assert.equal(harness.requests[customRequest].payload.to, 3600000)
+  assert.equal(browser.model.selection, null)
+  assert.equal(Object.keys(browser.model.visibleSessionCounts).length, 0)
+  browser.actions.search('保留查询')
+  browser.actions.sort('active')
+  const before = harness.requests.length
+  browser = harness.setOptions({ period: 'week' })
+  assert.equal(browser.model.loadStatus, 'loading')
+  assert.equal(browser.model.rows.length, 0)
+  assert.equal(browser.model.customRange, null)
+  assert.equal(browser.model.detailsRange, '7d')
+  assert.equal(browser.model.query, '保留查询')
+  assert.equal(browser.model.sort, 'active')
+  assert.equal(harness.requests.length, before + 1, '周期变化只发新预设请求，不先补发旧临时时段')
+  assert.equal(harness.requests.at(-1).payload.from, harness.resolveDetailsRange('7d', Date.now()).from)
+  assert.equal('to' in harness.requests.at(-1).payload, false, '预设终点由 Host 决定')
+  await harness.ready({ workspaces: [{ key: 'week', workspaceTitle: '保留查询', sessions: [{ sessionId: 'new', sessionTitle: '本周响应' }] }] })
+  await harness.respond(customRequest, data)
+  assert.equal(harness.render().model.rows[0].key, 'week', '上一范围晚到不会覆盖本周结果')
+  assert.equal(harness.requests[allRequest].payload.from, 0)
+  assert.equal('to' in harness.requests[allRequest].payload, false)
+  assert.equal(harness.render().actions.openRange({ from: 10, to: 10 }), false)
+  browser.actions.selectRange('30d')
+  browser = harness.render()
+  assert.equal(browser.model.customRange, null)
+  assert.equal(browser.model.detailsRange, '30d')
+})
+
+test('客户端：会话筛选展开命中分组，明确收起与存储失败均不丢失浏览状态', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext, { 已删除分组: true })
+  const workspaces = ['甲', '乙', '丙'].map((name) => ({ key: name, workspaceTitle: name, sessions: [
+    { sessionId: name, sessionTitle: `命中${name}`, taskRunning: true },
+  ] }))
+  let browser = await harness.ready({ workspaces })
+  assert.deepEqual(Object.keys(browser.model.expanded), ['甲', '乙'], '失效的旧分组不会挡住默认展开')
+  browser.actions.search('命中')
+  browser = harness.render()
+  assert.equal(browser.model.allOpen, true)
+  browser.actions.toggleWorkspace('乙')
+  browser = harness.render()
+  assert.equal(browser.model.expanded.乙, false)
+  assert.equal(browser.model.expanded.丙, true)
+  assert.equal(JSON.parse(harness.stored.get('dsh-timespan.expanded')).乙, false)
+  browser.actions.filter('running')
+  assert.equal(harness.render().model.expanded.乙, true, '筛选变化重新展开命中结果')
+  harness.stored.set = () => { throw new Error('存储不可写') }
+  harness.render().actions.toggleWorkspace('甲')
+  assert.equal(harness.render().model.expanded.甲, false, '持久化失败不回滚本次浏览操作')
+})
+
+test('客户端：会话选择随真实 ID 换组，占位会话不会跨组匹配', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext)
+  let browser = await harness.ready({ workspaces: [
+    { key: 'old', sessions: [{ sessionId: 'real', sessionTitle: '真实会话' }] },
+    { key: 'placeholder-a', sessions: [{ sessionTitle: '未归属甲' }] },
+    { key: 'placeholder-b', sessions: [{ sessionTitle: '未归属乙' }] },
+  ] })
+  browser.actions.selectSession({ workspaceKey: 'old', sessionId: 'real' })
+  browser = await harness.refresh({ workspaces: [
+    { key: 'new', sessions: [{ sessionId: 'real', sessionTitle: '新归属' }] },
+    { key: 'placeholder-a', sessions: [{ sessionTitle: '未归属甲' }] },
+    { key: 'placeholder-b', sessions: [{ sessionTitle: '未归属乙' }] },
+  ] })
+  assert.equal(browser.model.session.workspaceKey, 'new')
+  browser.actions.selectSession({ workspaceKey: 'placeholder-a', sessionId: '__unassigned_active_0' })
+  browser = harness.render()
+  assert.equal(browser.model.session.sessionTitle, '未归属甲')
+  assert.equal(browser.actions.revealSession(browser.model.session), false)
+  assert.equal(allOf(harness.view(), byClass('cs-inspector-open')).length, 0, '占位会话只能预览统计')
+  await harness.refresh({ workspaces: [{ key: 'placeholder-b', sessions: [{ sessionTitle: '未归属乙' }] }] })
+  assert.equal(harness.render().model.session, null, '同名占位 ID 不会误选另一个工作区的会话')
+})
+
+test('客户端：会话定位确认后才计时，旧确认与计时器不会干扰新选择', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext, { actual: false })
+  const data = { workspaces: [{ key: 'actual', sessions: [{ sessionId: 'target', sessionTitle: '目标' }] }] }
+  harness.render().actions.revealSession({ sessionId: 'target', workspaceKey: 'old' })
+  assert.equal(harness.timers.size, 0, '加载期间不消耗定位提示时长')
+  let browser = await harness.ready({ workspaces: [] })
+  assert.equal(browser.model.highlight, null)
+  browser = await harness.refresh(data)
+  assert.equal(browser.model.highlight.workspaceKey, 'actual', '后续同范围快照出现目标后可以继续定位')
+  assert.equal(browser.model.expanded.actual, true)
+  assert.equal(harness.timers.size, 0)
+  const oldConfirmation = browser.actions.markLocated
+  browser.actions.markLocated()
+  browser = harness.render()
+  assert.equal(browser.model.highlight.located, true)
+  assert.equal(JSON.parse(harness.stored.get('dsh-timespan.expanded')).actual, true)
+  assert.equal(harness.timers.size, 1)
+  const oldTimeout = [...harness.timers.values()][0]
+  browser.actions.revealSession({ sessionId: 'target' })
+  browser = harness.render()
+  oldConfirmation()
+  oldTimeout()
+  assert.equal(harness.render().model.highlight.located, false, '重复定位相同 ID 时，旧确认和旧计时失效')
+  assert.equal(harness.timers.size, 0)
+  harness.render().actions.markLocated()
+  harness.render()
+  const currentTimeout = [...harness.timers.values()][0]
+  currentTimeout()
+  browser = harness.render()
+  assert.equal(browser.model.highlight, null)
+  assert.equal(browser.model.expanded.actual, true, '提示到期后仍保留实际工作区展开')
+  browser.actions.revealSession({ sessionId: 'target' })
+  browser = harness.render()
+  const pendingConfirmation = browser.actions.markLocated
+  browser.actions.toggleWorkspace('actual')
+  pendingConfirmation()
+  browser = harness.render()
+  assert.equal(browser.model.highlight, null)
+  assert.equal(browser.model.expanded.actual, false, '手动收起不会被高亮逻辑重新展开')
+  browser.actions.revealSession({ sessionId: 'target' })
+  browser = harness.render()
+  browser.actions.selectRange('all')
+  browser.actions.markLocated()
+  assert.equal(harness.render().model.highlight, null, '切范围后旧定位确认不能重建高亮')
+  harness.React.unmount()
+  assert.equal(harness.timers.size, 0)
+})
+
+test('客户端：离开会话范围后忽略迟到响应，重新进入仍读取权威快照', async (testContext) => {
+  const harness = await createSessionBrowserHarness(testContext)
+  const first = harness.requests.length - 1
+  harness.setOptions({ enabled: false })
+  await harness.respond(first, sampleDashboardData())
+  assert.equal(harness.render().model.rows.length, 0)
+  harness.render().actions.search('旧查询')
+  harness.render().actions.filter('running')
+  harness.render().actions.openRange({ from: 10, to: 20 })
+  harness.render().actions.revealSession({ sessionId: 's-1' })
+  let browser = harness.setOptions({ enabled: true })
+  assert.equal(browser.model.detailsRange, 'all', '其他视图回退时查询全部记录')
+  assert.equal(browser.model.customRange, null)
+  assert.equal(browser.model.query, '')
+  assert.equal(browser.model.statusFilter, 'all')
+  assert.equal(harness.requests.at(-1).payload.from, 0)
+  assert.equal(harness.timers.size, 0)
+  browser = await harness.ready(sampleDashboardData())
+  browser.actions.markLocated()
+  harness.render()
+  assert.equal(harness.timers.size, 1)
+  harness.React.unmount()
+  assert.equal(harness.timers.size, 0, '卸载清理定位计时器')
+})
+
+test('客户端：仪表盘真实入口串联趋势范围、宿主失败定位和窄窗预览', async (testContext) => {
+  const session = new Map([['dsh-timespan.view', 'trend']])
+  const storage = { getItem: (key) => session.get(key) ?? null, setItem: (key, value) => session.set(key, value) }
+  let inspectorScrolls = 0
+  const { React, createPage, translate, TabNav, Select } = await loadClientFunctions({
+    sessionStorage: storage, localStorage: { getItem: () => null, setItem() {} },
+    setTimeout, clearTimeout, innerWidth: 800,
+    requestAnimationFrame: (callback) => { callback(); return 1 }, cancelAnimationFrame() {},
+    matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }),
+  }, { document: { getElementById: () => ({ scrollIntoView() { inspectorScrolls++ } }) } })
+  testContext.after(() => React.unmount())
+  const requests = [], opened = [], located = []
+  const data = sampleDashboardData()
+  const raw = { ...data, workspaces: data.workspaces.map((row) => ({ ...row, workspaceId: row.key })) }
+  const connection = { rpc: { async call(_path, _channel, { method, payload }) {
+    if (method === 'getSettings') return { ok: true, value: { language: 'zh' } }
+    if (method === 'queryStats' && payload.view === 'details') {
+      return new Promise((resolve) => requests.push({ payload, resolve }))
+    }
+    if (method === 'queryStats') return { ok: true, value: raw }
+    if (method === 'queryDailySeries') return { ok: true, value: { days: [] } }
+    throw new Error(`未预期的测试调用：${method}`)
+  } } }
+  const ctx = { get: (name) => name === 'connection' ? connection : name === 'uiWorkspace' ? {
+    openSession(id) { opened.push(id); throw new Error('会话已归档') },
+  } : undefined }
+  const Page = createPage(ctx)
+  const render = () => {
+    const tree = React.render(Page, { t: translate })
+    const views = allOf(tree, byClass('cs-views'))[0]
+    if (views) views.props.ref.current = {
+      closest: () => ({ scrollTop: 0 }),
+      querySelectorAll: (selector) => selector === '.cs-session[data-session-id]'
+        ? allOf(tree, byClass('cs-group')).flatMap((group) => allOf(group, byClass('cs-session')).map((row) => ({
+          getAttribute: (key) => row.props[key],
+          closest: () => ({ getAttribute: (key) => group.props[key] }),
+          scrollIntoView() { located.push([group.props['data-workspace-key'], row.props['data-session-id']]) },
+        }))) : [],
+    }
+    React.flushEffects()
+    return tree
+  }
+  const settle = async () => {
+    for (let i = 0; i < 3; i++) { render(); await new Promise(setImmediate) }
+    return render()
+  }
+  const rangeControl = (tree) => allOf(tree, (node) => node.type === Select && node.props.ariaLabel === translate('detailsRangeLabel'))[0]
+  let tree = await settle()
+  allOf(tree, byClass('cs-peak-sessions'))[0].props.onClick()
+  tree = render()
+  assert.equal(allOf(tree, byClass('cs-view'))[0].props['data-view'], 'details')
+  assert.equal(requests.at(-1).payload.from, data.trend[1].from)
+  assert.equal(requests.at(-1).payload.to, data.trend[1].to)
+  assert.equal(rangeControl(tree).props.value, 'selected')
+  requests.at(-1).resolve({ ok: true, value: raw })
+  tree = await settle()
+  const count = requests.length
+  allOf(tree, byClass('cs-inspector-open'))[0].props.onClick()
+  tree = await settle()
+  assert.equal(rangeControl(tree).props.value, 'selected', '当前会话页打开失败保留临时时段')
+  assert.equal(requests.length, count)
+  assert.deepEqual(located, [['ws-1', 's-1']])
+  allOf(tree, byClass('cs-search'))[0].props.onChange({ target: { value: '无匹配' } })
+  tree = render()
+  allOf(tree, (node) => node.type === TabNav)[0].props.onChange('overview')
+  tree = await settle()
+  allOf(tree, byClass('cs-recent-row'))[0].props.onClick()
+  tree = render()
+  assert.equal(requests.at(-1).payload.from, 0, '从概览回退改用全部范围')
+  assert.equal('to' in requests.at(-1).payload, false)
+  assert.equal(allOf(tree, byClass('cs-search'))[0].props.value, '')
+  requests.at(-1).resolve({ ok: true, value: { ...raw,
+    workspaces: [{ ...raw.workspaces[0], workspaceId: 'moved' }],
+  } })
+  tree = await settle()
+  assert.equal(rangeControl(tree).props.value, 'all')
+  assert.deepEqual(opened, ['s-1', 's-1'])
+  assert.deepEqual(located, [['ws-1', 's-1'], ['moved', 's-1']], '按当前快照定位，重复渲染不重复滚动')
+  assert.equal(JSON.parse(session.get('dsh-timespan.expanded')).moved, true)
+  let prevented = 0
+  allOf(tree, byClass('cs-workspace-head'))[0].props.onKeyDown({ key: ' ', preventDefault() { prevented++ } })
+  tree = render()
+  assert.equal(prevented, 1)
+  assert.equal(allOf(tree, byClass('cs-session')).length, 0, '键盘收起后高亮不会强制重新展开')
+  allOf(tree, byClass('cs-workspace-head'))[0].props.onClick()
+  tree = render()
+  allOf(tree, byClass('cs-session'))[0].props.onClick()
+  tree = render()
+  assert.equal(inspectorScrolls, 1, '窄窗选择后滚到统计预览')
+  assert.match(textOf(allOf(tree, byClass('cs-session-inspector'))[0]), /会话一/)
+  assert.equal(opened.length, 2, '选择统计不会再调用宿主入口')
+  assert.equal(allOf(tree, byClass('cs-details-notice')).length, 0)
 })
 
 test('客户端：切换会话范围的首帧和请求失败时清除旧快照', async (testContext) => {
