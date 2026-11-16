@@ -21,6 +21,15 @@ import {
   trendBuckets,
 } from './periods.js'
 import { BACKFILL_VERSION, normalizeBackfillStatus, planBackfillSession } from './backfill.js'
+import { emptyAnalysisState, parseAnalysisReport, parseAnalysisReports, parseAnalysisRequest, parseAnalysisSnapshot } from './domain-spec.js'
+import {
+  applyManualTimerAction,
+  canClaimManualTimerNotification,
+  emptyManualTimer,
+  manualTimerView,
+  parseManualTimerResult,
+  settleManualTimer,
+} from './manual-timer.js'
 import { DEFAULT_SETTINGS, mergeSettings, normalizeSettings, settingsToIdleMs } from './settings.js'
 import {
   buildCsvExport,
@@ -40,6 +49,7 @@ export { DEFAULT_IDLE_THRESHOLD_MS } from './settings.js'
 
 /** 导出时最多往前铺多少天，避免极端脏数据生成超大文件。 */
 const MAX_EXPORT_DAYS = 3660
+const ANALYSIS_STATE_KEY = 'state'
 
 /**
  * 活跃心跳超过这个间隔仍未到达时，不再把开放区间延伸到当前时刻，
@@ -87,13 +97,14 @@ export function createDshTimespanDomain({ domain, clock }) {
 
   const intervals = domain.table('intervals')
   const tasks = domain.table('tasks')
+  const analysis = domain.table('analysis')
 
   /** 每个 Client 最近一次 presence 的内存状态；进程重启后由区间本身恢复边界。 */
   const presenceByClient = new Map()
 
   /**
-   * 清空会推进这一代次。后台回填是长任务，必须能在每个会话边界发现「数据
-   * 已被清空」并立刻收手，否则刚删掉的历史任务会被重新灌回来。
+   * 清空和导入推进这一代次。后台回填和 AI 分析是长任务，必须确认数据没有
+   * 换代才继续写入，避免把旧记录或依据旧范围编写的报告写回。
    */
   let dataGeneration = 0
 
@@ -150,6 +161,119 @@ export function createDshTimespanDomain({ domain, clock }) {
     })
   }
 
+  /** 只有到期或明确操作才写状态；页面刷新不会创建另一只计时器。 */
+  async function getTimer() {
+    return withWriteLock(async () => {
+      const at = now()
+      const { timer } = await readSettledTimer(at)
+      return manualTimerView(timer, at)
+    })
+  }
+
+  async function controlTimer(input) {
+    return withWriteLock(async () => {
+      const at = now()
+      const { meta, timer } = await readSettledTimer(at)
+      const next = applyManualTimerAction(timer, input, at, () => createRecordId('timer', at))
+      if (next !== timer) await domain.global.set({ ...meta, timer: next })
+      return manualTimerView(next, at)
+    })
+  }
+
+  async function claimTimerNotification(input) {
+    return withWriteLock(async () => {
+      const { meta, timer } = await readSettledTimer(now())
+      if (!canClaimManualTimerNotification(timer, input)) return { claimed: false, sound: false }
+      await domain.global.set({ ...meta, timer: { ...timer, notificationPending: false } })
+      return { claimed: true, sound: normalizeSettings(meta.settings).timerSound }
+    })
+  }
+
+  /** 与设置、清空和页面操作共享同一写队列；落盘成功后才返回新状态。 */
+  async function readSettledTimer(at) {
+    const meta = readMeta()
+    const before = meta.timer ?? emptyManualTimer()
+    const timer = settleManualTimer(before, at)
+    if (timer === before) return { meta, timer }
+    const nextMeta = { ...meta, timer }
+    await domain.global.set(nextMeta)
+    return { meta: nextMeta, timer }
+  }
+
+  function readAnalysisState() {
+    return analysis.get(ANALYSIS_STATE_KEY) ?? emptyAnalysisState()
+  }
+
+  function getAnalysisReports() {
+    const { reports, successfulRequests } = readAnalysisState()
+    const result = structuredClone(reports)
+    // 兼容旧报告：只从这一份成功报告对应的持久请求恢复快照，不重新查询今天的数据。
+    for (const period of PERIODS) {
+      const report = result[period]
+      const request = successfulRequests[period]
+      if (!report || report.snapshot || request?.id !== report.id) continue
+      try {
+        const event = request.events.find((entry) => entry.type === 'user/message')
+        const input = JSON.parse(event.data.content[0].text)
+        if (input.scope.period !== period || input.scope.from !== report.from || input.scope.to !== report.to) continue
+        report.snapshot = parseAnalysisSnapshot({ ...input.statistics, timeZone: input.scope.timeZone }, {
+          from: report.from, to: report.to, filtered: report.workspaceId !== null || report.sessionId !== null,
+        })
+      } catch {
+        // 旧备份或不完整请求仍可阅读正文；页面明确提示缺少图表快照。
+      }
+    }
+    return result
+  }
+
+  function getDataGeneration() {
+    return dataGeneration
+  }
+
+  function checkAnalysisCommit({ generation, signal }) {
+    if (signal?.aborted) throw signal.reason ?? new Error('分析已取消')
+    if (generation !== dataGeneration) {
+      const error = new Error('统计数据已清空或导入，请重新生成分析')
+      error.code = 'analysis-data-changed'
+      throw error
+    }
+  }
+
+  /** 发送模型调用前先保存请求前缀；日志只供 Host 重放，不进入报告和备份。 */
+  async function saveAnalysisRequest(request, { generation, signal } = {}) {
+    return withWriteLock(async () => {
+      checkAnalysisCommit({ generation, signal })
+      const latestRequest = parseAnalysisRequest(request)
+      await analysis.put(ANALYSIS_STATE_KEY, { ...readAnalysisState(), latestRequest })
+      return structuredClone(latestRequest)
+    })
+  }
+
+  function getAnalysisRequest(id) {
+    const { latestRequest, successfulRequests } = readAnalysisState()
+    const request = [latestRequest, ...Object.values(successfulRequests)].find((entry) => entry?.id === id)
+    return request == null ? null : structuredClone(request)
+  }
+
+  /** 一次记录写入同时替换报告和该周期的请求证据。失败保留此前的成功报告。 */
+  async function saveAnalysisReport(report, { generation = dataGeneration, signal, requestId } = {}) {
+    return withWriteLock(async () => {
+      checkAnalysisCommit({ generation, signal })
+      const next = parseAnalysisReport(report)
+      const state = readAnalysisState()
+      const request = requestId === undefined ? null : state.latestRequest
+      if (requestId !== undefined && (request?.id !== requestId || request.period !== next.period)) {
+        throw new Error('对应的分析请求未保存或已失效')
+      }
+      await analysis.put(ANALYSIS_STATE_KEY, {
+        reports: { ...state.reports, [next.period]: next },
+        successfulRequests: { ...state.successfulRequests, [next.period]: request },
+        latestRequest: request === null ? state.latestRequest : null,
+      })
+      return structuredClone(next)
+    })
+  }
+
   /**
    * 启动领域服务：用进程 uptime 反推应用启动时刻，收口上次运行遗留的悬空
    * 区间，并建立本次运行的在线区间。
@@ -194,6 +318,7 @@ export function createDshTimespanDomain({ domain, clock }) {
     presenceByClient.clear()
     await domain.global.set({
       ...meta,
+      timer: settleManualTimer(meta.timer ?? emptyManualTimer(), at),
       installTime: Number.isFinite(meta.installTime) && meta.installTime > 0 ? meta.installTime : at,
       currentBootId: bootId,
       lastHeartbeat: at,
@@ -595,6 +720,8 @@ export function createDshTimespanDomain({ domain, clock }) {
     if (!Number.isFinite(at) || at <= interval.lastHeartbeat) {
       return { bootId, at: interval.lastHeartbeat, skipped: true }
     }
+    // 计时只接受 Host 的墙钟；同一次在线心跳顺便收口无人打开面板的倒计时。
+    const timer = settleManualTimer(meta.timer ?? emptyManualTimer(), now())
 
     // 墙钟大幅领先单调时钟：进程很可能被挂起/系统时钟发生了向前跳跃。
     // 旧区间只记到最后一次确认的心跳，新区间从本次心跳重新开始，避免把
@@ -605,12 +732,12 @@ export function createDshTimespanDomain({ domain, clock }) {
       const end = Math.max(interval.start, interval.lastHeartbeat, interval.lastHeartbeat + jumped)
       await intervals.put(bootId, { ...interval, end, lastHeartbeat: end, approximate: true })
       const newBootId = await openOnlineInterval(at, at)
-      await domain.global.set({ ...meta, currentBootId: newBootId, lastHeartbeat: at })
+      await domain.global.set({ ...meta, timer, currentBootId: newBootId, lastHeartbeat: at })
       return { bootId: newBootId, at, skipped: false, restarted: true }
     }
 
     await intervals.put(bootId, { ...interval, lastHeartbeat: at, lastHeartbeatUptime: uptimeMs() })
-    await domain.global.set({ ...meta, lastHeartbeat: at })
+    await domain.global.set({ ...meta, timer, lastHeartbeat: at })
     return { bootId, at, skipped: false }
   }
 
@@ -779,8 +906,11 @@ export function createDshTimespanDomain({ domain, clock }) {
    * 两种口径：总览的 activeMs / taskMs 按时间并集（实际占用）；明细里的
    * activeSumMs / taskSumMs 与工作区、会话行按会话求和（累计工时）。
    */
-  function queryStats({ from, to, period, weekStartsOn, view, groupBy, workspace, session } = {}) {
-    const current = now()
+  function queryStats(options) {
+    return queryStatsAt(options, now())
+  }
+
+  function queryStatsAt({ from, to, period, weekStartsOn, view, groupBy, workspace, session } = {}, current, analysis = false) {
     const requestedPeriod = isPeriod(period) ? period : null
     // 未显式指定时以 Host 设置为准：设置一改，周窗口、周期卡与趋势桶同步换边界。
     const weekStart = normalizeWeekStart(weekStartsOn ?? currentSettings().weekStartsOn)
@@ -799,7 +929,7 @@ export function createDshTimespanDomain({ domain, clock }) {
 
     // 工作区/会话筛选是查询期的投影过滤；解析不到的名称不静默忽略，交给调用方
     // 决定如何提示。过滤后的总计、分组与趋势都基于同一批筛选行。
-    const filters = resolveStatsFilters(workspace, session)
+    const filters = resolveStatsFilters(workspace, session, analysis)
     const matchRow = (row) => matchesStatsFilter(row, filters)
 
     const running = isOpen(currentInterval().interval)
@@ -807,11 +937,14 @@ export function createDshTimespanDomain({ domain, clock }) {
       ([, interval]) => interval.type === ACTIVE_INTERVAL && isOpen(interval) && matchRow(interval),
     )
     const activeRunning = openActive.some(([, interval]) => current - interval.lastHeartbeat <= ACTIVE_HEARTBEAT_STALE_MS)
-    const taskRows = projectTasks(startBoundary, endBoundary, current)
+    const taskRows = projectTasks(startBoundary, endBoundary, current).filter((task) => !analysis || (
+      // 分析材料用半开窗口：恰好在截止时刻启动的任务属于下一次采样。
+      endBoundary > startBoundary && task.start < endBoundary &&
+      (task.end > startBoundary || (task.start >= startBoundary && task.start === task.end))
+    ))
     // 子代理任务保留在 tasks 明细里，但不进入总计与会话列表；这样后续的
     // 子代理明细面板可以复用同一份投影，而总览不会被重复计入。
     const topLevelRows = taskRows.filter((task) => task.origin !== 'subagent' && matchRow(task))
-    const visibleTaskRows = filters === null ? taskRows : taskRows.filter(matchRow)
     const activeRanges = projectActiveRanges(startBoundary, endBoundary, current).filter(matchRow)
     const taskSessions = groupTaskSessions(topLevelRows)
     const workspaces = groupWorkspaces(activeRanges, topLevelRows, taskSessions, endBoundary)
@@ -837,15 +970,16 @@ export function createDshTimespanDomain({ domain, clock }) {
       taskCount: topLevelRows.length,
       taskRunning: topLevelRows.some((task) => task.running),
       sessions: taskSessions,
-      tasks: visibleTaskRows.sort((left, right) => right.start - left.start),
       running,
       activeRunning,
-      approximate: hasApproximateRecords(startBoundary, endBoundary, current, topLevelRows),
+      approximate: hasApproximateRecords(startBoundary, endBoundary, current, topLevelRows, filters),
     }
     if (filters !== null) stats.filters = filters
     if (groupBy === 'workspace' || groupBy === 'session') {
       stats.groups = projectStatsGroups(workspaces, groupBy)
     }
+    if (analysis) return { ...stats, workspaces, trend: computeTrend(requestedPeriod, current, weekStart, filters) }
+    stats.tasks = (filters === null ? taskRows : taskRows.filter(matchRow)).sort((left, right) => right.start - left.start)
     if (view !== 'dashboard' && view !== 'details') return stats
     // 子代理任务不进总计，但要能在父会话明细中看到：按 parentSessionId 交给页面
     // 折叠展示，避免 RPC 直接暴露整张 tasks 原始明细。
@@ -872,6 +1006,26 @@ export function createDshTimespanDomain({ domain, clock }) {
       trend: computeTrend(requestedPeriod, current, weekStart, filters),
       cycles: computeCycles(current, weekStart, filters),
     }
+  }
+
+  /** 固定一次 Host 采样时刻。趋势、汇总和会话来源都使用同一查询窗口。 */
+  function queryAnalysisInput({ period, workspaceId = null, sessionId = null, at } = {}) {
+    if (!isPeriod(period)) throw new Error('分析需要指定日、周或月周期')
+    for (const id of [workspaceId, sessionId]) {
+      if (id !== null && (typeof id !== 'string' || id.length > 512 || id.trim() === '')) {
+        throw new Error('分析需要使用有效的工作区或会话标识')
+      }
+    }
+    if (at !== undefined && (!Number.isSafeInteger(at) || at < 0)) throw new Error('分析采样时刻无效')
+    const current = now()
+    const stats = queryStatsAt({ period, workspace: workspaceId, session: sessionId }, Math.min(current, at ?? current), true)
+    const sessions = stats.workspaces.flatMap((group) => group.sessions
+      .filter((row) => row.sessionId !== null)
+      .map(({ workspaceId, workspaceTitle, sessionId, sessionTitle, lastActivityAt }) => ({
+        workspaceId, workspaceTitle, sessionId, sessionTitle, lastActivityAt,
+      })))
+    sessions.sort((left, right) => right.lastActivityAt - left.lastActivityAt || left.sessionId.localeCompare(right.sessionId))
+    return { period, from: stats.from, to: stats.to, workspaceId, sessionId, stats, sessions, dataGeneration }
   }
 
   /**
@@ -941,9 +1095,9 @@ export function createDshTimespanDomain({ domain, clock }) {
    * 完整标题匹配；重名不算匹配，避免把两个同名工作区悄悄合并成一份统计。
    * 返回结构只包含查询需要的身份与状态，不读也不改任何设置。
    */
-  function resolveStatsFilters(workspace, session) {
-    const requestedWorkspace = normalizeFilterText(workspace)
-    const requestedSession = normalizeFilterText(session)
+  function resolveStatsFilters(workspace, session, exactId = false) {
+    const requestedWorkspace = exactId ? workspace : normalizeFilterText(workspace)
+    const requestedSession = exactId ? session : normalizeFilterText(session)
     if (requestedWorkspace === null && requestedSession === null) return null
 
     const index = collectDimensionIndex()
@@ -953,7 +1107,7 @@ export function createDshTimespanDomain({ domain, clock }) {
       mismatch: false,
     }
     if (requestedWorkspace !== null) {
-      const matched = matchDimension(index.workspaces, requestedWorkspace)
+      const matched = matchDimension(index.workspaces, requestedWorkspace, exactId)
       result.workspace = {
         requested: requestedWorkspace,
         status: matched.status,
@@ -963,7 +1117,7 @@ export function createDshTimespanDomain({ domain, clock }) {
       }
     }
     if (requestedSession !== null) {
-      const matched = matchDimension(index.sessions, requestedSession)
+      const matched = matchDimension(index.sessions, requestedSession, exactId)
       result.session = {
         requested: requestedSession,
         status: matched.status,
@@ -1023,9 +1177,10 @@ export function createDshTimespanDomain({ domain, clock }) {
     return { workspaces: [...workspaces.values()], sessions: [...sessions.values()] }
   }
 
-  function matchDimension(entries, requested) {
+  function matchDimension(entries, requested, exactId) {
     const exact = entries.find((entry) => entry.id === requested)
     if (exact !== undefined) return { status: 'matched', entry: exact, candidates: [] }
+    if (exactId) return { status: 'missing', entry: null, candidates: [] }
     const wanted = requested.toLowerCase()
     const byTitle = entries.filter(
       (entry) => typeof entry.title === 'string' && entry.title.trim().toLowerCase() === wanted,
@@ -1096,7 +1251,7 @@ export function createDshTimespanDomain({ domain, clock }) {
    * queryStats 投影再按工作区铺平，导出数字与页面因此永远一致。
    */
   async function exportData(options = {}) {
-    return withWriteLock(() => {
+    return withWriteLock(async () => {
       const format = options?.format
       if (!isExportFormat(format)) throw new Error(`不支持的导出格式：${String(format)}`)
       const exportedAt = now()
@@ -1105,7 +1260,11 @@ export function createDshTimespanDomain({ domain, clock }) {
       const taskRows = [...tasks.entries()].map(([, record]) => ({ ...record }))
       const days = format === 'csv' ? collectDayRows(exportedAt) : null
       const content = format === 'json'
-        ? buildJsonExport({ exportedAt, settings, intervals: intervalRows, tasks: taskRows })
+        ? buildJsonExport({
+            exportedAt, settings, intervals: intervalRows, tasks: taskRows,
+            lastTimerResult: (await readSettledTimer(exportedAt)).timer.lastResult,
+            reports: getAnalysisReports(),
+          })
         : buildCsvExport({ dayRows: days.rows, durationFormat: settings.durationFormat })
       return {
         format,
@@ -1177,7 +1336,7 @@ export function createDshTimespanDomain({ domain, clock }) {
   }
 
   /**
-   * 清空只删本域 intervals / tasks 两张表，绝不触碰会话日志；三项设置保留。
+   * 清除本域统计、手动计时、分析报告及其私有请求日志；保留设置和宿主会话日志。
    * 清空不是停止记录：立刻从当前时刻建立一条新的在线区间，下一次心跳仍能
    * 正常推进，且所有时长都从 0 起算。回填状态收口为 done + 当前版本，避免
    * 下一次 RPC 兜底触发回填时把刚删掉的历史任务重新灌回空状态。
@@ -1195,6 +1354,7 @@ export function createDshTimespanDomain({ domain, clock }) {
           else tasksRemoved += 1
         }
       }
+      await analysis.delete(ANALYSIS_STATE_KEY)
 
       presenceByClient.clear()
       dataGeneration += 1
@@ -1217,6 +1377,7 @@ export function createDshTimespanDomain({ domain, clock }) {
       await domain.global.set({
         ...meta,
         settings: currentSettings(),
+        timer: emptyManualTimer(),
         // installTime 是插件启用时间，不属于统计数据，清空后保持原值。
         currentBootId: bootId,
         lastHeartbeat: at,
@@ -1251,7 +1412,8 @@ export function createDshTimespanDomain({ domain, clock }) {
    * intervals / tasks 按各自稳定唯一键（优先记录自带 id，详见文件末尾
    * intervalImportKey / taskImportKey 的注释）跳过已存在记录，既不覆盖也不
    * 重复插入；设置默认不恢复，只有显式 restoreSettings === true 才把
-   * payload.settings 经 normalizeSettings 白名单合并进当前 meta.settings。
+   * payload.settings 经白名单合并进当前 meta.settings。手动计时结果和报告
+   * 只填空位；导入文件中的活动状态或私有请求日志不进入存储。
    * 导入结束按 clearData 同一套不变量收口：回填状态置 done + 当前版本、
    * 递增 dataGeneration、合并后 intervals 为空时重开一条在线区间；会话日志
    * 不属于本域，绝不触碰；只写本插件 storageDomain。
@@ -1273,6 +1435,18 @@ export function createDshTimespanDomain({ domain, clock }) {
       }
       if (!Array.isArray(payload.tasks)) {
         throw importValidationError('invalid-tasks', '导入文件的 tasks 必须是数组')
+      }
+      let lastTimerResult
+      let importedReports
+      try {
+        lastTimerResult = parseManualTimerResult(payload.lastTimerResult)
+      } catch (error) {
+        throw importValidationError('invalid-timer-result', error.message)
+      }
+      try {
+        importedReports = parseAnalysisReports(payload.reports)
+      } catch (error) {
+        throw importValidationError('invalid-analysis-reports', error.message)
       }
 
       const at = now()
@@ -1321,9 +1495,11 @@ export function createDshTimespanDomain({ domain, clock }) {
         ? mergeSettings(meta.settings, payload.settings)
         : currentSettings()
       const previousBackfill = normalizeBackfillStatus(meta.backfill)
+      const timer = meta.timer ?? emptyManualTimer()
       const nextMeta = {
         ...meta,
         settings,
+        timer: { ...timer, lastResult: timer.lastResult ?? lastTimerResult },
         // 照抄 clearData：回填收口为 done + 当前版本，避免下一次 RPC 兜底
         // 触发回填时把刚导入的数据当成需要重扫的历史。
         backfill: normalizeBackfillStatus({
@@ -1365,6 +1541,13 @@ export function createDshTimespanDomain({ domain, clock }) {
       }
 
       await domain.global.set(nextMeta)
+      const state = readAnalysisState()
+      const restoredReports = PERIODS.filter((period) => state.reports[period] === null && importedReports[period] !== null)
+      if (restoredReports.length > 0) {
+        const reports = { ...state.reports }
+        for (const period of restoredReports) reports[period] = importedReports[period]
+        await analysis.put(ANALYSIS_STATE_KEY, { ...state, reports })
+      }
 
       return {
         imported: { intervals: importedIntervals, tasks: importedTasks },
@@ -1424,9 +1607,10 @@ export function createDshTimespanDomain({ domain, clock }) {
   }
 
   /** 查询窗口内是否存在按最后心跳/最后事件推断出来的近似记录。 */
-  function hasApproximateRecords(from, to, current, taskRows) {
+  function hasApproximateRecords(from, to, current, taskRows, filters = null) {
     for (const [, interval] of intervals.entries()) {
       if (interval.approximate !== true) continue
+      if (filters !== null && (interval.type === ONLINE_INTERVAL || !matchesStatsFilter(interval, filters))) continue
       const end = interval.end ?? (interval.type === ACTIVE_INTERVAL
         ? activeIntervalEnd(interval, current, to)
         : Math.min(current, to))
@@ -1904,6 +2088,15 @@ export function createDshTimespanDomain({ domain, clock }) {
     recordSessionEvent: (input) => withWriteLock(() => applySessionEvent(input)),
     queryStats,
     queryDailySeries,
+    queryAnalysisInput,
+    getDataGeneration,
+    getAnalysisReports,
+    saveAnalysisReport,
+    saveAnalysisRequest,
+    getAnalysisRequest,
+    getTimer,
+    controlTimer,
+    claimTimerNotification,
     getSettings,
     setSettings,
     resetSettings,

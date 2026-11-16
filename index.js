@@ -12,6 +12,7 @@ import { createDshTimespanSpec } from './src/domain/domain-spec.js'
 import { createDshTimespanDomain } from './src/domain/dsh-timespan-domain.js'
 import { registerDshTimespanRpc } from './src/host/rpc.js'
 import { registerTimespanStatsTool } from './src/host/tool.js'
+import { createAnalysisService } from './src/host/analysis.js'
 
 export const name = 'dsh-timespan'
 export const inject = ['storageDomain', 'timer', 'connection', 'tools']
@@ -26,6 +27,7 @@ const systemClock = {
 export async function apply(ctx) {
   let domain
   let service
+  let analysis
   let stopHeartbeat = () => {}
   let disposeRpc = () => {}
   let disposeSessionEvents = () => {}
@@ -175,6 +177,7 @@ export async function apply(ctx) {
     domain = await ctx.storageDomain.open(createDshTimespanSpec())
     service = createDshTimespanDomain({ domain, clock: systemClock })
     await service.start()
+    analysis = await createAnalysisService({ ctx, service, clock: systemClock })
 
     stopHeartbeat = ctx.timer.interval(() => {
       service.recordPresence().catch((error) => {
@@ -193,6 +196,7 @@ export async function apply(ctx) {
       // presence 心跳都会经过这里。
       ensureBackfillStarted: () => startBackfill(false),
       retryBackfill: () => startBackfill(true),
+      analysis,
     })
 
     // 只读工具与页面共用同一个 queryStats 领域操作；工具随插件 fiber 自动注销。
@@ -201,6 +205,7 @@ export async function apply(ctx) {
     ctx.effect(() => async () => {
       stopHeartbeat()
       disposeSessionEvents()
+      await closeQuietly('停止分析', () => analysis.close())
       await eventQueue
       if (backfillPromise !== null) await backfillPromise
       await closeQuietly('注销 RPC', disposeRpc)
@@ -210,6 +215,7 @@ export async function apply(ctx) {
   } catch (error) {
     stopHeartbeat()
     disposeSessionEvents()
+    if (analysis !== undefined) await closeQuietly('停止分析', () => analysis.close())
     await closeQuietly('注销 RPC', disposeRpc)
     if (service !== undefined) await closeQuietly('关闭领域服务', () => service.close())
     if (domain !== undefined) await closeQuietly('关闭存储域', () => domain.close())

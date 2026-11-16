@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="hero-title hero-desc">
-  <title id="hero-title">dsh-timespan: records online, active and task time in DSH</title>
-  <desc id="hero-desc">dsh-timespan title panel: on the left the plugin name, a one-line value statement and four chips (zero dependencies, no build, local data, Node 24); on the right a three-segment ring of today's online, active and task time, with a small gap at each boundary.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">dsh-timespan for DSH time tracking and review</title>
+  <desc id="hero-desc">Tracks online, active and task time, with a separate stopwatch and countdown and on-demand time reviews. The three-segment illustration is based on the TimeSpan icon.</desc>
 
   <!-- Canvas: white background with a light border -->
   <rect width="1200" height="360" rx="24" fill="#ffffff"/>
@@ -8,38 +8,37 @@
 
   <!-- Left: title block -->
   <g id="title-block">
-    <!-- Eyebrow: the full three-segment mini ring -->
     <g transform="translate(72 54)">
-      <circle cx="9" cy="9" r="8" fill="none" stroke="#eaecee" stroke-width="2.4"/>
-      <g transform="rotate(-90 9 9)">
-        <circle cx="9" cy="9" r="8" fill="none" stroke="#1f4e94" stroke-width="2.4"
-                pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>
-        <circle cx="9" cy="9" r="8" fill="none" stroke="#79B3F9" stroke-width="2.4"
-                pathLength="100" stroke-dasharray="30 70" stroke-dashoffset="-50"/>
-        <circle cx="9" cy="9" r="8" fill="none" stroke="#7a5aa6" stroke-width="2.4"
-                pathLength="100" stroke-dasharray="20 80" stroke-dashoffset="-80"/>
+      <g transform="translate(0 -2)" fill="none" stroke-width="2.2" stroke-linecap="round">
+        <path d="M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23" stroke="#1f4e94"/>
+        <path d="M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31" stroke="#7a5aa6"/>
+        <path d="M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77" stroke="#79b3f9"/>
+        <path d="M12 12l4-4" stroke="#133463" stroke-width="2"/>
+        <circle cx="12" cy="12" r="1.8" fill="#133463" stroke="none"/>
       </g>
       <text x="27" y="15" font-size="17" letter-spacing="2.8" fill="#606568"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH PLUGIN · TIME TRACKING</text>
     </g>
 
-    <text x="70" y="162" font-size="74" font-weight="700" letter-spacing="-1" fill="#181a1c"
+    <text x="70" y="154" font-size="74" font-weight="700" letter-spacing="-1" fill="#181a1c"
           font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">dsh-timespan</text>
 
-    <text x="72" y="210" font-size="24" fill="#42494e"
-          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">Online, active and task time — kept on this device.</text>
+    <g fill="#42494e" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+      <text x="72" y="208" font-size="29">Track online, active and task time in DSH</text>
+      <text x="72" y="245" font-size="25">Stopwatch, countdown and on-demand reviews</text>
+    </g>
 
     <!-- Metadata chips -->
-    <g id="meta-chips" font-size="15" fill="#42494e"
+    <g id="meta-chips" font-size="16" fill="#42494e"
        font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">
-      <rect x="72" y="244" width="105" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="124.5" y="264" text-anchor="middle">Zero deps</text>
-      <rect x="189" y="244" width="96" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="237" y="264" text-anchor="middle">No build</text>
-      <rect x="297" y="244" width="114" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="354" y="264" text-anchor="middle">Local data</text>
-      <rect x="423" y="244" width="87" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="466.5" y="264" text-anchor="middle">Node 24</text>
+      <rect x="72" y="280" width="105" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="124.5" y="301" text-anchor="middle">Zero deps</text>
+      <rect x="189" y="280" width="96" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="237" y="301" text-anchor="middle">No build</text>
+      <rect x="297" y="280" width="142" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="368" y="301" text-anchor="middle">Local storage</text>
+      <rect x="451" y="280" width="110" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="506" y="301" text-anchor="middle">Node 24+</text>
     </g>
   </g>
 
@@ -63,7 +62,7 @@
     <circle cx="900" cy="178" r="10" fill="#133463"/>
 
     <!-- Segment labels -->
-    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="19">
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22">
       <g id="label-online">
         <path d="M1004 185 1029 195" stroke="#c3cad4" stroke-width="1.5" fill="none"/>
         <circle cx="1038" cy="199" r="4.5" fill="#1f4e94"/>
@@ -83,6 +82,6 @@
 
     <text x="900" y="332" text-anchor="middle"
           font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace"
-          font-size="17" fill="#606568">Today's ring · same as the sidebar entry</text>
+          font-size="19" fill="#606568">Illustrative time breakdown</text>
   </g>
 </svg>

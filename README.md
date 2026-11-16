@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-timespan：记录 DSH 的在线、活跃与任务时长，数据只留在本机">
+  <img src="./assets/readme/hero.svg" width="100%" alt="dsh-timespan：本机记录 DSH 的在线、活跃与任务时长，支持手动计时和按需时间回顾">
 </p>
 
 <p align="center">
@@ -11,7 +11,7 @@
 ## 三种时长
 
 - **在线**：DSH 从启动到退出的全部时间，包括你不在电脑前的时间
-- **活跃**：页面可见、窗口聚焦，并且你在空闲阈值内有过操作，或者前台会话正在跑任务的时间
+- **活跃**：页面可见且窗口聚焦时，最近在空闲阈值内操作过，或前台会话正在跑任务的时段
 - **任务**：一次任务从 `turn/start` 到 `turn/end` 的耗时，分成模型请求、工具执行、等待用户和其他四部分
 
 统计范围：没有单独的「空闲时长」指标，任务时长也不算活跃时长的一部分。启用后只回填历史任务时长，不会补出在线和活跃的历史记录。
@@ -23,22 +23,27 @@
 </p>
 
 - 侧边栏有常驻入口，实时显示你选定的时长（默认在线）和今日构成环；悬停约 200ms 会显示说明
-- 仪表盘分概览、趋势、会话、设置四个视图。概览用一张统计卡显示主指标、两项副指标与本周、本月统计，占比用横条显示。主指标、趋势图和热力图都可放大成独立页。主指标放大页可切换五项时长，右侧圆环显示对应占比。趋势页还有时段分布和趋势洞察。
+- 仪表盘分概览、趋势、会话、回顾、设置五个视图。概览用一张统计卡显示主指标、两项副指标与本周、本月统计，占比用横条显示。主指标、趋势图和热力图都可放大成独立页。主指标放大页可切换五项时长，右侧圆环显示对应占比。趋势页还有时段分布和趋势洞察。
 - 概览底排从左到右是每日活跃热力图、工作区任务排行、最近会话。热力图每次进入概览回到近 3 个月，切到全年时另起一行，以周一开头的周网格通栏展示。
 - 插件标识跟随浅色/深色外观对调圆环明暗：深色模式上半浅、左下深、白色指针；浅色模式上半深、左下浅、深蓝指针，白针不再落在白底上
-- 工作区 → 会话：工作区只作为可折叠分组保留名称与会话数，展开后的会话行才是主体，显示活跃时长、任务次数、任务构成、子代理和最后活动；会话行可整行打开宿主会话页面，宿主不可用时回到会话定位。统计范围可选今天、近 3 天、最近一周、近 30 天或全部，选全部时分批加载。
+- 工作区 → 会话：工作区按名称与会话数分组，点击会话行或标题后在右侧查看统计预览；右侧的「打开会话」才进入宿主会话页面，打开失败时保留统计并定位会话。统计范围可选今天、近 3 天、最近一周、近 30 天或全部，选全部时分批显示。
 - Agent 只读工具 `timespan_stats`：在对话里按日/周/月或自定义日期查询，数据与仪表盘同源
-- 设置：界面语言（默认中文，可切英文，只影响本插件文案）、空闲阈值（1–15 分钟）、周统计起始日（周一/周日）、外观与配色（默认跟随系统）、数字格式（默认紧凑单位，如 `2h 48m`）、子代理明细开关，以及侧栏是否显示状态文字和常驻时长（默认在线时长）。
+- 设置：界面语言（默认中文，可切英文，只影响本插件文案）、空闲阈值（1–15 分钟）、周统计起始日（周一/周日）、外观（默认跟随系统）、配色（默认晴空蓝）、六种数字格式（默认紧凑单位，如 `2h 48m`；也支持小数小时，如 `2.80 h`）、子代理明细开关，以及侧栏是否显示状态文字和常驻时长（默认在线时长）。
 - 支持导出 JSON / CSV，导入备份时按 ID 去重。新格式是 `dsh-timespan-export`，旧的 `chronoscope-export` 备份也能导入。清空数据等破坏性操作会二次确认。
 - 首次启用时，自动回填已有历史会话的任务时长
+- 晴空蓝、石墨、赤陶、珊瑚橙四套配色均支持浅色和深色外观；珊瑚橙主色为 `#FF5B3B`。
+- 会话页的磨砂悬浮窗默认位于左上角、标题栏下方，可拖动并记住位置；靠边且鼠标移开 3 秒后收起，靠近恢复。设置可关闭悬浮窗或增加指针钟（默认关闭）。右键「退出悬浮窗」会保存关闭状态，可从设置重新开启，计时和到期提醒继续运行。
+- 仪表盘与悬浮窗控制同一只全局正计时或倒计时，独立于在线、活跃和任务统计。切换页面、休眠或重启仍按实际经过时间恢复，暂停期间不累计；倒计时到期自动停止并轻提示，提示音默认开启、可关闭。只保留当前计时与最近一次完成结果，记录旁的小点在悬停或键盘聚焦时变为删除图标。
+- 设置左侧的「回顾」页签支持手动生成回顾，结合所选日／周／月的统计和同期会话内容，可缩小到指定工作区或会话。报告以关键时长、投入节奏、工作区分布和分条结论呈现，图表固定于生成时，并包含来源和覆盖情况；各周期保留最近一份成功结果；失败不覆盖旧报告。分析任务自身不计入任务时长。报告可复制为 Markdown 或导出 .md 文件。
+- 在设置中选择 DSH 已配置的 Provider 和模型用于分析。统计记录保存在本机；点击生成时，所选范围的统计与会话材料会发送给该 Provider。JSON 备份包含报告与最近计时结果，导入不会启动或覆盖当前计时；清空数据会一并清除它们并停止计时。
 
 ## 运行机制
 
 <p align="center">
-  <img src="./assets/readme/architecture.svg" width="100%" alt="dsh-timespan 运行机制：Host 是随 DSH 一起运行的后台，记在线心跳、听会话事件、统一计算统计并写入本机存储；Client 是页面上看到的部分，负责侧栏入口、仪表盘与设置页，并把发生了什么报给后台">
+  <img src="./assets/readme/architecture.svg" width="100%" alt="dsh-timespan 运行机制：Host 记录在线心跳和会话事件，统一计算统计并保存独立计时与回顾；Client 上报在场状态，提供侧栏、五页仪表盘、悬浮计时和设置；按需回顾使用单独配置的 Provider 与模型">
 </p>
 
-dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client** 是你在页面上看到的部分。页面只负责告诉后台发生了什么：界面开着、窗口是否可见、会话什么时候开始和结束跑任务。今天算多久、一周算多久、活跃怎么判定，都由后台统一计算，再写进本机存储，不上传。
+dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client** 是你在页面上看到的部分。页面负责上报可见性与操作，并发起计时和分析请求。统计口径与计时状态由后台统一处理，保存到本机；手动 AI 分析通过宿主调用你选择的 Provider，不改变当前会话的模型。
 
 刷新页面后，数据会重新从后台读取。所以仪表盘里的数字，和对话里问 `timespan_stats` 得到的答案，始终是同一份。
 
@@ -54,7 +59,7 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 
 > 帮我装插件 @qwayo/dsh-timespan
 
-`plugin_manager` 会从 registry 拉取最新版本，安装并默认启用。想固定版本就换成 `@qwayo/dsh-timespan@0.3.0`。提示需要重启时，重启 DSH 即可。
+`plugin_manager` 会从 registry 拉取最新版本，安装并默认启用。想固定版本就换成 `@qwayo/dsh-timespan@0.4.0`。提示需要重启时，重启 DSH 即可。
 
 ### 方式二：安装 GitHub 仓库
 
@@ -114,7 +119,7 @@ npm run audit    # 质量门禁：bundle 清单、身份字符串、双语 READM
 ## 项目结构
 
 <p align="center">
-  <img src="./assets/readme/structure.svg" width="100%" alt="dsh-timespan bundle 结构树：package.json 与 cordis.patch.yml 组成 bundle；index.js 与 client.js 分为 Host、Client 两半；src/domain 领域层七个模块、src/host 适配层两个模块，Client 半挂载宿主四个页面点位；配套 test、docs/adr、locale 与 assets/readme">
+  <img src="./assets/readme/structure.svg" width="100%" alt="dsh-timespan bundle 结构树：package.json 与 cordis.patch.yml 组成 bundle；index.js 与 client.js 分为 Host、Client 两半；src/domain 领域层八个模块、src/host 适配层五个模块，Client 半挂载宿主四个页面点位；配套 test、docs/adr、locale 与 assets/readme">
 </p>
 
 <details>
@@ -140,12 +145,16 @@ dsh-timespan/
 │  │  ├─ domain-spec.js          # storageDomain 的 chrono_scope v1 结构（历史键，勿改）
 │  │  ├─ dsh-timespan-domain.js  # 在线/活跃/任务记录与查询的核心服务
 │  │  ├─ periods.js              # 本地日/周/月边界与趋势桶
-│  │  ├─ duration-format.js      # 五种数字格式（含中文「2 小时 48 分」）
+│  │  ├─ duration-format.js      # 六种数字格式（含中文单位与小数小时）
 │  │  ├─ settings.js             # 设置默认值与归一化
+│  │  ├─ manual-timer.js         # 独立手动计时状态与恢复规则
 │  │  ├─ export.js               # JSON/CSV 序列化
 │  │  └─ backfill.js             # 历史会话回填规划
 │  └─ host/                      # Host 适配层
 │     ├─ rpc.js                  # /api/dsh-timespan 包内私有 RPC
+│     ├─ analysis.js             # 分析生命周期、取消与成功报告保存
+│     ├─ analysis-input.js       # 同期统计与会话材料、来源及覆盖范围
+│     ├─ analysis-llm.js         # 请求持久化重放、模型调用与报告校验
 │     └─ tool.js                 # timespan_stats Agent 工具
 ├─ test/                         # Node 内置 test runner 测试
 ├─ docs/adr/                     # 架构决策记录
@@ -158,8 +167,8 @@ dsh-timespan/
 | --- | --- |
 | `index.js` | Host 侧入口：打开 `chrono_scope` v1 存储域（历史键，保持兼容），注册 30 秒心跳、`session/event` 监听、包内 RPC 与 `timespan_stats` 工具 |
 | `client.js` | Client 侧入口：`sidebar.panellist` 侧栏入口、`shell.overlay` presence 心跳、`main` 仪表盘、`settings.section` 设置页 |
-| `src/domain/dsh-timespan-domain.js` | 全部业务规则的核心：在线/活跃/任务区间、任务四段构成、归属、并集/求和、查询与数据操作 |
-| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`queryDailySeries`、`getSettings`、`setSettings`、`resetSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill` |
+| `src/domain/dsh-timespan-domain.js` | 自动统计核心：在线/活跃/任务区间、任务四段构成、归属、并集/求和、查询与数据操作，并协调独立计时状态 |
+| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`queryDailySeries`、`getSettings`、`setSettings`、`resetSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill`、`getTimer`、`controlTimer`、`claimTimerNotification`、`getAnalysisModels`、`getAnalysisState`、`generateAnalysis`、`cancelAnalysis` |
 | `src/host/tool.js` | 把 `timespan_stats` 参数转为 `queryStats` 查询，不另算一套数字 |
 | `package.json` | 声明包名、版本、`exports`、发布文件列表；`dsh.bundle.patch` 指向 `cordis.patch.yml`，`dsh.client` 声明 Web 客户端加载方式 |
 
@@ -195,3 +204,5 @@ dsh-timespan/
   - [0008 界面语言](docs/adr/0008-界面语言改为插件设置项.md)：界面语言改为插件设置项，默认中文、可切英文
   - [0009 质量门禁与发布流程](docs/adr/0009-质量门禁与发布流程.md)：CI 的范围与边界、审计的不变量、手动发布流程
   - [0010 包名改为 @qwayo/dsh-timespan](docs/adr/0010-包名改为-qwayo-scope.md)：公开与发 npm 前的包名迁移，以及已安装用户的处理
+  - [0011 手动计时与自动统计分离](docs/adr/0011-手动计时与自动统计分离.md)：独立计时口径、恢复与备份规则
+  - [0012 AI 分析范围与自身任务隔离](docs/adr/0012-AI分析范围与自身任务隔离.md)：分析范围、可重放请求、自身任务隔离与模型选择边界

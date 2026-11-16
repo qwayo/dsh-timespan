@@ -16,16 +16,17 @@ import {
 
 const TWO_HOURS_48_MINUTES_16_SECONDS = 2 * 3_600_000 + 48 * 60_000 + 16_000
 
-test('五种预设：同一毫秒值按原型定义输出', () => {
+test('六种预设：同一毫秒值按原型定义输出', () => {
   const ms = TWO_HOURS_48_MINUTES_16_SECONDS
   assert.equal(formatDurationByPreset(ms, 'hms'), '2:48:16')
   assert.equal(formatDurationByPreset(ms, 'short'), '2h 48m')
   assert.equal(formatDurationByPreset(ms, 'zh'), '2 小时 48 分')
   assert.equal(formatDurationByPreset(ms, 'sec'), '10096 秒')
   assert.equal(formatDurationByPreset(ms, 'padded'), '02:48:16')
+  assert.equal(formatDurationByPreset(ms, 'decimal'), '2.80 h')
 })
 
-test('五种预设：不足一小时时省略小时，零值给出稳定的零输出', () => {
+test('六种预设：不足一小时时省略小时，零值给出稳定的零输出', () => {
   const ms = 48 * 60_000 + 16_000
   assert.equal(formatDurationByPreset(ms, 'hms'), '0:48:16')
   assert.equal(formatDurationByPreset(ms, 'short'), '48m 16s')
@@ -58,12 +59,22 @@ test('毫秒向下取整，负数与非法数值按零处理', () => {
   assert.equal(formatDurationByPreset(Number.POSITIVE_INFINITY, 'short'), '0m 0s')
 })
 
-test('格式名只认五种预设，非法值回落紧凑单位', () => {
-  assert.deepEqual(DURATION_FORMATS, ['hms', 'short', 'zh', 'sec', 'padded'])
+test('格式名只认六种预设，非法值回落紧凑单位', () => {
+  assert.deepEqual(DURATION_FORMATS, ['hms', 'short', 'zh', 'sec', 'padded', 'decimal'])
   assert.equal(DEFAULT_DURATION_FORMAT, 'short')
   for (const value of DURATION_FORMATS) assert.equal(normalizeDurationFormat(value), value)
   for (const value of ['', 'HMS', 'clock', 'zh-CN', null, undefined, 7, {}, []]) {
     assert.equal(normalizeDurationFormat(value), 'short', `非法格式 ${String(value)} 必须回落紧凑单位`)
   }
   assert.equal(formatDurationByPreset(3_600_000, 'unknown'), '1h 0m')
+})
+
+test('小数小时按两位四舍五入，仍按小时累加，非法值归零', () => {
+  assert.equal(formatDurationByPreset(0, 'decimal'), '0.00 h')
+  assert.equal(formatDurationByPreset(18_000, 'decimal'), '0.01 h')
+  assert.equal(formatDurationByPreset(17_999, 'decimal'), '0.00 h')
+  assert.equal(formatDurationByPreset(1_800_000, 'decimal'), '0.50 h')
+  assert.equal(formatDurationByPreset(25 * 3_600_000 + 31 * 60_000, 'decimal'), '25.52 h')
+  assert.equal(formatDurationByPreset(-1, 'decimal'), '0.00 h')
+  assert.equal(formatDurationByPreset(Infinity, 'decimal'), '0.00 h')
 })

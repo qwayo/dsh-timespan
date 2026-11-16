@@ -16,7 +16,7 @@ export function createMemoryDomain() {
       },
     },
     table(name) {
-      if (name !== 'intervals' && name !== 'tasks') throw new Error(`内存域没有表：${name}`)
+      if (!['intervals', 'tasks', 'analysis'].includes(name)) throw new Error(`内存域没有表：${name}`)
       if (!tables.has(name)) tables.set(name, new Map())
       const table = tables.get(name)
       return {

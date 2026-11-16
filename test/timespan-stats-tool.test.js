@@ -201,6 +201,7 @@ test('数字格式：timespan_stats 文本跟随 Host 设置，与页面使用�
     ['zh', /任务时长 30 分 0 秒/u],
     ['sec', /任务时长 1800 秒/u],
     ['padded', /任务时长 00:30:00/u],
+    ['decimal', /任务时长 0.50 h/u],
   ]
   for (const [format, expected] of cases) {
     await service.setSettings({ durationFormat: format })
