@@ -24,7 +24,7 @@ const RPC_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 /**
  * @param {object} ctx Host 插件上下文
  * @param {object} service dsh-timespan 领域服务
- * @param {{ ensureBackfillStarted?: () => Promise<unknown>, retryBackfill?: () => Promise<unknown> }} hooks
+ * @param {{ ensureBackfillStarted?: () => Promise<unknown>, retryBackfill?: () => Promise<unknown>, analysis?: object }} hooks
  * @returns {() => void} 注销函数
  */
 export function registerDshTimespanRpc(ctx, service, hooks = {}) {
@@ -53,7 +53,7 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
       const value = await dispatch(call.method, call.payload)
       return reply(body.rpcId, { ok: true, value })
     } catch (error) {
-      return reply(body.rpcId, failure('internal', String(error?.message ?? error)))
+      return reply(body.rpcId, failure(typeof error?.code === 'string' ? error.code : 'internal', String(error?.message ?? error)))
     }
   }
 
@@ -87,9 +87,74 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
         return clearData()
       case 'importData':
         return importData(payload)
+      case 'getTimer':
+        return service.getTimer()
+      case 'controlTimer':
+        return controlTimer(payload)
+      case 'claimTimerNotification':
+        return claimTimerNotification(payload)
+      case 'getAnalysisModels':
+        return analysisService().modelCatalog()
+      case 'getAnalysisState':
+        return analysisService().getState()
+      case 'generateAnalysis':
+        return generateAnalysis(payload)
+      case 'cancelAnalysis':
+        return analysisService().cancel()
       default:
         throw new Error(`未知的 dsh-timespan 方法：${method}`)
     }
+  }
+
+  function analysisService() {
+    if (!hooks.analysis) throw new Error('AI 分析服务不可用，请重试或检查宿主版本')
+    return hooks.analysis
+  }
+
+  function controlTimer(payload) {
+    if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('controlTimer 载荷必须是对象')
+    }
+    return service.controlTimer({
+      action: payload.action,
+      mode: payload.mode,
+      durationMs: payload.durationMs,
+      id: payload.id,
+    })
+  }
+
+  function claimTimerNotification(payload) {
+    if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('claimTimerNotification 载荷必须是对象')
+    }
+    return service.claimTimerNotification({ id: payload.id, clientId: payload.clientId })
+  }
+
+  function generateAnalysis(payload) {
+    if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('generateAnalysis 载荷必须是对象')
+    }
+    const options = { period: normalizePeriod(payload.period) }
+    for (const key of ['workspaceId', 'sessionId']) {
+      const value = payload[key]
+      if (value === undefined || value === null || value === '') continue
+      if (typeof value !== 'string' || value.length > 500) throw new Error(`${key} 必须是有效的标识`)
+      options[key] = value
+    }
+    // 跨窗口修改模型后，不能把用户刚看到的分析材料静默交给另一条路由。
+    // 这里只比对期待值；实际模型始终由 Host 的设置决定。
+    if (Object.hasOwn(payload, 'expectedProvider') || Object.hasOwn(payload, 'expectedModel')) {
+      for (const key of ['expectedProvider', 'expectedModel']) {
+        if (typeof payload[key] !== 'string' || payload[key].trim() === '' || payload[key].length > 500) {
+          throw new Error('分析请求需要完整的预期 Provider 与模型')
+        }
+      }
+      const settings = service.getSettings()
+      if (payload.expectedProvider !== settings.analysisProvider || payload.expectedModel !== settings.analysisModel) {
+        throw Object.assign(new Error('分析模型已在其他页面改变，请确认当前模型后重试'), { code: 'analysis-model-changed' })
+      }
+    }
+    return analysisService().start(options)
   }
 
   /** 页面首次取数或心跳时兜底触发后台回填；不等待它，避免拖慢统计响应。 */
@@ -260,7 +325,7 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
   function setSettings(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('setSettings 载荷必须是对象')
     const patch = {}
-    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName', 'sidebarDuration', 'sidebarDotVisible', 'sidebarDotPosition', 'language', 'approximateNoticeDismissed']) {
+    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName', 'sidebarDuration', 'sidebarDotVisible', 'sidebarDotPosition', 'language', 'approximateNoticeDismissed', 'timerSound', 'floatingEnabled', 'floatingShowClock', 'analysisProvider', 'analysisModel']) {
       if (Object.hasOwn(payload, key)) patch[key] = payload[key]
     }
     return service.setSettings(patch)
@@ -292,11 +357,15 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
       settings: payload.settings,
       intervals: payload.intervals,
       tasks: payload.tasks,
+      lastTimerResult: payload.lastTimerResult,
+      reports: payload.reports,
       restoreSettings: payload.restoreSettings,
     })
   }
 
-  function clearData() {
+  async function clearData() {
+    // 先中止在飞分析，再推进领域数据代次，避免迟到的报告重新写回清空后的存储。
+    if (hooks.analysis) await hooks.analysis.clear()
     return service.clearData()
   }
 

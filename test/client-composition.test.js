@@ -26,6 +26,8 @@ function createTestReact() {
         hooks[index] = { deps, cleanup: effect() }
       })
     },
+    // 绘制时序由真实浏览器逐帧验证；此替身只驱动 hook 状态与清理。
+    useLayoutEffect(effect, deps) { this.useEffect(effect, deps) },
     flushEffects() {
       for (const effect of effects.splice(0)) effect()
     },
@@ -111,6 +113,9 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
       DEFAULT_LANGUAGE: typeof DEFAULT_LANGUAGE === 'string' ? DEFAULT_LANGUAGE : undefined,
       createSettingsSection: typeof createSettingsSection === 'function' ? createSettingsSection : undefined,
       createPage, useSettingsEditor, subscribeSettingsChanged, notifySettingsChanged,
+      countdownDuration, projectTimer, timerDigits, createTimerClient, TimerPopover, TimerControls, ClockDial,
+      AnalysisPage, AnalysisReport, TimeToolsSettings,
+      FloatingTimer, TimerOverlay, floatingRect, floatingEdge, moveFloatingPosition, normalizeFloatingPosition, floatingDockStyle,
       normalizeView: typeof normalizeView === 'function' ? normalizeView : undefined,
       nextTabIndex: typeof nextTabIndex === 'function' ? nextTabIndex : undefined,
       viewLabels: typeof viewLabels === 'function' ? viewLabels : undefined,
@@ -321,6 +326,30 @@ test('客户端设置编辑：自动保存期间互斥，返回值权威且自�
   await nextSave
   assert.equal(harness.render().messageKey, 'settingsSaveError')
   assert.equal(harness.timers.size, 0, '旧计时器不能擦掉新的失败提示')
+})
+
+test('客户端设置编辑：切换 Provider 与清除原模型原子保存，失败后可重试', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  const editor = await harness.ready({ analysisProvider: 'old-provider', analysisModel: 'old-model', timerSound: false })
+  const saving = editor.patch('analysisProvider', 'new-provider')
+  assert.equal(harness.requests[1].method, 'setSettings')
+  assert.equal(harness.requests[1].payload.analysisProvider, 'new-provider')
+  assert.equal(harness.requests[1].payload.analysisModel, '')
+  assert.equal(harness.requests[1].payload.timerSound, false)
+  assert.equal(await editor.patch('analysisModel', 'old-model'), false)
+  harness.requests[1].fail()
+  assert.equal(await saving, false)
+  assert.equal(harness.render().draft.analysisProvider, 'new-provider')
+  const retry = harness.render().retrySave()
+  assert.deepEqual(harness.requests[2].payload, harness.requests[1].payload)
+  harness.requests[2].succeed(harness.requests[2].payload)
+  assert.equal(await retry, true)
+  const selectingModel = harness.render().patch('analysisModel', 'new-model')
+  assert.equal(harness.requests[3].payload.analysisProvider, 'new-provider')
+  assert.equal(harness.requests[3].payload.analysisModel, 'new-model')
+  harness.requests[3].succeed(harness.requests[3].payload)
+  assert.equal(await selectingModel, true)
+  assert.equal(harness.render().draft.timerSound, false)
 })
 
 test('客户端设置编辑：格式保存失败撤销全局预览，保留草稿供重试', async (t) => {
@@ -652,6 +681,609 @@ function declarationsFor(css, selector) {
   const pattern = new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`, 'g')
   return [...css.matchAll(pattern)].map((match) => match[1]).join('\n')
 }
+
+function scriptedClientRpc() {
+  const requests = []
+  const connection = { rpc: { call(_path, _channel, { method, payload }) {
+    return new Promise((resolve) => requests.push({ method, payload,
+      success: (value) => resolve({ ok: true, value }),
+      fail: (code) => resolve({ ok: false, error: { code } }),
+    }))
+  } } }
+  return {
+    ctx: { get: () => connection }, requests,
+    take(method) {
+      const request = requests.shift()
+      assert.equal(request?.method, method)
+      return request
+    },
+  }
+}
+
+function clientTimerView(status, fields = {}) {
+  return { status, now: Date.now(), id: null, mode: null, durationMs: null, elapsedMs: 0, remainingMs: null, lastResult: null, notification: null, ...fields }
+}
+
+test('客户端配色：顶栏在四套配色间循环，珊瑚实底和任务紫分别保留', async () => {
+  const storage = new Map()
+  const { createPage, React, translate, dshTimespanCss, dshTimespanSidebarCss } = await loadClientFunctions({
+    localStorage: { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value) },
+  })
+  const Page = createPage({})
+  const render = () => React.render(Page, { t: translate })
+  let tree = render()
+  for (const palette of ['stone', 'clay', 'coral', 'blue']) {
+    findByClass(tree, 'cs-palette-toggle').props.onClick()
+    tree = render()
+    assert.ok(hasClass(tree, `cs-palette-${palette}`))
+    assert.equal(storage.get('dsh-timespan.palette'), palette)
+    assert.match(findByClass(tree, 'cs-palette-toggle').props.title, /蓝 → 石墨 → 赤陶 → 珊瑚橙/)
+  }
+  const css = dshTimespanCss()
+  assert.match(declarationsFor(css, '.cs-page.cs-palette-coral'), /--cs-palette-primary:\s*#FF5B3B/)
+  assert.match(declarationsFor(css, '.cs-page.cs-palette-coral'), /--cs-on-selection:\s*var\(--cs-solid-ink\)/)
+  assert.doesNotMatch(declarationsFor(css, '.cs-page.cs-appearance-dark.cs-palette-coral'), /--cs-task:/)
+  assert.match(declarationsFor(dshTimespanSidebarCss(), '.dsh-timespan-nav-entry.cs-appearance-dark.cs-palette-coral'), /#FF5B3B/)
+})
+
+test('客户端计时：使用 Host 快照同步两个入口，运行投影与失败安全重试', async () => {
+  let poll, cleared = 0
+  const functions = await loadClientFunctions({}, {
+    setInterval(callback) { poll = callback; return 1 },
+    clearInterval() { cleared += 1 },
+    setTimeout() { return 1 }, clearTimeout() {},
+  })
+  const { countdownDuration, createTimerClient, projectTimer, timerDigits } = functions
+  const host = scriptedClientRpc()
+  const audio = { unlock: async () => true, play: () => true, close() {} }
+  const client = createTimerClient(host.ctx, audio)
+  const overlay = [], dashboard = []
+  const stopOverlay = client.subscribe((snapshot) => overlay.push(snapshot))
+  const stopDashboard = client.subscribe((snapshot) => dashboard.push(snapshot))
+  assert.equal(host.requests.length, 1, '两个入口只轮询一次')
+  host.take('getTimer').success(clientTimerView('idle'))
+  await new Promise(setImmediate)
+  assert.equal(overlay.at(-1), dashboard.at(-1))
+  assert.equal(countdownDuration('0', '1'), 1000)
+  assert.equal(countdownDuration('1', '60'), null)
+  assert.equal(countdownDuration('10080', '1'), null)
+
+  void poll()
+  const stale = host.take('getTimer')
+  const running = clientTimerView('running', { id: 'new', mode: 'countdown', durationMs: 5000, elapsedMs: 500, remainingMs: 4500 })
+  const started = client.control({ action: 'start', id: null, mode: 'countdown', durationMs: 5000 })
+  assert.equal(client.snapshot().busy, true)
+  host.take('controlTimer').success(running)
+  await started
+  stale.success(clientTimerView('idle'))
+  await new Promise(setImmediate)
+  assert.equal(overlay.at(-1), dashboard.at(-1))
+  assert.equal(client.snapshot().timer, running, '写入前启动的旧轮询不会覆盖运行态')
+  const projected = projectTimer(running, 1000, 2260)
+  assert.equal(projected.elapsedMs, 1760)
+  assert.equal(timerDigits(projected.remainingMs, true), '00:00:04')
+  assert.equal(projectTimer(running, 1000, 6500).remainingMs, 0)
+  assert.equal(client.snapshot().timer.status, 'running', '本地归零只投影显示')
+  const pausing = client.control({ action: 'pause', id: 'new' })
+  host.take('controlTimer').fail('stale-timer')
+  await pausing
+  const reread = host.take('getTimer')
+  assert.equal(client.snapshot().actionError, 'timerChanged')
+  assert.equal(client.snapshot().timer, running)
+  const retry = client.retry()
+  const paused = clientTimerView('paused', { ...running, status: 'paused', elapsedMs: 2000, remainingMs: 3000 })
+  reread.success(paused)
+  await retry
+  assert.equal(client.snapshot().actionError, '')
+  assert.equal(projectTimer(paused, 1000, 5000).elapsedMs, 2000)
+  stopDashboard()
+  assert.equal(cleared, 0)
+  stopOverlay()
+  assert.equal(cleared, 1)
+})
+
+test('客户端计时：隐藏页面不认领，到期仅认领一次，未解锁声音明确等待用户播放', async () => {
+  const listeners = new Map()
+  const document = { visibilityState: 'visible', addEventListener: (event, listener) => listeners.set(event, listener),
+    removeEventListener: (event) => listeners.delete(event) }
+  let poll, sounds = 0, unlocked = false
+  const { createTimerClient } = await loadClientFunctions({}, { document,
+    setInterval(callback) { poll = callback; return 1 }, clearInterval() {},
+    setTimeout() { return 1 }, clearTimeout() {},
+  })
+  const host = scriptedClientRpc()
+  const client = createTimerClient(host.ctx, {
+    unlock: async () => { unlocked = true; return true },
+    play: () => { if (!unlocked) return false; sounds += 1; return true }, close() {},
+  })
+  const unsubscribe = client.subscribe(() => {})
+  const finished = clientTimerView('completed', { id: 'c', mode: 'countdown', durationMs: 1000, elapsedMs: 1000,
+    remainingMs: 0, lastResult: { id: 'c', reason: 'expired' }, notification: { id: 'c' } })
+  document.visibilityState = 'hidden'
+  host.take('getTimer').success(finished)
+  await new Promise(setImmediate)
+  assert.equal(host.requests.length, 0)
+  assert.equal(client.snapshot().notice, null)
+
+  document.visibilityState = 'visible'
+  listeners.get('visibilitychange')()
+  host.take('getTimer').success(finished)
+  await new Promise(setImmediate)
+  const claim = host.take('claimTimerNotification')
+  assert.equal(claim.payload.id, 'c')
+  assert.equal(claim.payload.clientId, 'client_test-client')
+  claim.success({ claimed: true, sound: true })
+  await new Promise(setImmediate)
+  assert.equal(client.snapshot().notice.blocked, true)
+  assert.equal(sounds, 0)
+  await client.playNotice()
+  assert.equal(sounds, 1)
+  assert.equal(client.snapshot().notice, null)
+  const refresh = poll()
+  host.take('getTimer').success(finished)
+  await refresh
+  assert.equal(host.requests.length, 0, '即使收到旧快照也不重复认领')
+  unsubscribe()
+  assert.equal(listeners.size, 0)
+})
+
+test('客户端删除记录使用完成结果 ID，两个入口同步且失败保留原记录', async (t) => {
+  const host = scriptedClientRpc()
+  const { createTimerClient } = await loadClientFunctions({}, {
+    setInterval() { return 1 }, clearInterval() {}, setTimeout() { return 1 }, clearTimeout() {},
+  })
+  const client = createTimerClient(host.ctx, { unlock: async () => true, play: () => true, close() {} })
+  const other = []
+  t.after(client.subscribe(() => {}))
+  t.after(client.subscribe((state) => other.push(state)))
+  const running = clientTimerView('running', { id: 'current', mode: 'stopwatch', elapsedMs: 2_000,
+    lastResult: { id: 'previous', mode: 'stopwatch', elapsedMs: 1_000 } })
+  host.take('getTimer').success(running)
+  await new Promise(setImmediate)
+  const failed = client.control({ action: 'clear-result', id: 'previous' })
+  const deletion = host.take('controlTimer')
+  assert.equal(deletion.payload.id, 'previous')
+  deletion.fail('storage-error')
+  await failed
+  assert.equal(client.snapshot().timer.lastResult.id, 'previous')
+  host.take('getTimer').success(running)
+  await new Promise(setImmediate)
+  const retry = client.control({ action: 'clear-result', id: 'previous' })
+  host.take('controlTimer').success({ ...running, lastResult: null })
+  await retry
+  assert.equal(client.snapshot().timer.id, 'current')
+  assert.equal(client.snapshot().timer.status, 'running')
+  assert.equal(client.snapshot().timer.lastResult, null)
+  assert.equal(other.at(-1), client.snapshot())
+})
+
+test('客户端计时：快速保存无临时提示行，慢保存沿用状态位置且操作结束清理提示', async (t) => {
+  const timers = new Map()
+  let nextTimer = 0
+  const { React, TimerControls, translate } = await loadClientFunctions({}, {
+    setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id },
+    clearTimeout(id) { timers.delete(id) },
+  })
+  t.after(() => React.unmount())
+  const snapshot = { timer: clientTimerView('idle'), receivedAt: 0, busy: false, syncError: false }
+  const render = () => { const tree = React.render(TimerControls, { client: {}, snapshot, at: 0, t: translate }); React.flushEffects(); return tree }
+  const modeIdentity = findByClass(render(), 'cs-timer-readout').props.identity
+  snapshot.busy = true
+  let tree = render()
+  assert.doesNotMatch(textOf(tree), /正在保存计时状态/)
+  assert.equal(findByClass(tree, 'cs-timer-feedback'), undefined)
+  assert.ok(findAllByClass(tree, 'cs-timer-button').every((button) => button.props.disabled))
+  snapshot.busy = false
+  render()
+  assert.equal(timers.size, 0, '快速保存完成取消延迟提示')
+  snapshot.timer = clientTimerView('running', { mode: 'stopwatch' })
+  snapshot.busy = true
+  render()
+  const [id, timeout] = [...timers][0]
+  assert.equal(timeout.delay, 240)
+  timers.delete(id); timeout.callback()
+  tree = render()
+  assert.match(textOf(findByClass(tree, 'cs-timer-state')), /正在保存计时状态/)
+  assert.equal(findByClass(tree, 'cs-timer-feedback'), undefined, '慢保存也不插入新行')
+  assert.equal(findByClass(tree, 'cs-timer-readout').props.identity, modeIdentity, '开始与暂停等状态不重播数字入场')
+  snapshot.busy = false
+  render()
+  tree = render()
+  assert.doesNotMatch(textOf(tree), /正在保存计时状态/)
+  assert.match(textOf(findByClass(tree, 'cs-timer-state')), /计时中/)
+})
+
+test('客户端悬浮窗：四边判定、越界拖动及窄窗重排都保留可达位置', async () => {
+  const { floatingRect, floatingEdge, moveFloatingPosition, normalizeFloatingPosition, floatingDockStyle } = await loadClientFunctions()
+  const viewport = { width: 1440, height: 900 }
+  const size = { width: 224, height: 300 }
+  assert.equal(JSON.stringify(normalizeFloatingPosition({ x: NaN, y: 100 })), JSON.stringify({ x: .97, y: 1 }))
+  for (const [position, edge] of [[{ x: 0, y: .5 }, 'left'], [{ x: 1, y: .5 }, 'right'], [{ x: .5, y: 0 }, 'top'], [{ x: .5, y: 1 }, 'bottom']]) {
+    const rect = floatingRect(position, size, viewport)
+    assert.equal(floatingEdge(rect, viewport), edge)
+    const dock = floatingDockStyle(edge, rect, viewport)
+    assert.ok(dock.left >= 0 && dock.top >= 0 && dock.left + dock.width <= 1440 && dock.top + dock.height <= 900)
+  }
+  assert.equal(floatingEdge(floatingRect({ x: .5, y: .5 }, size, viewport), viewport), null)
+  const moved = moveFloatingPosition({ x: .5, y: .5 }, size, viewport, 100_000, -100_000)
+  assert.equal(JSON.stringify(moved), JSON.stringify({ x: 1, y: 0 }))
+  const narrow = floatingRect(moved, size, { width: 180, height: 200 })
+  assert.ok(narrow.left >= 0 && narrow.top >= 0 && narrow.left + narrow.width <= 180 && narrow.top + narrow.height <= 200)
+})
+
+test('客户端悬浮窗：默认无钟、闲置贴边、靠近恢复，拖动与键盘焦点不会被收起', async (t) => {
+  const timers = new Map()
+  const stored = new Map([['dsh-timespan.floatingPosition', JSON.stringify({ x: 1, y: .5 })]])
+  let nextTimer = 0
+  const document = { activeElement: null }
+  const { React, FloatingTimer, ClockDial, translate } = await loadClientFunctions({
+    innerWidth: 1440, innerHeight: 900, addEventListener() {}, removeEventListener() {},
+    localStorage: { getItem: (key) => stored.get(key), setItem: (key, value) => stored.set(key, value) },
+  }, { document,
+    setTimeout(callback, delay) { assert.equal(delay, 3000); const id = ++nextTimer; timers.set(id, callback); return id },
+    clearTimeout(id) { timers.delete(id) },
+  })
+  t.after(() => React.unmount())
+  const snapshot = { timer: clientTimerView('idle'), busy: false, syncError: false, actionError: '', receivedAt: Date.now() }
+  const props = { client: {}, snapshot, t: translate }
+  const render = () => {
+    const tree = React.render(FloatingTimer, props)
+    tree.props.ref.current = { contains: () => false }
+    findByClass(tree, 'cs-floating-content').props.ref.current = { getBoundingClientRect: () => ({ width: 224, height: 220 }) }
+    React.flushEffects()
+    return tree
+  }
+  render()
+  let tree = render()
+  assert.equal(timers.size, 1)
+  ;[...timers.values()][0]()
+  tree = render()
+  assert.equal(tree.props['data-dock'], 'right')
+  tree.props.onPointerEnter({ pointerType: 'mouse' })
+  tree = render()
+  assert.equal(tree.props['data-dock'], 'none')
+  assert.ok(findByClass(tree, 'cs-floating-panel'))
+  assert.equal(findAll(tree, (node) => node.type === ClockDial).length, 0, '默认仅显示计时')
+  assert.equal(timers.size, 0, '悬浮窗有鼠标时不收起')
+  props.showClock = true
+  tree = render()
+  assert.equal(findAll(tree, (node) => node.type === ClockDial).length, 1)
+  tree.props.onPointerLeave()
+  tree = render()
+  assert.equal(timers.size, 1)
+  tree.props.onFocus({ target: { matches: () => true, tagName: 'BUTTON' } })
+  tree = render()
+  assert.equal(timers.size, 0, '键盘操作时不收起')
+  tree.props.onPointerDownCapture({ target: { tagName: 'BUTTON' } })
+  tree = render()
+  assert.equal(timers.size, 1, '切回鼠标后可恢复闲置贴边')
+  tree.props.onKeyDown({ key: ' ' })
+  tree = render()
+  assert.equal(timers.size, 0, '按钮已被鼠标聚焦后改用键盘，即使没有新 focus 事件也不收起')
+  const target = { setPointerCapture() {}, hasPointerCapture: () => false }
+  const pointer = { button: 0, pointerId: 1, clientX: 1000, clientY: 300, currentTarget: target, preventDefault() {} }
+  findByClass(tree, 'cs-floating-grip').props.onPointerDown(pointer)
+  tree = render()
+  const startLeft = tree.props.style.left
+  findByClass(tree, 'cs-floating-grip').props.onPointerMove({ ...pointer, clientX: 650, clientY: 400 })
+  tree = render()
+  assert.ok(tree.props.style.left < startLeft)
+  assert.equal(timers.size, 0, '拖动中不收起')
+  findByClass(tree, 'cs-floating-grip').props.onPointerUp(pointer)
+  tree = render()
+  assert.ok(JSON.parse(stored.get('dsh-timespan.floatingPosition')).x < 1, '松手保存布局位置')
+  findByClass(tree, 'cs-floating-grip').props.onPointerDown(pointer)
+  tree = render()
+  const originalLeft = tree.props.style.left
+  findByClass(tree, 'cs-floating-grip').props.onPointerMove({ ...pointer, clientX: 500 })
+  tree = render()
+  findByClass(tree, 'cs-floating-grip').props.onPointerCancel(pointer)
+  tree = render()
+  assert.equal(tree.props.style.left, originalLeft, '取消拖动恢复原位')
+  tree.props.onKeyDown({ key: 'Escape', preventDefault() {}, stopPropagation() {} })
+  render() // 退出 effect 完成后才卸载面板；替身没有动画 API，直接进入下一次渲染。
+  tree = render()
+  assert.ok(findByClass(tree, 'cs-floating-entry'))
+  assert.equal(findByClass(tree, 'cs-floating-panel'), undefined)
+})
+
+test('客户端悬浮窗：其他窗口改时钟设置后聚焦重读，迟到响应和卸载不残留', async (t) => {
+  const host = scriptedClientRpc()
+  const windowListeners = new Map()
+  const documentListeners = new Map()
+  const document = { visibilityState: 'visible',
+    addEventListener: (name, fn) => documentListeners.set(name, fn),
+    removeEventListener: (name) => documentListeners.delete(name),
+  }
+  const { React, TimerOverlay, FloatingTimer } = await loadClientFunctions({
+    addEventListener: (name, fn) => windowListeners.set(name, fn),
+    removeEventListener: (name) => windowListeners.delete(name),
+  }, { document })
+  t.after(() => React.unmount())
+  const props = { ctx: host.ctx, conversation: true, client: { snapshot: () => ({ notice: null }), subscribe: () => () => {} } }
+  const render = () => { const tree = React.render(TimerOverlay, props); React.flushEffects(); return tree }
+  const shown = () => findAll(render(), (node) => node.type === FloatingTimer)[0].props.showClock
+  render()
+  host.take('getSettings').success({ floatingShowClock: true })
+  await new Promise(setImmediate)
+  assert.equal(shown(), true)
+  windowListeners.get('focus')()
+  const older = host.take('getSettings')
+  documentListeners.get('visibilitychange')()
+  host.take('getSettings').success({ floatingShowClock: false })
+  await new Promise(setImmediate)
+  older.success({ floatingShowClock: true })
+  await new Promise(setImmediate)
+  assert.equal(shown(), false, '新的 Host 偏好优先，迟到读取不能恢复旧值')
+  React.unmount()
+  assert.equal(windowListeners.size, 0)
+  assert.equal(documentListeners.size, 0)
+})
+
+test('客户端悬浮窗：关闭偏好无首帧闪现，退出失败可重试，迟到读取不能重新打开', async (t) => {
+  const host = scriptedClientRpc()
+  const listeners = new Map()
+  const { React, TimerOverlay, FloatingTimer } = await loadClientFunctions({
+    addEventListener: (name, fn) => listeners.set(name, fn), removeEventListener: (name) => listeners.delete(name),
+  }, { document: { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} } })
+  t.after(() => React.unmount())
+  const props = { ctx: host.ctx, conversation: true, client: {
+    snapshot: () => ({ notice: { blocked: false } }), subscribe: () => () => {},
+    control() { assert.fail('退出浮窗不得控制计时状态') },
+  } }
+  const render = () => { const tree = React.render(TimerOverlay, props); React.flushEffects(); return tree }
+  const floating = (tree) => findAll(tree, (node) => node.type === FloatingTimer)[0]
+  assert.equal(floating(render()), undefined, '读取关闭偏好前不闪出浮窗')
+  host.take('getSettings').success({ floatingEnabled: false })
+  await new Promise(setImmediate)
+  assert.equal(floating(render()), undefined)
+  assert.ok(findByClass(render(), 'cs-timer-notice'), '隐藏浮窗不隐藏到期提醒')
+  listeners.get('focus')()
+  host.take('getSettings').success({ floatingEnabled: true, floatingShowClock: true })
+  await new Promise(setImmediate)
+  assert.equal(floating(render()).props.showClock, true)
+  const firstExit = floating(render()).props.onExit()
+  const failed = host.take('setSettings')
+  assert.deepEqual(JSON.parse(JSON.stringify(failed.payload)), { floatingEnabled: false })
+  failed.fail('storage-error')
+  await firstExit
+  assert.equal(floating(render()).props.exitError, true, '保存失败保留浮窗和重试入口')
+  listeners.get('focus')()
+  const stale = host.take('getSettings')
+  const retry = floating(render()).props.onExit()
+  host.take('setSettings').success({ floatingEnabled: false, floatingShowClock: true })
+  await retry
+  stale.success({ floatingEnabled: true })
+  await new Promise(setImmediate)
+  assert.equal(floating(render()), undefined, '退出成功后忽略先前读取')
+  assert.ok(findByClass(render(), 'cs-timer-notice'))
+})
+
+test('客户端悬浮窗：异步退出期间离开并返回会话，完成后读回关闭偏好', async (t) => {
+  const host = scriptedClientRpc()
+  const { React, TimerOverlay, FloatingTimer } = await loadClientFunctions({
+    addEventListener() {}, removeEventListener() {},
+  }, { document: { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} } })
+  t.after(() => React.unmount())
+  const props = { ctx: host.ctx, conversation: true, client: {
+    snapshot: () => ({ notice: { blocked: false } }), subscribe: () => () => {},
+    control() { assert.fail('关闭显示不得停止计时') },
+  } }
+  const render = () => { const tree = React.render(TimerOverlay, props); React.flushEffects(); return tree }
+  const floating = (tree) => findAll(tree, (node) => node.type === FloatingTimer)[0]
+  render()
+  host.take('getSettings').success({ floatingEnabled: true })
+  await new Promise(setImmediate)
+  const exiting = floating(render()).props.onExit()
+  const write = host.take('setSettings')
+  props.conversation = false
+  render()
+  props.conversation = true
+  render()
+  write.success({ floatingEnabled: false })
+  await exiting
+  host.take('getSettings').success({ floatingEnabled: false })
+  await new Promise(setImmediate)
+  assert.equal(floating(render()), undefined, '不等待下一次聚焦即可反映已保存的关闭状态')
+  assert.ok(findByClass(render(), 'cs-timer-notice'), '关闭不影响到期提醒')
+})
+
+test('客户端模型设置：读取原生目录，失效选择保留并可刷新', async (t) => {
+  const host = scriptedClientRpc()
+  const { React, TimeToolsSettings, translate, Select } = await loadClientFunctions()
+  t.after(() => React.unmount())
+  const changes = []
+  const props = { ctx: host.ctx, t: translate, busy: false,
+    draft: { analysisProvider: 'legacy', analysisModel: 'legacy-model', timerSound: false },
+    onPatch: (key, value) => changes.push([key, value]),
+  }
+  const render = () => { const tree = React.render(TimeToolsSettings, props); React.flushEffects(); return tree }
+  render()
+  const models = [{ id: 'new', name: 'New provider', models: [{ id: 'm', name: 'Model M' }] }]
+  host.take('getAnalysisModels').success({ groups: models, failures: [{ id: 'legacy', name: 'Legacy Provider' }] })
+  await new Promise(setImmediate)
+  let tree = render()
+  const controls = findAll(tree, (node) => node.type === Select)
+  assert.equal(controls[0].props.value, 'legacy')
+  assert.equal(controls[1].props.value, 'legacy-model')
+  assert.equal(controls[1].props.disabled, true)
+  assert.match(textOf(tree), /当前 Provider 暂不可用.*Legacy Provider/)
+  assert.deepEqual(changes, [], '检测失效不自动改设置')
+  findByClass(tree, 'cs-model-catalog-refresh').props.onClick()
+  render()
+  host.take('getAnalysisModels').success({ groups: [...models, { id: 'legacy', models: [{ id: 'legacy-model' }] }], failures: [] })
+  await new Promise(setImmediate)
+  tree = render()
+  assert.equal(findAll(tree, (node) => node.type === Select)[1].props.disabled, false)
+  const toggles = findAll(tree, (node) => node.props?.type === 'checkbox')
+  assert.equal(toggles[0].props.checked, true)
+  assert.equal(toggles[1].props.checked, false)
+  toggles[0].props.onChange({ target: { checked: false } })
+  assert.deepEqual(changes.at(-1), ['floatingEnabled', false])
+  assert.doesNotMatch(textOf(tree), /当前 Provider 暂不可用/)
+})
+
+function analysisPageWithSlots(tree) {
+  const header = findAll(tree, node => node.type?.name === 'AnalysisReportHeader')[0]
+  return { ...tree, children: [...tree.children, header?.props.context, header?.props.messages, header?.props.generationControl] }
+}
+
+test('客户端 AI 分析：固定请求范围，切周期可取消，在失败后保留对应周期的旧报告', async (t) => {
+  const host = scriptedClientRpc()
+  const { React, AnalysisPage, AnalysisReport, translate, Select } = await loadClientFunctions()
+  t.after(() => React.unmount())
+  const from = Date.now() - 1000 * 60 * 60
+  const source = { sessionId: 's1', sessionTitle: '写重构', workspaceId: 'w1' }
+  const report = { id: 'old', period: 'day', summary: '上一份分析', from, to: from + 500,
+    provider: 'p', model: 'm', generatedAt: from + 1000, content: { work: [{ text: '读取工作记录', sourceIds: ['s1'] }] },
+    sources: [source], coverage: { totalSessions: 1, readSessions: 1, includedSessions: 1 } }
+  const reports = { day: report, week: null, month: null }
+  const workspaces = [{ key: 'w1', workspaceTitle: '项目甲', sessions: [source] }]
+  let refreshedModels = 0
+  const props = { ctx: host.ctx, t: translate, period: 'day', modelChoice: { provider: 'p', model: 'm' },
+    data: { period: 'day', range: { from }, workspaces }, onOpenSettings() {}, onOpenSource: () => true,
+    onRetryModel() { refreshedModels += 1; props.modelChoice = { provider: 'new-p', model: 'new-m' } },
+    onSelectPeriod(period) { props.period = period; props.data = { ...props.data, period } },
+  }
+  const render = () => { const tree = analysisPageWithSlots(React.render(AnalysisPage, props)); React.flushEffects(); return tree }
+  const settle = async () => { await new Promise(setImmediate); return render() }
+  const select = (tree, label) => findAll(tree, (node) => node.type === Select && node.props.ariaLabel === translate(label))[0]
+  const button = (tree, label) => findAll(tree, (node) => node.props.label === translate(label) || node.type === 'button' && textOf(node) === translate(label))[0]
+  const loadingIdentity = findByClass(render(), 'cs-review-content').props.identity
+  host.take('getAnalysisState').success({ phase: 'idle', request: null, reports })
+  let tree = await settle()
+  assert.equal(findByClass(tree, 'cs-review-content').props.identity, loadingIdentity, '异步读取成功不会触发正文重复入场')
+  assert.equal(findAll(tree, (node) => node.type === AnalysisReport)[0].props.report.summary, '上一份分析')
+  select(tree, 'analysisWorkspace').props.onChange('w1')
+  tree = render()
+  select(tree, 'analysisSession').props.onChange('s1')
+  tree = render()
+  assert.equal(findAll(tree, (node) => node.type === AnalysisReport)[0].props.scopeChanged, true)
+  assert.match(textOf(tree), /将所选范围的统计与会话内容交给 p \/ m 分析/)
+  button(tree, 'analysisRegenerate').props.onClick()
+  const started = host.take('generateAnalysis')
+  assert.equal(JSON.stringify(started.payload), JSON.stringify({ period: 'day', workspaceId: 'w1', sessionId: 's1', expectedProvider: 'p', expectedModel: 'm' }))
+  const request = { ...started.payload, from, to: from + 1500, provider: 'p', model: 'm' }
+  started.success({ phase: 'collecting', request, progress: { read: 1, total: 2 }, reports })
+  tree = await settle()
+  assert.equal(select(tree, 'analysisWorkspace').props.disabled, true)
+  assert.match(textOf(findByClass(tree, 'cs-analysis-status')), /1\/2.*项目甲 \/ 写重构/)
+  button(tree, 'cycleWeek').props.onClick()
+  tree = render()
+  assert.notEqual(findByClass(tree, 'cs-review-content').props.identity, loadingIdentity, '用户切换周期仍触发内容转场')
+  assert.match(textOf(findByClass(tree, 'cs-analysis-status')), /本次分析范围 · 今日/)
+  assert.equal(findAll(tree, (node) => node.type === AnalysisReport).length, 0, '其它周期不显示今日报告')
+  button(tree, 'analysisCancel').props.onClick()
+  host.take('cancelAnalysis').success({ phase: 'cancelled', request, reports })
+  tree = await settle()
+  host.take('getAnalysisState').success({ phase: 'cancelled', request, reports })
+  tree = await settle()
+  button(tree, 'cycleToday').props.onClick()
+  tree = render()
+  button(tree, 'analysisRegenerate').props.onClick()
+  host.take('generateAnalysis').success({ phase: 'failed', request, reports, error: { code: 'generation-failed' } })
+  tree = await settle()
+  assert.match(textOf(tree), /报告生成失败/)
+  assert.equal(findAll(tree, (node) => node.type === AnalysisReport)[0].props.report.id, 'old')
+  button(tree, 'analysisRetryGenerate').props.onClick()
+  host.take('generateAnalysis').fail('analysis-model-changed')
+  tree = await settle()
+  host.take('getAnalysisState').success({ phase: 'failed', request, reports, error: { code: 'generation-failed' } })
+  tree = await settle()
+  assert.equal(refreshedModels, 1)
+  assert.match(textOf(tree), /分析模型已更新/)
+  assert.match(textOf(tree), /new-p \/ new-m/)
+  assert.equal(host.requests.length, 0, '显示新模型后由用户再次启动')
+  assert.equal(findAll(tree, (node) => node.type === AnalysisReport)[0].props.report.id, 'old')
+})
+
+test('客户端 AI 报告：模型内容按文本展示，只能打开 Host 声明过的来源会话', async () => {
+  const { AnalysisReport, translate } = await loadClientFunctions()
+  const source = { sessionId: 'source', sessionTitle: '会话 $&' }
+  const opened = []
+  const time = Date.now()
+  const text = '<img src=x onerror=alert(1)>'
+  const report = { summary: text, from: time - 1000, to: time, provider: 'p', model: 'm', generatedAt: time,
+    content: { statistics: text, work: [{ text, sourceIds: ['unknown', 'source'] }], suggestions: text },
+    coverage: { totalSessions: 2, readSessions: 1, includedSessions: 1, failedSessions: 1, truncated: true }, sources: [source] }
+  const tree = AnalysisReport({ report, scopeChanged: true, t: translate, onOpenSource: (value) => opened.push(value) })
+  assert.ok(textOf(tree).includes(text))
+  assert.equal(findAll(tree, (node) => node.type === 'img' || 'dangerouslySetInnerHTML' in node.props).length, 0)
+  assert.match(textOf(tree), /1 个会话读取失败.*部分内容已截取/)
+  assert.match(textOf(findByClass(tree, 'cs-analysis-failures')), /这份报告仅保存了失败数量/)
+  const citations = findAllByClass(tree, 'cs-analysis-source')
+  assert.equal(citations.length, 2, '正文引用和来源列表均指向同一个合法会话')
+  assert.equal(citations[0].props['aria-label'], '打开来源会话 会话 $&')
+  citations[0].props.onClick()
+  assert.deepEqual(opened, [source])
+  const emptySuggestions = AnalysisReport({ report: { ...report, content: { ...report.content, suggestions: '' } }, t: translate })
+  assert.doesNotMatch(textOf(emptySuggestions), /变化线索与建议/)
+})
+
+test('客户端 AI 报告：失败详情显示会话和原因，选择后返回范围筛选并等待手动生成', async (t) => {
+  const host = scriptedClientRpc()
+  const { React, AnalysisPage, AnalysisReport, translate, Select } = await loadClientFunctions()
+  t.after(() => React.unmount())
+  const from = Date.now() - 30_000
+  const failedSessions = [
+    { sessionId: 's1', sessionTitle: '正在调试', workspaceId: 'w1', workspaceTitle: '项目甲', reason: 'invalid-record' },
+    { sessionId: 's2', sessionTitle: '历史归档', workspaceId: 'w2', workspaceTitle: '项目乙', reason: 'missing' },
+    { sessionId: 's3', sessionTitle: '临时不可读', reason: 'unavailable' },
+    { sessionId: 's4', sessionTitle: '未知异常', reason: 'other' },
+  ]
+  const report = { id: 'last', period: 'day', summary: '已有报告', from, to: from + 1000, provider: 'p', model: 'm',
+    generatedAt: from + 1500, coverage: { failedSessions: 5, failedSources: failedSessions } }
+  const reports = { day: report, week: null, month: null }
+  const props = { ctx: host.ctx, t: translate, period: 'day', modelChoice: { provider: 'p', model: 'm' },
+    data: { period: 'day', range: { from }, workspaces: [{ key: 'w1', workspaceTitle: '项目甲', sessions: [failedSessions[0]] }] },
+    onOpenSource(source) { opened.push(source); return false },
+  }
+  const opened = []
+  let focused = 0
+  let scrolled = 0
+  const render = () => {
+    const tree = analysisPageWithSlots(React.render(AnalysisPage, props))
+    const toolbar = findByClass(tree, 'cs-analysis-toolbar')
+    if (toolbar) toolbar.props.ref.current = { focus() { focused += 1 }, scrollIntoView() { scrolled += 1 } }
+    React.flushEffects()
+    return tree
+  }
+  const viewReport = (tree) => AnalysisReport(findAll(tree, (node) => node.type === AnalysisReport)[0].props)
+  const valueFor = (tree, label) => findAll(tree, (node) => node.type === Select && node.props.ariaLabel === translate(label))[0].props.value
+  render()
+  host.take('getAnalysisState').success({ phase: 'succeeded', request: null, reports })
+  await new Promise(setImmediate)
+  let tree = render()
+  const details = findByClass(viewReport(tree), 'cs-analysis-failures')
+  assert.equal(details.type, 'details')
+  assert.match(textOf(details.children[0]), /5 个会话读取失败/)
+  const rows = findAllByClass(details, 'cs-analysis-failure-item')
+  assert.equal(rows.length, 4)
+  assert.match(textOf(rows[0]), /正在调试.*项目甲 · 记录格式异常/)
+  assert.match(textOf(rows[1]), /历史归档.*未找到记录.*当前周期的筛选项中没有该会话/)
+  assert.match(textOf(rows[2]), /暂时无法读取/)
+  assert.match(textOf(rows[3]), /读取失败的原因未记录/)
+  assert.match(textOf(details), /另外 1 个失败会话未列出/)
+  assert.equal(findAllByClass(rows[1], 'cs-analysis-failure-select').length, 0)
+  findByClass(rows[1], 'cs-analysis-failure-open').props.onClick()
+  assert.deepEqual(opened, [failedSessions[1]])
+  assert.match(textOf(viewReport(render())), /暂时无法打开来源会话 历史归档/)
+
+  findByClass(rows[0], 'cs-analysis-failure-select').props.onClick()
+  tree = render()
+  assert.equal(valueFor(tree, 'analysisWorkspace'), 'w1')
+  assert.equal(valueFor(tree, 'analysisSession'), 's1')
+  assert.ok(focused >= 1)
+  assert.equal(scrolled, 1)
+  assert.equal(host.requests.length, 0, '切换范围不会自动开始分析')
+  assert.match(textOf(viewReport(tree)), /上一份报告.*已有报告/)
+  const button = findAll(tree, (node) => node.props.label === translate('analysisRegenerate'))[0]
+  button.props.onClick()
+  const generate = host.take('generateAnalysis')
+  assert.equal(generate.payload.sessionId, 's1')
+  assert.equal(generate.payload.workspaceId, 'w1')
+  assert.equal(findByClass(viewReport(render()), 'cs-analysis-failure-select').props.disabled, true)
+})
 
 /** 取出指定 max-width 媒体查询里的全部规则，按大括号层级切分。 */
 function mediaBlocks(css, maxWidth) {
@@ -1122,8 +1754,7 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与派生色�
   assert.doesNotMatch(css, /\.cs-card-heading \.cs-info-tip/, '窄屏 left:-80px 死规则已删，改由视口夹取')
   assert.match(css, /\.cs-overview-grid \.cs-card-heading,\s*\.cs-trend-layout \.cs-card-heading,\s*\.cs-trend-bottom \.cs-card-heading\s*\{[^}]*top:\s*-4px/, '概览与趋势区块的标题文字整体上提 4px')
   assert.doesNotMatch(css, /\.cs-overview-grid \.cs-card-head,\s*\.cs-trend-layout \.cs-card-head,\s*\.cs-trend-bottom \.cs-card-head\s*\{[^}]*position:\s*relative/, '卡片头不成为缩放按钮的定位参照')
-  assert.match(css, /@keyframes viewIn\s*\{\s*from\s*\{\s*opacity:/, '视图入场只动 opacity')
-  assert.doesNotMatch(css, /@keyframes viewIn\s*\{[^}]*\btransform\b/, '入场不再保留 transform，避免 fixed 浮层定位错乱')
+  assert.doesNotMatch(declarationsFor(css, '.cs-view'), /\btransform:/, '视图不创建额外的 fixed 浮层定位参照')
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/)
   assert.match(css, /--cs-dur-tap\s*:\s*160ms/)
   assert.doesNotMatch(css, /#315878|#285642|#78947c|#96543f|#7492a8|#73797b/i, '旧的灰绿配色值不得残留')
@@ -1133,7 +1764,7 @@ test('客户端：概览整页滚轮滚动，子模块不出现内部竖滚', as
   const { dshTimespanCss } = await loadClientFunctions()
   const css = dshTimespanCss()
   const settingsCss = await loadSettingsCss()
-  assert.doesNotMatch(css, /100dvh/, '根容器不固定视口高度')
+  assert.doesNotMatch(declarationsFor(css, '.cs-page'), /100dvh/, '根容器不固定视口高度')
   assert.match(declarationsFor(css, '.cs-page'), /overflow:\s*auto/, '整页由 .cs-page 自己滚动')
   assert.doesNotMatch(css, /grid-auto-rows:\s*minmax\(0,\s*1fr\)/, '隐式行不被压成 1fr，全年跨行时自然撑高')
   assert.match(declarationsFor(css, '.cs-shell'), /gap:\s*8px/, '顶栏与标签间距收到 8px')
@@ -1191,7 +1822,7 @@ test('客户端：图表活跃与任务使用可区分的设计 token', async ()
   assert.ok(fills.every((fill) => typeof fill === 'string' && fill.startsWith('var(--cs-')), '图表只使用设计 token 着色')
 })
 
-test('客户端：ⓘ 说明改为鼠标悬浮与键盘聚焦触发，浮层紧贴图标下方', async () => {
+test('客户端：ⓘ 悬停、聚焦与点击显示，说明保留完整语义且不带句末句号', async () => {
   const { Info, React, clampTipPosition } = await loadClientFunctions()
   const message = '实际占用：多会话重叠时段只计一次；在线时长包含挂机时间。'
   const tree = React.render(Info, { message })
@@ -1199,17 +1830,17 @@ test('客户端：ⓘ 说明改为鼠标悬浮与键盘聚焦触发，浮层紧�
   assert.equal(findByClass(tree, 'cs-info').type, 'span')
   assert.equal(button.type, 'button')
   assert.equal(button.props.type, 'button')
-  assert.equal(button.props['aria-label'], message, 'aria 名称必须是完整说明')
+  assert.equal(button.props['aria-label'], message.slice(0, -1), 'aria 名称与显示内容都去掉句末句号')
   assert.equal(typeof button.props.onMouseEnter, 'function', '悬停触发')
   assert.equal(typeof button.props.onMouseLeave, 'function', '移出收起')
   assert.equal(typeof button.props.onFocus, 'function', '键盘聚焦触发')
   assert.equal(typeof button.props.onBlur, 'function', '失焦收起')
-  assert.equal(button.props.onClick, undefined, '不再用点击切换')
+  assert.equal(typeof button.props.onClick, 'function', '点击也能查看说明，不切换为固定浮层')
   assert.equal(button.props.onKeyDown, undefined, 'Esc 收起由文档级监听处理')
   assert.equal(button.props['aria-expanded'], undefined, '悬浮浮层不再冒充可展开控件')
   const tip = findByClass(tree, 'cs-info-tip')
   assert.equal(tip.props.role, 'tooltip')
-  assert.equal(textOf(tip), message)
+  assert.equal(textOf(tip), message.slice(0, -1))
   assert.equal(typeof tip.props.style.left, 'string', '浮层用内联 left 定位')
   assert.equal(typeof tip.props.style.top, 'string', '浮层用内联 top 定位（clampTipPosition 计算）')
   assert.equal(tip.props['data-placement'], 'bottom', '默认紧贴图标下方')
@@ -1220,7 +1851,7 @@ test('客户端：ⓘ 说明改为鼠标悬浮与键盘聚焦触发，浮层紧�
   })
   const legendTip = findByClass(withLegend, 'cs-info-tip')
   assert.equal(textOf(legendTip), '低 → 高', '有图例时浮层仅显示图例')
-  assert.equal(findAll(withLegend, (node) => node.type === 'button')[0].props['aria-label'], message)
+  assert.equal(findAll(withLegend, (node) => node.type === 'button')[0].props['aria-label'], message.slice(0, -1))
 
   // 默认贴图标下方 4px；底部贴边且上方放得下时翻到上方，仍然留 4px 间隙。
   const size = { width: 200, height: 60 }
@@ -1870,6 +2501,11 @@ test('客户端：侧栏状态、状态点与时长进入设置草稿、保存�
     sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
+    analysisProvider: '',
+    analysisModel: '',
+    timerSound: true,
+    floatingEnabled: true,
+    floatingShowClock: false,
   }), '保存时提交侧栏状态、状态点、侧栏时长、界面语言与数字格式')
 
   const defaults = {
@@ -2075,7 +2711,7 @@ test('客户端：设置页通知记录可回看已读事件并显示累计条�
   assert.equal(textOf(renderBackfillNotices(normalizeBackfill({ status: 'done' }), t)), '暂无通知记录')
 })
 
-test('客户端：统一 formatDuration 输出五档，非法值与负数安全回落', async () => {
+test('客户端：统一 formatDuration 输出六档，非法值与负数安全回落', async () => {
   const { formatDuration, normalizeDurationFormat } = await loadClientFunctions()
   const ms = 2 * 3_600_000 + 48 * 60_000 + 16_000
   assert.equal(formatDuration(ms), '2h 48m', '缺省使用紧凑单位')
@@ -2084,6 +2720,9 @@ test('客户端：统一 formatDuration 输出五档，非法值与负数安全�
   assert.equal(formatDuration(ms, 'zh'), '2 小时 48 分')
   assert.equal(formatDuration(ms, 'sec'), '10096 秒')
   assert.equal(formatDuration(ms, 'padded'), '02:48:16')
+  assert.equal(formatDuration(ms, 'decimal'), '2.80 h')
+  assert.equal(formatDuration(18_000, 'decimal'), '0.01 h')
+  assert.equal(formatDuration(-1, 'decimal'), '0.00 h')
   assert.equal(formatDuration(48 * 60_000 + 16_000, 'short'), '48m 16s')
   assert.equal(formatDuration(48 * 60_000 + 16_000, 'zh'), '48 分 16 秒')
   assert.equal(formatDuration(0, 'hms'), '0:00:00')
@@ -2100,7 +2739,7 @@ test('客户端：统一 formatDuration 输出五档，非法值与负数安全�
   assert.equal(normalizeDurationFormat('bogus'), 'short')
 })
 
-test('客户端：设置草稿包含数字格式，五档紧凑选项条与预览可用，预览事件广播并支持退订', async () => {
+test('客户端：设置草稿包含数字格式，六档紧凑选项条与预览可用，预览事件广播并支持退订', async () => {
   const {
     settingsDraft,
     renderDurationFormatSection,
@@ -2127,18 +2766,18 @@ test('客户端：设置草稿包含数字格式，五档紧凑选项条与预�
     formatHintShort: '紧凑单位',
     formatHintZh: '中文单位',
     formatHintSec: '纯秒',
-    formatHintPadded: '补零时钟',
+    formatHintPadded: '补零时钟', formatHintDecimal: '小数小时',
     formatPreviewLabel: '预览 · 2:48:16 显示为',
   }
   const t = (key) => labels[key] ?? key
   const picked = []
   const section = renderDurationFormatSection(t, 'zh', { onSelect: (value) => picked.push(value) })
   const optionButtons = allOf(section, byClass('cs-format-opt'))
-  assert.equal(optionButtons.length, 5, '五档格式始终同时可见')
+  assert.equal(optionButtons.length, 6, '六档格式始终同时可见')
   const checked = optionButtons.filter((button) => button.props['aria-checked'] === true)
   assert.equal(checked.length, 1, '只有一个格式处于选中态')
   assert.match(textOf(checked[0]), /2 小时 48 分/, '中文单位卡片给出真实样例')
-  assert.equal(allOf(section, byClass('cs-format-divider')).length, 5, '每张格式卡在数字与中文说明之间都有竖线分隔')
+  assert.equal(allOf(section, byClass('cs-format-divider')).length, 6, '每张格式卡在数字与中文说明之间都有竖线分隔')
   assert.equal(allOf(checked[0], byClass('cs-format-divider')).length, 1, '选中卡片同样保留竖线')
   assert.match(textOf(allOf(section, byClass('cs-format-preview'))[0]), /预览 · 2:48:16 显示为\s*2 小时 48 分/, '预览行跟随当前草稿')
   assert.equal(allOf(section, byClass('cs-format-preview-value'))[0].props['data-format'], 'zh', '预览时间标记当前格式，切换时重新播放换字动画')
@@ -2286,10 +2925,10 @@ test('客户端：图表、排行与明细的渲染调用点使用传入格式',
   assert.match(sessionText, /30m 0s/, '会话任务时长使用当前格式')
 })
 
-test('客户端：视图名归一化只接受四视图，非法值回落概览', async () => {
+test('客户端：视图名归一化只接受五视图，非法值回落概览', async () => {
   const { normalizeView } = await loadClientFunctions()
   assert.equal(typeof normalizeView, 'function')
-  for (const value of ['overview', 'trend', 'details', 'settings']) {
+  for (const value of ['overview', 'trend', 'details', 'settings', 'analysis']) {
     assert.equal(normalizeView(value), value, `${value} 是合法视图`)
   }
   for (const value of ['bogus', '', null, undefined, 'Overview', 0, {}]) {
@@ -2302,19 +2941,19 @@ test('客户端：tab 键盘索引支持左右循环与 Home/End', async () => {
   assert.equal(typeof nextTabIndex, 'function')
   assert.equal(nextTabIndex(0, 'ArrowRight'), 1)
   assert.equal(nextTabIndex(1, 'ArrowRight'), 2)
-  assert.equal(nextTabIndex(3, 'ArrowRight'), 0, '右方向键从最后一项循环到第一项')
-  assert.equal(nextTabIndex(0, 'ArrowLeft'), 3, '左方向键从第一项循环到最后一项')
+  assert.equal(nextTabIndex(4, 'ArrowRight'), 0, '右方向键从最后一项循环到第一项')
+  assert.equal(nextTabIndex(0, 'ArrowLeft'), 4, '左方向键从第一项循环到最后一项')
   assert.equal(nextTabIndex(2, 'ArrowLeft'), 1)
   assert.equal(nextTabIndex(2, 'Home'), 0)
-  assert.equal(nextTabIndex(1, 'End'), 3)
+  assert.equal(nextTabIndex(1, 'End'), 4)
   assert.equal(nextTabIndex(2, 'Enter'), 2, '其它按键保持当前项')
 })
 
-test('客户端：分段导航渲染四个 tab、移动滑块与 roving tabindex', async () => {
+test('客户端：分段导航渲染五个 tab、移动滑块与 roving tabindex', async () => {
   const { TabNav, React } = await loadClientFunctions()
   assert.equal(typeof TabNav, 'function')
   const labels = {
-    tabOverview: '概览', tabTrend: '趋势', tabDetails: '会话', tabSettings: '设置',
+    tabOverview: '概览', tabTrend: '趋势', tabDetails: '会话', tabSettings: '设置', tabAnalysis: '回顾',
     tabsLabel: 'dsh-timespan 页面',
   }
   const t = (key) => labels[key] ?? key
@@ -2325,10 +2964,10 @@ test('客户端：分段导航渲染四个 tab、移动滑块与 roving tabindex
   assert.ok(nav, '导航以 tablist 呈现')
   assert.equal(nav.props['aria-label'], 'dsh-timespan 页面')
   const tabs = findAll(tree, (node) => node.props?.role === 'tab')
-  assert.equal(tabs.length, 4, '四个同级 tab')
-  assert.deepEqual(tabs.map((tab) => textOf(tab).trim()), ['概览', '趋势', '会话', '设置'])
-  assert.deepEqual(tabs.map((tab) => tab.props['aria-selected']), [false, true, false, false])
-  assert.deepEqual(tabs.map((tab) => tab.props.tabIndex), [-1, 0, -1, -1], '激活项 0，其余 -1')
+  assert.equal(tabs.length, 5, '五个同级 tab')
+  assert.deepEqual(tabs.map((tab) => textOf(tab).trim()), ['概览', '趋势', '会话', '回顾', '设置'])
+  assert.deepEqual(tabs.map((tab) => tab.props['aria-selected']), [false, true, false, false, false])
+  assert.deepEqual(tabs.map((tab) => tab.props.tabIndex), [-1, 0, -1, -1, -1], '激活项 0，其余 -1')
   const thumb = findAll(tree, byClass('cs-tab-thumb'))[0]
   assert.ok(thumb, '存在移动滑块')
   assert.match(thumb.props.style.transform, /^translateX\(-?\d+(?:\.\d+)?px\)$/)
@@ -2342,19 +2981,16 @@ test('客户端：分段导航渲染四个 tab、移动滑块与 roving tabindex
   assert.deepEqual(picked, ['details', 'settings', 'overview'], '点击 tab 切到对应视图')
 })
 
-test('客户端：视图转场退出约为进入的 60%，减少动效直接到位', async () => {
+test('客户端：视图退出短于进入，减少动效直接到位', async () => {
   const { viewTransitionDelay, VIEW_ENTER_MS, VIEW_EXIT_MS } = await loadClientFunctions()
-  assert.equal(VIEW_ENTER_MS, 300)
-  assert.equal(VIEW_EXIT_MS, 180)
-  assert.equal(VIEW_EXIT_MS / VIEW_ENTER_MS, 0.6, '退出 180ms 是进入 300ms 的 60%')
-  assert.equal(viewTransitionDelay(false), 180)
+  assert.equal(VIEW_ENTER_MS, 180)
+  assert.equal(VIEW_EXIT_MS, 120)
+  assert.ok(VIEW_EXIT_MS < VIEW_ENTER_MS, '退出更快，不拖延下一次操作')
+  assert.equal(viewTransitionDelay(false), 120)
   assert.equal(viewTransitionDelay(true), 0, 'prefers-reduced-motion 下直接切换')
 
   const css = await loadClientCss()
-  assert.match(css, /@keyframes\s+viewIn/)
-  assert.match(css, /@keyframes\s+viewOut/)
-  assert.match(declarationsFor(css, '.cs-view'), /animation:\s*viewIn/)
-  assert.match(declarationsFor(css, '.cs-view.is-leaving'), /animation:\s*viewOut/)
+  assert.doesNotMatch(declarationsFor(css, '.cs-view'), /transform:/, '保持固定浮层的视口坐标')
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-view/)
 })
 
@@ -2716,7 +3352,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     settingsSectionFormat: '数字格式', settingsFormatHint: '选择后立即预览',
     settingsFormatShared: '侧栏、概览、趋势、会话与导出共用这一格式',
     formatHintHms: '时:分:秒', formatHintShort: '紧凑单位', formatHintZh: '中文单位',
-    formatHintSec: '纯秒', formatHintPadded: '补零时钟', formatPreviewLabel: '预览 · 2:48:16 显示为',
+    formatHintSec: '纯秒', formatHintPadded: '补零时钟', formatHintDecimal: '小数小时', formatPreviewLabel: '预览 · 2:48:16 显示为',
     settingsSectionAppearance: '外观与配色', appearanceLabel: '外观',
     appearanceLight: '浅色', appearanceDark: '深色', appearanceSystem: '跟随系统',
     appearanceToggle: '外观：{mode}，点击切换', paletteLabel: '配色',
@@ -2785,7 +3421,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   assert.match(text, /按 ID 去重合并/, '导入说明常显在按钮旁，不再藏进预览')
   assert.match(text, /恢复初始设置/, '设置页提供恢复初始设置入口')
   assert.doesNotMatch(text, /保存设置/, '即点即存后不再有「保存设置」按钮')
-  assert.equal(allOf(tree, byClass('cs-format-opt')).length, 5, '五个数字格式选项')
+  assert.equal(allOf(tree, byClass('cs-format-opt')).length, 6, '六个数字格式选项')
   const checkboxes = findAll(tree, (node) => node.type === 'input' && node.props?.type === 'checkbox')
   assert.equal(checkboxes.length, 3, '子代理、侧栏状态与状态点三个开关')
   const sidebarNameCheckbox = checkboxes.find((node) => node.props?.['aria-label'] === '侧栏显示状态')
@@ -2804,7 +3440,9 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   const durationSelect = findAll(tree, (node) => node.props?.ariaLabel === '侧栏显示时长')[0]
   assert.equal(durationSelect?.props?.value, 'online', '侧栏显示时长默认在线时长')
   assert.equal(durationSelect?.props?.options?.length, 3, '侧栏显示时长提供三种口径')
-  assert.equal(allOf(tree, byClass('cs-palette-opt')).length, 3, '配色区保留三枚可预览色板')
+  const palettes = allOf(tree, byClass('cs-palette-opt'))
+  assert.equal(palettes.length, 4, '配色区可预览四套色板')
+  assert.ok(palettes.some((node) => hasClass(node, 'cs-palette-coral')), '可直接选择珊瑚橙')
   const appearanceOptions = allOf(tree, byClass('cs-appearance-opt'))
   assert.equal(appearanceOptions.length, 3, '外观区提供浅色、深色、跟随系统三个入口')
   assert.equal(appearanceOptions.find((node) => node.props['aria-pressed'] === true)?.props['aria-label'], '跟随系统', '当前外观有按下态')
@@ -3547,6 +4185,76 @@ test('客户端：热力图全范围复用 Host summary，过滤范围仍按 sco
   assert.doesNotMatch(filteredSummary, /24:00:00/, '过滤范围不复用整段 Host summary')
 })
 
+test('客户端热力图：离开后返回同一范围保留已显示数据，刷新失败也不闪回空态', async (t) => {
+  const requests = []
+  const { React, useDailySeries } = await loadClientFunctions({}, { setInterval: () => 1, clearInterval() {} })
+  const ctx = { get: () => ({ rpc: { call(_path, _channel, request) {
+    assert.equal(request.method, 'queryDailySeries')
+    return new Promise((resolve) => requests.push(resolve))
+  } } }) }
+  let enabled = true
+  let nonce = 0
+  const range = { from: 1000, to: 2000 }
+  const snapshot = { range, days: [{ dateKey: '2026-11-16', activeMs: 100 }] }
+  const render = () => {
+    const state = React.render(() => useDailySeries(ctx, range, 10000, nonce, enabled))
+    React.flushEffects()
+    return state
+  }
+  t.after(() => React.unmount())
+  render()
+  requests[0]({ ok: true, value: snapshot })
+  await new Promise(setImmediate)
+  assert.equal(render().data, snapshot)
+  enabled = false
+  render()
+  enabled = true
+  assert.equal(render().data, snapshot, '返回概览的首帧保留同范围快照')
+  assert.equal(render().data, snapshot, '恢复取数后也不清空热力格')
+  assert.equal(requests.length, 2, '返回后仍然请求最新数据')
+  requests[1]({ ok: false })
+  await new Promise(setImmediate)
+  const failed = render()
+  assert.equal(failed.status, 'error')
+  assert.equal(failed.data, snapshot, '刷新失败保留已有内容')
+  nonce++
+  assert.equal(render().data, snapshot)
+  const nextSnapshot = { ...snapshot, days: [{ ...snapshot.days[0], activeMs: 200 }] }
+  requests[2]({ ok: true, value: nextSnapshot })
+  await new Promise(setImmediate)
+  assert.equal(render().data, nextSnapshot, '成功刷新更新实际数值')
+})
+
+test('客户端热力图：更换范围的首帧不呈现旧数据，迟到响应不会覆盖新范围', async (t) => {
+  const requests = []
+  const { React, useDailySeries } = await loadClientFunctions({}, { setInterval: () => 1, clearInterval() {} })
+  const ctx = { get: () => ({ rpc: { call(_path, _channel, request) {
+    return new Promise((resolve) => requests.push({ range: request.payload, resolve }))
+  } } }) }
+  let range = { from: 1000, to: 2000 }
+  const render = () => {
+    const state = React.render(() => useDailySeries(ctx, range, 10000, 0, true))
+    React.flushEffects()
+    return state
+  }
+  t.after(() => React.unmount())
+  render()
+  requests[0].resolve({ ok: true, value: { range, days: [] } })
+  await new Promise(setImmediate)
+  assert.equal(render().status, 'ready')
+  range = { from: 2000, to: 3000 }
+  assert.equal(render().data, null, '更换范围的首次渲染即隐藏旧序列')
+  range = { from: 3000, to: 4000 }
+  render()
+  requests[1].resolve({ ok: true, value: { range: requests[1].range, days: [] } })
+  await new Promise(setImmediate)
+  assert.equal(render().data, null, '上一范围的迟到响应不再生效')
+  const snapshot = { range, days: [] }
+  requests[2].resolve({ ok: true, value: snapshot })
+  await new Promise(setImmediate)
+  assert.equal(render().data, snapshot)
+})
+
 test('客户端：热力图首屏独立页给出六项范围统计、12 个月度条与退出按钮', async () => {
   const { renderHeatmapFocusPage, Select } = await loadClientFunctions()
   const labels = {
@@ -4267,8 +4975,6 @@ test('客户端：热力图范围复用统一下拉的向上三列菜单与自�
   assert.match(fixed, /width:\s*max-content/, '菜单宽度按选项内容决定')
   assert.doesNotMatch(fixed, /min-width:\s*100%/, 'fixed 菜单不再按视口铺满整页')
   assert.match(fixed, /max-width:\s*min\(360px,\s*calc\(100vw\s*-\s*16px\)\)/, '窄屏下菜单仍有可读边界')
-  const upward = declarationsFor(css, '.cs-select.is-top .cs-select-menu')
-  assert.match(upward, /animation-name:\s*cs-menu-in-top/, '向上偏好只决定入场动画方向')
   assert.doesNotMatch(css, /bottom:\s*calc\(100%\s*\+\s*6px\)/, '不再用 CSS 偏移向上，位置交给视口夹取')
   assert.doesNotMatch(css, /top:\s*calc\(100%\s*\+\s*6px\)/, '不再用 CSS 偏移向下')
   assert.match(declarationsFor(css, '.cs-select'), /position:\s*relative/)
@@ -4900,4 +5606,262 @@ test('客户端：导入反馈汇总 Host 分开的区间与任务数量', async
   const { importResultText, translate } = await loadClientFunctions()
   assert.match(importResultText({ imported: { intervals: 48, tasks: 36 }, skipped: { intervals: 2, tasks: 3 } }, translate), /新增 84 条.*跳过重复 5 条/)
   assert.match(importResultText({ imported: 4, skipped: 1 }, translate), /新增 4 条.*跳过重复 1 条/)
+})
+
+async function loadAnalysisExportFunctions(globals = {}) {
+  const source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
+  const anchor = '    const DSH_TIMESPAN_CSS = `'
+  const React = createTestReact()
+  const window = { __ModuleLoader__: { load: ({ factory }) => factory(() => React) } }
+  vm.runInNewContext(source.replace(anchor, `
+    window.analysisExport = { AnalysisReportHeader, AnalysisReport, AnimatedCollapse, reviewSnapshotView, reviewTextItems, renderReviewPoints, analysisReportMarkdown, analysisReportFilename, formatNoticeTime, translate, applyLanguage };
+${anchor}`), { window, setTimeout, clearTimeout, ...globals })
+  return { ...window.analysisExport, React }
+}
+
+function analysisExportFixture() {
+  const generatedAt = Date.UTC(2026, 10, 16, 3, 22, 10, 42)
+  return {
+    id: 'sample', period: 'week', from: generatedAt - 2_000, to: generatedAt - 1_000, generatedAt,
+    workspaceTitle: '项目 / 跨域', sessionTitle: '回顾 🗓️', provider: 'provider', model: '模型',
+    summary: '交付 🚀\r\n# 标题仍是正文',
+    content: { statistics: '整理 3 项记录。',
+      work: [{ text: '完成互操作。\n复核快照。', sourceIds: ['one', 'unlisted'] }],
+      suggestions: '安排下一次复核。' },
+    sources: [{ sessionId: 'one', sessionTitle: '[会话一]', workspaceTitle: '项目甲' }],
+    coverage: {
+      totalSessions: 5, readSessions: 2, includedSessions: 1, failedSessions: 2, omittedSessions: 2,
+      truncated: true, relatedSessionsUnavailable: true,
+      failedSources: [{ sessionId: 'two', sessionTitle: '会话二', workspaceTitle: '项目乙', reason: 'missing' }],
+    },
+    privateRequest: 'private-request-secret',
+    credentials: 'credential-secret',
+  }
+}
+
+test('回顾阅读：长文可展开、其余观察保留完整，标题与正文只作为文本', async () => {
+  const { renderReviewPoints, translate, reviewTextItems } = await loadAnalysisExportFunctions()
+  const long = `背景：${'长内容与依据。'.repeat(24)}`
+  const input = `${long}\n下一条：保留重点。\n<script>恶意标签</script>\n第四条：不丢失。\n最后一条：也保留。`
+  const tree = renderReviewPoints(input, translate)
+  assert.ok(findAll(tree, byClass('cs-review-more')).length > 0)
+  const text = textOf(tree)
+  for (const item of reviewTextItems(input)) {
+    for (const part of item.split('：')) assert.ok(text.includes(part), '标题与正文仍可读')
+  }
+  assert.equal(findAll(tree, (node) => node.type === 'script').length, 0)
+  const oneLong = '长标题：' + '无句号的长段文字'.repeat(30)
+  assert.equal(findAll(renderReviewPoints(oneLong, translate), byClass('cs-review-long')).length, 1)
+})
+
+test('回顾图表与 Markdown 共用历史快照，时区标签不依赖当前统计，零值不虚构占比', async () => {
+  const { reviewSnapshotView, analysisReportMarkdown, translate, AnalysisReport } = await loadAnalysisExportFunctions()
+  const report = { ...analysisExportFixture(), period: 'day', snapshot: {
+    timeZone: 'Asia/Shanghai', onlineMs: null, activeMs: 0, taskMs: 0, activeSumMs: 0, taskSumMs: 0, taskCount: 0,
+    trend: [{ from: Date.UTC(2026, 10, 16, 1), to: Date.UTC(2026, 10, 16, 2), activeMs: 0, taskMs: 0 }],
+    workspaces: [], omittedWorkspaces: 0, omittedTrendBuckets: 0,
+  } }
+  const snapshot = reviewSnapshotView(report, translate)
+  assert.equal(snapshot.trend[0].label, '09:00')
+  assert.equal(snapshot.workspaceTotal, 0)
+  assert.equal(snapshot.ranked.length, 0)
+  const tree = AnalysisReport({ report, t: translate, onOpenSource() {} })
+  assert.match(textOf(tree), /在线不适用于筛选范围/)
+  assert.match(textOf(tree), /尚无活跃或任务记录/)
+  const markdown = analysisReportMarkdown(report, translate)
+  assert.match(markdown, /在线时长：—/)
+  assert.match(markdown, /09:00/)
+  assert.doesNotMatch(markdown, /NaN|Infinity/)
+  assert.equal(reviewSnapshotView({ ...report, snapshot: undefined }, translate), null)
+})
+
+test('回顾跨时区读取：标题范围、生成时间与 Markdown 使用报告快照时区', async () => {
+  const { AnalysisReport, analysisReportMarkdown, translate } = await loadAnalysisExportFunctions()
+  const report = { ...analysisExportFixture(), period: 'day',
+    from: Date.UTC(2026, 10, 15, 16), to: Date.UTC(2026, 10, 16, 2), generatedAt: Date.UTC(2026, 10, 16, 2, 1, 2),
+    snapshot: { onlineMs: 0, activeMs: 0, taskMs: 0, activeSumMs: 0, taskSumMs: 0, taskCount: 0,
+      trend: [], workspaces: [], omittedWorkspaces: 0, omittedTrendBuckets: 0 },
+  }
+  for (const [timeZone, dates, generatedAt] of [
+    ['Asia/Shanghai', '2026-11-16 00:00:00 – 2026-11-16 10:00:00', '2026-11-16 10:01:02'],
+    ['Pacific/Honolulu', '2026-11-15 06:00:00 – 2026-11-15 16:00:00', '2026-11-15 16:01:02'],
+  ]) {
+    report.snapshot.timeZone = timeZone
+    const tree = AnalysisReport({ report, t: translate, onOpenSource() {} })
+    const header = findAll(tree, (node) => node.type?.name === 'AnalysisReportHeader')[0]
+    assert.equal(header.props.dates, dates)
+    assert.equal(header.props.generatedAt, generatedAt)
+    const markdown = analysisReportMarkdown(report, translate)
+    assert.ok(markdown.includes(dates))
+    assert.ok(markdown.includes(`**生成时间** ${generatedAt}`))
+  }
+})
+
+test('客户端 AI 导出：Markdown 保留报告正文、实际范围、出处和缺失覆盖，文件名安全稳定', async () => {
+  const { analysisReportMarkdown, analysisReportFilename, formatNoticeTime, translate, applyLanguage } = await loadAnalysisExportFunctions()
+  const report = analysisExportFixture()
+  const markdown = analysisReportMarkdown(report, translate)
+  const { from, to, generatedAt } = report
+  const timestamp = (value) => formatNoticeTime(value, true)
+  assert.ok(markdown.startsWith('# 一周回顾\n'))
+  assert.ok(markdown.includes(`项目 / 跨域 / 回顾 🗓️ · ${timestamp(from)} – ${timestamp(to)}`))
+  assert.ok(markdown.includes(`**生成时间** ${timestamp(generatedAt)}`))
+  assert.match(markdown, /模型\*\* provider \/ 模型/)
+  assert.match(markdown, /## 摘要\n\n交付 🚀\n\\# 标题仍是正文/)
+  assert.match(markdown, /## 时间观察\n\n- 整理 3 项记录。/)
+  assert.match(markdown, /完成互操作。\n {2}复核快照。\n {2}- \*\*来源\*\* \\\[会话一\\\] · 项目甲/)
+  assert.match(markdown, /## 下一步\n\n- 安排下一次复核。/)
+  assert.match(markdown, /## 来源会话 · 1\n\n- \\\[会话一\\\] · 项目甲/)
+  assert.match(markdown, /涉及 5 个会话 · 已读 2 · 纳入 1/)
+  assert.match(markdown, /2 个会话未纳入[\s\S]*部分内容已截取[\s\S]*关联子代理会话目录暂不可用/)
+  assert.match(markdown, /2 个会话读取失败\n {2}- 会话二 · 项目乙 · 未找到记录\n {2}- 另外 1 个失败会话未列出。/)
+  assert.doesNotMatch(markdown, /private-request-secret|credential-secret|unlisted/)
+  assert.equal(analysisReportFilename(report), 'dsh-timespan-ai-week-2026-11-16T03-22-10-042Z.md')
+  assert.equal(analysisReportFilename({ period: '../不受信任:*', generatedAt: Infinity }), 'dsh-timespan-ai-report.md')
+
+  applyLanguage('en')
+  const legacy = analysisReportMarkdown({ ...report, summary: '<img src=x>\n&copy;',
+    content: { ...report.content, suggestions: '', work: [] },
+    coverage: { ...report.coverage, failedSources: undefined },
+  }, translate)
+  assert.match(legacy, /^# Weekly review/)
+  assert.match(legacy, /&lt;img src=x&gt;\n&amp;copy;/)
+  assert.match(legacy, /This report saved only the number of failures/)
+  assert.doesNotMatch(legacy, /\bChanges and suggestions\b|<img/)
+})
+
+test('客户端 AI 导出：剪贴板失败后提供可选取的 Markdown，恢复权限后可再次复制', async (testContext) => {
+  let clipboardAllowed = false
+  const copied = []
+  const clipboard = { async writeText(text) {
+    if (!clipboardAllowed) throw new Error('clipboard denied')
+    copied.push(text)
+  } }
+  const { AnalysisReportHeader, React, translate, analysisReportMarkdown } = await loadAnalysisExportFunctions({ navigator: { clipboard } })
+  testContext.after(React.unmount)
+  const report = analysisExportFixture()
+  const markdown = analysisReportMarkdown(report, translate)
+  let fieldFocuses = 0
+  let fieldSelections = 0
+  let copyFocuses = 0
+  const button = (tree, key) => findAll(tree, (node) => node.props.label === translate(key) || node.type === 'button' && textOf(node) === translate(key))[0]
+  const render = () => {
+    const header = React.render(AnalysisReportHeader, { report, t: translate, dates: '', generatedAt: '' })
+    const field = findAll(header, (node) => node.type === 'textarea')[0]
+    if (field) field.props.ref.current = { focus() { fieldFocuses += 1 }, select() { fieldSelections += 1 } }
+    button(header, 'reportCopy').props.buttonRef.current = { focus() { copyFocuses += 1 } }
+    React.flushEffects()
+    return { header, field }
+  }
+
+  await button(render().header, 'reportCopy').props.onClick()
+  const fallback = render()
+  assert.match(textOf(fallback.header), /请手动复制下方文本/)
+  assert.equal(fallback.field.props.readOnly, true)
+  assert.equal(fallback.field.props.value, markdown)
+  assert.equal(fieldFocuses, 1)
+  assert.equal(fieldSelections, 1)
+  button(fallback.header, 'reportCloseCopy').props.onClick()
+  assert.equal(render().field, undefined)
+  assert.equal(copyFocuses, 1)
+
+  clipboardAllowed = true
+  await button(render().header, 'reportCopy').props.onClick()
+  const success = render()
+  assert.match(textOf(success.header), /已复制 Markdown/)
+  assert.equal(success.field, undefined)
+  assert.deepEqual(copied, [markdown])
+})
+
+test('客户端 AI 导出：报告变化时立即隐藏旧手动复制反馈，空报告不会崩溃', async (testContext) => {
+  const { AnalysisReportHeader, React, translate, analysisReportMarkdown } = await loadAnalysisExportFunctions({
+    navigator: { clipboard: { async writeText() { throw new Error('clipboard denied') } } },
+  })
+  testContext.after(React.unmount)
+  const collapse = await loadAnalysisExportFunctions()
+  testContext.after(collapse.React.unmount)
+  let previousKey = Symbol('未挂载')
+  const visibleCopyText = (header) => {
+    const element = findAll(header, (node) => node.type?.name === 'AnimatedCollapse')[0]
+    if (element.props.key !== previousKey) {
+      collapse.React.unmount()
+      previousKey = element.props.key
+    }
+    const tree = collapse.React.render(collapse.AnimatedCollapse, { ...element.props, children: element.children })
+    tree.props.ref.current = { getAnimations: () => [{ finished: new Promise(() => {}) }] }
+    collapse.React.flushEffects()
+    return textOf(tree)
+  }
+  const report = analysisExportFixture()
+  const props = { report, period: 'week', t: translate, dates: '', generatedAt: '' }
+  const render = () => { const tree = React.render(AnalysisReportHeader, props); React.flushEffects(); return tree }
+  const copy = async () => findAll(render(), (node) => node.props.label === translate('reportCopy'))[0].props.onClick()
+  await copy()
+  assert.equal(findAll(render(), (node) => node.type === 'textarea')[0].props.value, analysisReportMarkdown(report, translate))
+  assert.match(visibleCopyText(render()), /请手动复制下方文本/)
+
+  props.report = undefined
+  props.period = 'day'
+  let tree
+  assert.doesNotThrow(() => { tree = React.render(AnalysisReportHeader, props) }, '清理 effect 执行前也能渲染空报告')
+  assert.equal(findAll(tree, (node) => node.type === 'textarea').length, 0)
+  assert.doesNotMatch(textOf(tree), /请手动复制下方文本/)
+  assert.doesNotMatch(visibleCopyText(tree), /请手动复制下方文本/, '嵌套折叠层也不能保留旧报告内容')
+  React.flushEffects()
+
+  props.report = report
+  props.period = 'week'
+  await copy()
+  assert.equal(findAll(render(), (node) => node.type === 'textarea').length, 1)
+  assert.match(visibleCopyText(render()), /请手动复制下方文本/)
+  findAll(render(), (node) => node.type === 'button' && textOf(node) === translate('reportCloseCopy'))[0].props.onClick()
+  assert.match(visibleCopyText(render()), /请手动复制下方文本/, '同一报告主动收起仍保留退出动效')
+  props.report = { ...report, id: 'new-report', summary: '新报告' }
+  tree = React.render(AnalysisReportHeader, props)
+  assert.equal(findAll(tree, (node) => node.type === 'textarea').length, 0, '旧报告反馈不借用新报告正文')
+  assert.doesNotMatch(visibleCopyText(tree), /请手动复制下方文本/, '换报告时不把旧内容继续淡出到新报告上')
+  React.flushEffects()
+  await copy()
+  assert.equal(findAll(render(), (node) => node.type === 'textarea')[0].props.value, analysisReportMarkdown(props.report, translate))
+})
+
+test('客户端 AI 导出：下载 UTF-8 .md，浏览器拒绝下载时提示可复制', async (testContext) => {
+  const downloads = []
+  const timers = []
+  const revoked = []
+  let blob
+  let removed = false
+  const document = {
+    body: { appendChild() {} },
+    createElement(tag) {
+      assert.equal(tag, 'a')
+      return { style: {}, click() { downloads.push({ href: this.href, filename: this.download }) }, remove() { removed = true } }
+    },
+  }
+  const URL = {
+    createObjectURL(value) { blob = value; return 'blob:report' },
+    revokeObjectURL(value) { revoked.push(value) },
+  }
+  const { AnalysisReportHeader, React, translate, analysisReportMarkdown, analysisReportFilename } = await loadAnalysisExportFunctions({
+    Blob, URL, document, setTimeout(callback) { timers.push(callback) },
+  })
+  testContext.after(React.unmount)
+  const report = analysisExportFixture()
+  const render = () => React.render(AnalysisReportHeader, { report, t: translate, dates: '', generatedAt: '' })
+  const download = () => findAll(render(), (node) => node.props.label === translate('reportExport'))[0].props.onClick()
+
+  download()
+  assert.deepEqual(downloads, [{ href: 'blob:report', filename: analysisReportFilename(report) }])
+  assert.equal(blob.type, 'text/markdown;charset=utf-8')
+  assert.equal(await blob.text(), analysisReportMarkdown(report, translate))
+  assert.equal(removed, true)
+  assert.equal(timers.length, 1)
+  timers[0]()
+  assert.deepEqual(revoked, ['blob:report'])
+  assert.match(textOf(render()), /Markdown 下载/)
+
+  URL.createObjectURL = undefined
+  download()
+  assert.match(textOf(render()), /无法下载报告.*复制 Markdown/)
+  assert.equal(downloads.length, 1)
 })

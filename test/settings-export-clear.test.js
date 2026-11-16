@@ -90,6 +90,11 @@ test('设置：首次安装默认紧凑单位、侧栏名称关闭且显示在�
     sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
+    timerSound: true,
+    floatingEnabled: true,
+    floatingShowClock: false,
+    analysisProvider: '',
+    analysisModel: '',
   })
 })
 
@@ -116,14 +121,14 @@ test('设置：resetSettings 恢复初始预设且不删除统计数据', async 
   assert.equal(after.taskCount, 1, '已有任务仍在')
 })
 
-test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只认三项、language 只认中英两档，补丁不覆盖其它项', () => {
+test('设置归一化：durationFormat 只认六种预设、sidebarDuration 只认三项、language 只认中英两档，补丁不覆盖其它项', () => {
   assert.equal(DEFAULT_SETTINGS.durationFormat, 'short')
   assert.equal(DEFAULT_SETTINGS.sidebarDuration, 'online')
   assert.equal(DEFAULT_SETTINGS.sidebarDotVisible, true, '状态点默认显示')
   assert.equal(DEFAULT_SETTINGS.sidebarDotPosition, 'inline', '状态点默认跟随时长')
   assert.equal(DEFAULT_SETTINGS.language, 'zh', '界面语言默认中文')
   assert.equal(normalizeSettings({ durationFormat: 'zh' }).durationFormat, 'zh')
-  for (const value of ['short', 'sec', 'padded', 'hms']) {
+  for (const value of ['short', 'sec', 'padded', 'hms', 'decimal']) {
     assert.equal(normalizeSettings({ durationFormat: value }).durationFormat, value)
   }
   for (const value of ['', 'HMS', 'auto', null, undefined, 7]) {
@@ -164,6 +169,11 @@ test('设置归一化：durationFormat 只认五种预设、sidebarDuration 只�
     sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
+    timerSound: true,
+    floatingEnabled: true,
+    floatingShowClock: false,
+    analysisProvider: '',
+    analysisModel: '',
   })
   const untouched = mergeSettings({ idleThresholdMinutes: 11, durationFormat: 'padded' }, { showSubagents: false })
   assert.equal(untouched.durationFormat, 'padded', '补丁未提及 durationFormat 时保留原值')
@@ -203,6 +213,25 @@ test('设置：界面语言默认中文，可切英文并在局部更新、导�
   const restarted = createDshTimespanDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 4, 10, 0) }) })
   await restarted.start()
   assert.equal(restarted.getSettings().language, 'en', '重启后界面语言仍保留')
+})
+
+test('设置：悬浮时钟默认关闭，开启后随备份和重启保留，恢复默认重新关闭', async () => {
+  const { domain, service } = await startedService(localTime(2026, 11, 16, 10))
+  assert.equal(service.getSettings().floatingShowClock, false)
+  assert.equal(service.getSettings().floatingEnabled, true)
+  assert.equal(normalizeSettings({ floatingShowClock: 'true' }).floatingShowClock, false, '只有显式布尔开启')
+  await service.setSettings({ floatingShowClock: true })
+  await service.setSettings({ timerSound: false, floatingEnabled: false })
+  const exported = JSON.parse((await service.exportData({ format: 'json' })).content)
+  assert.equal(exported.settings.floatingShowClock, true)
+  assert.equal(exported.settings.floatingEnabled, false)
+  const restarted = createDshTimespanDomain({ domain, clock: createFakeClock({ now: localTime(2026, 11, 16, 10) }) })
+  await restarted.start()
+  assert.equal(restarted.getSettings().floatingShowClock, true)
+  assert.equal(restarted.getSettings().floatingEnabled, false)
+  await restarted.resetSettings()
+  assert.equal(restarted.getSettings().floatingShowClock, false)
+  assert.equal(restarted.getSettings().floatingEnabled, true)
 })
 
 test('设置：非法值收敛到合法范围，局部更新不覆盖其他项，保存后重启仍生效', async () => {
@@ -319,6 +348,11 @@ test('导出 JSON：包含原始区间、原始任务与设置，字段未经裁
     sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
+    timerSound: true,
+    floatingEnabled: true,
+    floatingShowClock: false,
+    analysisProvider: '',
+    analysisModel: '',
   })
   assert.ok(payload.intervals.some((row) => row.type === 'online'), '原始在线区间必须导出')
   assert.ok(payload.intervals.some((row) => row.type === 'active'), '原始活跃区间必须导出')
@@ -392,6 +426,10 @@ test('导出 CSV：可读时长跟随当前 durationFormat，与页面使用同�
   await service.setSettings({ durationFormat: 'padded' })
   csv = (await service.exportData({ format: 'csv' })).content
   assert.ok(csv.includes('00:10:00'), '补零时钟格式写入 CSV')
+
+  await service.setSettings({ durationFormat: 'decimal' })
+  csv = (await service.exportData({ format: 'csv' })).content
+  assert.ok(csv.includes('0.17 h'), '小数小时按相同精度写入 CSV')
 
   await service.setSettings({ durationFormat: 'short' })
   csv = (await service.exportData({ format: 'csv' })).content

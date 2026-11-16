@@ -50,6 +50,14 @@ export const DEFAULT_SETTINGS = Object.freeze({
   language: DEFAULT_LANGUAGE,
   // 「近似数据」说明是否已被用户关闭；属于展示偏好，默认未关闭。
   approximateNoticeDismissed: false,
+  timerSound: true,
+  // 关闭会话悬浮窗只改变展示，不停止独立计时或到期提醒。
+  floatingEnabled: true,
+  // 悬浮窗默认仅显示计时；指针钟由用户主动开启。
+  floatingShowClock: false,
+  // 未选模型时保留空值，由用户在宿主目录中选择；不会跟随会话的当前模型。
+  analysisProvider: '',
+  analysisModel: '',
 })
 
 /** 兼容既有导出名：领域服务旧构造参数以毫秒表达同一默认值。 */
@@ -124,6 +132,10 @@ function normalizeApproximateNoticeDismissed(value) {
   return value === true
 }
 
+function normalizeAnalysisChoice(value) {
+  return typeof value === 'string' && value.length <= 256 ? value.trim() : ''
+}
+
 /**
  * 把任意输入（含缺省、脏数据）收敛成完整、合法的设置对象。
  * 未知字段一律丢弃，避免把页面草稿或旧版本字段写进权威状态。
@@ -141,6 +153,11 @@ export function normalizeSettings(value) {
     sidebarDotPosition: normalizeSidebarDotPosition(source.sidebarDotPosition),
     language: normalizeLanguage(source.language),
     approximateNoticeDismissed: normalizeApproximateNoticeDismissed(source.approximateNoticeDismissed),
+    timerSound: source.timerSound !== false,
+    floatingEnabled: source.floatingEnabled !== false,
+    floatingShowClock: source.floatingShowClock === true,
+    analysisProvider: normalizeAnalysisChoice(source.analysisProvider),
+    analysisModel: normalizeAnalysisChoice(source.analysisModel),
   }
 }
 
@@ -166,6 +183,11 @@ export function mergeSettings(current, patch) {
     approximateNoticeDismissed: Object.hasOwn(incoming, 'approximateNoticeDismissed')
       ? incoming.approximateNoticeDismissed
       : base.approximateNoticeDismissed,
+    timerSound: Object.hasOwn(incoming, 'timerSound') ? incoming.timerSound : base.timerSound,
+    floatingEnabled: Object.hasOwn(incoming, 'floatingEnabled') ? incoming.floatingEnabled : base.floatingEnabled,
+    floatingShowClock: Object.hasOwn(incoming, 'floatingShowClock') ? incoming.floatingShowClock : base.floatingShowClock,
+    analysisProvider: Object.hasOwn(incoming, 'analysisProvider') ? incoming.analysisProvider : base.analysisProvider,
+    analysisModel: Object.hasOwn(incoming, 'analysisModel') ? incoming.analysisModel : base.analysisModel,
   })
 }
 

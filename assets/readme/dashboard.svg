@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:lang="zh" width="1200" height="774" viewBox="0 0 1200 774" role="img" aria-labelledby="dash-title dash-desc">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:lang="zh-CN" width="1200" height="774" viewBox="0 0 1200 774" role="img" aria-labelledby="dash-title dash-desc">
   <title id="dash-title">TimeSpan 概览界面示意</title>
-  <desc id="dash-desc">TimeSpan 概览界面（示例数据）。首排统计卡汇总今日活跃、在线、任务时长和本周、本月数据。第二排展示今日 24 小时趋势与任务时长构成，底排展示每日活跃热力图、工作区任务排行与最近会话。</desc>
+  <desc id="dash-desc">晴空蓝浅色概览界面示意，使用示例数据。顶栏为概览、趋势、会话、回顾与设置，右侧是手动计时、外观与配色图标。统计卡显示今日活跃、在线与任务时长及本周、本月数据，其后有今日 24 小时趋势、任务时长构成、每日活跃热力图、工作区排行与最近会话。</desc>
 
   <defs>
     <style>
       text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; fill: #181a1c; }
       .mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace; }
-      .heading { font-size: 18px; font-weight: 600; }
+      .heading { font-size: 20px; font-weight: 600; }
       .muted { fill: #606568; }
       .signal { fill: #1f4e94; }
       .signal-deep { fill: #133463; }
@@ -23,6 +23,10 @@
     <g id="monitor" stroke-linejoin="round" stroke-linecap="round">
       <rect x="1.5" y="2.6" width="13" height="8.4" rx="1.7"/>
       <path d="M8 11v2.7m-2.4 0h4.8"/>
+    </g>
+    <g id="timer-clock">
+      <circle cx="8" cy="8" r="5.5" stroke="#181a1c"/>
+      <path d="M8 4.7V8l2.2 1.4" stroke="#1f4e94"/>
     </g>
     <path id="compare-detail" d="M3 9v4h4m2-10h4v4"/>
     <g id="info">
@@ -103,22 +107,35 @@
         <circle cx="12" cy="12" r="1.8" fill="#133463"/>
       </g>
       <text x="255" y="50" font-size="25" font-weight="700">TimeSpan</text>
-      <path d="M384 29v25m718-25v25" class="rule"/>
-      <g font-size="15" text-anchor="middle">
+      <path d="M384 29v25M1063 29v25" class="rule"/>
+      <g font-size="17" text-anchor="middle">
         <text x="424" y="47" font-weight="600">概览</text>
         <text x="482" y="47" class="muted">趋势</text>
         <text x="540" y="47" class="muted">会话</text>
-        <text x="598" y="47" class="muted">设置</text>
+        <text x="598" y="47" class="muted">回顾</text>
+        <text x="656" y="47" class="muted">设置</text>
       </g>
       <rect x="398" y="61" width="52" height="2" rx="1" fill="#133463"/>
-      <circle cx="1034" cy="42" r="7" fill="none" stroke="#79b3f9" opacity=".22"/>
-      <circle cx="1034" cy="42" r="3.7" fill="#79b3f9"/>
-      <text x="1046" y="47" font-size="14" class="signal">活跃中</text>
-      <rect x="1112.5" y="26.5" width="29" height="30" rx="7" class="card"/>
-      <use xlink:href="#monitor" x="1119" y="33" class="glyph"/>
-      <rect x="1151.5" y="26.5" width="30" height="30" rx="7" class="card"/>
-      <circle cx="1166.5" cy="41.5" r="6.4" fill="#dde6f2"/>
-      <circle cx="1166.5" cy="41.5" r="3.5" fill="#1f4e94"/>
+      <circle cx="994" cy="42" r="7" fill="none" stroke="#79b3f9" opacity=".22"/>
+      <circle cx="994" cy="42" r="3.7" fill="#79b3f9"/>
+      <text x="1006" y="47" font-size="14" class="signal">活跃中</text>
+      <g id="manual-timer-icon">
+        <title>手动计时</title>
+        <rect x="1073.5" y="26.5" width="29" height="30" rx="7" class="card"/>
+        <use xlink:href="#timer-clock" x="1080" y="33.5" class="glyph"/>
+      </g>
+      <g id="appearance-icon">
+        <title>外观</title>
+        <rect x="1112.5" y="26.5" width="29" height="30" rx="7" class="card"/>
+        <use xlink:href="#monitor" x="1119" y="33.5" class="glyph"/>
+      </g>
+      <g id="palette-icon">
+        <title>配色</title>
+        <rect x="1151.5" y="26.5" width="30" height="30" rx="7" class="card"/>
+        <circle cx="1166.5" cy="41.5" r="6.4" fill="none" stroke="#aab5c2"/>
+        <circle cx="1166.5" cy="41.5" r="5.6" fill="none" stroke="#fff"/>
+        <circle cx="1166.5" cy="41.5" r="3.5" fill="#1f4e94"/>
+      </g>
     </g>
 
     <!-- 统计卡：今日主指标、副指标和周/月周期 -->
@@ -129,6 +146,7 @@
       <path d="M234 106h3.6l2.5-4.7 3 9.2 2.8-5.1h3.8" class="glyph"/>
       <text x="256" y="111" font-size="15" font-weight="600" class="signal-deep">今日活跃</text>
       <use xlink:href="#compare-detail" x="522" y="98" class="glyph" opacity=".72"/>
+      <rect x="227" y="125" width="2" height="39" rx="1" fill="#1f4e94"/>
       <text x="235" y="161" class="mono signal-deep" font-size="44" font-weight="700">4h 24m</text>
       <text x="235" y="190" font-size="14" class="muted">11月14日周六</text>
       <text x="519" y="200" font-size="11.5" text-anchor="end" class="muted">活跃占比 73%</text>
@@ -137,7 +155,7 @@
 
       <use xlink:href="#monitor" x="563" y="124" class="glyph" style="stroke:#1f4e94"/>
       <text x="584" y="137" font-size="13.5" class="muted">今日在线时长</text>
-      <text x="757" y="137" font-size="16" font-weight="700" text-anchor="end" class="mono signal-deep">6h 0m</text>
+      <text x="757" y="137" font-size="16" font-weight="700" text-anchor="end" class="mono">6h 0m</text>
       <g transform="translate(563 156)" class="glyph" style="stroke:#7a5aa6">
         <rect x="2" y="2" width="12" height="12" rx="2.4"/>
         <path d="m5.3 8 1.8 1.9 3.8-4.2"/>
@@ -233,7 +251,7 @@
       </g>
       <text x="880" y="271" class="heading">任务时长构成</text>
       <g transform="rotate(-90 916 367)" fill="none" stroke-width="15">
-        <circle cx="916" cy="367" r="53" pathLength="100" stroke="#315fa8" stroke-dasharray="49.3 100" stroke-dashoffset="-.35"/>
+        <circle cx="916" cy="367" r="53" pathLength="100" stroke="#3162a8" stroke-dasharray="49.3 100" stroke-dashoffset="-.35"/>
         <circle cx="916" cy="367" r="53" pathLength="100" stroke="#79b3f9" stroke-dasharray="24.3 100" stroke-dashoffset="-50.35"/>
         <circle cx="916" cy="367" r="53" pathLength="100" stroke="#b1d3fc" stroke-dasharray="9.3 100" stroke-dashoffset="-75.35"/>
         <circle cx="916" cy="367" r="53" pathLength="100" stroke="#d9eafe" stroke-dasharray="14.3 100" stroke-dashoffset="-85.35"/>
@@ -241,7 +259,7 @@
       <text x="916" y="365" font-size="20" font-weight="700" text-anchor="middle">3h 0m</text>
       <text x="916" y="384" font-size="12" text-anchor="middle" class="muted">累计工时</text>
       <g font-size="13">
-        <rect x="993" y="323" width="9" height="9" rx="2" fill="#315fa8"/>
+        <rect x="993" y="323" width="9" height="9" rx="2" fill="#3162a8"/>
         <text x="1009" y="332">模型</text>
         <rect x="993" y="350" width="9" height="9" rx="2" fill="#79b3f9"/>
         <text x="1009" y="359">工具</text>
@@ -399,7 +417,7 @@
     <g id="workspace-rank-card">
       <rect x="535.5" y="479.5" width="254" height="247" rx="10" class="card"/>
       <path d="M552 502h10m-10 4h7m-7 4h4m6-1v3.5" class="glyph"/>
-      <text x="574" y="512" class="heading" style="font-size:17px">工作区任务排行</text>
+      <text x="574" y="512" class="heading" style="font-size:17.5px">工作区任务排行</text>
       <g font-size="12.5">
         <text x="552" y="551" class="muted">01</text>
         <text x="578" y="551" font-weight="600">核心</text>
@@ -456,6 +474,7 @@
 
     <g id="page-footer">
       <text x="210" y="750" class="muted" font-size="12">今日活跃时长 4h 24m · 今日在线时长 6h 0m</text>
+      <text x="1150" y="750" class="muted" font-size="14" text-anchor="end">示例数据</text>
       <use xlink:href="#info" x="1163" y="738" class="glyph"/>
     </g>
   </g>

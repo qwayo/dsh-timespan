@@ -53,10 +53,11 @@ export function exportMimeType(format) {
 }
 
 /**
- * JSON 导出保留原始区间、原始任务与设置；字段不做裁剪，方便重新导入或核对。
- * @param {{ exportedAt: number, settings: object, intervals: object[], tasks: object[] }} input
+ * JSON 备份保留原始区间、任务与设置，以及最近完成计时和各周期报告。
+ * 活动计时和分析请求日志不属于备份。
+ * @param {{ exportedAt: number, settings: object, intervals: object[], tasks: object[], lastTimerResult: object|null, reports: object }} input
  */
-export function buildJsonExport({ exportedAt, settings, intervals, tasks }) {
+export function buildJsonExport({ exportedAt, settings, intervals, tasks, lastTimerResult, reports }) {
   return JSON.stringify(
     {
       format: EXPORT_FORMAT,
@@ -65,6 +66,8 @@ export function buildJsonExport({ exportedAt, settings, intervals, tasks }) {
       settings,
       intervals,
       tasks,
+      lastTimerResult,
+      reports,
     },
     null,
     2,
@@ -127,7 +130,7 @@ function emptyWorkspaceRow() {
 }
 
 /**
- * 可读时长沿用共享的五档格式定义；默认紧凑单位（`short`），超过 24 小时继续累加小时数。
+ * 可读时长沿用共享的六档格式定义；默认紧凑单位（`short`），超过 24 小时继续累加小时数。
  */
 function csvCell(value) {
   const text = value === null || value === undefined ? '' : String(value)

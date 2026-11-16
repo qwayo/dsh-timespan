@@ -322,6 +322,11 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
     sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
+    timerSound: true,
+    floatingEnabled: true,
+    floatingShowClock: false,
+    analysisProvider: '',
+    analysisModel: '',
   })
 
   // 显式恢复：合并 payload.settings，未知字段被白名单丢弃。

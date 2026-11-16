@@ -30,12 +30,13 @@ window.__ModuleLoader__.load({
     /** 新导出格式；旧版 chronoscope-export 仍允许导入。 */
     const EXPORT_FORMAT = 'dsh-timespan-export'
     const LEGACY_EXPORT_FORMAT = 'chronoscope-export'
-    /** 三套配色；blue 为默认。旧值（mono/green/warm）一律回落到 blue。 */
-    const PALETTES = ['blue', 'stone', 'clay']
+    /** 四套配色；blue（晴空蓝）为默认。旧值（mono/green/warm）一律回落到 blue。 */
+    const PALETTES = ['blue', 'stone', 'clay', 'coral']
+    const PALETTE_LABELS = { blue: 'paletteBlue', stone: 'paletteStone', clay: 'paletteClay', coral: 'paletteCoral' }
     /** 外观三态按用户确认的顺序循环：浅色 → 深色 → 跟随系统。 */
     const APPEARANCE_ORDER = ['light', 'dark', 'system']
     /** 数字格式五档；顺序与原型 FORMATS 一致，也是设置页卡片的展示顺序。 */
-    const DURATION_FORMAT_ORDER = ['hms', 'short', 'zh', 'sec', 'padded']
+    const DURATION_FORMAT_ORDER = ['hms', 'short', 'zh', 'sec', 'padded', 'decimal']
     /** 首次安装与恢复初始设置使用紧凑单位；非法值也回落到这里。 */
     const DEFAULT_DURATION_FORMAT = 'short'
     /** 设置页卡片与预览行统一用原型里的 2:48:16 作为示例值。 */
@@ -51,6 +52,13 @@ window.__ModuleLoader__.load({
     const SIDEBAR_DOT_POSITION_VALUES = ['end', 'inline']
     const SIDEBAR_DOT_POSITION_DEFAULT = 'inline'
     const PAGE_REFRESH_MS = 10_000
+    const TIMER_REFRESH_MS = 2_000
+    const ANALYSIS_REFRESH_MS = 1_250
+    const COUNTDOWN_MAX_MINUTES = 7 * 24 * 60
+    const FLOATING_POSITION_KEY = 'dsh-timespan.floatingPosition'
+    const FLOATING_GAP = 12
+    const FLOATING_DOCK_DELAY = 3_000
+    const FLOATING_EDGE_DISTANCE = 36
     /** 每日活跃热力图的默认范围：最近 3 个本地日历月；#13 再扩展范围切换。 */
     const HEAT_DEFAULT_RANGE = '3m'
     /** 月份刻度：中文界面用「1月…12月」，英文界面沿用英文缩写。 */
@@ -90,11 +98,11 @@ window.__ModuleLoader__.load({
     const RECENT_FIT_GAP_PX = 4
     /** 回填进行时加快轮询，让进度与完成后的数字尽快出现，无需刷新页面。 */
     const BACKFILL_REFRESH_MS = 2_000
-    /** 四个同级视图；tab 顺序即键盘左右方向键的顺序。 */
-    const VIEWS = ['overview', 'trend', 'details', 'settings']
-    /** 视图入场 300ms、退场 180ms（进入的 60%）；减少动效时直接到位。 */
-    const VIEW_ENTER_MS = 300
-    const VIEW_EXIT_MS = 180
+    /** 五个同级视图；tab 顺序即键盘左右方向键的顺序。 */
+    const VIEWS = ['overview', 'trend', 'details', 'analysis', 'settings']
+    /** 视图入场 180ms、退场 120ms；减少动效时直接到位。 */
+    const VIEW_ENTER_MS = 180
+    const VIEW_EXIT_MS = 120
     /** 首屏放大态：只认三种区块，状态持久化在浏览器本地设置，供 #14/#15 共用。 */
     const FOCUS_KEY = 'dsh-timespan.focus'
     const FOCUS_VALUES = ['hero', 'trend', 'heatmap']
@@ -185,6 +193,7 @@ window.__ModuleLoader__.load({
       tabTrend: '趋势',
       tabDetails: '会话',
       tabSettings: '设置',
+      tabAnalysis: '回顾',
       tabsLabel: 'TimeSpan 页面',
       recentSessions: '最近会话',
       recentSessionsHint: '按最近活动时间排序',
@@ -255,10 +264,192 @@ window.__ModuleLoader__.load({
       dailyAverageTask: '日均任务',
       dailyAverageHint: '日均按自然日计算',
       recordSinceBoot: '在线和活跃从插件启用时开始记录，历史数据只回填任务时长。',
-      paletteBlue: '蓝',
+      paletteBlue: '晴空蓝',
       paletteStone: '石墨',
       paletteClay: '赤陶',
+      paletteCoral: '珊瑚橙',
       paletteSaveError: '外观设置未能保存，刷新后可能恢复默认',
+      timerTitle: '手动计时',
+      timerClock: '本地时间',
+      timerStopwatch: '正计时',
+      timerCountdown: '倒计时',
+      timerIdle: '待开始',
+      timerRunning: '计时中',
+      timerPaused: '已暂停',
+      timerCompleted: '已完成',
+      timerExpired: '倒计时已结束',
+      timerSyncing: '正在同步计时',
+      timerSyncError: '计时状态同步失败',
+      timerActionError: '计时操作失败，请同步后重试',
+      timerChanged: '计时状态已在另一处更新，请同步后重试',
+      timerSaving: '正在保存计时状态',
+      timerRefresh: '同步计时',
+      timerStart: '开始',
+      timerPause: '暂停',
+      timerResume: '继续',
+      timerComplete: '结束',
+      timerReset: '重置',
+      timerDuration: '倒计时时长',
+      timerMinutes: '分',
+      timerSeconds: '秒',
+      timerDurationInvalid: '请输入 1 秒至 7 天的时长，秒数为 0–59。',
+      timerLastResult: '上次完成',
+      timerDeleteResult: '删除这条计时记录',
+      timerResultElapsed: '累计 {time}',
+      timerSoundBlocked: '当前页面需要交互才能播放声音。',
+      timerPlaySound: '播放提示音',
+      timerSoundFailed: '提示音播放失败，可再次尝试。',
+      floatingTitle: '悬浮计时',
+      floatingOpen: '展开悬浮计时',
+      floatingMinimize: '收起悬浮计时',
+      floatingMove: '拖动悬浮窗；方向键微调，Shift 加速，Home 复位',
+      floatingWake: '展开贴边悬浮窗',
+      floatingMenu: '悬浮窗菜单',
+      floatingExit: '退出悬浮窗',
+      floatingExitHint: '计时继续，可在设置中重新开启',
+      floatingExitError: '未能关闭悬浮窗，请重试',
+      settingsFloatingTitle: '悬浮窗显示',
+      settingsFloatingEnabled: '显示会话悬浮窗',
+      settingsFloatingEnabledHint: '关闭只隐藏悬浮窗，计时和到期提醒继续运行。',
+      settingsFloatingClock: '增加指针时钟',
+      settingsFloatingHint: '默认位于会话左上角、标题栏下方。靠边后移开鼠标 3 秒收起，靠近展开；右键可退出。',
+      timerNoticeError: '到期提醒未能同步，请重试。',
+      timerClose: '关闭',
+      settingsTimerTitle: '到期提醒',
+      settingsTimerSound: '播放提示音',
+      settingsTimerSoundHint: '倒计时结束时播放短提示音。',
+      settingsAnalysisTitle: '分析模型',
+      settingsAnalysisHint: '使用 DSH 已配置的模型，独立于会话模型。',
+      analysisProvider: 'Provider',
+      analysisModel: '模型',
+      analysisChooseProvider: '选择 Provider',
+      analysisChooseModel: '选择模型',
+      analysisCatalogRefresh: '刷新模型目录',
+      analysisCatalogLoading: '正在读取模型目录',
+      analysisCatalogError: '模型目录读取失败，请刷新重试。',
+      analysisCatalogPartial: '无法读取这些 Provider 的模型目录：{providers}',
+      analysisCatalogEmpty: 'DSH 暂无可用的模型。',
+      analysisSavedProviderMissing: '当前 Provider 暂不可用，已保留选择。',
+      analysisSavedModelMissing: '当前模型暂不可用，已保留选择。',
+      analysisTitle: '时间回顾',
+      analysisEmpty: '生成报告，查看这个周期的时间分配和会话进展。',
+      analysisLoading: '正在读取分析报告',
+      analysisReadError: '分析状态读取失败，已保留加载到的报告。',
+      analysisReadEmptyError: '分析状态读取失败，请重试。',
+      analysisGenerate: '生成报告',
+      analysisRegenerate: '重新生成',
+      analysisRetryGenerate: '重试生成',
+      analysisCancel: '取消生成',
+      analysisStarting: '正在启动分析',
+      analysisStartError: '分析启动响应失败，请查看同步后的进度或重试。',
+      analysisCancelling: '正在取消分析',
+      analysisCancelled: '本次分析已取消。',
+      analysisCollecting: '正在读取会话',
+      analysisGenerating: '正在生成报告',
+      analysisSaving: '正在保存报告',
+      analysisRangeLoading: '正在同步该周期的范围选项。',
+      analysisPeriod: '统计周期',
+      analysisWorkspace: '工作区',
+      analysisSession: '会话',
+      analysisAllWorkspaces: '全部工作区',
+      analysisAllSessions: '全部会话',
+      analysisNoScopeSessions: '该范围内暂无会话记录。',
+      analysisStatistics: '时间观察',
+      analysisWork: '工作进展',
+      analysisSuggestions: '下一步',
+      analysisNoWork: '已读取的会话中暂无可总结的工作。',
+      analysisSources: '来源会话 · {count}',
+      analysisOpenSource: '打开来源会话 {name}',
+      analysisSourceError: '暂时无法打开来源会话 {name}。',
+      analysisReportRange: '报告范围',
+      analysisGeneratedAt: '生成时间',
+      analysisRunRange: '本次分析范围',
+      analysisReportScopeMismatch: '以下为上一份报告，使用它生成时的实际范围。',
+      analysisCoverage: '涉及 {total} 个会话 · 已读 {read} · 纳入 {included}',
+      analysisCoverageFailed: '{count} 个会话读取失败',
+      analysisFailureDetails: '失败详情',
+      analysisFailureMissing: '未找到记录',
+      analysisFailureInvalid: '记录格式异常',
+      analysisFailureUnavailable: '暂时无法读取',
+      analysisFailureUnknown: '读取失败的原因未记录',
+      analysisFailureNotListed: '另外 {count} 个失败会话未列出。',
+      analysisFailureNoDetails: '这份报告仅保存了失败数量。可调整范围并重新生成，查看新的读取结果。',
+      analysisFailureOutsideScope: '当前周期的筛选项中没有该会话。',
+      analysisFailureSelect: '选择此会话',
+      analysisFailureSelectNamed: '选择会话 {name} 作为分析范围',
+      analysisFailureOpen: '打开会话 {name}',
+      analysisRangeFilters: '分析范围筛选',
+      analysisReturnToRange: '返回范围筛选',
+      analysisCoverageOmitted: '{count} 个会话未纳入',
+      analysisCoverageTruncated: '部分内容已截取',
+      analysisCoverageRelatedUnavailable: '关联子代理会话目录暂不可用',
+      analysisGoToSettings: '设置分析模型',
+      analysisModelUse: '将所选范围的统计与会话内容交给 {route} 分析。',
+      analysisModelLoading: '正在读取已选分析模型。',
+      analysisModelReadError: '无法读取已选分析模型，请重试。',
+      analysisModelChanged: '分析模型已更新，请核对当前模型后重试。',
+      analysisModelRequired: '先在设置中选择分析模型。',
+      analysisModelUnavailable: '已选分析模型暂不可用，请检查模型设置。',
+      analysisCatalogUnavailable: '暂时无法读取模型目录，请重试。',
+      analysisInputUnavailable: '暂时无法读取分析材料，请重试。',
+      analysisScopeUnavailable: '所选工作区或会话已不在统计范围内，请重新选择。',
+      analysisHostUnavailable: '当前 DSH 无法生成分析报告。',
+      analysisNoData: '该范围内暂无可分析的记录。',
+      analysisGenerationError: '报告生成失败，请重试。',
+      analysisInvalidOutput: '模型返回的报告格式不完整，请重试。',
+      analysisSaveError: '报告保存失败，请重试。',
+      analysisCancelError: '取消分析失败，请重试。',
+      reportTitle: '时间回顾',
+      reviewDay: '时间回顾',
+      reviewWeek: '一周回顾',
+      reviewMonth: '月度回顾',
+      reviewMetrics: '时间概况',
+      reviewRhythm: '投入节奏',
+      reviewWorkspaces: '工作区分布',
+      reviewWorkspaceBasis: '累计活跃 · 按会话相加',
+      reviewBasis: '统计口径',
+      reviewActualTime: '实际占用 · 重叠只计一次',
+      reviewOnlineNA: '在线不适用于筛选范围',
+      reviewTasks: '{count} 次任务',
+      reviewEvidence: '纳入会话',
+      reviewReadCount: '已读 {read} / 共 {total}',
+      reviewEvidenceHint: '计算 · 实际交给模型的同期正文来源',
+      reviewEvidenceEmpty: '为零 · 已读会话在此周期内没有正文',
+      reviewEvidenceNone: '为零 · 此周期暂无会话记录',
+      reviewEvidenceUnavailable: '为零 · 正文读取或内容范围受限',
+      reviewEvidenceScope: '范围 · 消息、必要工具结果与子代理结论',
+      reviewEvidenceNext: '增加 · 选含消息的周期，或聊天后重新生成',
+      reviewEvidenceCheck: '检查 · 在「范围与依据」核对后重新生成',
+      reviewEvidenceRefresh: '更新 · 改选范围后需重新生成',
+      reviewFilters: '范围',
+      reviewAllScope: '全部工作区与会话',
+      reviewLess: '收起更多',
+      reviewSnapshotMissing: '这份旧报告未保留统计快照。重新生成后可查看图表，原有正文仍完整保留。',
+      reviewSnapshotPartial: '图表仅显示模型实际收到的统计片段',
+      reviewMore: '展开其余 {count} 条',
+      reviewExpand: '展开全文',
+      reviewCollapse: '收起全文',
+      reviewPoint: '观察 {count}',
+      reviewAction: '建议 {count}',
+      reviewWorkItem: '进展 {count}',
+      reviewNoActivity: '这一范围尚无活跃或任务记录',
+      reviewNoWorkspaces: '这一范围尚无工作区活跃记录',
+      reviewOtherWorkspaces: '其余工作区',
+      reviewEvidenceTitle: '范围与依据',
+      reportAbstract: '摘要',
+      reportDetails: '报告信息',
+      reportCoverage: '内容覆盖',
+      reportWorkSources: '来源',
+      reportActions: '报告操作',
+      reportCopy: '复制 Markdown',
+      reportExport: '导出 .md',
+      reportCopied: '已复制 Markdown。',
+      reportExportStarted: '已发起 Markdown 下载。',
+      reportExportError: '无法下载报告，请重试或复制 Markdown。',
+      reportCopyManual: '无法写入剪贴板，请手动复制下方文本。',
+      reportMarkdownContent: '报告 Markdown 文本',
+      reportCloseCopy: '收起文本',
+      reportPending: '报告保存后会在这里显示。',
       cycleToday: '今日',
       cycleWeek: '本周',
       cycleMonth: '本月',
@@ -410,12 +601,14 @@ window.__ModuleLoader__.load({
       formatHintZh: '中文单位',
       formatHintSec: '纯秒',
       formatHintPadded: '补零时钟',
+      formatHintDecimal: '小数小时',
+      formatDecimalDetail: '小数小时 · 四舍五入至两位小数',
       formatPreviewLabel: '预览 · 2:48:16 显示为',
       settingsResetTitle: '初始化设置',
-      settingsResetHint: '把界面语言、侧栏状态显示、状态点显示与位置、显示时长、数字格式、外观配色与统计偏好恢复为首次安装时的默认值；不会删除任何统计数据。',
+      settingsResetHint: '将界面、统计、分析模型与提示音设置恢复为默认值。统计、计时和报告会保留。',
       settingsResetButton: '恢复初始设置',
       settingsResetConfirmTitle: '恢复初始设置？',
-      settingsResetConfirmHint: '界面语言、侧栏状态显示、状态点显示与位置、侧栏显示时长、数字格式、外观配色、空闲阈值、周起始与子代理显示都会回到默认值；统计记录不受影响。',
+      settingsResetConfirmHint: '恢复默认界面和统计偏好，清除分析模型选择并开启倒计时提示音。现有统计、计时和报告会保留。',
       settingsResetConfirm: '确认恢复',
       settingsResetCancel: '取消',
       settingsResetDone: '已恢复初始设置',
@@ -423,7 +616,7 @@ window.__ModuleLoader__.load({
       settingsSectionNotices: '通知记录',
       settingsNoticesHint: '这里保留每次历史任务回填的完成记录；如果旧会话任务没有出现，可重新扫描一次。',
       dataTitle: '数据管理',
-      dataHint: '导出包含原始区间、任务与设置；清空只删除 dsh-timespan 统计记录，不影响会话日志。',
+      dataHint: 'JSON 备份包含统计原始记录、设置、最近计时结果和 AI 报告。CSV 导出每日统计。',
       exportJson: '导出 JSON',
       exportCsv: '导出 CSV',
       exporting: '正在导出…',
@@ -432,12 +625,12 @@ window.__ModuleLoader__.load({
       exportError: '导出失败，请重试',
       clearData: '清空全部数据',
       clearStepTitle: '确认清空？',
-      clearStepHint: '这会删除本机全部 dsh-timespan 在线、活跃与任务记录，且无法撤销；会话日志不受影响，设置会保留。',
+      clearStepHint: '清空会停止当前计时，删除本机的统计、最近计时结果和 AI 报告。设置与 DSH 会话日志会保留。此操作无法撤销。',
       clearConfirm: '确认清空',
       clearCancel: '取消',
       clearing: '正在清空…',
       clearError: '清空失败，请重试',
-      cleared: '已清空，统计已重置',
+      cleared: '已清空统计、计时和报告',
       approximateDismiss: '不再显示',
       approximateShowAgain: '重新显示「近似记录」说明',
       approximateShowAgainHint: '该说明只在存在近似记录时出现；之前关掉后，可用这里恢复显示。',
@@ -446,11 +639,13 @@ window.__ModuleLoader__.load({
       approximateShowError: '操作失败，请稍后重试',
       savedBadge: '已保存',
       importData: '选择备份文件导入',
-      importHint: '仅支持此前导出的 JSON 备份；按 ID 去重合并，已有记录不会被覆盖。',
+      importHint: '导入 TimeSpan 的 JSON 备份。按 ID 合并统计，计时结果与各周期报告只填补本机空缺。当前计时保持原状态。',
       importInvalid: '这不是有效的 dsh-timespan 备份（需要 format 为 dsh-timespan-export 或 chronoscope-export 且 version 为 1）。',
       importPreviewTitle: '待导入文件',
       importIntervals: '时间区间',
       importTasks: '任务',
+      importReports: 'AI 报告',
+      importTimerResult: '含最近计时结果',
       importRestoreSettings: '一并导入文件中的设置',
       importConfirm: '确认导入',
       importCancel: '取消',
@@ -528,6 +723,7 @@ window.__ModuleLoader__.load({
       tabTrend: 'Trend',
       tabDetails: 'Sessions',
       tabSettings: 'Settings',
+      tabAnalysis: 'Review',
       tabsLabel: 'TimeSpan pages',
       recentSessions: 'Recent sessions',
       recentSessionsHint: 'Ordered by last activity',
@@ -598,10 +794,192 @@ window.__ModuleLoader__.load({
       dailyAverageTask: 'Daily task',
       dailyAverageHint: 'Daily averages use calendar days',
       recordSinceBoot: 'Online and active time are recorded from plugin enablement; history only backfills task time.',
-      paletteBlue: 'Blue',
+      paletteBlue: 'Sky Blue',
       paletteStone: 'Graphite',
       paletteClay: 'Terracotta',
+      paletteCoral: 'Coral',
       paletteSaveError: 'Appearance preference could not be saved',
+      timerTitle: 'Manual timer',
+      timerClock: 'Local time',
+      timerStopwatch: 'Stopwatch',
+      timerCountdown: 'Countdown',
+      timerIdle: 'Ready',
+      timerRunning: 'Running',
+      timerPaused: 'Paused',
+      timerCompleted: 'Completed',
+      timerExpired: 'Countdown finished',
+      timerSyncing: 'Syncing timer',
+      timerSyncError: 'Could not sync the timer',
+      timerActionError: 'Timer action failed. Sync and try again.',
+      timerChanged: 'The timer changed elsewhere. Sync and try again.',
+      timerSaving: 'Saving timer state',
+      timerRefresh: 'Sync timer',
+      timerStart: 'Start',
+      timerPause: 'Pause',
+      timerResume: 'Resume',
+      timerComplete: 'Finish',
+      timerReset: 'Reset',
+      timerDuration: 'Countdown duration',
+      timerMinutes: 'min',
+      timerSeconds: 'sec',
+      timerDurationInvalid: 'Enter a duration from 1 second to 7 days, with seconds between 0 and 59.',
+      timerLastResult: 'Last completed',
+      timerDeleteResult: 'Delete this timer result',
+      timerResultElapsed: '{time} elapsed',
+      timerSoundBlocked: 'Interact with this page to play the chime.',
+      timerPlaySound: 'Play chime',
+      timerSoundFailed: 'Could not play the chime. You can try again.',
+      floatingTitle: 'Floating timer',
+      floatingOpen: 'Open floating timer',
+      floatingMinimize: 'Minimize floating timer',
+      floatingMove: 'Drag to move; arrow keys to adjust, Shift for larger steps, Home to reset',
+      floatingWake: 'Restore docked timer',
+      floatingMenu: 'Floating timer menu',
+      floatingExit: 'Exit floating timer',
+      floatingExitHint: 'Timing continues; enable it again in Settings',
+      floatingExitError: 'Could not close the floating timer. Try again',
+      settingsFloatingTitle: 'Floating window',
+      settingsFloatingEnabled: 'Show conversation timer',
+      settingsFloatingEnabledHint: 'Hiding the window keeps timing and completion reminders running.',
+      settingsFloatingClock: 'Include analog clock',
+      settingsFloatingHint: 'Starts at the top left below the conversation header. Docks after 3 seconds near an edge; hover to restore, or right-click to exit.',
+      timerNoticeError: 'Could not sync the countdown reminder. Try again.',
+      timerClose: 'Close',
+      settingsTimerTitle: 'Countdown reminder',
+      settingsTimerSound: 'Play chime',
+      settingsTimerSoundHint: 'Play a short sound when a countdown finishes.',
+      settingsAnalysisTitle: 'Analysis model',
+      settingsAnalysisHint: 'Use a model configured in DSH, independently of your session model.',
+      analysisProvider: 'Provider',
+      analysisModel: 'Model',
+      analysisChooseProvider: 'Select a provider',
+      analysisChooseModel: 'Select a model',
+      analysisCatalogRefresh: 'Refresh model catalog',
+      analysisCatalogLoading: 'Reading model catalog',
+      analysisCatalogError: 'Could not read the model catalog. Refresh to try again.',
+      analysisCatalogPartial: 'Model catalogs unavailable for {providers}',
+      analysisCatalogEmpty: 'No models are currently available in DSH.',
+      analysisSavedProviderMissing: 'The selected provider is unavailable. Your selection was kept.',
+      analysisSavedModelMissing: 'The selected model is unavailable. Your selection was kept.',
+      analysisTitle: 'Time review',
+      analysisEmpty: 'Generate a report on time allocation and session progress for this period.',
+      analysisLoading: 'Reading analysis reports',
+      analysisReadError: 'Could not refresh the analysis. The loaded report is still shown.',
+      analysisReadEmptyError: 'Could not read the analysis status. Try again.',
+      analysisGenerate: 'Generate report',
+      analysisRegenerate: 'Regenerate report',
+      analysisRetryGenerate: 'Retry generation',
+      analysisCancel: 'Cancel generation',
+      analysisStarting: 'Starting analysis',
+      analysisStartError: 'Could not confirm that analysis started. Check the refreshed status or try again.',
+      analysisCancelling: 'Cancelling analysis',
+      analysisCancelled: 'This analysis was cancelled.',
+      analysisCollecting: 'Reading sessions',
+      analysisGenerating: 'Generating report',
+      analysisSaving: 'Saving report',
+      analysisRangeLoading: 'Loading scope options for this period.',
+      analysisPeriod: 'Period',
+      analysisWorkspace: 'Workspace',
+      analysisSession: 'Session',
+      analysisAllWorkspaces: 'All workspaces',
+      analysisAllSessions: 'All sessions',
+      analysisNoScopeSessions: 'There are no recorded sessions in this scope.',
+      analysisStatistics: 'Time observations',
+      analysisWork: 'Work progress',
+      analysisSuggestions: 'Next steps',
+      analysisNoWork: 'The sessions read contain no work to summarize.',
+      analysisSources: 'Source sessions · {count}',
+      analysisOpenSource: 'Open source session {name}',
+      analysisSourceError: 'Could not open source session {name}.',
+      analysisReportRange: 'Report scope',
+      analysisGeneratedAt: 'Generated',
+      analysisRunRange: 'Analysis scope',
+      analysisReportScopeMismatch: 'The last report is shown with the scope it used when generated.',
+      analysisCoverage: '{total} sessions in scope · {read} read · {included} included',
+      analysisCoverageFailed: '{count} sessions could not be read',
+      analysisFailureDetails: 'Failure details',
+      analysisFailureMissing: 'Record not found',
+      analysisFailureInvalid: 'Invalid record format',
+      analysisFailureUnavailable: 'Record temporarily unavailable',
+      analysisFailureUnknown: 'The reason was not recorded',
+      analysisFailureNotListed: '{count} more sessions with read failures are not listed.',
+      analysisFailureNoDetails: 'This report saved only the number of failures. Adjust the scope and regenerate to see the new read results.',
+      analysisFailureOutsideScope: 'This session is absent from the current period’s filters.',
+      analysisFailureSelect: 'Select this session',
+      analysisFailureSelectNamed: 'Select session {name} for analysis',
+      analysisFailureOpen: 'Open session {name}',
+      analysisRangeFilters: 'Analysis scope filters',
+      analysisReturnToRange: 'Back to scope filters',
+      analysisCoverageOmitted: '{count} sessions omitted',
+      analysisCoverageTruncated: 'Some content was excerpted',
+      analysisCoverageRelatedUnavailable: 'The related subagent session catalog was unavailable',
+      analysisGoToSettings: 'Configure analysis model',
+      analysisModelUse: 'Send statistics and session content in this scope to {route} for analysis.',
+      analysisModelLoading: 'Reading the selected analysis model.',
+      analysisModelReadError: 'Could not read the selected analysis model. Try again.',
+      analysisModelChanged: 'The analysis model changed. Check the current model and try again.',
+      analysisModelRequired: 'Select an analysis model in settings.',
+      analysisModelUnavailable: 'The selected model is unavailable. Check your model settings.',
+      analysisCatalogUnavailable: 'Could not read the model catalog. Try again.',
+      analysisInputUnavailable: 'Could not read the input for analysis. Try again.',
+      analysisScopeUnavailable: 'The selected workspace or session is outside the recorded scope. Select a new scope.',
+      analysisHostUnavailable: 'This DSH instance cannot generate analysis reports.',
+      analysisNoData: 'There are no records to analyze in this scope.',
+      analysisGenerationError: 'Report generation failed. Try again.',
+      analysisInvalidOutput: 'The model returned an incomplete report. Try again.',
+      analysisSaveError: 'Could not save the report. Try again.',
+      analysisCancelError: 'Could not cancel the analysis. Try again.',
+      reportTitle: 'Time review',
+      reviewDay: 'Daily review',
+      reviewWeek: 'Weekly review',
+      reviewMonth: 'Monthly review',
+      reviewMetrics: 'Time at a glance',
+      reviewRhythm: 'Activity rhythm',
+      reviewWorkspaces: 'Across workspaces',
+      reviewWorkspaceBasis: 'Accumulated active time · per session',
+      reviewBasis: 'Measurement basis',
+      reviewActualTime: 'Actual occupied time · overlaps counted once',
+      reviewOnlineNA: 'Online time does not apply to this filter',
+      reviewTasks: '{count} tasks',
+      reviewEvidence: 'Sessions included',
+      reviewReadCount: '{read} read / {total} in scope',
+      reviewEvidenceHint: 'Count · Sources whose in-period text reached the model',
+      reviewEvidenceEmpty: 'Zero · The sessions read have no text in this period',
+      reviewEvidenceNone: 'Zero · No sessions were recorded in this period',
+      reviewEvidenceUnavailable: 'Zero · Reading or content limits excluded the text',
+      reviewEvidenceScope: 'Scope · Messages, relevant tool results and subagent conclusions',
+      reviewEvidenceNext: 'Include · Choose a period with messages, or chat and regenerate',
+      reviewEvidenceCheck: 'Check · Review Scope and sources, then regenerate',
+      reviewEvidenceRefresh: 'Update · Regenerate after changing the scope',
+      reviewFilters: 'Scope',
+      reviewAllScope: 'All workspaces and sessions',
+      reviewLess: 'Show less',
+      reviewSnapshotMissing: 'This older report has no statistics snapshot. Regenerate for charts; its original text is still available.',
+      reviewSnapshotPartial: 'Charts show only the statistics provided to the model',
+      reviewMore: 'Show {count} more',
+      reviewExpand: 'Read in full',
+      reviewCollapse: 'Show less',
+      reviewPoint: 'Observation {count}',
+      reviewAction: 'Suggestion {count}',
+      reviewWorkItem: 'Progress {count}',
+      reviewNoActivity: 'No active or task time recorded in this scope',
+      reviewNoWorkspaces: 'No workspace activity recorded in this scope',
+      reviewOtherWorkspaces: 'Other workspaces',
+      reviewEvidenceTitle: 'Scope and evidence',
+      reportAbstract: 'Summary',
+      reportDetails: 'Report details',
+      reportCoverage: 'Content coverage',
+      reportWorkSources: 'Sources',
+      reportActions: 'Report actions',
+      reportCopy: 'Copy Markdown',
+      reportExport: 'Export .md',
+      reportCopied: 'Copied Markdown.',
+      reportExportStarted: 'Markdown download requested.',
+      reportExportError: 'Could not download the report. Try again or copy the Markdown.',
+      reportCopyManual: 'Could not write to the clipboard. Copy the text below.',
+      reportMarkdownContent: 'Report Markdown text',
+      reportCloseCopy: 'Hide text',
+      reportPending: 'The report will appear here once saved.',
       cycleToday: 'Today',
       cycleWeek: 'This week',
       cycleMonth: 'This month',
@@ -753,12 +1131,14 @@ window.__ModuleLoader__.load({
       formatHintZh: 'Chinese units',
       formatHintSec: 'Total seconds',
       formatHintPadded: 'Padded clock',
+      formatHintDecimal: 'Decimal hours',
+      formatDecimalDetail: 'Decimal hours · rounded to two decimal places',
       formatPreviewLabel: 'Preview · 2:48:16 shows as',
       settingsResetTitle: 'Initial settings',
-      settingsResetHint: 'Restore interface language, the sidebar status display, status dot visibility and position, duration, number format, colors and counting preferences to their first-install defaults. Statistics are never deleted.',
+      settingsResetHint: 'Restore the interface, tracking, analysis model and chime settings to their defaults. Statistics, timers and reports are kept.',
       settingsResetButton: 'Restore initial settings',
       settingsResetConfirmTitle: 'Restore initial settings?',
-      settingsResetConfirmHint: 'Interface language, sidebar status display, status dot visibility and position, sidebar duration, number format, colors, idle threshold, week start and subagent display return to defaults. Statistics are unaffected.',
+      settingsResetConfirmHint: 'Restore the default interface and tracking preferences, clear the analysis model choice and turn the countdown chime on. Existing statistics, timers and reports are kept.',
       settingsResetConfirm: 'Restore',
       settingsResetCancel: 'Cancel',
       settingsResetDone: 'Initial settings restored',
@@ -766,7 +1146,7 @@ window.__ModuleLoader__.load({
       settingsSectionNotices: 'Notifications',
       settingsNoticesHint: 'Keeps a record of each history-task backfill. If old session tasks are missing, rescan once.',
       dataTitle: 'Data',
-      dataHint: 'Exports include raw intervals, tasks and settings; clearing removes only dsh-timespan records, not session logs.',
+      dataHint: 'JSON backs up raw statistics, settings, the last timer result and AI reports. CSV exports daily totals.',
       exportJson: 'Export JSON',
       exportCsv: 'Export CSV',
       exporting: 'Exporting…',
@@ -775,12 +1155,12 @@ window.__ModuleLoader__.load({
       exportError: 'Export failed; please retry',
       clearData: 'Clear all data',
       clearStepTitle: 'Clear everything?',
-      clearStepHint: 'This deletes all local dsh-timespan online, active and task records and cannot be undone. Session logs are untouched and settings are kept.',
+      clearStepHint: 'This stops the current timer and deletes local statistics, the last timer result and AI reports. Settings and DSH session logs are kept. This cannot be undone.',
       clearConfirm: 'Confirm clear',
       clearCancel: 'Cancel',
       clearing: 'Clearing…',
       clearError: 'Clear failed; please retry',
-      cleared: 'Cleared; statistics have been reset',
+      cleared: 'Statistics, timers and reports cleared',
       approximateDismiss: 'Dismiss',
       approximateShowAgain: 'Show the “approximate records” note again',
       approximateShowAgainHint: 'The note only appears when approximate records exist; restore it here after dismissing.',
@@ -789,11 +1169,13 @@ window.__ModuleLoader__.load({
       approximateShowError: 'Could not update the setting; please retry',
       savedBadge: 'Saved',
       importData: 'Choose backup file to import',
-      importHint: 'Only JSON backups exported earlier; merged by ID, existing records are never overwritten.',
+      importHint: 'Import a TimeSpan JSON backup. Statistics merge by ID. Timer results and reports fill empty slots. The current timer keeps its state.',
       importInvalid: 'This is not a valid dsh-timespan backup (format must be dsh-timespan-export or chronoscope-export and version must be 1).',
       importPreviewTitle: 'File to import',
       importIntervals: 'Intervals',
       importTasks: 'Tasks',
+      importReports: 'AI reports',
+      importTimerResult: 'Includes the last timer result',
       importRestoreSettings: 'Also import settings from the file',
       importConfirm: 'Import',
       importCancel: 'Cancel',
@@ -920,7 +1302,7 @@ window.__ModuleLoader__.load({
         h('circle', {
           className: 'cs-palette-signal',
           cx: 8, cy: 8, r: 3.7,
-          fill: 'var(--cs-signal)', stroke: 'none',
+          fill: 'var(--cs-palette-primary, var(--cs-signal))', stroke: 'none',
         }))
     }
 
@@ -960,6 +1342,18 @@ window.__ModuleLoader__.load({
           h('circle', { cx: 8, cy: 8, r: 5.5 }),
           h('path', { d: 'M8 4.7V8l2.2 1.4' }))
       }
+      if (name === 'report') {
+        return h('svg', common,
+          h('path', { d: 'M10 2.3H4.1A1.4 1.4 0 0 0 2.7 3.7v8.6a1.4 1.4 0 0 0 1.4 1.4h7.3a1.4 1.4 0 0 0 1.4-1.4V5.2zM10 2.3v2.9h2.8M5.4 8h4.5M5.4 10.8h3.2' }))
+      }
+      if (name === 'close') return h('svg', common, h('path', { d: 'M4 4l8 8M12 4l-8 8' }))
+      if (name === 'delete') return h('svg', common, h('path', { d: 'M2.5 4h11M6 4V2.5h4V4M4 4l.6 9.5h6.8L12 4M6.5 6.5v4.5M9.5 6.5v4.5' }))
+      if (name === 'copy') return h('svg', common,
+        h('rect', { x: 5.5, y: 5.5, width: 8, height: 8, rx: 1.5 }), h('path', { d: 'M10.5 5.5V3.8a1.3 1.3 0 0 0-1.3-1.3H3.8a1.3 1.3 0 0 0-1.3 1.3v5.4a1.3 1.3 0 0 0 1.3 1.3h1.7' }))
+      if (name === 'download') return h('svg', common, h('path', { d: 'M8 2v7m-3-3 3 3 3-3M3 10v3h10v-3' }))
+      if (name === 'check') return h('svg', common, h('path', { d: 'M3.2 8.2 6.4 11.4 12.8 4.8' }))
+      if (name === 'refresh') return h('svg', common, h('path', { d: 'M12.9 6A5.2 5.2 0 1 0 13 10M13 2.5V6H9.5' }))
+      if (name === 'filter') return h('svg', common, h('path', { d: 'M2.5 4h11M4.5 8h7M6.5 12h3' }))
       if (name === 'breakdown') {
         return h('svg', common,
           h('circle', { cx: 8, cy: 8, r: 5.5 }),
@@ -1046,13 +1440,15 @@ window.__ModuleLoader__.load({
           return `${totalSeconds} 秒`
         case 'padded':
           return `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`
+        case 'decimal':
+          return `${(totalSeconds / 3600).toFixed(2)} h`
         case 'hms':
         default:
           return `${hours}:${pad2(minutes)}:${pad2(seconds)}`
       }
     }
 
-    /** 数字格式只认五种预设；旧响应、脏草稿与非法值一律回落紧凑单位。 */
+    /** 数字格式只认六种预设；旧响应、脏草稿与非法值一律回落紧凑单位。 */
     function normalizeDurationFormat(value) {
       return typeof value === 'string' && DURATION_FORMAT_ORDER.includes(value) ? value : DEFAULT_DURATION_FORMAT
     }
@@ -1062,6 +1458,7 @@ window.__ModuleLoader__.load({
       if (format === 'zh') return 'formatHintZh'
       if (format === 'sec') return 'formatHintSec'
       if (format === 'padded') return 'formatHintPadded'
+      if (format === 'decimal') return 'formatHintDecimal'
       return 'formatHintHms'
     }
 
@@ -1470,7 +1867,7 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** 配色只认 blue / stone / clay；旧 localStorage 里的 mono/green/warm 等值回落到默认蓝。 */
+    /** 配色只认 blue / stone / clay / coral；旧 localStorage 值回落到默认晴空蓝。 */
     function normalizePalette(value) {
       return PALETTES.includes(value) ? value : 'blue'
     }
@@ -1549,6 +1946,25 @@ window.__ModuleLoader__.load({
       return { palette, appearance }
     }
 
+    function useStoredTheme() {
+      const [theme, setTheme] = React.useState(readStoredTheme)
+      const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
+      React.useEffect(() => {
+        const sync = () => setTheme(readStoredTheme())
+        const unsubscribe = subscribeThemeChanged(sync)
+        const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+        const onChange = () => setSystemDark(systemPrefersDark())
+        if (media?.addEventListener) media.addEventListener('change', onChange)
+        else media?.addListener?.(onChange)
+        return () => {
+          unsubscribe()
+          if (media?.removeEventListener) media.removeEventListener('change', onChange)
+          else media?.removeListener?.(onChange)
+        }
+      }, [])
+      return { ...theme, systemDark }
+    }
+
     /** 入口根节点的 cs-palette-* / cs-appearance-* 类；system 按当前系统偏好解析。 */
     function sidebarThemeClass(palette, appearance, prefersDark) {
       return `cs-palette-${normalizePalette(palette)} cs-appearance-${resolveAppearance(appearance, prefersDark)}`
@@ -1562,7 +1978,9 @@ window.__ModuleLoader__.load({
       const result = await connection.rpc.call('/api', 'dsh-timespan', { method, payload })
       if (result !== null && typeof result === 'object' && result.ok === true) return result.value
       const message = result?.error?.message ? String(result.error.message) : 'RPC 调用失败'
-      throw new Error(message)
+      const error = new Error(message)
+      error.code = result?.error?.code
+      throw error
     }
 
     /**
@@ -1672,6 +2090,11 @@ window.__ModuleLoader__.load({
         sidebarDotPosition: normalizeSidebarDotPosition(value?.sidebarDotPosition),
         language: normalizeLanguage(value?.language),
         approximateNoticeDismissed: value?.approximateNoticeDismissed === true,
+        analysisProvider: typeof value?.analysisProvider === 'string' ? value.analysisProvider : '',
+        analysisModel: typeof value?.analysisModel === 'string' ? value.analysisModel : '',
+        timerSound: value?.timerSound !== false,
+        floatingEnabled: value?.floatingEnabled !== false,
+        floatingShowClock: value?.floatingShowClock === true,
       }
     }
 
@@ -1688,6 +2111,11 @@ window.__ModuleLoader__.load({
         sidebarDotPosition: normalizeSidebarDotPosition(draft.sidebarDotPosition),
         language: normalizeLanguage(draft.language),
         approximateNoticeDismissed: draft.approximateNoticeDismissed === true,
+        analysisProvider: draft.analysisProvider ?? '',
+        analysisModel: draft.analysisModel ?? '',
+        timerSound: draft.timerSound !== false,
+        floatingEnabled: draft.floatingEnabled !== false,
+        floatingShowClock: draft.floatingShowClock === true,
       }
     }
 
@@ -1806,6 +2234,7 @@ window.__ModuleLoader__.load({
       function patch(key, value) {
         if (!canEdit()) return Promise.resolve(false)
         const next = { ...runtime.state.draft, [key]: value }
+        if (key === 'analysisProvider' && value !== runtime.state.draft.analysisProvider) next.analysisModel = ''
         if (key === 'durationFormat') {
           next.durationFormat = normalizeDurationFormat(value)
           runtime.preview = true
@@ -1845,6 +2274,7 @@ window.__ModuleLoader__.load({
         busy: !enabled || state.draft === null || state.phase === 'loading' || state.phase === 'load-error' || state.phase === 'saving',
         patch,
         reload: () => reload(),
+        retrySave: () => runtime.state.messageKey === 'settingsSaveError' ? save(runtime.state.draft) : Promise.resolve(false),
         requestReset: () => { if (canEdit()) update({ resetStep: true }) },
         cancelReset: () => { if (!runtime.writing) update({ resetStep: false }) },
         reset: () => runtime.state.resetStep ? save(runtime.state.draft, true) : Promise.resolve(false),
@@ -1949,6 +2379,242 @@ window.__ModuleLoader__.load({
       return { visible, focused }
     }
 
+    function countdownDuration(minutes, seconds) {
+      const min = Number(minutes)
+      const sec = Number(seconds)
+      const total = min * 60 + sec
+      if (!Number.isInteger(min) || min < 0 || !Number.isInteger(sec) || sec < 0 || sec > 59 || total < 1 || total > COUNTDOWN_MAX_MINUTES * 60) return null
+      return total * 1000
+    }
+
+    function projectTimer(timer, receivedAt, at) {
+      const passed = timer.status === 'running' ? Math.max(0, at - receivedAt) : 0
+      const elapsedMs = timer.elapsedMs + passed
+      if (timer.mode !== 'countdown') return { elapsedMs, remainingMs: null }
+      return { elapsedMs: Math.min(elapsedMs, timer.durationMs), remainingMs: Math.max(0, timer.remainingMs - passed) }
+    }
+
+    function timerDigits(ms, roundUp = false) {
+      const whole = Math.max(0, roundUp ? Math.ceil(ms / 1000) : Math.floor(ms / 1000))
+      const parts = [Math.floor(whole / 3600), Math.floor(whole / 60) % 60, whole % 60]
+      return parts.map((part) => String(part).padStart(2, '0')).join(':')
+    }
+
+    function createTimerAudio() {
+      let context = null
+      return {
+        async unlock() {
+          try {
+            const Audio = window.AudioContext ?? window.webkitAudioContext
+            if (!Audio) return false
+            context ??= new Audio()
+            if (context.state !== 'running') await context.resume()
+            return context?.state === 'running'
+          } catch { return false }
+        },
+        play() {
+          if (context?.state !== 'running') return false
+          try {
+            for (const [frequency, delay] of [[660, 0], [880, .15]]) {
+              const oscillator = context.createOscillator()
+              const volume = context.createGain()
+              const start = context.currentTime + delay
+              oscillator.frequency.value = frequency
+              volume.gain.setValueAtTime(.0001, start)
+              volume.gain.exponentialRampToValueAtTime(.085, start + .018)
+              volume.gain.exponentialRampToValueAtTime(.0001, start + .29)
+              oscillator.connect(volume)
+              volume.connect(context.destination)
+              oscillator.start(start)
+              oscillator.stop(start + .3)
+              oscillator.onended = () => { oscillator.disconnect(); volume.disconnect() }
+            }
+            return true
+          } catch { return false }
+        },
+        close() {
+          if (context) void context.close().catch(() => {})
+          context = null
+        },
+      }
+    }
+
+    /** 两个计时入口共用 Host 快照及请求队列，页面可见时才认领提醒。 */
+    function createTimerClient(ctx, audio = createTimerAudio()) {
+      const listeners = new Set()
+      let state = { timer: null, receivedAt: 0, busy: false, syncError: false, actionError: '', notice: null, noticeError: false }
+      let revision = 0
+      let reading = null
+      let poll = null
+      let deadline = null
+      let noticeTimeout = null
+      let unsubscribeSettings = null
+      let claiming = false
+      let handledNotice = null
+      let waitingNotice = null
+
+      function update(patch) {
+        state = { ...state, ...patch }
+        for (const listener of listeners) listener(state)
+      }
+
+      function dismissNotice() {
+        clearTimeout(noticeTimeout)
+        update({ notice: null })
+      }
+
+      function showNotice() {
+        if (!waitingNotice || !listeners.size || !readWindowState().visible) return
+        const { id, sound } = waitingNotice
+        waitingNotice = null
+        const blocked = sound && !audio.play()
+        clearTimeout(noticeTimeout)
+        update({ notice: { id, blocked, failed: false } })
+        if (!blocked) noticeTimeout = setTimeout(dismissNotice, 7_000)
+      }
+
+      async function claimNotice(id) {
+        if (typeof id !== 'string' || id === handledNotice || claiming || !listeners.size || !readWindowState().visible) return
+        claiming = true
+        try {
+          const response = await callHost(ctx, 'claimTimerNotification', { id, clientId: CLIENT_ID })
+          handledNotice = id
+          if (state.noticeError) update({ noticeError: false })
+          if (response?.claimed === true && listeners.size && state.timer?.lastResult?.id === id) {
+            waitingNotice = { id, sound: response.sound === true }
+            showNotice()
+          }
+        } catch {
+          // 轮询重试认领。到期状态仍以 getTimer 返回的快照为准。
+          if (listeners.size && state.timer?.notification?.id === id) update({ noticeError: true })
+        } finally {
+          claiming = false
+        }
+      }
+
+      function accept(timer, patch = {}) {
+        if (!['idle', 'running', 'paused', 'completed'].includes(timer?.status) || !Number.isFinite(timer.elapsedMs)) {
+          throw new Error('计时快照无效')
+        }
+        if (waitingNotice?.id !== timer.lastResult?.id) waitingNotice = null
+        const notice = state.notice?.id === timer.lastResult?.id ? state.notice : null
+        if (!notice) clearTimeout(noticeTimeout)
+        update({ timer, receivedAt: Date.now(), syncError: false, notice,
+          noticeError: state.noticeError && timer.notification?.id === state.timer?.notification?.id,
+          ...patch,
+        })
+        clearTimeout(deadline)
+        if (timer.status === 'running' && timer.mode === 'countdown' && timer.remainingMs > 0) {
+          deadline = setTimeout(refresh, timer.remainingMs)
+        }
+        void claimNotice(timer.notification?.id)
+      }
+
+      function refresh() {
+        if (!listeners.size || state.busy || !readWindowState().visible) return Promise.resolve(false)
+        if (reading) return reading
+        const ticket = revision
+        const request = callHost(ctx, 'getTimer', {}).then((timer) => {
+          if (ticket !== revision || !listeners.size) return false
+          accept(timer)
+          return true
+        }).catch(() => {
+          if (ticket === revision && listeners.size) update({ syncError: true })
+          return false
+        }).finally(() => { if (reading === request) reading = null })
+        reading = request
+        return request
+      }
+
+      function syncVisibility() {
+        showNotice()
+        void refresh()
+      }
+
+      return {
+        snapshot: () => state,
+        subscribe(listener) {
+          listeners.add(listener)
+          listener(state)
+          if (listeners.size === 1) {
+            window.addEventListener?.('focus', syncVisibility)
+            if (typeof document !== 'undefined') document.addEventListener?.('visibilitychange', syncVisibility)
+            unsubscribeSettings = subscribeSettingsChanged(syncVisibility)
+            poll = setInterval(refresh, TIMER_REFRESH_MS)
+            syncVisibility()
+          }
+          return () => {
+            listeners.delete(listener)
+            if (listeners.size) return
+            window.removeEventListener?.('focus', syncVisibility)
+            if (typeof document !== 'undefined') document.removeEventListener?.('visibilitychange', syncVisibility)
+            unsubscribeSettings?.()
+            clearInterval(poll)
+            clearTimeout(deadline)
+            clearTimeout(noticeTimeout)
+            revision += 1
+            reading = null
+            waitingNotice = null
+            audio.close()
+          }
+        },
+        async retry() {
+          if (await refresh()) update({ actionError: '' })
+        },
+        async control(command) {
+          if (state.busy || state.syncError || !state.timer) return
+          const targetId = command.action === 'clear-result' ? state.timer.lastResult?.id : state.timer.id
+          if (command.id !== targetId) {
+            update({ actionError: 'timerChanged' })
+            void refresh()
+            return
+          }
+          if (command.action === 'start' && command.mode === 'countdown' || command.action === 'resume' && state.timer.mode === 'countdown') {
+            void audio.unlock()
+          }
+          const ticket = ++revision
+          reading = null
+          update({ busy: true, actionError: '' })
+          try {
+            const timer = await callHost(ctx, 'controlTimer', command)
+            if (ticket === revision && listeners.size) accept(timer)
+          } catch (error) {
+            if (ticket === revision && listeners.size) {
+              update({ actionError: error?.code === 'stale-timer' ? 'timerChanged' : 'timerActionError' })
+            }
+          } finally {
+            update({ busy: false })
+            if (state.actionError || ticket !== revision) void refresh()
+          }
+        },
+        dismissNotice,
+        async playNotice() {
+          const notice = state.notice
+          if (!notice?.blocked) return
+          const unlocked = await audio.unlock()
+          if (state.notice !== notice || !readWindowState().visible) return
+          if (unlocked && audio.play()) dismissNotice()
+          else update({ notice: { ...notice, failed: true } })
+        },
+      }
+    }
+
+    function useTimerClient(client) {
+      const [snapshot, setSnapshot] = React.useState(client.snapshot)
+      React.useEffect(() => client.subscribe(setSnapshot), [client])
+      return snapshot
+    }
+
+    function useClockTick(enabled) {
+      const [, setTick] = React.useState(0)
+      React.useEffect(() => {
+        if (!enabled) return undefined
+        const timer = setInterval(() => setTick((value) => value + 1), 1000)
+        return () => clearInterval(timer)
+      }, [enabled])
+      return Date.now()
+    }
+
     /** 标准属性里的 hook 只在 sidebar 入口的渲染环境存在；缺省时给出安全的静态值。 */
     function useStandardValue(useHook, selector, fallback) {
       if (typeof useHook === 'function') return useHook(selector)
@@ -1990,11 +2656,8 @@ window.__ModuleLoader__.load({
         },
         null,
       )
-      const panelActive = useStandardValue(
-        props?.usePanelInfo,
-        (info) => info !== null && typeof info === 'object' && info.activePanelId !== null && info.activePanelId !== undefined,
-        false,
-      )
+      const activePanelId = useStandardValue(props?.usePanelInfo, (info) => info?.activePanelId, undefined)
+      const panelActive = activePanelId !== null && activePanelId !== undefined
       const effectiveSessionId = panelActive ? null : foregroundId
       const workspaceId = useStandardValue(
         props?.useWorkspaces,
@@ -2079,6 +2742,7 @@ window.__ModuleLoader__.load({
         facts.workspaceTitle,
         facts.foregroundRunning,
       ])
+      return activePanelId === null && foregroundId !== null
     }
 
     /**
@@ -2352,8 +3016,7 @@ window.__ModuleLoader__.load({
         const [refreshNonce, setRefreshNonce] = React.useState(0)
         const stats = useTodayStats(ctx, SIDEBAR_REFRESH_MS, refreshNonce)
         const hover = useDelayedSidebarTip(SIDEBAR_TIP_DELAY_MS)
-        const [theme, setTheme] = React.useState(readStoredTheme)
-        const [systemDark, setSystemDark] = React.useState(systemPrefersDark)
+        const theme = useStoredTheme()
         // 首次安装默认隐藏状态文字；设置读取完成前也保持隐藏，避免先闪出一行状态。
         const [showName, setShowName] = React.useState(false)
         // 侧栏显示哪种时长；Host 设置读回前先按默认在线时长渲染，避免布局闪动。
@@ -2368,28 +3031,6 @@ window.__ModuleLoader__.load({
           setPreviewFormat(null)
           setRefreshNonce((value) => value + 1)
         }), [])
-
-        // 仪表盘切换配色/外观、系统深浅变化时，入口重读同一份 localStorage。
-        React.useEffect(() => {
-          const sync = () => setTheme(readStoredTheme())
-          const unsubscribe = subscribeThemeChanged(sync)
-          let media = null
-          const onSystemChange = () => {
-            setSystemDark(systemPrefersDark())
-            sync()
-          }
-          if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-            media = window.matchMedia('(prefers-color-scheme: dark)')
-            if (typeof media.addEventListener === 'function') media.addEventListener('change', onSystemChange)
-            else if (typeof media.addListener === 'function') media.addListener(onSystemChange)
-          }
-          return () => {
-            unsubscribe()
-            if (media === null) return
-            if (typeof media.removeEventListener === 'function') media.removeEventListener('change', onSystemChange)
-            else if (typeof media.removeListener === 'function') media.removeListener(onSystemChange)
-          }
-        }, [])
 
         // 状态文字显隐是 Host 设置；设置页保存后按同一事件重读，不缓存第二份业务状态。
         React.useEffect(() => {
@@ -2421,7 +3062,7 @@ window.__ModuleLoader__.load({
 
         return renderSidebarEntry({
           stats,
-          theme: { ...theme, systemDark },
+          theme,
           showName,
           showDot,
           dotPosition,
@@ -2434,14 +3075,707 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /**
-     * presence 心跳挂在 frame-wide overlay 上而不是侧边栏入口里：侧边栏入口
-     * 被取消固定或折叠时组件可能卸载，但活跃采集必须随页面一直存在。
-     */
-    function createPresenceReporter(ctx) {
+    function ClockDial({ at, t }) {
+      const date = new Date(at)
+      const seconds = date.getSeconds()
+      const minutes = date.getMinutes()
+      const hours = date.getHours()
+      const time = [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':')
+      return h('div', { className: 'cs-clock-face' },
+        h('svg', { viewBox: '0 0 128 128', fill: 'none', 'aria-hidden': true },
+          h('circle', { className: 'cs-clock-rim', cx: 64, cy: 64, r: 61 }),
+          Array.from({ length: 12 }, (_, index) => h('line', {
+            key: index, className: `cs-clock-tick${index % 3 === 0 ? ' is-quarter' : ''}`,
+            x1: 64, y1: 11, x2: 64, y2: index % 3 === 0 ? 18 : 15,
+            transform: `rotate(${index * 30} 64 64)`,
+          })),
+          h('line', { className: 'cs-clock-hour', x1: 64, y1: 64, x2: 64, y2: 38, transform: `rotate(${30 * hours + minutes / 2} 64 64)` }),
+          h('line', { className: 'cs-clock-minute', x1: 64, y1: 64, x2: 64, y2: 25, transform: `rotate(${6 * minutes + seconds / 10} 64 64)` }),
+          h('line', { className: 'cs-clock-second', x1: 64, y1: 75, x2: 64, y2: 17, transform: `rotate(${6 * seconds} 64 64)` }),
+          h('circle', { className: 'cs-clock-pivot', cx: 64, cy: 64, r: 3.1 })),
+        h('div', { className: 'cs-clock-caption' }, t('timerClock'), h('time', { dateTime: time }, time)))
+    }
+
+    function timerStatusKey(timer) {
+      return timer?.status === 'running' ? 'timerRunning'
+        : timer?.status === 'paused' ? 'timerPaused'
+          : timer?.status === 'completed' ? (timer.lastResult?.reason === 'expired' ? 'timerExpired' : 'timerCompleted')
+            : 'timerIdle'
+    }
+
+    /** 同组选择共用一块底板；重排或切入/离开 snapValue 时直接定位。 */
+    function SelectionGroup({ as = 'div', value, snapValue, className = '', children, ...props }) {
+      const rootRef = React.useRef(null)
+      const previous = React.useRef(value)
+      React.useLayoutEffect(() => {
+        const root = rootRef.current
+        if (!root?.querySelector) return undefined
+        const place = (animate = false) => {
+          const active = root.querySelector('[aria-pressed="true"], [aria-selected="true"], [aria-checked="true"]')
+          if (!active) { delete root.dataset.selectionReady; return }
+          const outer = root.getBoundingClientRect()
+          const rect = active.getBoundingClientRect()
+          if (!rect.width || !rect.height) return
+          root.dataset.selectionMotion = String(animate && !prefersReducedMotion())
+          root.style.setProperty('--cs-indicator-x', `${rect.left - outer.left - root.clientLeft + root.scrollLeft}px`)
+          root.style.setProperty('--cs-indicator-y', `${rect.top - outer.top - root.clientTop + root.scrollTop}px`)
+          root.style.setProperty('--cs-indicator-width', `${rect.width}px`)
+          root.style.setProperty('--cs-indicator-height', `${rect.height}px`)
+          root.dataset.selectionReady = 'true'
+        }
+        place(previous.current !== value && previous.current !== snapValue && value !== snapValue)
+        previous.current = value
+        const sizeOf = () => [root, ...root.querySelectorAll('button')].map((item) => `${item.offsetWidth}:${item.offsetHeight}`).join('|')
+        let sizes = sizeOf()
+        const resize = () => { sizes = sizeOf(); place(false) }
+        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => {
+          if (sizeOf() !== sizes) resize()
+        }) : null
+        observer?.observe(root)
+        for (const item of root.querySelectorAll('button')) observer?.observe(item)
+        window.addEventListener?.('resize', resize)
+        let active = true
+        document.fonts?.ready.then(() => { if (active && sizeOf() !== sizes) resize() })
+        return () => { active = false; observer?.disconnect(); window.removeEventListener?.('resize', resize) }
+      }, [value, snapValue])
+      return h(as, { ...props, ref: rootRef, className: `cs-selection-group ${className}`, 'data-selection': value },
+        h('span', { className: 'cs-selection-thumb', 'aria-hidden': true }), children)
+    }
+
+    /** 新内容就绪才入场；轮询和实时数字更新不重播。 */
+    function ContentTransition({ identity, busy = false, retain = false, className = '', children, ...props }) {
+      const rootRef = React.useRef(null)
+      const interrupted = React.useRef(null)
+      const previousContent = React.useRef(children)
+      const enterFromZero = React.useRef(false)
+      const [shown, setShown] = React.useState(identity)
+      const changing = retain && shown !== identity
+      if (!changing) previousContent.current = children
+      React.useEffect(() => {
+        const root = rootRef.current
+        if (!root?.animate || prefersReducedMotion()) {
+          if (changing) setShown(identity)
+          return undefined
+        }
+        const exit = busy || changing
+        const animation = root.animate([{ opacity: interrupted.current ?? (enterFromZero.current ? 0 : exit ? 1 : .25) }, { opacity: changing ? 0 : busy ? .15 : 1 }], {
+          duration: exit ? VIEW_EXIT_MS : VIEW_ENTER_MS, easing: 'cubic-bezier(.2,.7,.2,1)', fill: exit ? 'forwards' : 'none',
+        })
+        interrupted.current = null
+        enterFromZero.current = false
+        animation.onfinish = () => { if (changing) { enterFromZero.current = true; setShown(identity) } }
+        return () => {
+          interrupted.current = animation.playState === 'running' ? Number(window.getComputedStyle(root).opacity) : null
+          animation.onfinish = null
+          animation.cancel()
+        }
+      }, [identity, busy, changing])
+      return h('div', { ...props, className, ref: rootRef, inert: busy || changing ? '' : undefined, 'aria-busy': busy || changing || undefined }, changing ? previousContent.current : children)
+    }
+
+    /** 折叠结束再卸载内容；首次关闭的分组不提前渲染全部会话。 */
+    function AnimatedCollapse({ open, className = '', children }) {
+      const retained = React.useRef(null)
+      const rootRef = React.useRef(null)
+      const [, redraw] = React.useState(0)
+      if (open) retained.current = children
+      const content = open ? children : prefersReducedMotion() ? null : retained.current
+      React.useEffect(() => {
+        if (open) return undefined
+        let disposed = false
+        const finish = () => {
+          if (!disposed && retained.current !== null) { retained.current = null; redraw((value) => value + 1) }
+        }
+        // 快速反向可能没有产生 transitionend；等待实际动画结束，无动画时直接释放。
+        const animations = rootRef.current?.getAnimations?.() ?? []
+        if (prefersReducedMotion() || animations.length === 0) finish()
+        else Promise.allSettled(animations.map((animation) => animation.finished)).then(finish)
+        return () => { disposed = true }
+      }, [open])
+      return h('div', {
+        ref: rootRef,
+        className: `cs-collapse ${className}${open ? ' is-open' : ''}`, inert: open ? undefined : '', 'aria-hidden': !open,
+        onTransitionEnd: (event) => {
+          if (!open && event.target === event.currentTarget && event.propertyName === 'grid-template-rows') {
+            retained.current = null
+            redraw((value) => value + 1)
+          }
+        },
+      }, h('div', { className: 'cs-collapse-body' }, content))
+    }
+
+    function TimerControls({ client, snapshot, at, t }) {
+      const [mode, setMode] = React.useState('stopwatch')
+      const [minutes, setMinutes] = React.useState('25')
+      const [seconds, setSeconds] = React.useState('0')
+      const { timer, receivedAt, busy, syncError, actionError, noticeError } = snapshot
+      const [savingDelayed, setSavingDelayed] = React.useState(false)
+      React.useEffect(() => {
+        if (!busy) { setSavingDelayed(false); return undefined }
+        const timeout = setTimeout(() => setSavingDelayed(true), 240)
+        return () => clearTimeout(timeout)
+      }, [busy])
+      const status = timer?.status
+      const isIdle = status === 'idle'
+      const countdown = (isIdle ? mode : timer?.mode) === 'countdown'
+      const durationMs = countdownDuration(minutes, seconds)
+      const invalid = isIdle && countdown && durationMs === null
+      const projection = timer ? projectTimer(timer, receivedAt, at) : null
+      const value = isIdle && countdown ? durationMs : countdown ? projection?.remainingMs : projection?.elapsedMs
+      const result = timer?.lastResult
+      const disabled = busy || syncError || !timer
+      const action = (name, key, primary = false, extra = {}) => h('button', {
+        type: 'button', className: `cs-timer-button${primary ? ' is-primary' : ''}`,
+        disabled: disabled || (name === 'start' && invalid),
+        onClick: () => client.control({ action: name, id: timer.id, ...extra }),
+      }, t(key))
+      const durationInput = (unit, current, change, max) => h('label', { className: 'cs-timer-unit' },
+        h('input', {
+          type: 'number', inputMode: 'numeric', min: 0, max, step: 1,
+          value: current, disabled, 'aria-label': t(unit), 'aria-invalid': invalid || undefined,
+          onChange: (event) => change(event.target.value),
+        }), t(unit))
+
+      return h('div', { className: 'cs-timer-controls', 'aria-busy': busy || undefined },
+        h('div', { className: 'cs-timer-heading' },
+          h('strong', null, t('timerTitle')),
+          timer ? h('span', { className: `cs-timer-state is-${status}`, role: 'status' }, t(busy && savingDelayed ? 'timerSaving' : timerStatusKey(timer))) : null),
+        h('div', { className: 'cs-timer-mode-slot' }, isIdle ? h(SelectionGroup, { value: mode, className: 'cs-timer-modes', role: 'group', 'aria-label': t('timerTitle') },
+          [['stopwatch', 'timerStopwatch'], ['countdown', 'timerCountdown']].map(([option, label]) => h('button', {
+            key: option, type: 'button', 'aria-pressed': mode === option, disabled,
+            onClick: () => setMode(option),
+          }, t(label)))) : timer ? h('span', { className: 'cs-timer-mode' }, t(countdown ? 'timerCountdown' : 'timerStopwatch')) : null),
+        h(ContentTransition, { identity: isIdle ? mode : timer?.mode, retain: true, className: 'cs-timer-readout', role: 'timer', 'aria-live': 'off' }, Number.isFinite(value) ? timerDigits(value, countdown) : '––:––:––'),
+        h(AnimatedCollapse, { open: countdown && !isIdle && timer?.durationMs > 0 }, countdown && timer?.durationMs > 0 ? h('progress', {
+          className: 'cs-timer-progress', max: timer.durationMs, value: projection.elapsedMs, 'aria-label': t('timerCountdown'),
+        }) : null),
+        h(AnimatedCollapse, { open: isIdle && countdown }, h('fieldset', { className: 'cs-timer-duration' },
+          h('legend', null, t('timerDuration')),
+          durationInput('timerMinutes', minutes, setMinutes, COUNTDOWN_MAX_MINUTES),
+          durationInput('timerSeconds', seconds, setSeconds, 59),
+          invalid ? h('p', { className: 'cs-timer-feedback is-error' }, t('timerDurationInvalid')) : null)),
+        h('div', { className: 'cs-timer-actions' },
+          isIdle ? action('start', 'timerStart', true, { mode, ...(countdown ? { durationMs } : {}) }) : null,
+          status === 'running' ? action('pause', 'timerPause', true) : null,
+          status === 'paused' ? action('resume', 'timerResume', true) : null,
+          status === 'running' || status === 'paused' ? action('complete', 'timerComplete') : null,
+          status === 'paused' || status === 'completed' ? action('reset', 'timerReset') : null),
+        syncError || actionError || noticeError ? h('div', { className: 'cs-timer-feedback is-error', role: 'status' },
+          t(syncError ? 'timerSyncError' : actionError || 'timerNoticeError'), h('button', {
+            className: 'cs-timer-button', type: 'button', disabled: busy, onClick: client.retry,
+          }, t('timerRefresh'))) : null,
+        !timer && !syncError ? h('div', { className: 'cs-timer-feedback', role: 'status' }, t('timerSyncing')) : null,
+        h(AnimatedCollapse, { open: Boolean(result), className: 'cs-result-collapse' }, result ? h('div', { className: 'cs-timer-result' },
+          h('div', { className: 'cs-timer-result-copy' },
+            h('span', null, `${t('timerLastResult')} · ${t(result.mode === 'countdown' ? 'timerCountdown' : 'timerStopwatch')}`),
+            h('span', null, `${t('timerResultElapsed').replace('{time}', timerDigits(result.elapsedMs))} · ${formatNoticeTime(result.completedAt)}`)),
+          h('button', { type: 'button', className: 'cs-timer-result-delete', disabled,
+            title: t('timerDeleteResult'), 'aria-label': t('timerDeleteResult'),
+            onClick: () => client.control({ action: 'clear-result', id: result.id }),
+          }, h('span', { className: 'cs-delete-dot', 'aria-hidden': true }),
+          h(DetailGlyph, { name: 'delete', size: 15 }))) : null))
+    }
+
+    /** 退出后才隐藏表面；只在表面本身改变透明度，避免祖先图层隔断磨砂背景。 */
+    function useSurfaceFade(open, surfaceRef) {
+      const [retained, setRetained] = React.useState(open)
+      const interruptedOpacity = React.useRef(null)
+      // 新表面必须在首帧绘制前设置透明度，避免先完整显示一帧再退回入场起点。
+      React.useLayoutEffect(() => {
+        const surface = surfaceRef.current
+        if (open) setRetained(true)
+        if (!surface || typeof surface.animate !== 'function' || prefersReducedMotion()) {
+          interruptedOpacity.current = null
+          if (!open) setRetained(false)
+          return undefined
+        }
+        const opacity = interruptedOpacity.current ?? (open ? 0 : Number(window.getComputedStyle(surface).opacity))
+        interruptedOpacity.current = null
+        const animation = surface.animate([{ opacity }, { opacity: open ? 1 : 0 }], {
+          duration: open ? VIEW_ENTER_MS : VIEW_EXIT_MS, easing: open ? 'ease-out' : 'ease-in', fill: 'forwards',
+        })
+        animation.onfinish = () => {
+          if (open) animation.cancel()
+          else setRetained(false)
+        }
+        return () => {
+          interruptedOpacity.current = animation.playState === 'running' ? Number(window.getComputedStyle(surface).opacity) : null
+          animation.onfinish = null
+          animation.cancel()
+        }
+      }, [open])
+      return open || (retained && !prefersReducedMotion())
+    }
+
+    /** 悬浮位置是本机布局偏好，以可移动区域的比例保存，不保存计时业务状态。 */
+    function normalizeFloatingPosition(value) {
+      const unit = (number, fallback) => typeof number === 'number' && Number.isFinite(number)
+        ? Math.min(1, Math.max(0, number)) : fallback
+      return { x: unit(value?.x, .97), y: unit(value?.y, .23) }
+    }
+
+    function floatingRect(position, size, viewport) {
+      const point = normalizeFloatingPosition(position)
+      const width = Math.min(Math.max(1, size.width), Math.max(1, viewport.width - FLOATING_GAP * 2))
+      const height = Math.min(Math.max(1, size.height), Math.max(1, viewport.height - FLOATING_GAP * 2))
+      const gapX = Math.min(FLOATING_GAP, Math.max(0, (viewport.width - width) / 2))
+      const gapY = Math.min(FLOATING_GAP, Math.max(0, (viewport.height - height) / 2))
+      return {
+        left: gapX + point.x * Math.max(0, viewport.width - width - gapX * 2),
+        top: gapY + point.y * Math.max(0, viewport.height - height - gapY * 2), width, height,
+      }
+    }
+
+    function moveFloatingPosition(position, size, viewport, dx, dy) {
+      const rect = floatingRect(position, size, viewport)
+      const spanX = Math.max(0, viewport.width - rect.width - FLOATING_GAP * 2)
+      const spanY = Math.max(0, viewport.height - rect.height - FLOATING_GAP * 2)
+      return normalizeFloatingPosition({ x: spanX ? (rect.left - FLOATING_GAP + dx) / spanX : 0,
+        y: spanY ? (rect.top - FLOATING_GAP + dy) / spanY : 0 })
+    }
+
+    function floatingEdge(rect, viewport) {
+      const edges = [
+        ['left', rect.left], ['right', viewport.width - rect.left - rect.width],
+        ['top', rect.top], ['bottom', viewport.height - rect.top - rect.height],
+      ].sort((a, b) => a[1] - b[1])
+      return edges[0][1] <= FLOATING_EDGE_DISTANCE ? edges[0][0] : null
+    }
+
+    function floatingDockStyle(edge, rect, viewport) {
+      const vertical = edge === 'left' || edge === 'right'
+      const width = vertical ? 28 : 64
+      const height = vertical ? 64 : 28
+      return {
+        left: edge === 'left' ? 0 : edge === 'right' ? Math.max(0, viewport.width - width)
+          : Math.max(0, Math.min(viewport.width - width, rect.left + rect.width / 2 - width / 2)),
+        top: edge === 'top' ? 0 : edge === 'bottom' ? Math.max(0, viewport.height - height)
+          : Math.max(0, Math.min(viewport.height - height, rect.top + rect.height / 2 - height / 2)),
+        width, height,
+      }
+    }
+
+    function readFloatingPosition() {
+      try {
+        const stored = JSON.parse(window.localStorage.getItem(FLOATING_POSITION_KEY))
+        return Number.isFinite(stored?.x) && Number.isFinite(stored?.y) ? normalizeFloatingPosition(stored) : null
+      } catch { return null }
+    }
+
+    function saveFloatingPosition(position) {
+      try { window.localStorage.setItem(FLOATING_POSITION_KEY, JSON.stringify(position === null ? null : normalizeFloatingPosition(position))) }
+      catch { /* 禁用本地存储时仍可在当前页面拖动。 */ }
+    }
+
+    /** 使用宿主 slot 标记定位标题栏，不依赖构建后变化的 CSS 类名。 */
+    function floatingConversationAnchor() {
+      const boxes = (name) => Array.from(document.querySelectorAll?.(`[data-slot="${name}"]`) ?? [])
+        .map((slot) => (slot.firstElementChild ?? slot).getBoundingClientRect())
+        .filter((rect) => rect.width > 0 && rect.height > 0)
+      const header = boxes('conversation.header')[0]
+      const main = boxes('main.conversation')[0]
+      return { left: (main?.left ?? header?.left ?? 0) + FLOATING_GAP,
+        top: (header?.bottom ?? main?.top ?? 40) + FLOATING_GAP }
+    }
+
+    function FloatingTimerMenu({ point, onClose, onExit, busy, error, t }) {
+      const menuRef = React.useRef(null)
+      const visible = useSurfaceFade(Boolean(point), menuRef)
+      React.useLayoutEffect(() => {
+        const menu = menuRef.current
+        if (!point || !menu) return undefined
+        const position = clampTipPosition({ left: point.x, right: point.x, top: point.y, bottom: point.y },
+          { width: menu.offsetWidth, height: menu.offsetHeight }, { width: window.innerWidth, height: window.innerHeight })
+        menu.style.left = `${position.left}px`
+        menu.style.top = `${position.top}px`
+        menu.querySelector('button')?.focus()
+        const outside = (event) => { if (!menu.contains(event.target)) onClose(false) }
+        const key = (event) => {
+          if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(true) }
+          else if (event.key === 'Tab') onClose(false)
+        }
+        const resize = () => onClose(false)
+        document.addEventListener('pointerdown', outside, true)
+        document.addEventListener('keydown', key, true)
+        window.addEventListener('resize', resize)
+        return () => {
+          document.removeEventListener('pointerdown', outside, true)
+          document.removeEventListener('keydown', key, true)
+          window.removeEventListener('resize', resize)
+        }
+      }, [point, error])
+      return h('div', { ref: menuRef, className: 'cs-floating-menu', role: 'menu', 'aria-label': t('floatingMenu'),
+        hidden: !visible, inert: !point ? '' : undefined, 'aria-hidden': !point },
+        h('button', { type: 'button', role: 'menuitem', disabled: busy, onClick: onExit },
+          h(DetailGlyph, { name: 'close', size: 15 }), t('floatingExit')),
+        h('p', { className: error ? 'is-error' : undefined, role: error ? 'status' : undefined }, t(error ? 'floatingExitError' : 'floatingExitHint')))
+    }
+
+    function FloatingTimer({ client, snapshot, showClock = false, onExit, exitBusy = false, exitError = false, t }) {
+      const [position, setPosition] = React.useState(readFloatingPosition)
+      const [viewport, setViewport] = React.useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
+      const [size, setSize] = React.useState({ width: 40, height: 40 })
+      const [anchor, setAnchor] = React.useState(floatingConversationAnchor)
+      const [menuPoint, setMenuPoint] = React.useState(null)
+      const effectivePosition = position ?? moveFloatingPosition({ x: 0, y: 0 }, size, viewport, anchor.left - FLOATING_GAP, anchor.top - FLOATING_GAP)
+      const [expanded, setExpanded] = React.useState(false)
+      const [docked, setDocked] = React.useState(null)
+      const [hovered, setHovered] = React.useState(false)
+      const [focused, setFocused] = React.useState(false)
+      const [dragging, setDragging] = React.useState(false)
+      const rootRef = React.useRef(null)
+      const contentRef = React.useRef(null)
+      const entryRef = React.useRef(null)
+      const moveRef = React.useRef(null)
+      const panelRef = React.useRef(null)
+      const dragRef = React.useRef(null)
+      const pointRef = React.useRef(effectivePosition)
+      pointRef.current = effectivePosition
+      const ignoreClickRef = React.useRef(false)
+      const focusAfterWakeRef = React.useRef(false)
+      const panelVisible = useSurfaceFade(expanded && !docked, panelRef)
+      const visibleDock = panelVisible ? null : docked
+      const timer = snapshot.timer
+      const at = useClockTick(expanded && !docked || timer?.status === 'running')
+      const rect = floatingRect(effectivePosition, size, viewport)
+      const projection = timer ? projectTimer(timer, snapshot.receivedAt, at) : null
+      const digits = timer && timer.status !== 'idle'
+        ? timerDigits(projection.remainingMs ?? projection.elapsedMs, timer.mode === 'countdown') : ''
+      const error = snapshot.syncError ? 'timerSyncError' : snapshot.actionError || (snapshot.noticeError ? 'timerNoticeError' : '')
+
+      function place(next) {
+        pointRef.current = next
+        setPosition(next)
+      }
+
+      function wake(keyboard = false) {
+        focusAfterWakeRef.current = keyboard
+        setDocked(null)
+        setExpanded(true)
+      }
+
+      function minimize() {
+        setExpanded(false)
+        setDocked(null)
+        if (rootRef.current?.contains(document.activeElement) && document.activeElement?.matches(':focus-visible')) focusAfterWakeRef.current = true
+        setFocused(false)
+      }
+
+      React.useEffect(() => {
+        const resize = () => setViewport({ width: window.innerWidth, height: window.innerHeight })
+        window.addEventListener('resize', resize)
+        return () => window.removeEventListener('resize', resize)
+      }, [])
+
+      React.useLayoutEffect(() => {
+        if (position !== null) return undefined
+        const measure = () => {
+          const next = floatingConversationAnchor()
+          setAnchor((previous) => previous.left === next.left && previous.top === next.top ? previous : next)
+        }
+        measure()
+        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+        for (const slot of document.querySelectorAll?.('[data-slot="main.conversation"], [data-slot="conversation.header"]') ?? []) {
+          observer?.observe(slot.firstElementChild ?? slot)
+        }
+        window.addEventListener('resize', measure)
+        return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
+      }, [position === null])
+
+      React.useEffect(() => {
+        const content = contentRef.current
+        if (!content || visibleDock) return undefined
+        const measure = () => {
+          const bounds = content.getBoundingClientRect()
+          if (bounds.width && bounds.height) setSize((previous) => previous.width === bounds.width && previous.height === bounds.height
+            ? previous : { width: bounds.width, height: bounds.height })
+        }
+        measure()
+        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+        observer?.observe(content)
+        return () => observer?.disconnect()
+      }, [expanded, visibleDock, showClock, panelVisible])
+
+      React.useEffect(() => {
+        if (!focusAfterWakeRef.current || docked || !expanded && panelVisible) return
+        focusAfterWakeRef.current = false
+        if (expanded) moveRef.current?.focus()
+        else entryRef.current?.focus()
+      }, [docked, expanded, panelVisible])
+
+      React.useEffect(() => {
+        // 用户仍在悬浮窗里阅读、拖动、用键盘或编辑倒计时，均不自动收起。
+        if (docked || hovered || focused || dragging || menuPoint) return undefined
+        const edge = floatingEdge(rect, viewport)
+        if (!edge) return undefined
+        const timeout = setTimeout(() => setDocked(edge), FLOATING_DOCK_DELAY)
+        return () => clearTimeout(timeout)
+      }, [docked, hovered, focused, dragging, menuPoint, position, anchor, size, viewport])
+
+      function startDrag(event) {
+        if (event.button !== 0 || event.isPrimary === false) return
+        event.preventDefault()
+        if (rootRef.current?.contains(document.activeElement)) document.activeElement.blur?.()
+        setFocused(false)
+        event.currentTarget.setPointerCapture(event.pointerId)
+        ignoreClickRef.current = false
+        setMenuPoint(null)
+        dragRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, position: pointRef.current, savedPosition: position, size, viewport, moved: false }
+        setDragging(true)
+      }
+
+      function moveDrag(event) {
+        const drag = dragRef.current
+        if (!drag || drag.id !== event.pointerId) return
+        const dx = event.clientX - drag.x
+        const dy = event.clientY - drag.y
+        if (!drag.moved && Math.hypot(dx, dy) < 4) return
+        drag.moved = true
+        place(moveFloatingPosition(drag.position, drag.size, drag.viewport, dx, dy))
+      }
+
+      function endDrag(event, cancelled = false) {
+        const drag = dragRef.current
+        if (!drag || drag.id !== event.pointerId) return
+        dragRef.current = null
+        ignoreClickRef.current = drag.moved
+        if (cancelled) place(drag.savedPosition)
+        else if (drag.moved) saveFloatingPosition(pointRef.current)
+        if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+        setDragging(false)
+      }
+
+      function moveByKey(event) {
+        const delta = event.shiftKey ? 40 : 8
+        const steps = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] }
+        if (!steps[event.key] && event.key !== 'Home') return
+        event.preventDefault()
+        const next = event.key === 'Home' ? null
+          : moveFloatingPosition(pointRef.current, size, viewport, ...steps[event.key])
+        place(next)
+        saveFloatingPosition(next)
+      }
+
+      const dragProps = {
+        onPointerDown: startDrag, onPointerMove: moveDrag, onPointerUp: (event) => endDrag(event),
+        onPointerCancel: (event) => endDrag(event, true), onLostPointerCapture: (event) => endDrag(event), onKeyDown: moveByKey,
+      }
+      const closeMenu = (restoreFocus) => {
+        setMenuPoint(null)
+        if (restoreFocus) (expanded ? moveRef : entryRef).current?.focus()
+      }
+      const openMenu = (event) => {
+        if (!onExit) return
+        event.preventDefault()
+        event.stopPropagation()
+        const bounds = event.currentTarget.getBoundingClientRect()
+        setMenuPoint({ x: event.clientX || bounds.left + 20, y: event.clientY || bounds.top + 20 })
+      }
+      return h('div', {
+        ref: rootRef, className: `cs-timer-popover cs-floating-window${expanded ? ' is-expanded' : ''}${dragging ? ' is-dragging' : ''}${visibleDock ? ` is-docked dock-${visibleDock}` : ''}`,
+        style: visibleDock ? floatingDockStyle(visibleDock, rect, viewport) : { left: rect.left, top: rect.top },
+        'data-dock': visibleDock ?? 'none',
+        onContextMenu: openMenu,
+        onPointerEnter: (event) => { if (event.pointerType !== 'touch') { setHovered(true); if (docked) wake() } },
+        onPointerLeave: () => setHovered(false),
+        onPointerDownCapture: (event) => setFocused(['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)),
+        onFocus: (event) => setFocused(event.target.matches?.(':focus-visible') || ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)),
+        onBlur: (event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) },
+        onKeyDown: (event) => {
+          setFocused(true)
+          if (event.key === 'ContextMenu' || event.key === 'F10' && event.shiftKey) { openMenu(event); return }
+          if (event.key === 'Escape' && expanded) { event.preventDefault(); event.stopPropagation(); minimize() }
+        },
+      },
+        h(FloatingTimerMenu, { point: menuPoint, onClose: closeMenu, onExit, busy: exitBusy, error: exitError, t }),
+        visibleDock ? h('button', { type: 'button', className: 'cs-floating-dock', 'aria-label': t('floatingWake'),
+          onFocus: () => wake(true), onClick: () => wake(true) }, h('span', { 'aria-hidden': true })) : null,
+        h('div', { ref: contentRef, className: 'cs-floating-content', hidden: !!visibleDock },
+          !expanded && !panelVisible ? h('button', { ...dragProps, ref: entryRef, type: 'button',
+            className: `cs-floating-entry${timer?.status === 'running' ? ' is-running' : ''}${error ? ' has-error' : ''}`,
+            'aria-label': `${t('floatingOpen')}${error ? ` · ${t(error)}` : ''}`, 'aria-expanded': false,
+            title: t('floatingMove'), onClick: (event) => {
+              if (ignoreClickRef.current) { ignoreClickRef.current = false; return }
+              focusAfterWakeRef.current = event.detail === 0
+              setExpanded(true)
+            },
+          }, h(DetailGlyph, { name: 'clock', size: 22 }), digits ? h('span', { className: 'cs-timer-compact-digits' }, digits) : null)
+          : h('section', { ref: panelRef, className: 'cs-floating-panel', 'aria-label': t('floatingTitle'),
+            inert: !expanded || docked ? '' : undefined, 'aria-hidden': !expanded || !!docked },
+            h('div', { className: 'cs-floating-bar' },
+              h('button', { ...dragProps, ref: moveRef, type: 'button', className: 'cs-floating-grip', title: t('floatingMove'), 'aria-label': t('floatingMove') },
+                h('svg', { width: 22, height: 12, viewBox: '0 0 22 12', 'aria-hidden': true },
+                  [5, 11, 17].flatMap((x) => [3, 9].map((y) => h('circle', { key: `${x}-${y}`, cx: x, cy: y, r: 1, fill: 'currentColor' }))))),
+              h('button', { type: 'button', className: 'cs-floating-minimize', 'aria-label': t('floatingMinimize'), onClick: minimize },
+                h(DetailGlyph, { name: 'close', size: 15 }))),
+            showClock ? h(ClockDial, { at, t }) : null,
+            h(TimerControls, { client, snapshot, at, t })) ))
+    }
+
+    function TimerPopover({ client, snapshot, t }) {
+      const [pinned, setPinned] = React.useState(false)
+      const [position, setPosition] = React.useState(null)
+      const rootRef = React.useRef(null)
+      const anchorRef = React.useRef(null)
+      const panelRef = React.useRef(null)
+      const panelId = 'cs-dashboard-timer'
+      const expanded = pinned
+      const panelVisible = useSurfaceFade(expanded, panelRef)
+      const timer = snapshot.timer
+      const at = useClockTick(timer?.status === 'running')
+
+      function close(restoreFocus = false) {
+        setPinned(false)
+        if (restoreFocus) anchorRef.current?.focus()
+      }
+
+      React.useEffect(() => {
+        if (!expanded || typeof document === 'undefined') return undefined
+        const keyDown = (event) => {
+          if (event.key !== 'Escape' || event.defaultPrevented) return
+          const restore = rootRef.current?.contains(document.activeElement)
+          if (restore) event.preventDefault()
+          close(restore)
+        }
+        const pointerDown = (event) => { if (!rootRef.current?.contains(event.target)) close() }
+        document.addEventListener('keydown', keyDown)
+        document.addEventListener('pointerdown', pointerDown, true)
+        return () => {
+          document.removeEventListener('keydown', keyDown)
+          document.removeEventListener('pointerdown', pointerDown, true)
+        }
+      }, [expanded])
+
+      React.useEffect(() => {
+        if (!expanded || !anchorRef.current || !panelRef.current) return undefined
+        const place = () => {
+          const anchor = anchorRef.current.getBoundingClientRect()
+          if (anchor.bottom < 0 || anchor.top >= window.innerHeight) {
+            close()
+            return
+          }
+          const panel = panelRef.current
+          setPosition(clampTipPosition(anchor, { width: panel.offsetWidth, height: panel.offsetHeight }, {
+            width: window.innerWidth, height: window.innerHeight,
+          }))
+        }
+        place()
+        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(place) : null
+        observer?.observe(panelRef.current)
+        window.addEventListener('resize', place)
+        window.addEventListener('scroll', place, true)
+        return () => {
+          observer?.disconnect()
+          window.removeEventListener('resize', place)
+          window.removeEventListener('scroll', place, true)
+        }
+      }, [expanded])
+
+      const visibleDigits = timer && timer.status !== 'idle'
+      const projection = visibleDigits ? projectTimer(timer, snapshot.receivedAt, at) : null
+      const digits = visibleDigits ? timerDigits(projection.remainingMs ?? projection.elapsedMs, timer.mode === 'countdown') : null
+      const label = t('timerTitle')
+      const error = snapshot.syncError ? 'timerSyncError' : snapshot.actionError || (snapshot.noticeError ? 'timerNoticeError' : '')
+      const triggerLabel = [label, digits, error ? t(error) : ''].filter(Boolean).join(' · ')
+
+      return h('div', {
+        className: 'cs-timer-popover cs-timer-topbar',
+        ref: rootRef,
+      },
+        h('button', {
+          className: `cs-timer-trigger${pinned ? ' is-pinned' : ''}${timer?.status === 'running' ? ' is-running' : ''}${error ? ' has-error' : ''}`,
+          type: 'button', ref: anchorRef, 'aria-label': triggerLabel, 'aria-expanded': expanded,
+          'aria-controls': expanded ? panelId : undefined,
+          title: triggerLabel,
+          onClick: () => {
+            if (pinned) close()
+            else setPinned(true)
+          },
+        }, h(DetailGlyph, { name: 'clock', size: 16 })),
+        h('div', {
+          className: 'cs-timer-flyout', hidden: !panelVisible, inert: !expanded ? '' : undefined, 'aria-hidden': !expanded,
+          style: position ? { left: position.left, top: position.top } : { visibility: 'hidden' },
+        }, h('section', { className: 'cs-timer-panel', id: panelId, ref: panelRef, 'aria-label': label },
+          h(TimerControls, { client, snapshot, at, t }))))
+    }
+
+    function DashboardTimer({ client, t }) {
+      const snapshot = useTimerClient(client)
+      return h(TimerPopover, { client, snapshot, t })
+    }
+
+    function TimerOverlay({ ctx, client, conversation }) {
+      useLanguageRevision()
+      const theme = useStoredTheme()
+      const snapshot = useTimerClient(client)
+      const [display, setDisplay] = React.useState(null)
+      const [exitBusy, setExitBusy] = React.useState(false)
+      const [exitError, setExitError] = React.useState(false)
+      const settingsRuntime = React.useRef({ active: false, revision: 0, writing: false }).current
+      React.useEffect(() => {
+        settingsRuntime.active = true
+        const load = () => {
+          if (settingsRuntime.writing) return
+          const ticket = ++settingsRuntime.revision
+          callSettings(ctx, 'getSettings', {}).then((settings) => {
+            if (settingsRuntime.active && ticket === settingsRuntime.revision) setDisplay({ enabled: settings?.floatingEnabled !== false, showClock: settings?.floatingShowClock === true })
+          }).catch(() => { /* 保留最后一次读取到的显示偏好，计时状态仍由独立通道报告错误。 */ })
+        }
+        load()
+        const unsubscribe = subscribeSettingsChanged(load)
+        const visible = () => { if (document.visibilityState !== 'hidden') load() }
+        window.addEventListener('focus', load)
+        document.addEventListener('visibilitychange', visible)
+        return () => {
+          settingsRuntime.active = false
+          settingsRuntime.revision += 1
+          unsubscribe()
+          window.removeEventListener('focus', load)
+          document.removeEventListener('visibilitychange', visible)
+        }
+      }, [ctx, conversation])
+      const exitFloating = async () => {
+        if (!settingsRuntime.active || settingsRuntime.writing) return
+        const ticket = ++settingsRuntime.revision
+        settingsRuntime.writing = true
+        setExitBusy(true)
+        setExitError(false)
+        try {
+          const settings = await callSettings(ctx, 'setSettings', { floatingEnabled: false })
+          if (settings.floatingEnabled !== false) throw new Error('悬浮窗设置未生效')
+          if (settingsRuntime.active && ticket === settingsRuntime.revision) setDisplay({ enabled: false, showClock: settings.floatingShowClock === true })
+        } catch {
+          if (settingsRuntime.active && ticket === settingsRuntime.revision) setExitError(true)
+          return
+        } finally {
+          settingsRuntime.writing = false
+          if (settingsRuntime.active) setExitBusy(false)
+        }
+        // 保存期间可能切换了会话；解除写入保护后再通知，新的订阅才能读回状态。
+        notifySettingsChanged()
+      }
+      const { notice } = snapshot
+      const t = translate
+      if (!conversation && !notice) return null
+      return h('div', { className: `cs-timer-overlay ${sidebarThemeClass(theme.palette, theme.appearance, theme.systemDark)}` },
+        h('style', null, CS_TIMER_CSS),
+        conversation && display?.enabled ? h(FloatingTimer, { client, snapshot, showClock: display.showClock,
+          onExit: exitFloating, exitBusy, exitError, t }) : null,
+        notice ? h('div', { className: 'cs-timer-notice' },
+          h(DetailGlyph, { name: 'clock', size: 18 }),
+          h('div', { className: 'cs-timer-notice-message' },
+            h('strong', { role: 'status' }, t('timerExpired')),
+            notice.blocked ? h('span', { role: 'status' }, t(notice.failed ? 'timerSoundFailed' : 'timerSoundBlocked')) : null,
+            notice.blocked ? h('button', { className: 'cs-timer-button', type: 'button', onClick: client.playNotice }, t('timerPlaySound')) : null),
+          h('button', { className: 'cs-timer-notice-close', type: 'button', 'aria-label': t('timerClose'), onClick: client.dismissNotice },
+            h(DetailGlyph, { name: 'close', size: 16 }))) : null)
+    }
+
+    /** 心跳与计时提醒随整个宿主界面存在。 */
+    function createPresenceReporter(ctx, timerClient) {
       return function DshTimespanPresenceReporter(props) {
-        usePresenceReporter(props, ctx)
-        return null
+        const conversation = usePresenceReporter(props, ctx)
+        return h(TimerOverlay, { ctx, client: timerClient, conversation })
       }
     }
 
@@ -2715,20 +4049,23 @@ window.__ModuleLoader__.load({
       return state.rangeKey === rangeKey ? state : DASHBOARD_LOADING
     }
 
+    const DAILY_SERIES_LOADING = { status: 'loading', data: null, rangeKey: null }
+
     /**
      * 每日热力图取数：范围由页面按本地日历计算，这里只调用 Host 的 queryDailySeries，
-     * 不在客户端伪造任何日序列。刷新节拍复用页面轮询，切到其它视图时暂停。
+     * 不在客户端伪造任何日序列。切到其它视图时暂停；返回同范围时保留快照并刷新。
      */
     function useDailySeries(ctx, range, refreshMs, refreshNonce, enabled = true) {
-      const [state, setState] = React.useState({ status: 'loading', data: null })
+      const [state, setState] = React.useState(DAILY_SERIES_LOADING)
       const loadRef = React.useRef(null)
       const from = Number(range?.from)
       const to = Number(range?.to)
+      const rangeKey = `${from}:${to}`
       React.useEffect(() => {
         if (!enabled) return undefined
         let active = true
-        // 范围切换时清空旧序列：新布局不能先套旧数据，否则月份/全年矩阵会短暂错位。
-        setState({ status: 'loading', data: null })
+        // 只有实际范围变化才清空；重新启用查询不能让已显示的热力格反复卸载入场。
+        setState((previous) => previous.rangeKey === rangeKey ? previous : { ...DAILY_SERIES_LOADING, rangeKey })
         const load = async () => {
           try {
             const value = await callHost(ctx, 'queryDailySeries', { from, to })
@@ -2736,12 +4073,10 @@ window.__ModuleLoader__.load({
             if (value === null || typeof value !== 'object' || !Array.isArray(value.days)) {
               throw new Error('queryDailySeries 返回结构非法')
             }
-            setState({ status: 'ready', data: value })
+            setState({ status: 'ready', data: value, rangeKey })
           } catch {
             if (!active) return
-            setState((previous) => previous.data !== null
-              ? { ...previous, status: 'error' }
-              : { status: 'error', data: null })
+            setState((previous) => ({ ...previous, status: 'error', rangeKey }))
           }
         }
         loadRef.current = load
@@ -2749,7 +4084,7 @@ window.__ModuleLoader__.load({
           active = false
           loadRef.current = null
         }
-      }, [ctx, from, to, enabled])
+      }, [ctx, from, to, rangeKey, enabled])
       React.useEffect(() => {
         if (!enabled || typeof loadRef.current !== 'function') return undefined
         loadRef.current()
@@ -2758,7 +4093,8 @@ window.__ModuleLoader__.load({
         }, refreshMs)
         return () => clearInterval(timer)
       }, [ctx, from, to, refreshMs, refreshNonce, enabled])
-      return state
+      // 新范围首次绘制即隐藏旧序列，不等 effect 才纠正月份和日格。
+      return state.rangeKey === rangeKey ? state : DAILY_SERIES_LOADING
     }
 
     function formatPercent(share) {
@@ -2832,6 +4168,7 @@ window.__ModuleLoader__.load({
     }
 
     function bucketLabel(bucket, period, isZh) {
+      if (typeof bucket.label === 'string') return bucket.label
       const at = new Date(bucket.from)
       if (period === 'day') return `${String(at.getHours()).padStart(2, '0')}:00`
       if (period === 'week') {
@@ -3206,11 +4543,17 @@ window.__ModuleLoader__.load({
         h('span', { className: 'cs-heat-legend-label' }, t('heatLegendHigh')))
     }
 
-    /** 口径说明：鼠标悬浮或键盘聚焦即显示，紧贴图标下方；与 HoverTip 共用 fixed 定位与视口夹取。 */
-    function Info({ message, content = null, lines = null }) {
+    /** 只规范说明浮层的标点，正文、模型原文及小数保持原样。 */
+    function infoText(value) {
+      return typeof value === 'string' ? value.replace(/。\s*/gu, '；').replace(/\.(?=\s|$)/gu, ';').replace(/[；;]\s*$/u, '').trim() : value
+    }
+
+    /** 口径说明：悬停、聚焦或点击显示；操作型图标仍执行自己的动作。 */
+    function Info({ message, content = null, lines = null, icon = null, onClick, buttonRef, label = message, buttonClassName = '', disabled = false }) {
       const [position, setPosition] = React.useState(null)
       const [escaped, setEscaped] = React.useState(false)
-      const anchorRef = React.useRef(null)
+      const localRef = React.useRef(null)
+      const anchorRef = buttonRef ?? localRef
       const tipRef = React.useRef(null)
       const place = () => {
         const anchor = anchorRef.current
@@ -3226,7 +4569,8 @@ window.__ModuleLoader__.load({
         ))
       }
       const show = () => { setEscaped(false); place() }
-      const hide = () => { setPosition(null); setEscaped(false) }
+      const hide = () => { setEscaped(true) }
+      React.useEffect(() => { if (position) place() }, [message])
       React.useEffect(() => {
         // Esc 仍可收起当前这次悬浮/聚焦；移出或失焦后重新进入即可再看。
         const onKey = (event) => { if (event?.key === 'Escape') setEscaped(true) }
@@ -3240,10 +4584,11 @@ window.__ModuleLoader__.load({
       return h('span', { className: `cs-info${escaped ? ' is-escaped' : ''}` },
         h('button', {
           ref: anchorRef,
-          type: 'button', 'aria-label': message,
+          type: 'button', 'aria-label': infoText(label), 'aria-description': label !== message ? infoText(message) : undefined, className: buttonClassName,
+          onClick: onClick ?? show, disabled,
           onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide,
         },
-          h('svg', { viewBox: '0 0 20 20', width: 16, height: 16, fill: 'none', 'aria-hidden': true },
+          icon ?? h('svg', { viewBox: '0 0 20 20', width: 16, height: 16, fill: 'none', 'aria-hidden': true },
             h('circle', { cx: 10, cy: 10, r: 7.5, stroke: 'currentColor', strokeWidth: 1.4 }),
             h('path', { d: 'M10 9v4M10 6.5h.01', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' }))),
         h('span', {
@@ -3256,9 +4601,9 @@ window.__ModuleLoader__.load({
             ? { left: `${position.left}px`, top: `${position.top}px` }
             : { left: '0px', top: '0px', visibility: 'hidden' },
         }, lines === null
-          ? content ?? message
+          ? content ?? infoText(message)
           : h('span', { className: 'cs-info-lines' },
-              lines.map((line, index) => h('span', { className: 'cs-info-line', key: index }, line)))))
+              lines.map((line, index) => h('span', { className: 'cs-info-line', key: index }, infoText(line))))))
     }
 
     function renderInfo(message, content = null, lines = null) {
@@ -3567,13 +4912,13 @@ window.__ModuleLoader__.load({
           },
         },
           h('span', { className: 'cs-workspace-chevron', 'aria-hidden': true },
-            h('span', { className: `cs-chevron${isOpen ? ' is-open' : ''}` })),
+            h('span', { className: `cs-triangle${isOpen ? ' is-open' : ''}` })),
           h('span', { className: 'cs-workspace-name' }, workspaceTitle),
           h('span', {
             className: 'cs-workspace-count',
             'aria-label': `${sessions.length} ${t('sessionsUnit')}`,
           }, String(sessions.length))),
-        isOpen
+        h(AnimatedCollapse, { open: isOpen, className: 'cs-session-collapse' }, isOpen
           ? h('div', { className: 'cs-sessions' }, sessions.length === 0
               ? h('div', { className: 'cs-empty is-small' }, t('emptyWorkspace'))
               : [
@@ -3599,7 +4944,7 @@ window.__ModuleLoader__.load({
                             .replace('{total}', String(sessions.length))))
                     : null,
                 ])
-          : null)
+          : null))
     }
 
     /** 「回填中 / 已完成 / 失败可重试」三态与进度；完成后可收起提示。 */
@@ -3695,12 +5040,13 @@ window.__ModuleLoader__.load({
     }
 
     /** 通知记录时间按 Host 本地时区显示为 YYYY-MM-DD HH:mm。 */
-    function formatNoticeTime(value) {
+    function formatNoticeTime(value, showSeconds = false) {
       const time = Number(value)
       if (!Number.isFinite(time) || time <= 0) return '—'
       const date = new Date(time)
       const pad = (part) => String(part).padStart(2, '0')
-      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+      const minute = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+      return showSeconds ? `${minute}:${pad(date.getSeconds())}` : minute
     }
 
     /**
@@ -3777,6 +5123,7 @@ window.__ModuleLoader__.load({
       const rootRef = React.useRef(null)
       const triggerRef = React.useRef(null)
       const menuRef = React.useRef(null)
+      const menuVisible = useSurfaceFade(open, menuRef)
       const [position, setPosition] = React.useState(null)
       const idRef = React.useRef(null)
       if (idRef.current === null) idRef.current = `cs-select-${++selectIdSequence}`
@@ -3792,7 +5139,6 @@ window.__ModuleLoader__.load({
 
       // 菜单固定到视口：打开后量一次尺寸，按触发器位置夹取；上方空间不足时自动翻到下方。
       React.useEffect(() => {
-        setPosition(null)
         if (!open || typeof window === 'undefined') return undefined
         const trigger = triggerRef.current
         const menu = menuRef.current
@@ -3892,7 +5238,9 @@ window.__ModuleLoader__.load({
           role: 'listbox',
           'aria-label': props.ariaLabel,
           'data-placement': position?.placement ?? (props.placement === 'top' ? 'top' : 'bottom'),
-          hidden: !open,
+          hidden: !menuVisible,
+          inert: open ? undefined : '',
+          'aria-hidden': !open,
           // 位置未量出时压住显示，避免菜单在 (0,0) 闪一下。
           style: position
             ? { left: `${position.left}px`, top: `${position.top}px`, minWidth: `${position.minWidth}px` }
@@ -3916,9 +5264,7 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 数字格式选择区：五档压成一条紧凑选项条，标题右侧只保留一枚实时预览。
-     * 原来的五张大卡片与单独预览行会把一个轻量设置撑成页面最重的一块，这里
-     * 不再重复展开说明；完整提示留给 title 与 aria-label，五档仍可键盘操作。
+     * 数字格式选择区：六种格式共用两列布局，说明与示例就近呈现。
      */
     function renderDurationFormatSection(t, draftFormat, options = {}) {
       const current = normalizeDurationFormat(draftFormat)
@@ -3942,7 +5288,7 @@ window.__ModuleLoader__.load({
             type: 'button',
             role: 'radio',
             'aria-checked': selected,
-            title: t(durationFormatHintKey(format)),
+            title: t(format === 'decimal' ? 'formatDecimalDetail' : durationFormatHintKey(format)),
             className: `cs-format-opt${selected ? ' is-on' : ''}`,
             disabled,
             onClick: () => options.onSelect?.(format),
@@ -4005,6 +5351,7 @@ window.__ModuleLoader__.load({
               disabled: busy,
               onSelect: (value) => editor.patch('durationFormat', value),
             }),
+            h(TimeToolsSettings, { ctx, t, draft, busy, onPatch: editor.patch }),
             h('section', { className: 'cs-settings-group cs-settings-reset-group' },
               ...renderResetSettingsBody(t, {
                 disabled: busy,
@@ -4022,13 +5369,94 @@ window.__ModuleLoader__.load({
                   ? h('p', { className: 'cs-notice-empty' }, t('loading'))
                   : renderBackfillNotices(noticeState.data, t)),
             h('div', { className: 'cs-settings-footer' },
-              loadFailed
+              loadFailed || editor.messageKey === 'settingsSaveError'
                 ? h('button', {
-                    type: 'button', className: 'cs-btn', onClick: () => { void editor.reload(); setLoadNonce((value) => value + 1) },
+                    type: 'button', className: 'cs-btn', onClick: loadFailed ? () => { void editor.reload(); setLoadNonce((value) => value + 1) } : editor.retrySave,
                   }, t('settingsRetry'))
                 : null,
               message ? h('span', { className: statusClass, role: 'status' }, message) : null)))
       }
+    }
+
+    function modelCatalogOptions(catalog, draft, t) {
+      const providers = Array.isArray(catalog?.groups) ? catalog.groups.filter((row) => typeof row?.id === 'string') : []
+      const failures = Array.isArray(catalog?.failures) ? catalog.failures : []
+      const provider = draft?.analysisProvider ?? ''
+      const model = draft?.analysisModel ?? ''
+      const selected = providers.find((row) => row.id === provider)
+      const models = Array.isArray(selected?.models) ? selected.models.filter((row) => typeof row?.id === 'string') : []
+      function options(rows, current, placeholder) {
+        return [
+          { value: '', label: t(placeholder) },
+          ...rows.map((row) => ({ value: row.id, label: row.name || row.id })),
+          ...(current && !rows.some((row) => row.id === current) ? [{ value: current, label: current, disabled: true }] : []),
+        ]
+      }
+      return {
+        provider, model, providers, models, failures,
+        providerOptions: options(providers, provider, 'analysisChooseProvider'),
+        modelOptions: options(models, model, 'analysisChooseModel'),
+        providerMissing: Boolean(provider && !selected),
+        modelMissing: Boolean(selected && model && !models.some((row) => row.id === model)),
+      }
+    }
+
+    function TimeToolsSettings({ ctx, t, draft, busy, onPatch }) {
+      const [catalog, setCatalog] = React.useState({ status: 'loading', value: null })
+      const [revision, setRevision] = React.useState(0)
+      React.useEffect(() => {
+        let active = true
+        setCatalog((previous) => ({ ...previous, status: 'loading' }))
+        callHost(ctx, 'getAnalysisModels', {}).then((value) => {
+          if (!Array.isArray(value?.groups)) throw new Error('模型目录无效')
+          if (active) setCatalog({ status: 'ready', value })
+        }).catch(() => {
+          if (active) setCatalog((previous) => ({ ...previous, status: 'error' }))
+        })
+        return () => { active = false }
+      }, [ctx, revision])
+      const {
+        provider, model, providers, models, failures, providerOptions, modelOptions, providerMissing, modelMissing,
+      } = modelCatalogOptions(catalog.value, draft, t)
+      const ready = catalog.status === 'ready'
+      const selectedError = providerMissing ? 'analysisSavedProviderMissing' : modelMissing ? 'analysisSavedModelMissing' : ''
+      const field = (label, value, options, disabled, onChange) => h('div', { className: 'cs-analysis-field' },
+        h('span', null, t(label)), h(Select, { value, options, disabled, ariaLabel: t(label), onChange }))
+      return h('div', { className: 'cs-time-tools-settings' },
+        h('section', { className: 'cs-analysis-model-settings' },
+          h('div', { className: 'cs-tools-settings-head' },
+            h('div', null, h('h3', null, t('settingsAnalysisTitle')), h('p', { className: 'cs-settings-row-hint' }, t('settingsAnalysisHint'))),
+            h('button', {
+              type: 'button', className: 'cs-btn cs-model-catalog-refresh', disabled: catalog.status === 'loading',
+              onClick: () => setRevision((value) => value + 1),
+            }, t('analysisCatalogRefresh'))),
+          h('div', { className: 'cs-analysis-model-fields' },
+            field('analysisProvider', provider, providerOptions, busy || !ready || !providers.length, (value) => onPatch('analysisProvider', value)),
+            field('analysisModel', model, modelOptions, busy || !ready || !models.length, (value) => onPatch('analysisModel', value))),
+          !ready ? h('p', { className: `cs-settings-status${catalog.status === 'error' ? ' is-error' : ''}`, role: 'status' },
+            t(catalog.status === 'error' ? 'analysisCatalogError' : 'analysisCatalogLoading')) : null,
+          ready && selectedError ? h('p', { className: 'cs-settings-status is-error', role: 'status' }, t(selectedError)) : null,
+          ready && failures.length ? h('p', { className: 'cs-settings-row-hint' },
+            t('analysisCatalogPartial').replace('{providers}', failures.map((row) => row.name || row.id).join(' · '))) : null,
+          ready && !providers.length && !failures.length ? h('p', { className: 'cs-settings-row-hint' }, t('analysisCatalogEmpty')) : null),
+        h('section', { className: 'cs-timer-reminder-settings' },
+          h('h3', null, t('settingsFloatingTitle')),
+          h('label', { className: 'cs-settings-switch' },
+            h('input', { type: 'checkbox', disabled: busy, checked: draft?.floatingEnabled !== false,
+              onChange: (event) => onPatch('floatingEnabled', event.target.checked),
+            }), t('settingsFloatingEnabled')),
+          h('p', { className: 'cs-settings-row-hint' }, t('settingsFloatingEnabledHint')),
+          h('label', { className: 'cs-settings-switch' },
+            h('input', { type: 'checkbox', disabled: busy, checked: draft?.floatingShowClock === true,
+              onChange: (event) => onPatch('floatingShowClock', event.target.checked),
+            }), t('settingsFloatingClock')),
+          h('p', { className: 'cs-settings-row-hint' }, t('settingsFloatingHint')),
+          h('h3', null, t('settingsTimerTitle')),
+          h('label', { className: 'cs-settings-switch' },
+            h('input', { type: 'checkbox', disabled: busy, checked: draft?.timerSound !== false,
+              onChange: (event) => onPatch('timerSound', event.target.checked),
+            }), t('settingsTimerSound')),
+          h('p', { className: 'cs-settings-row-hint' }, t('settingsTimerSoundHint'))))
     }
 
     function settingsRow(t, labelKey, hintKey, ...controls) {
@@ -4179,7 +5607,7 @@ window.__ModuleLoader__.load({
       return [
         h('h3', null, t('settingsResetTitle')),
         h('p', { className: 'cs-settings-row-hint' }, t('settingsResetHint')),
-        options.resetStep === true
+        h(ContentTransition, { identity: options.resetStep === true, retain: true }, options.resetStep === true
           ? h('div', {
               className: 'cs-settings-reset-confirm',
               role: 'alertdialog',
@@ -4200,13 +5628,13 @@ window.__ModuleLoader__.load({
               h('button', {
                 type: 'button', className: 'cs-btn is-icon', disabled,
                 onClick: () => options.onRequest?.(),
-              }, resetIcon(), h('span', null, t('settingsResetButton')))),
+              }, resetIcon(), h('span', null, t('settingsResetButton'))))),
       ]
     }
 
-    /* ============================ 次级导航与四视图 ============================ */
+    /* ============================ 次级导航与五视图 ============================ */
 
-    /** 视图名只认四个同级视图；任何非法值（含旧 sessionStorage 脏值）回落概览。 */
+    /** 非法视图名（含旧 sessionStorage 脏值）回落概览。 */
     function normalizeView(value) {
       return VIEWS.includes(value) ? value : 'overview'
     }
@@ -4301,6 +5729,7 @@ window.__ModuleLoader__.load({
         { value: 'overview', label: t('tabOverview') },
         { value: 'trend', label: t('tabTrend') },
         { value: 'details', label: t('tabDetails') },
+        { value: 'analysis', label: t('tabAnalysis') },
         { value: 'settings', label: t('tabSettings') },
       ]
     }
@@ -4310,7 +5739,7 @@ window.__ModuleLoader__.load({
       return window.matchMedia('(prefers-reduced-motion: reduce)').matches === true
     }
 
-    /** 退出延时：正常 180ms，减少动效时 0（直接到位）。 */
+    /** 退出延时：与表面渐隐共用节奏，减少动效时直接到位。 */
     function viewTransitionDelay(reduced) {
       return reduced === true ? 0 : VIEW_EXIT_MS
     }
@@ -4324,24 +5753,29 @@ window.__ModuleLoader__.load({
       const tabs = viewLabels(t)
       const current = normalizeView(props?.view)
       const tabRefs = React.useRef([])
+      const thumbRef = React.useRef(null)
+      const priorSelection = React.useRef(current)
       const [thumb, setThumb] = React.useState({ left: 0, width: 0 })
 
-      const measure = () => {
+      const measure = (animate = false) => {
         const index = tabs.findIndex((tab) => tab.value === current)
         const node = tabRefs.current?.[index]
         if (!node) return
         const left = typeof node.offsetLeft === 'number' ? node.offsetLeft : 0
         const width = typeof node.offsetWidth === 'number' ? node.offsetWidth : 0
+        if (thumbRef.current?.style) thumbRef.current.style.transition = animate ? '' : 'none'
         setThumb((previous) => previous.left === left && previous.width === width
           ? previous
           : { left, width })
       }
 
       React.useEffect(() => {
-        measure()
+        measure(priorSelection.current !== current)
+        priorSelection.current = current
         if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined
-        window.addEventListener('resize', measure)
-        return () => window.removeEventListener('resize', measure)
+        const resize = () => measure(false)
+        window.addEventListener('resize', resize)
+        return () => window.removeEventListener('resize', resize)
       }, [current, props?.locale])
 
       const select = (value) => {
@@ -4360,6 +5794,7 @@ window.__ModuleLoader__.load({
       return h('nav', { className: 'cs-tabs', role: 'tablist', 'aria-label': t('tabsLabel') },
         h('span', {
           className: 'cs-tab-thumb',
+          ref: thumbRef,
           'aria-hidden': true,
           style: { width: `${thumb.width}px`, transform: `translateX(${thumb.left}px)` },
         }),
@@ -4646,7 +6081,7 @@ window.__ModuleLoader__.load({
     }
 
     function renderCycles(data, t, period, onSelect, format = 'hms') {
-      return h('div', { className: 'cs-cycles' },
+      return h(SelectionGroup, { value: period, className: 'cs-cycles' },
         ['day', 'week', 'month'].map((item) =>
           renderCycleCard(t, item, data?.cycles?.[item] ?? { activeMs: 0, taskMs: 0, taskCount: 0 }, item === period, () => onSelect?.(item), format)))
     }
@@ -4924,7 +6359,8 @@ window.__ModuleLoader__.load({
       const date = new Date(nowMs ?? Date.now())
       const locale = isZh ? 'zh-CN' : 'en'
       const dateLabel = date.toLocaleDateString(locale, { month: 'short', day: 'numeric', weekday: 'short' })
-      return h('section', {
+      return h(SelectionGroup, {
+        as: 'section', value: period, snapValue: 'day',
         className: 'cs-card cs-overview-metrics',
         lang: isZh ? 'zh-CN' : 'en',
         'data-focus': 'hero',
@@ -5032,7 +6468,7 @@ window.__ModuleLoader__.load({
             h('h2', null, current.title),
             heroMetricTag(t, metric) === null ? null : h('span', { className: 'cs-tag' }, heroMetricTag(t, metric))),
           renderZoomButton({ t, focus, onToggleFocus })),
-        h('div', { className: 'cs-hero-focus-body' },
+        h(ContentTransition, { identity: metric, className: 'cs-hero-focus-body' },
           h('div', { className: 'cs-hero-focus-primary' },
             h('div', { className: 'cs-hero-num' }, formatDuration(current.value, format)),
             h('div', { className: 'cs-hero-meta' },
@@ -5061,7 +6497,7 @@ window.__ModuleLoader__.load({
               h('div', { className: 'cs-hero-ring-legend-item is-online' },
                 h('span', null, h('i', { 'aria-hidden': true }), ring.denominatorLabel),
                 h('b', null, formatDuration(ring.denominatorMs, format)))))),
-        h('div', { className: 'cs-focus-panel', role: 'group', 'aria-label': t('heroMetricGroup') },
+        h(SelectionGroup, { value: metric, className: 'cs-focus-panel', role: 'group', 'aria-label': t('heroMetricGroup') },
           metricButton('online', t('onlineLabel'), formatDuration(metricTable.online.value, format)),
           metricButton('task', t('todayTask'), formatDuration(metricTable.task.value, format)),
           metricButton('active', t('focusTodayActive'), formatDuration(metricTable.active.value, format)),
@@ -5165,7 +6601,7 @@ window.__ModuleLoader__.load({
           className: 'heat-cell is-pad',
           'aria-hidden': true,
         })
-        const renderCell = (cell, key) => {
+        const renderCell = (cell, key, index, count) => {
           const day = cell.day
           const empty = day.hasObservations !== true
           const level = empty ? 0 : heatLevel(day.activeMs, maxActive)
@@ -5175,7 +6611,8 @@ window.__ModuleLoader__.load({
             : `${tip.title} · ${t('activeLabel')} ${formatDuration(day.activeMs, format)}`
           return h('span', {
             key,
-            className: `heat-cell l${level}${empty ? ' is-empty' : ''}`,
+            className: `heat-cell cs-reveal-cell l${level}${empty ? ' is-empty' : ''}`,
+            style: chartStagger(index, count),
             tabIndex: 0,
             role: 'button',
             'aria-label': ariaLabel,
@@ -5201,7 +6638,7 @@ window.__ModuleLoader__.load({
                 cells.push(renderPad(`pad-${cells.length}`))
                 continue
               }
-              cells.push(renderCell(cell, cell.dateKey))
+              cells.push(renderCell(cell, cell.dateKey, cells.length, grid.weeks.length * 7))
             }
           }
           return cells
@@ -5235,13 +6672,13 @@ window.__ModuleLoader__.load({
         if (layout === 'month') {
           const grid = buildMonthGrid(scopedDays, resolved, weekdayLabels)
           const cells = grid.weeks.flat().map((cell, index) => (
-            cell === null ? renderPad(`pad-${index}`) : renderCell(cell, cell.dateKey)
+            cell === null ? renderPad(`pad-${index}`) : renderCell(cell, cell.dateKey, index, grid.weeks.length * 7)
           ))
           body = [
             h('div', { className: 'heat-month' },
               h('div', { className: 'heat-month-weekdays' }, weekdayLabels.map((label) =>
                 h('span', { key: label }, label))),
-              h('div', { className: 'heat-month-grid' }, cells)),
+              h(ChartReveal, { className: 'heat-month-grid' }, cells)),
             ...(focusPage ? [] : [summaryNode]),
           ]
         } else {
@@ -5274,7 +6711,7 @@ window.__ModuleLoader__.load({
               weekdayRow,
               h('div', { className: 'heat-plot' },
                 isYear ? null : monthRow,
-                h('div', { className: 'heat-weekgrid' }, cells),
+                h(ChartReveal, { className: 'heat-weekgrid' }, cells),
                 isYear ? monthRow : null)),
             ...(focusPage ? [] : [summaryNode]),
           ]
@@ -5342,6 +6779,725 @@ window.__ModuleLoader__.load({
       }))
     }
 
+    const ANALYSIS_PERIOD_LABELS = { day: 'cycleToday', week: 'cycleWeek', month: 'cycleMonth' }
+    const ANALYSIS_PHASE_LABELS = { collecting: 'analysisCollecting', generating: 'analysisGenerating', saving: 'analysisSaving' }
+    const ANALYSIS_ERROR_LABELS = {
+      'model-not-selected': 'analysisModelRequired',
+      'model-unavailable': 'analysisModelUnavailable',
+      'analysis-model-changed': 'analysisModelChanged',
+      'catalog-unavailable': 'analysisCatalogUnavailable',
+      'input-unavailable': 'analysisInputUnavailable',
+      'scope-unavailable': 'analysisScopeUnavailable',
+      'host-unavailable': 'analysisHostUnavailable',
+      'no-data': 'analysisNoData',
+      'invalid-output': 'analysisInvalidOutput',
+      'save-failed': 'analysisSaveError',
+    }
+
+    function useAnalysisState(ctx, onModelChanged) {
+      const [remote, setRemote] = React.useState({ state: null, error: false })
+      const [operation, setOperation] = React.useState({ method: '', error: '' })
+      const runtime = React.useRef({ active: false, reading: false, writing: false, sequence: 0 }).current
+      const running = Boolean(ANALYSIS_PHASE_LABELS[remote.state?.phase])
+
+      function accept(state) {
+        if (!state?.reports || typeof state.phase !== 'string') throw new Error('分析状态无效')
+        setRemote({ state, error: false })
+      }
+
+      async function reload() {
+        if (!runtime.active || runtime.reading || runtime.writing || !readWindowState().visible) return
+        const sequence = ++runtime.sequence
+        runtime.reading = true
+        try {
+          const value = await callHost(ctx, 'getAnalysisState', {})
+          if (sequence === runtime.sequence) accept(value)
+        } catch {
+          if (sequence === runtime.sequence) setRemote((previous) => ({ ...previous, error: true }))
+        } finally {
+          if (sequence === runtime.sequence) runtime.reading = false
+        }
+      }
+
+      async function submit(method, payload) {
+        if (!runtime.active || runtime.writing) return
+        const sequence = ++runtime.sequence
+        runtime.writing = true
+        runtime.reading = false
+        setOperation({ method, error: '' })
+        let reloadAfter = method === 'cancelAnalysis'
+        try {
+          const value = await callHost(ctx, method, payload)
+          if (sequence === runtime.sequence) {
+            accept(value)
+            setOperation({ method: '', error: '' })
+          }
+        } catch (error) {
+          if (sequence === runtime.sequence) {
+            reloadAfter = true
+            if (error?.code === 'analysis-model-changed') onModelChanged?.()
+            setOperation({ method: '', error: ANALYSIS_ERROR_LABELS[error?.code] ??
+              (method === 'cancelAnalysis' ? 'analysisCancelError' : 'analysisStartError') })
+          }
+        } finally {
+          if (sequence === runtime.sequence) {
+            runtime.writing = false
+            if (reloadAfter) void reload()
+          }
+        }
+      }
+
+      React.useEffect(() => {
+        runtime.active = true
+        void reload()
+        const unsubscribe = subscribeSettingsChanged(reload)
+        if (typeof document !== 'undefined') document.addEventListener?.('visibilitychange', reload)
+        return () => {
+          unsubscribe()
+          if (typeof document !== 'undefined') document.removeEventListener?.('visibilitychange', reload)
+          runtime.active = false
+          runtime.sequence += 1
+          runtime.reading = false
+          runtime.writing = false
+        }
+      }, [ctx])
+      React.useEffect(() => {
+        const id = setInterval(reload, running ? ANALYSIS_REFRESH_MS : PAGE_REFRESH_MS)
+        return () => clearInterval(id)
+      }, [ctx, running])
+      return { ...remote, operation, running, reload, submit }
+    }
+
+    function analysisScopeOptions(workspaces, workspaceId, t) {
+      const available = new Map()
+      const workspaceOptions = []
+      for (const workspace of workspaces) {
+        const real = !workspace.key.startsWith('__unassigned_')
+        const title = workspace.workspaceTitle ?? (real ? workspace.key : t('unassigned'))
+        if (real) workspaceOptions.push({ value: workspace.key, label: title })
+        if (workspaceId && workspace.key !== workspaceId) continue
+        for (const session of workspace.sessions) {
+          if (!sessionIsOpenable(session) || available.has(session.sessionId)) continue
+          const sessionTitle = session.sessionTitle ?? session.sessionId
+          available.set(session.sessionId, { value: session.sessionId, label: workspaceId ? sessionTitle : `${sessionTitle} · ${title}` })
+        }
+      }
+      return { workspaceOptions, sessionOptions: [...available.values()] }
+    }
+
+    function analysisScopeLabel(range, t) {
+      const workspace = range.workspaceTitle || range.workspaceId
+      const session = range.sessionTitle || range.sessionId
+      return [workspace, session].filter(Boolean).join(' / ') || t('analysisAllWorkspaces')
+    }
+
+    /** 已保存报告的日期与图轴共用快照时区；旧报告沿用本地显示。 */
+    function formatAnalysisTime(value, timeZone) {
+      const time = Number(value)
+      if (!timeZone || !Number.isFinite(time) || time <= 0) return formatNoticeTime(value, true)
+      const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+        timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+      }).formatToParts(time).map(({ type, value }) => [type, value]))
+      return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`
+    }
+
+    function analysisDateRange(range) {
+      return `${formatAnalysisTime(range.from, range.snapshot?.timeZone)} – ${formatAnalysisTime(range.to, range.snapshot?.timeZone)}`
+    }
+
+    const ANALYSIS_FAILURE_REASONS = {
+      missing: 'analysisFailureMissing',
+      'invalid-record': 'analysisFailureInvalid',
+      unavailable: 'analysisFailureUnavailable',
+    }
+
+    function analysisFailureContext(source, t) {
+      const reason = Object.hasOwn(ANALYSIS_FAILURE_REASONS, source.reason)
+        ? ANALYSIS_FAILURE_REASONS[source.reason] : 'analysisFailureUnknown'
+      return [source.workspaceTitle || source.workspaceId, t(reason)].filter(Boolean).join(' · ')
+    }
+
+    function analysisSourceLabel(source) {
+      return [source.sessionTitle || source.sessionId, source.workspaceTitle || source.workspaceId].filter(Boolean).join(' · ')
+    }
+
+    function analysisReportDetails(report, t) {
+      const coverage = report.coverage ?? {}
+      const sources = Array.isArray(report.sources) ? report.sources.filter(sessionIsOpenable) : []
+      const sourceById = new Map(sources.map((source) => [source.sessionId, source]))
+      const work = (report.content?.work ?? []).map((item) => ({
+        text: item.text,
+        sources: [...new Set(item.sourceIds)].map((id) => sourceById.get(id)).filter(Boolean),
+      }))
+      const failedCount = coverage.failedSessions ?? 0
+      const failedSources = (coverage.failedSources ?? []).filter(sessionIsOpenable)
+      const hiddenCount = Math.max(0, failedCount - failedSources.length)
+      const missingFailures = hiddenCount > 0
+        ? (failedSources.length ? t('analysisFailureNotListed').replace('{count}', hiddenCount) : t('analysisFailureNoDetails'))
+        : ''
+      return {
+        dates: analysisDateRange(report),
+        scope: analysisScopeLabel(report, t),
+        generatedAt: formatAnalysisTime(report.generatedAt, report.snapshot?.timeZone),
+        model: `${report.provider} / ${report.model}`,
+        summary: report.summary,
+        statistics: report.content?.statistics,
+        work,
+        suggestions: report.content?.suggestions,
+        sources,
+        coverageSummary: t('analysisCoverage').replace('{total}', coverage.totalSessions ?? 0)
+          .replace('{read}', coverage.readSessions ?? 0).replace('{included}', coverage.includedSessions ?? 0),
+        coverageNotes: [
+          coverage.omittedSessions > 0 ? t('analysisCoverageOmitted').replace('{count}', coverage.omittedSessions) : '',
+          coverage.truncated ? t('analysisCoverageTruncated') : '',
+          coverage.relatedSessionsUnavailable ? t('analysisCoverageRelatedUnavailable') : '',
+        ].filter(Boolean),
+        failureLabel: failedCount > 0 ? t('analysisCoverageFailed').replace('{count}', failedCount) : '',
+        failedSources,
+        missingFailures,
+      }
+    }
+
+    function analysisMarkdownText(value) {
+      return String(value ?? '').replace(/\r\n?/g, '\n')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/[\\`*_\[\]|~]/g, '\\$&')
+        .replace(/^([ \t]*)([#=+-]|[0-9]{1,9}[.)](?=[ \t]))/gm, (_, indent, marker) =>
+          `${indent}${marker.slice(0, -1)}\\${marker.slice(-1)}`)
+    }
+
+    function analysisReportMarkdown(report, t) {
+      const details = analysisReportDetails(report, t)
+      const inline = (value) => analysisMarkdownText(value).replace(/\s*\n\s*/g, ' ')
+      const work = details.work.map((item) => {
+        const text = analysisMarkdownText(item.text).replace(/\n/g, '\n  ')
+        const sources = item.sources.map((source) => inline(analysisSourceLabel(source))).join(' / ')
+        return sources ? `- ${text}\n  - **${t('reportWorkSources')}** ${sources}` : `- ${text}`
+      })
+      const coverage = [details.coverageSummary, ...details.coverageNotes].map((note) => `- ${note}`)
+      if (details.failureLabel) {
+        coverage.push(`- ${details.failureLabel}`)
+        for (const source of details.failedSources) {
+          const label = source.sessionTitle || source.sessionId
+          coverage.push(`  - ${inline(`${label} · ${analysisFailureContext(source, t)}`)}`)
+        }
+        if (details.missingFailures) coverage.push(`  - ${details.missingFailures}`)
+      }
+      const sections = [
+        `# ${reviewTitle(report, t)}`,
+        [
+          `- **${t('analysisReportRange')}** ${inline(details.scope)} · ${details.dates}`,
+          `- **${t('analysisGeneratedAt')}** ${details.generatedAt}`,
+          `- **${t('analysisModel')}** ${inline(details.model)}`,
+        ].join('\n'),
+        `## ${t('reportAbstract')}\n\n${analysisMarkdownText(details.summary)}`,
+        ...reviewSnapshotMarkdown(report, t),
+        `## ${t('analysisStatistics')}\n\n${reviewMarkdownPoints(details.statistics)}`,
+        `## ${t('analysisWork')}\n\n${work.length ? work.join('\n') : t('analysisNoWork')}`,
+      ]
+      if (details.suggestions) sections.push(`## ${t('analysisSuggestions')}\n\n${reviewMarkdownPoints(details.suggestions)}`)
+      sections.push(`## ${t('reportCoverage')}\n\n${coverage.join('\n')}`)
+      if (details.sources.length) {
+        const heading = t('analysisSources').replace('{count}', details.sources.length)
+        const sources = details.sources.map((source) => `- ${inline(analysisSourceLabel(source))}`)
+        sections.push(`## ${heading}\n\n${sources.join('\n')}`)
+      }
+      return `${sections.join('\n\n')}\n`
+    }
+
+    function reviewMarkdownPoints(value) {
+      return reviewTextItems(value).map((item) => {
+        const { title, body } = reviewPointParts(item, '')
+        return title ? `- **${analysisMarkdownText(title)}**：${analysisMarkdownText(body)}` : `- ${analysisMarkdownText(body)}`
+      }).join('\n')
+    }
+
+    function reviewSnapshotMarkdown(report, t) {
+      const snapshot = reviewSnapshotView(report, t)
+      if (!snapshot) return []
+      const text = (value) => analysisMarkdownText(value).replace(/\s*\n\s*/g, ' ')
+      const duration = (value) => value === null ? '—' : formatDuration(value, snapshot.isZh ? 'zh' : 'short')
+      const metrics = [
+        `- ${t('onlineLabel')}：${duration(snapshot.onlineMs)}`,
+        `- ${t('activeLabel')}：${duration(snapshot.activeMs)}`,
+        `- ${t('taskLabel')}：${duration(snapshot.taskMs)} · ${t('reviewTasks').replace('{count}', snapshot.taskCount)}`,
+      ]
+      const sections = [`## ${t('reviewMetrics')}\n\n${metrics.join('\n')}\n\n${t('reviewActualTime')}`]
+      if (snapshot.ranked.length) sections.push(`### ${t('reviewWorkspaces')}\n\n${t('reviewWorkspaceBasis')}\n\n` +
+        snapshot.ranked.map((row) => `- ${text(row.workspaceTitle || t('unassigned'))}：${duration(row.activeMs)} · ${formatPercent(row.activeMs / snapshot.workspaceTotal)}`).join('\n'))
+      if (snapshot.trend.length) sections.push(`### ${t('reviewRhythm')}\n\n${text(snapshot.timeZone)}\n\n` +
+        `| ${t('analysisPeriod')} | ${t('activeLabel')} | ${t('taskLabel')} |\n| --- | ---: | ---: |\n` +
+        snapshot.trend.map((row) => `| ${text(row.label)} | ${duration(row.activeMs)} | ${duration(row.taskMs)} |`).join('\n'))
+      if (snapshot.omittedTrendBuckets > 0 || snapshot.omittedWorkspaces > 0) sections.push(t('reviewSnapshotPartial'))
+      return sections
+    }
+
+    function analysisReportFilename(report) {
+      const period = Object.hasOwn(ANALYSIS_PERIOD_LABELS, report.period) ? report.period : 'report'
+      const date = new Date(report.generatedAt)
+      const timestamp = Number.isFinite(date.getTime()) ? `-${date.toISOString().replace(/[:.]/g, '-')}` : ''
+      return `dsh-timespan-ai-${period}${timestamp}.md`
+    }
+
+    function renderAnalysisFailures(details, t, { scopeForSource, scopeLocked, onSelectScope, onReviewScope, onOpenSource, openErrorId }) {
+      const { failureLabel, failedSources: sources, missingFailures } = details
+      if (!failureLabel) return null
+      return h('details', { className: 'cs-analysis-failures cs-disclosure' },
+        h('summary', { onClick: toggleReviewDetails }, h('strong', null, failureLabel),
+          h('span', { className: 'cs-analysis-failure-details-label' }, t('analysisFailureDetails'))),
+        sources.length ? h('ul', { className: 'cs-analysis-failure-list' }, sources.map((source) => {
+          const name = source.sessionTitle || source.sessionId
+          const scope = scopeForSource?.(source)
+          return h('li', { className: 'cs-analysis-failure-item', key: source.sessionId },
+            h('div', { className: 'cs-analysis-failure-identity' },
+              h('strong', null, name),
+              h('span', null, analysisFailureContext(source, t)),
+              !scope && !scopeLocked ? h('span', null, t('analysisFailureOutsideScope')) : null,
+              openErrorId === source.sessionId ? h('span', { className: 'cs-analysis-state is-error', role: 'status' },
+                t('analysisSourceError').replace('{name}', () => name)) : null),
+            h('div', { className: 'cs-analysis-failure-actions' },
+              scope ? h('button', {
+                type: 'button', className: 'cs-btn cs-analysis-failure-select', disabled: scopeLocked,
+                'aria-label': t('analysisFailureSelectNamed').replace('{name}', () => name), onClick: () => onSelectScope(scope),
+              }, t('analysisFailureSelect')) : null,
+              h('button', { type: 'button', className: 'cs-btn cs-analysis-failure-open',
+                'aria-label': t('analysisFailureOpen').replace('{name}', () => name), onClick: () => onOpenSource(source, true),
+              }, t('openSession'))))
+        })) : null,
+        missingFailures ? h('div', { className: 'cs-analysis-failure-note' },
+          h('span', null, missingFailures),
+          onReviewScope ? h('button', { type: 'button', className: 'cs-btn cs-analysis-failure-review', onClick: onReviewScope }, t('analysisReturnToRange')) : null) : null)
+    }
+
+    function AnalysisReportHeader({ report, dates, generatedAt, t, period = 'day', generationControl = null, context = null, messages = null }) {
+      const [feedbackState, setFeedback] = React.useState(null)
+      const reportKey = JSON.stringify([period, report?.id, report?.generatedAt])
+      // 报告变化时在渲染阶段隔离旧反馈，不等待 effect 清理才隐藏手动复制框。
+      const feedback = report && feedbackState?.reportKey === reportKey ? feedbackState : null
+      const attemptRef = React.useRef(0)
+      const copyButtonRef = React.useRef(null)
+      const copyFieldRef = React.useRef(null)
+      const manual = feedback?.key === 'reportCopyManual'
+
+      React.useEffect(() => {
+        attemptRef.current += 1
+        setFeedback(null)
+        return () => { attemptRef.current += 1 }
+      }, [report?.id, report?.generatedAt, period])
+
+      React.useEffect(() => {
+        if (!manual) return
+        copyFieldRef.current?.focus()
+        copyFieldRef.current?.select()
+      }, [feedback])
+      React.useEffect(() => {
+        if (!['reportCopied', 'reportExportStarted'].includes(feedback?.key)) return
+        const timer = setTimeout(() => setFeedback(null), 1800)
+        return () => clearTimeout(timer)
+      }, [feedback])
+
+      async function copy() {
+        const attempt = ++attemptRef.current
+        let key = 'reportCopied'
+        try {
+          await navigator.clipboard.writeText(analysisReportMarkdown(report, t))
+        } catch {
+          key = 'reportCopyManual'
+        }
+        if (attempt === attemptRef.current) setFeedback({ key, reportKey })
+      }
+
+      function download() {
+        attemptRef.current += 1
+        try {
+          downloadExport({
+            filename: analysisReportFilename(report),
+            mimeType: 'text/markdown;charset=utf-8',
+            content: analysisReportMarkdown(report, t),
+          })
+          setFeedback({ key: 'reportExportStarted', reportKey })
+        } catch {
+          setFeedback({ key: 'reportExportError', reportKey })
+        }
+      }
+
+      function hideText() {
+        attemptRef.current += 1
+        setFeedback(null)
+        copyButtonRef.current?.focus()
+      }
+
+      return h('header', { className: 'cs-analysis-report-header' },
+        h('div', { className: 'cs-analysis-report-heading' },
+          h('div', { className: 'cs-analysis-report-identity' },
+            h('div', { className: 'cs-review-title' }, h('h2', null, reviewTitle(report ?? { period }, t)),
+              report ? h(Info, { message: `${t('analysisGeneratedAt')} · ${generatedAt}`, label: t('analysisGeneratedAt'),
+                buttonClassName: 'cs-review-icon cs-review-generated', icon: h(DetailGlyph, { name: 'clock', size: 16 }) }) : null),
+            dates ? h('p', { className: 'cs-analysis-report-dates' }, dates) : null),
+          h('div', { className: 'cs-analysis-report-actions', role: 'group', 'aria-label': t('reportActions') },
+            report ? h(Info, { message: t(feedback?.key === 'reportCopied' ? 'reportCopied' : 'reportCopy'), label: t('reportCopy'),
+              icon: h(DetailGlyph, { name: feedback?.key === 'reportCopied' ? 'check' : 'copy', size: 17 }),
+              buttonClassName: `cs-review-icon${feedback?.key === 'reportCopied' ? ' is-done' : ''}`, onClick: copy, buttonRef: copyButtonRef }) : null,
+            report ? h(Info, { message: t(['reportExportStarted', 'reportExportError'].includes(feedback?.key) ? feedback.key : 'reportExport'), label: t('reportExport'),
+              icon: h(DetailGlyph, { name: feedback?.key === 'reportExportStarted' ? 'check' : feedback?.key === 'reportExportError' ? 'approx' : 'download', size: 17 }),
+              buttonClassName: `cs-review-icon${feedback?.key === 'reportExportStarted' ? ' is-done' : ''}${feedback?.key === 'reportExportError' ? ' is-error' : ''}`, onClick: download }) : null,
+            generationControl)),
+        h('span', { className: 'cs-sr-only cs-analysis-action-status', role: 'status' }, feedback ? t(feedback.key) : null),
+        context,
+        messages,
+        h(AnimatedCollapse, { key: reportKey, open: manual }, manual ? h('div', { className: 'cs-analysis-copy-field' },
+          h('p', { className: 'cs-analysis-state' }, t('reportCopyManual')),
+          h('textarea', { ref: copyFieldRef, readOnly: true, spellCheck: false, rows: 6,
+            'aria-label': t('reportMarkdownContent'), value: analysisReportMarkdown(report, t) }),
+          h('button', { type: 'button', className: 'cs-btn', onClick: hideText }, t('reportCloseCopy'))) : null))
+    }
+
+    function reviewTitle(report, t) {
+      return t(({ day: 'reviewDay', week: 'reviewWeek', month: 'reviewMonth' })[report.period] ?? 'reportTitle')
+    }
+
+    /** 旧报告按原句分段；只折叠显示，不删除或重新解释原文。 */
+    function reviewTextItems(value) {
+      const lines = String(value ?? '').split(/\n+/u).map((line) => line.trim()).filter(Boolean)
+      return lines.flatMap((line) => line.length > 180
+        ? line.split(/(?<=[。！？；])\s*|(?<=[.!?;])\s+(?=[A-Z\u4e00-\u9fff])/u).filter(Boolean) : [line])
+    }
+
+    function reviewPointParts(text, fallback) {
+      const match = /^([^：:\n]{2,32})[：:]\s*([\s\S]+)$/u.exec(text)
+      return match && /\p{L}/u.test(match[1]) ? { title: match[1], body: match[2] } : { title: fallback, body: text }
+    }
+
+    function renderReviewPoint(text, label, t) {
+      const { title, body } = reviewPointParts(text, label)
+      const heading = title ? h('strong', { className: 'cs-review-point-title' }, title, ' · ') : null
+      if (body.length <= 140) return h('div', { className: 'cs-review-point' }, h('p', null, heading, body))
+      return h('details', { className: 'cs-review-point cs-review-long' },
+        h('summary', { onClick: toggleReviewDetails },
+          h('span', { className: 'cs-review-excerpt' }, heading, `${body.slice(0, 120).replace(/[\uD800-\uDBFF]$/u, '').trimEnd()}…`),
+          h('span', { className: 'cs-review-expand' }, t('reviewExpand')),
+          h('span', { className: 'cs-review-collapse' }, t('reviewCollapse'))),
+        h('div', { className: 'cs-review-fold-body' }, h('p', null, heading, body)))
+    }
+
+    function renderReviewPoints(value, t, labelKey = 'reviewPoint') {
+      const points = reviewTextItems(value)
+      const limit = labelKey === 'reviewPoint' ? 4 : 3
+      const list = (items) => h('ul', { className: 'cs-review-points' }, items.map((item, index) =>
+        h('li', { key: index }, renderReviewPoint(item, '', t))))
+      return h(React.Fragment, null, list(points.slice(0, limit)), points.length > limit
+        ? h('details', { className: 'cs-review-more cs-disclosure' }, reviewMoreSummary(points.length - limit, t),
+          h('div', { className: 'cs-review-fold-body' }, list(points.slice(limit)))) : null)
+    }
+
+    function reviewMoreSummary(count, t) {
+      return h('summary', { onClick: toggleReviewDetails },
+        h('span', null, t('reviewMore').replace('{count}', count)))
+    }
+
+    const reviewDetailAnimations = new WeakMap()
+    /** 保留原生 details 的键盘与折叠语义；高度从当前画面接续，快速反向也不会跳变。 */
+    function toggleReviewDetails(event) {
+      const summary = event.currentTarget
+      const details = summary.parentElement
+      if (!details || typeof details.animate !== 'function') return
+      const prior = reviewDetailAnimations.get(details)
+      const expanded = prior ? !prior.expanded : !details.open
+      for (const child of details.children) if (child !== summary) child.inert = !expanded
+      if (prefersReducedMotion()) {
+        if (prior) {
+          event.preventDefault()
+          prior.animation.onfinish = null
+          prior.animation.cancel()
+          details.open = expanded
+          delete details.dataset.reviewExpanded
+          details.style.overflow = ''
+          reviewDetailAnimations.delete(details)
+        }
+        return
+      }
+      event.preventDefault()
+      const start = details.getBoundingClientRect().height
+      if (prior) { prior.animation.onfinish = null; prior.animation.cancel() }
+      // 长段收起后会重新显示摘要，目标高度须按关闭状态测量，不能只取「收起全文」那一行。
+      details.open = expanded
+      const end = details.getBoundingClientRect().height
+      details.open = true
+      details.dataset.reviewExpanded = String(expanded)
+      details.style.overflow = 'hidden'
+      const animation = details.animate([{ height: `${start}px` }, { height: `${end}px` }], {
+        duration: 240, easing: 'cubic-bezier(.2,.7,.2,1)',
+      })
+      reviewDetailAnimations.set(details, { animation, expanded })
+      animation.onfinish = () => {
+        details.open = expanded
+        delete details.dataset.reviewExpanded
+        details.style.overflow = ''
+        reviewDetailAnimations.delete(details)
+      }
+    }
+
+    function reviewSnapshotView(report, t) {
+      const snapshot = report.snapshot
+      if (!snapshot) return null
+      const isZh = t('periodDay') === '日'
+      const formatter = new Intl.DateTimeFormat(isZh ? 'zh-CN' : 'en', { timeZone: snapshot.timeZone,
+        ...(report.period === 'day' ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }
+          : { month: 'numeric', day: 'numeric' }) })
+      const trend = snapshot.trend.map((row) => ({ ...row, key: String(row.from), label: formatter.format(row.from) }))
+      const workspaces = [...snapshot.workspaces].filter((row) => row.activeMs > 0).sort((left, right) => right.activeMs - left.activeMs)
+      const total = Math.max(snapshot.activeSumMs, workspaces.reduce((sum, row) => sum + row.activeMs, 0))
+      const ranked = workspaces.slice(0, 4)
+      const remainder = Math.max(0, total - ranked.reduce((sum, row) => sum + row.activeMs, 0))
+      if (remainder > 0) ranked.push({ workspaceTitle: t('reviewOtherWorkspaces'), activeMs: remainder })
+      return { ...snapshot, trend, ranked, workspaceTotal: total, isZh }
+    }
+
+    function renderReviewMetrics(report, t, format = DEFAULT_DURATION_FORMAT) {
+      const snapshot = report.snapshot
+      const coverage = report.coverage ?? {}
+      const included = coverage.includedSessions ?? 0
+      const total = coverage.totalSessions ?? 0
+      const read = coverage.readSessions ?? 0
+      const emptyReason = included === 0 ? total === 0 ? 'reviewEvidenceNone'
+        : read > 0 && !coverage.failedSessions && !coverage.omittedSessions ? 'reviewEvidenceEmpty' : 'reviewEvidenceUnavailable' : null
+      const evidenceLines = [t('reviewEvidenceHint'), t(emptyReason ?? 'reviewEvidenceScope'),
+        t(emptyReason === 'reviewEvidenceUnavailable' ? 'reviewEvidenceCheck' : emptyReason ? 'reviewEvidenceNext' : 'reviewEvidenceRefresh')]
+      const ratio = total > 0 ? Math.min(1, included / total) : 0
+      const metric = (label, icon, value, note) => h('div', { className: `cs-review-metric is-${icon}` },
+        h('span', { className: 'cs-review-metric-label' }, h(DetailGlyph, { name: icon }), t(label)),
+        h('strong', null, value === null ? '—' : formatDuration(value, format)), h('small', null, note))
+      return h('section', { className: 'cs-review-metrics', 'aria-label': t('reviewMetrics') },
+        snapshot ? h(React.Fragment, null,
+          metric('activeLabel', 'active', snapshot.activeMs, t('reviewActualTime')),
+          metric('onlineLabel', 'online', snapshot.onlineMs, snapshot.onlineMs === null ? t('reviewOnlineNA') : ''),
+          metric('taskLabel', 'task', snapshot.taskMs, t('reviewTasks').replace('{count}', snapshot.taskCount))) : null,
+        h('div', { className: 'cs-review-coverage-meter', 'aria-label': t('analysisCoverage').replace('{total}', total).replace('{read}', read).replace('{included}', included) },
+          h('svg', { viewBox: '0 0 48 48', width: 48, height: 48, 'aria-hidden': true },
+            h('circle', { cx: 24, cy: 24, r: 19, fill: 'none', stroke: 'var(--dsw-alias-border-l1)', strokeWidth: 4 }),
+            h('circle', { cx: 24, cy: 24, r: 19, fill: 'none', stroke: 'var(--cs-chart-active)', strokeWidth: 4,
+              strokeDasharray: `${ratio * 119.38} 119.38`, transform: 'rotate(-90 24 24)' })),
+          h('div', null, h('span', { className: 'cs-review-metric-label' }, t('reviewEvidence'), renderInfo(evidenceLines.join('；'), null, evidenceLines)), h('strong', null, `${included}`, h('small', null, ` / ${total}`)),
+            h('small', null, t('reviewReadCount').replace('{read}', read).replace('{total}', total)))))
+    }
+
+    function renderReviewCharts(report, t, hoverTip) {
+      const snapshot = reviewSnapshotView(report, t)
+      if (!snapshot) return h('p', { className: 'cs-analysis-state cs-review-snapshot-note' }, t('reviewSnapshotMissing'))
+      const { trend, ranked, workspaceTotal, isZh } = snapshot
+      const hasActivity = trend.some((row) => row.activeMs > 0 || row.taskMs > 0)
+      return h('div', { className: 'cs-review-visuals' },
+        h('section', { className: 'cs-card cs-review-trend' },
+          h('div', { className: 'cs-card-head' }, renderCardTitle(t('reviewRhythm'), 'trend'),
+            h('div', { className: 'cs-legend' },
+              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
+              h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel')))),
+          hasActivity ? renderTrendChart(trend, report.period, t, isZh, hoverTip?.tip, {
+            onHover: hoverTip?.show, onLeave: hoverTip?.hide, height: 130,
+          }, 'short') : h('p', { className: 'cs-review-empty-chart' }, t('reviewNoActivity')),
+          snapshot.omittedTrendBuckets > 0 ? h('p', { className: 'cs-analysis-state cs-review-chart-note' }, t('reviewSnapshotPartial')) : null),
+        h('section', { className: 'cs-card cs-review-workspaces' },
+          h('div', { className: 'cs-card-head' }, renderCardTitle(t('reviewWorkspaces'), 'ranking')),
+          ranked.length ? h(ChartReveal, { as: 'ol', className: 'cs-review-ranks' }, ranked.map((row, index) => h('li', { key: index },
+            h('div', null, h('span', null, row.workspaceTitle || t('unassigned')), h('b', null, formatDuration(row.activeMs, 'short'))),
+            h('div', { className: 'cs-review-rank-bottom' },
+              h('span', { className: 'cs-review-track', 'aria-hidden': true }, h('i', { className: 'cs-reveal-x', style: { width: `${row.activeMs / workspaceTotal * 100}%`, ...chartStagger(index, ranked.length) } })),
+              h('small', null, formatPercent(row.activeMs / workspaceTotal)))))) : h('p', { className: 'cs-review-empty-chart' }, t('reviewNoWorkspaces'))))
+    }
+
+    function AnalysisReport({ report, scopeChanged, t, onOpenSource, scopeForSource, scopeLocked, onSelectScope, onReviewScope, openErrorId, hoverTip, durationFormat, showHeader = true }) {
+      const details = analysisReportDetails(report, t)
+      const { dates, scope, generatedAt, model, summary, statistics, work, suggestions, sources, coverageSummary, coverageNotes } = details
+      const open = (source, showWorkspace = false) => {
+        const label = source.sessionTitle || source.sessionId
+        const display = showWorkspace ? analysisSourceLabel(source) : label
+        return h('button', {
+          key: source.sessionId, className: 'cs-btn cs-analysis-source', type: 'button',
+          'aria-label': t('analysisOpenSource').replace('{name}', () => display), onClick: () => onOpenSource(source),
+        }, h('span', null, display), h(DetailGlyph, { name: 'open', size: 13 }))
+      }
+      const workList = (items, offset = 0) => h('ul', { className: 'cs-analysis-work' }, items.map((item, index) => h('li', { key: index },
+        renderReviewPoint(item.text, '', t),
+        item.sources.length ? h('div', { className: 'cs-analysis-sources' }, item.sources.map((source) => open(source))) : null)))
+      const notes = [details.failureLabel, ...coverageNotes, report.snapshot?.approximate ? t('approximateHint') : ''].filter(Boolean)
+      return h('article', { className: 'cs-analysis-report' },
+        showHeader ? h(AnalysisReportHeader, { key: `${report.id}:${report.generatedAt}`, report, dates, generatedAt, t }) : null,
+        scopeChanged ? h('p', { className: 'cs-analysis-state cs-analysis-past-scope' }, t('analysisReportScopeMismatch')) : null,
+        renderReviewMetrics(report, t, durationFormat),
+        h('section', { className: 'cs-analysis-abstract' }, h('h3', null, t('reportAbstract')), h('p', null, summary)),
+        notes.length ? h('p', { className: 'cs-analysis-state cs-review-coverage-note' }, h(DetailGlyph, { name: 'approx' }), notes.join(' · ')) : null,
+        renderReviewCharts(report, t, hoverTip),
+        h('section', { className: 'cs-card cs-review-observations' },
+          h('div', { className: 'cs-card-head' }, renderCardTitle(t('analysisStatistics'), 'active')),
+          renderReviewPoints(statistics, t)),
+        h('div', { className: `cs-review-next${suggestions ? '' : ' is-single'}` },
+          h('section', { className: 'cs-card cs-review-work' },
+            h('div', { className: 'cs-card-head' }, renderCardTitle(t('analysisWork'), 'task'), h('span', { className: 'cs-review-count' }, work.length)),
+            work.length ? h(React.Fragment, null, workList(work.slice(0, 3)), work.length > 3
+              ? h('details', { className: 'cs-review-more cs-disclosure' }, reviewMoreSummary(work.length - 3, t), h('div', { className: 'cs-review-fold-body' }, workList(work.slice(3), 3))) : null)
+              : h('p', { className: 'cs-analysis-state' }, t('analysisNoWork'))),
+          suggestions ? h('section', { className: 'cs-card cs-review-actions' },
+            h('div', { className: 'cs-card-head' }, renderCardTitle(t('analysisSuggestions'), 'open')),
+            renderReviewPoints(suggestions, t, 'reviewAction')) : null),
+        h('footer', { className: 'cs-review-evidence', 'aria-label': t('reportDetails') },
+          h('details', { className: 'cs-review-evidence-details cs-disclosure' }, h('summary', { onClick: toggleReviewDetails }, t('reviewEvidenceTitle'), h('span', null, coverageSummary)),
+          h('div', { className: 'cs-analysis-sidebar' },
+            h('dl', { className: 'cs-analysis-meta' },
+              h('div', null, h('dt', null, t('analysisReportRange')), h('dd', null, scope)),
+              h('div', null, h('dt', null, t('analysisModel')), h('dd', null, model)),
+              report.snapshot ? h('div', null, h('dt', null, t('reviewBasis')),
+                h('dd', null, t('reviewActualTime'), '；', t('reviewWorkspaceBasis'), ` · ${report.snapshot.timeZone}`)) : null),
+            h('section', { className: 'cs-analysis-coverage' },
+              h('h3', null, t('reportCoverage')),
+              h('p', null, coverageSummary),
+              renderAnalysisFailures(details, t, { scopeForSource, scopeLocked, onSelectScope, onReviewScope, onOpenSource, openErrorId }),
+              coverageNotes.length ? h('ul', { className: 'cs-analysis-coverage-notes' },
+                coverageNotes.map((note) => h('li', { key: note }, note))) : null),
+            sources.length ? h('details', { className: 'cs-analysis-source-list cs-disclosure' },
+              h('summary', { onClick: toggleReviewDetails }, t('analysisSources').replace('{count}', sources.length)),
+              h('div', { className: 'cs-analysis-sources' }, sources.map((source) => open(source, true)))) : null))))
+    }
+
+    function AnalysisPage({ ctx, t, period, onSelectPeriod, data, modelChoice, onRetryModel, onOpenSettings, onOpenSource, hoverTip, durationFormat }) {
+      const analysis = useAnalysisState(ctx, onRetryModel)
+      const [selected, setSelected] = React.useState({ period, workspaceId: '', sessionId: '' })
+      const [sourceFailure, setSourceFailure] = React.useState(null)
+      const toolbarRef = React.useRef(null)
+      const [filtersOpen, setFiltersOpen] = React.useState(false)
+      React.useEffect(() => {
+        if (filtersOpen) toolbarRef.current?.focus({ preventScroll: true })
+      }, [filtersOpen])
+      const scope = selected.period === period ? selected : { period, workspaceId: '', sessionId: '' }
+      const { workspaceId, sessionId } = scope
+      const { state, error: loadError, running, operation } = analysis
+      const request = state?.request
+      const workspaces = data?.workspaces ?? []
+      const requestWorkspace = request?.workspaceId ? workspaces.find((row) => row.key === request.workspaceId) : null
+      const requestSession = request?.sessionId ? workspaces.flatMap((row) => row.sessions).find((row) => row.sessionId === request.sessionId) : null
+      const requestScope = request ? analysisScopeLabel({ ...request, workspaceTitle: requestWorkspace?.workspaceTitle, sessionTitle: requestSession?.sessionTitle }, t) : ''
+      const report = state?.reports?.[period]
+      const phase = state?.phase
+      const failed = phase === 'failed'
+      const reportError = failed && request?.period === period
+      const errorKey = operation.error || (failed ? ANALYSIS_ERROR_LABELS[state?.error?.code] ?? 'analysisGenerationError' : '')
+      const coordinatesReady = data?.period === period
+      const scopeChanged = report && ((report.workspaceId || '') !== workspaceId || (report.sessionId || '') !== sessionId ||
+        coordinatesReady && Number.isFinite(data?.range?.from) && report.from !== data.range.from)
+      const modelConfigured = Boolean(modelChoice?.provider && modelChoice?.model)
+      const needsModel = Boolean(modelChoice && !modelConfigured)
+      const modelError = errorKey === 'analysisModelRequired' || errorKey === 'analysisModelUnavailable'
+      const { workspaceOptions, sessionOptions } = analysisScopeOptions(coordinatesReady ? workspaces : [], workspaceId, t)
+      const unavailableScope = Boolean(coordinatesReady && (workspaceId && !workspaceOptions.some((row) => row.value === workspaceId) ||
+        sessionId && !sessionOptions.some((row) => row.value === sessionId)))
+      const scopeLocked = running || Boolean(operation.method) || !coordinatesReady
+      const stage = operation.method ? (operation.method === 'generateAnalysis' ? 'analysisStarting' : 'analysisCancelling') : ANALYSIS_PHASE_LABELS[phase]
+      const cancelled = phase === 'cancelled'
+      const readFailure = loadError ? h('div', { className: 'cs-analysis-state is-error', role: 'status' },
+        t(report ? 'analysisReadError' : 'analysisReadEmptyError'),
+        h('button', { type: 'button', className: 'cs-btn', onClick: analysis.reload }, t('settingsRetry'))) : null
+      const selectField = (label, value, options, onChange, disabled = false) => h('div', { className: 'cs-analysis-field' },
+        h('span', null, t(label)), h(Select, { disabled, value, options, onChange, ariaLabel: t(label) }))
+      const resolvedScope = (options, current, all) => [{ value: '', label: t(all) }, ...options,
+        ...(current && !options.some((row) => row.value === current) ? [{ value: current, label: current, disabled: true }] : [])]
+      const open = (source, fromFailureList = false) => {
+        const opened = onOpenSource(source)
+        setSourceFailure(opened ? null : { reportId: report.id, source, fromFailureList })
+      }
+      const openFailure = sourceFailure?.reportId === report?.id ? sourceFailure : null
+      const scopeForSource = (source) => {
+        if (!coordinatesReady) return null
+        const matching = workspaces.filter((row) => row.sessions.some((session) =>
+          session.sessionId === source.sessionId && sessionIsOpenable(session)))
+        if (!matching.length) return null
+        const exactWorkspace = matching.find((row) => row.key === source.workspaceId && !row.key.startsWith('__unassigned_'))
+        return { workspaceId: exactWorkspace?.key ?? '', sessionId: source.sessionId }
+      }
+      const reviewScope = () => {
+        setFiltersOpen(true)
+        toolbarRef.current?.focus({ preventScroll: true })
+        toolbarRef.current?.scrollIntoView({ block: 'nearest', behavior: prefersReducedMotion() ? 'instant' : 'smooth' })
+      }
+      const selectScope = (target) => {
+        if (scopeLocked) return
+        setSelected({ period, ...target })
+        reviewScope()
+      }
+
+      const generateLabel = t(reportError || operation.error ? 'analysisRetryGenerate' : report ? 'analysisRegenerate' : 'analysisGenerate')
+      const selectionLabel = sessionOptions.find((row) => row.value === sessionId)?.label
+        || workspaceOptions.find((row) => row.value === workspaceId)?.label || t('reviewAllScope')
+      const generationControl = running ? h('button', { type: 'button', className: 'cs-btn cs-review-generate',
+        disabled: phase === 'saving' || Boolean(operation.method), onClick: () => analysis.submit('cancelAnalysis', {}),
+      }, t('analysisCancel')) : needsModel ? h('button', { type: 'button', className: 'cs-btn cs-review-generate', onClick: onOpenSettings }, t('analysisGoToSettings'))
+        : h(Info, { label: generateLabel,
+          message: modelConfigured ? t('analysisModelUse').replace('{route}', () => modelChoice.provider + ' / ' + modelChoice.model) + ' · ' + t(ANALYSIS_PERIOD_LABELS[period]) + ' · ' + selectionLabel : t('analysisModelLoading'),
+          buttonClassName: 'cs-btn is-primary cs-review-generate',
+          icon: h(React.Fragment, null, h(DetailGlyph, { name: 'refresh', size: 15 }), generateLabel),
+          disabled: scopeLocked || unavailableScope || !modelConfigured || !state || loadError,
+          onClick: () => analysis.submit('generateAnalysis', {
+            period, ...(workspaceId ? { workspaceId } : {}), ...(sessionId ? { sessionId } : {}),
+            expectedProvider: modelChoice.provider, expectedModel: modelChoice.model,
+          }),
+        })
+      const context = h(React.Fragment, null,
+        h('div', { className: 'cs-review-context' },
+          h(SelectionGroup, { value: period, className: 'cs-review-periods', role: 'group', 'aria-label': t('analysisPeriod') },
+            Object.entries(ANALYSIS_PERIOD_LABELS).map(([value, key]) => h('button', {
+              key: value, type: 'button', 'aria-pressed': value === period, className: value === period ? 'is-current' : '',
+              onClick: () => { setSelected({ period: value, workspaceId: '', sessionId: '' }); onSelectPeriod(value) },
+            }, t(key)))),
+          h('button', { type: 'button', className: 'cs-review-filter-toggle', 'aria-expanded': filtersOpen,
+            'aria-controls': 'cs-review-filters', onClick: () => setFiltersOpen((value) => !value),
+          }, h(DetailGlyph, { name: 'filter' }), h('span', null, t('reviewFilters'), ' · ', selectionLabel),
+            h('span', { className: 'cs-triangle cs-review-filter-chevron', 'aria-hidden': true }))),
+        h('div', { className: 'cs-review-filter-region' + (filtersOpen ? ' is-open' : ''), id: 'cs-review-filters', inert: !filtersOpen ? '' : undefined },
+          h('div', { className: 'cs-review-filter-content' },
+            h('div', { className: 'cs-analysis-toolbar', role: 'group', 'aria-label': t('analysisRangeFilters'), tabIndex: -1, ref: toolbarRef },
+              selectField('analysisWorkspace', workspaceId, resolvedScope(workspaceOptions, workspaceId, 'analysisAllWorkspaces'),
+                (value) => setSelected({ period, workspaceId: value, sessionId: '' }), scopeLocked || !workspaceOptions.length && !workspaceId),
+              selectField('analysisSession', sessionId, resolvedScope(sessionOptions, sessionId, 'analysisAllSessions'),
+                (value) => setSelected({ ...scope, sessionId: value }), scopeLocked || !sessionOptions.length && !sessionId)),
+            modelConfigured ? h('p', { className: 'cs-analysis-state cs-analysis-route' },
+              t('analysisModelUse').replace('{route}', () => modelChoice.provider + ' / ' + modelChoice.model)) : null)))
+      const messages = h('div', { className: 'cs-review-messages' },
+          !coordinatesReady ? h('p', { className: 'cs-analysis-state', role: 'status' }, t('analysisRangeLoading')) : null,
+          !modelChoice && !running ? h('div', { className: `cs-analysis-state${modelChoice === false ? ' is-error' : ''}`, role: 'status' },
+            t(modelChoice === false ? 'analysisModelReadError' : 'analysisModelLoading'),
+            modelChoice === false ? h('button', { type: 'button', className: 'cs-btn', onClick: onRetryModel }, t('settingsRetry')) : null) : null,
+          coordinatesReady && !sessionOptions.length && !running && !sessionId ? h('p', { className: 'cs-analysis-state' }, t('analysisNoScopeSessions')) : null,
+          unavailableScope ? h('p', { className: 'cs-analysis-state is-error' }, t('analysisScopeUnavailable')) : null,
+          needsModel && !errorKey && !running ? h('p', { className: 'cs-analysis-state' }, t('analysisModelRequired')) : null,
+          stage ? h('div', { className: 'cs-analysis-status', role: 'status' },
+            h('strong', null, t(stage), phase === 'collecting' && state.progress ? ` · ${state.progress.read}/${state.progress.total}` : ''),
+            request ? h('span', null, `${t('analysisRunRange')} · ${t(ANALYSIS_PERIOD_LABELS[request.period])} · ${requestScope} · ${analysisDateRange(request)} · ${request.provider} / ${request.model}`) : null,
+            phase === 'collecting' && state.progress?.total > 0 ? h('progress', {
+              max: state.progress.total, value: state.progress.read, 'aria-label': t('analysisCollecting'),
+            }) : null) : null,
+          cancelled ? h('p', { className: 'cs-analysis-state', role: 'status' }, t('analysisCancelled'),
+            request && request.period !== period ? ` · ${t(ANALYSIS_PERIOD_LABELS[request.period])}` : null) : null,
+          errorKey ? h('div', { className: 'cs-analysis-state is-error', role: 'status' }, t(errorKey),
+            failed && request ? h('span', null, ` · ${t(ANALYSIS_PERIOD_LABELS[request.period])} · ${requestScope}`,
+              Number.isFinite(request.from) && Number.isFinite(request.to) ? ` · ${analysisDateRange(request)}` : null) : null,
+            modelError && !needsModel ? h('button', { type: 'button', className: 'cs-btn', onClick: onOpenSettings }, t('analysisGoToSettings')) : null) : null,
+          report ? readFailure : null,
+          openFailure && !openFailure.fromFailureList ? h('p', { className: 'cs-analysis-state is-error', role: 'status' },
+            t('analysisSourceError').replace('{name}', () => openFailure.source.sessionTitle || openFailure.source.sessionId)) : null)
+      const details = report ? analysisReportDetails(report, t) : null
+      return h('section', { className: 'cs-analysis-page' },
+        h(AnalysisReportHeader, { report, period, t,
+          dates: details?.dates, generatedAt: details?.generatedAt, generationControl, context, messages }),
+        // 只随用户切换周期转场；异步读取/轮询到报告时不再把整块正文重置为入场透明度。
+        h(ContentTransition, { identity: period, className: 'cs-review-content' },
+        report ? h(AnalysisReport, { report, scopeChanged, t, onOpenSource: open, hoverTip, durationFormat, showHeader: false,
+          scopeForSource, scopeLocked, onSelectScope: selectScope, onReviewScope: reviewScope,
+          openErrorId: openFailure?.fromFailureList ? openFailure.source.sessionId : null,
+        }) : h('section', { className: 'cs-analysis-empty' },
+          h('span', { className: 'cs-analysis-empty-icon' }, h(DetailGlyph, { name: 'report', size: 24 })),
+          readFailure ?? h('p', { className: 'cs-analysis-state', role: state ? undefined : 'status' },
+            t(stage ? 'reportPending' : state ? 'analysisEmpty' : 'analysisLoading')))))
+    }
+
     /** 概览：首屏大数字、周期卡、趋势卡、每日热力图、任务构成、工作区排行与最近会话。 */
     function renderOverviewView(props) {
       const {
@@ -5377,7 +7533,7 @@ window.__ModuleLoader__.load({
       return [
         h('div', { className: 'cs-overview-grid' },
           renderOverviewMetrics({ data, t, isZh, nowMs, period, onSelectPeriod, format: durationFormat, focus, onToggleFocus, heroMetric }),
-          h('div', { className: 'cs-overview-analysis' },
+          h(ContentTransition, { identity: shownPeriod, busy: shownPeriod !== period, className: 'cs-overview-analysis' },
             renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { focus, onToggleFocus }),
             renderComposition(data, t, hoverTip?.tip, { onHover: hoverTip?.show, onLeave: hoverTip?.hide }, durationFormat)),
           h('div', { className: `cs-overview-bottom${showYear ? ' is-year' : ''}` },
@@ -5426,7 +7582,7 @@ window.__ModuleLoader__.load({
       const share = activeSharePercent(data?.activeMs, data?.onlineMs)
       return [
         renderCycles(data, t, period, onSelectPeriod, durationFormat),
-        h('div', { className: 'cs-trend-layout' },
+        h(ContentTransition, { identity: shownPeriod, busy: shownPeriod !== period, className: 'cs-trend-layout' },
           renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { showFoot: true }),
           h('section', { className: 'cs-card cs-trend-summary' },
             h('div', { className: 'cs-card-head' },
@@ -5448,7 +7604,8 @@ window.__ModuleLoader__.load({
                 h('i', { className: 'cs-reveal-x', style: { width: `${share}%` } })),
               h('div', { className: 'cs-trend-share-caption' },
                 `${t('activeLabel')} ${formatDuration(data?.activeMs, durationFormat)} · ${t('onlineLabel')} ${formatDuration(data?.onlineMs, durationFormat)}`)))),
-        renderTrendBottom(data, t, isZh, shownPeriod, durationFormat, hoverTip, onOpenRange),
+        h(ContentTransition, { identity: shownPeriod, busy: shownPeriod !== period, className: 'cs-trend-content' },
+          renderTrendBottom(data, t, isZh, shownPeriod, durationFormat, hoverTip, onOpenRange)),
       ]
     }
 
@@ -5566,7 +7723,7 @@ window.__ModuleLoader__.load({
         recheckMessage = null, approximateMessage = null,
         importPreview = null, importRestoreSettings = false, importError = '',
         resetStep = false, resetting = false,
-        onPatch, onSelectFormat, onRetryLoad, onExport, onRequestClear, onCancelClear, onClear,
+        onPatch, onSelectFormat, onRetryLoad, onRetrySave, onExport, onRequestClear, onCancelClear, onClear,
         onPickImportFile, onCancelImport, onImport, onToggleImportSettings, onShowApproximate,
         onRecheckBackfill, onCycleAppearance, onSelectAppearance, onChangePalette,
         onRequestReset, onCancelReset, onResetSettings,
@@ -5575,9 +7732,10 @@ window.__ModuleLoader__.load({
       const busy = props.busy ?? (phase === 'loading' || phase === 'saving' || draft === null || loadFailed)
       const appearanceMode = normalizeAppearance(appearance)
       const importRange = importPreview ? importPreviewRange(importPreview.payload) : ''
+      const importReportCount = Object.keys(ANALYSIS_PERIOD_LABELS).filter((period) => importPreview?.payload?.reports?.[period]).length
       const saveStatus = h('div', { className: 'cs-settings-feedback' },
         h('span', { className: `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`, role: 'status' }, message || t('settingsAutoSave')),
-        loadFailed ? h('button', { type: 'button', className: 'cs-btn', onClick: onRetryLoad }, t('settingsRetry')) : null)
+        loadFailed || onRetrySave ? h('button', { type: 'button', className: 'cs-btn', onClick: loadFailed ? onRetryLoad : onRetrySave }, t('settingsRetry')) : null)
       return [h('div', { className: 'cs-settings cs-settings-board' },
         h('div', { className: 'cs-settings-grid' },
           h('section', { className: 'cs-settings-card cs-settings-main cs-settings-basics-card' },
@@ -5620,8 +7778,8 @@ window.__ModuleLoader__.load({
               h('div', { className: 'cs-appearance-group' },
                 h('div', { className: 'cs-settings-label' }, t('paletteLabel')),
                 h('div', { className: 'cs-palette-options' },
-                  ['blue', 'stone', 'clay'].map((value) => {
-                    const labelKey = value === 'blue' ? 'paletteBlue' : value === 'stone' ? 'paletteStone' : 'paletteClay'
+                  PALETTES.map((value) => {
+                    const labelKey = PALETTE_LABELS[value]
                     const active = palette === value
                     return h('button', {
                       key: value, type: 'button',
@@ -5644,6 +7802,7 @@ window.__ModuleLoader__.load({
               onCancel: onCancelReset,
               onReset: onResetSettings,
             })),
+          ...(props.timeTools ? [h('div', { className: 'cs-settings-card cs-settings-tools-card' }, props.timeTools)] : []),
           h('section', { className: 'cs-settings-card cs-settings-main cs-notices-card' },
             h('h3', null, t('settingsSectionNotices')),
             h('p', { className: 'cs-settings-row-hint' }, t('settingsNoticesHint')),
@@ -5689,10 +7848,14 @@ window.__ModuleLoader__.load({
                 importPreview
                   ? `${t('importFilePicked')}${String(importPreview.filename ?? '')}`
                   : t('importFileHint'))),
-            importPreview
+            h(AnimatedCollapse, { open: Boolean(importPreview) }, importPreview
               ? h('div', { className: 'cs-import-preview' },
                   h('strong', null, t('importPreviewTitle')),
                   h('span', null, `${String(importPreview.filename ?? '')} · ${t('importIntervals')} ${importPreview.payload?.intervals?.length ?? 0} · ${t('importTasks')} ${importPreview.payload?.tasks?.length ?? 0}`),
+                  importReportCount || importPreview.payload?.lastTimerResult ? h('span', null, [
+                    importReportCount ? `${t('importReports')} ${importReportCount}` : '',
+                    importPreview.payload?.lastTimerResult ? t('importTimerResult') : '',
+                  ].filter(Boolean).join(' · ')) : null,
                   importRange ? h('span', { className: 'cs-settings-row-hint' }, importRange) : null,
                   h('label', { className: 'cs-settings-switch' },
                     h('input', {
@@ -5709,7 +7872,7 @@ window.__ModuleLoader__.load({
                       type: 'button', className: 'cs-btn is-primary', disabled: dataBusy !== '',
                       onClick: () => onImport?.(),
                     }, dataBusy === 'import' ? t('loading') : t('importConfirm'))))
-              : null,
+              : null),
             importError
               ? h('div', { className: 'cs-data-status is-error', role: 'status' }, String(importError))
               : null,
@@ -5725,7 +7888,7 @@ window.__ModuleLoader__.load({
               type: 'button', className: 'cs-btn is-danger', disabled: dataBusy !== '',
               onClick: () => onRequestClear?.(),
             }, t('clearData'))),
-            clearStep
+            h(AnimatedCollapse, { open: clearStep }, clearStep
               ? h('div', { className: 'cs-clear-confirm', role: 'alertdialog', 'aria-label': t('clearStepTitle') },
                   h('strong', null, t('clearStepTitle')),
                   h('p', null, t('clearStepHint')),
@@ -5738,7 +7901,7 @@ window.__ModuleLoader__.load({
                       type: 'button', className: 'cs-btn is-danger is-solid', disabled: dataBusy !== '',
                       onClick: () => onClear?.(),
                     }, dataBusy === 'clear' ? t('clearing') : t('clearConfirm'))))
-              : null,
+              : null),
             dataMessage
               ? h('div', {
                   className: `cs-data-status${dataMessage.error ? ' is-error' : ''}`,
@@ -5747,7 +7910,7 @@ window.__ModuleLoader__.load({
               : null)))]
     }
 
-    function createPage(ctx) {
+    function createPage(ctx, timerClient = createTimerClient(ctx)) {
       return function DshTimespanPage(props) {
         const t = props?.t ?? ((key) => key)
         // 语言切换后仪表盘整页换文案；isZh 仍在渲染时从 t 现读，不缓存。
@@ -5770,8 +7933,11 @@ window.__ModuleLoader__.load({
         // 最近会话条数按概览底部行高动态测量，默认 5 条，限制在 3–6 条。
         const [recentLimit, setRecentLimit] = React.useState(RECENT_SESSIONS_DEFAULT)
         const [switchingView, setSwitchingView] = React.useState(false)
+        const [pendingView, setPendingView] = React.useState(null)
         const switchingTimerRef = React.useRef(null)
         const viewsRef = React.useRef(null)
+        const viewSurfaceRef = React.useRef(null)
+        useSurfaceFade(!switchingView, viewSurfaceRef)
         const [palette, setPalette] = React.useState(() => {
           try { return normalizePalette(window.localStorage.getItem('dsh-timespan.palette')) }
           catch { return 'blue' }
@@ -5820,8 +7986,8 @@ window.__ModuleLoader__.load({
           const index = PALETTES.indexOf(normalizePalette(palette))
           changePalette(PALETTES[(index + 1) % PALETTES.length])
         }
-        const paletteNameKey = palette === 'stone' ? 'paletteStone' : palette === 'clay' ? 'paletteClay' : 'paletteBlue'
-        const paletteOrder = PALETTES.map((key) => t(key === 'stone' ? 'paletteStone' : key === 'clay' ? 'paletteClay' : 'paletteBlue')).join(' → ')
+        const paletteNameKey = PALETTE_LABELS[palette]
+        const paletteOrder = PALETTES.map((key) => t(PALETTE_LABELS[key])).join(' → ')
         const paletteToggleLabel = t('paletteToggle').replace('{name}', t(paletteNameKey)).replace('{order}', paletteOrder)
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.period', period) } catch {} }, [period])
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.view', view) } catch {} }, [view])
@@ -5846,13 +8012,22 @@ window.__ModuleLoader__.load({
         const [settingsLoadNonce, setSettingsLoadNonce] = React.useState(0)
         // 近似说明的关闭状态只存 Host；清空/恢复数据后自动重置为未关闭。
         const [approxDismissed, setApproxDismissed] = React.useState(false)
+        const [modelChoice, setModelChoice] = React.useState(null)
         React.useEffect(() => {
           let active = true
+          setModelChoice(null)
           callHost(ctx, 'getSettings', {}).then((value) => {
-            if (active) setApproxDismissed(value?.approximateNoticeDismissed === true)
-          }).catch(() => {})
+            if (!active) return
+            setApproxDismissed(value?.approximateNoticeDismissed === true)
+            setModelChoice({ provider: value?.analysisProvider, model: value?.analysisModel })
+          }).catch(() => { if (active) setModelChoice(false) })
           return () => { active = false }
         }, [ctx, settingsLoadNonce])
+        React.useEffect(() => {
+          const refresh = () => setSettingsLoadNonce((value) => value + 1)
+          window.addEventListener?.('focus', refresh)
+          return () => window.removeEventListener?.('focus', refresh)
+        }, [])
         const [noticeState, setNoticeState] = React.useState({ status: 'idle', data: null })
         const [noticeNonce, setNoticeNonce] = React.useState(0)
         const state = useDashboard(ctx, period, pollMs, refreshNonce)
@@ -5962,25 +8137,32 @@ window.__ModuleLoader__.load({
           }
         }
 
-        // 视图转场：旧视图先播 180ms viewOut，再换 view 播 300ms viewIn。
-        // 减少动效偏好下直接到位；卸载时清掉未完成的计时器。
+        // 导航立即响应，旧内容短暂退出；连续点击替换目的地，不吞掉后续操作。
         const goToView = (target) => {
           const next = normalizeView(target)
-          if (next === view || switchingView) return
+          if (next === (pendingView ?? view)) return
+          if (switchingTimerRef.current !== null) {
+            window.clearTimeout(switchingTimerRef.current)
+            switchingTimerRef.current = null
+          }
+          if (next === view) { setPendingView(null); setSwitchingView(false); return }
           if (view === 'details') sessionBrowser.actions.clearHighlight()
           if (previewFormat !== null) {
             setPreviewFormat(null)
             notifySettingsChanged()
           }
           if (prefersReducedMotion()) {
+            setPendingView(null)
+            setSwitchingView(false)
             setView(next)
             return
           }
+          setPendingView(next)
           setSwitchingView(true)
-          if (switchingTimerRef.current !== null) window.clearTimeout(switchingTimerRef.current)
           switchingTimerRef.current = window.setTimeout(() => {
             switchingTimerRef.current = null
             setView(next)
+            setPendingView(null)
             setSwitchingView(false)
           }, viewTransitionDelay(false))
         }
@@ -6188,24 +8370,6 @@ window.__ModuleLoader__.load({
         // 范围由页面状态解析成本地日历区间；跨午夜时 from/to 自然前移，页面无需额外状态。
         const heatRange = resolveHeatRange(heatRangeValue, nowMs)
         const heatState = useDailySeries(ctx, heatRange, PAGE_REFRESH_MS, refreshNonce, view === 'overview')
-        if (state.status === 'loading' && data === null) {
-          return h('div', { className: pageClassName },
-            h('style', null, DSH_TIMESPAN_CSS),
-            h('div', { className: 'cs-shell' },
-              h('div', { className: 'cs-loading' },
-                h('span', { className: 'cs-spinner' }),
-                h('strong', null, t('loadingTitle')),
-                h('span', null, t('loading')))))
-        }
-        if (state.status === 'error' && data === null) {
-          return h('div', { className: pageClassName },
-            h('style', null, DSH_TIMESPAN_CSS),
-            h('div', { className: 'cs-shell' },
-              h('div', { className: 'cs-loading is-error' },
-                h('strong', null, t('errorTitle')),
-                h('span', null, t('retryHint')))))
-        }
-
         const approximateAvailable = approximateNoticeVisible(data)
         const hasApproximate = approximateAvailable && !approxDismissed
         const onDismissApproximate = async () => {
@@ -6235,6 +8399,13 @@ window.__ModuleLoader__.load({
           }
         }
         const renderView = () => {
+          if (data === null && view !== 'settings') {
+            const failed = state.status === 'error'
+            return [h('div', { className: `cs-loading${failed ? ' is-error' : ''}` },
+              failed ? null : h('span', { className: 'cs-spinner' }),
+              h('strong', null, t(failed ? 'errorTitle' : 'loadingTitle')),
+              h('span', null, t(failed ? 'retryHint' : 'loading')))]
+          }
           if (view === 'trend') {
             return renderTrendView({
               data, t, isZh, period, onSelectPeriod: setPeriod, durationFormat, hoverTip, nowMs, onOpenRange: openTrendSessions,
@@ -6249,6 +8420,14 @@ window.__ModuleLoader__.load({
                   document.getElementById('cs-session-inspector')?.scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'instant' : 'smooth' }))
               },
             })
+          }
+          if (view === 'analysis') {
+            return [h(AnalysisPage, {
+              ctx, t, data, period, onSelectPeriod: setPeriod, modelChoice, hoverTip, durationFormat,
+              onRetryModel: () => setSettingsLoadNonce((value) => value + 1),
+              onOpenSettings: () => goToView('settings'),
+              onOpenSource: (source) => openSessionInHost(ctx, source),
+            })]
           }
           if (view === 'settings') {
             return renderSettingsView({
@@ -6277,6 +8456,10 @@ window.__ModuleLoader__.load({
               onCancelReset: settingsEditor.cancelReset,
               onResetSettings: settingsEditor.reset,
               onRetryLoad: settingsEditor.reload,
+              onRetrySave: settingsEditor.messageKey === 'settingsSaveError' ? settingsEditor.retrySave : undefined,
+              timeTools: h(TimeToolsSettings, {
+                ctx, t, draft: settingsEditor.draft, busy: settingsEditor.busy, onPatch: settingsEditor.patch,
+              }),
               onExport,
               importPreview,
               importRestoreSettings,
@@ -6320,16 +8503,17 @@ window.__ModuleLoader__.load({
                 h('div', { className: 'cs-brand-text' },
                   h('h1', null, t('title')))),
               h('span', { className: 'cs-topbar-divider', 'aria-hidden': true }),
-              h(TabNav, { view, t, locale: isZh ? 'zh' : 'en', onChange: goToView }),
+              h(TabNav, { view: pendingView ?? view, t, locale: isZh ? 'zh' : 'en', onChange: goToView }),
               h('div', { className: 'cs-topbar-right' },
-                h('div', { className: 'cs-topbar-group' },
+                data ? h('div', { className: 'cs-topbar-group' },
                   h('span', {
                     className: `cs-live cs-live-status${data.taskRunning ? ' is-live is-task' : data.activeRunning ? ' is-live is-active' : ' is-idle'}`,
                   },
                     h('span', { className: 'cs-dot' }),
-                    t(data.taskRunning ? 'taskRunning' : data.activeRunning ? 'live' : 'idle'))),
-                h('span', { className: 'cs-topbar-divider', 'aria-hidden': true }),
+                    t(data.taskRunning ? 'taskRunning' : data.activeRunning ? 'live' : 'idle'))) : null,
+                data ? h('span', { className: 'cs-topbar-divider', 'aria-hidden': true }) : null,
                 h('div', { className: 'cs-topbar-group' },
+                  h(DashboardTimer, { client: timerClient, t }),
                   h('button', {
                     type: 'button',
                     className: 'cs-icon-toggle',
@@ -6346,7 +8530,7 @@ window.__ModuleLoader__.load({
                   }, h(PaletteIcon))))),
             paletteSaveError ? h('div', { className: 'cs-alert', role: 'status' }, t('paletteSaveError')) : null,
             renderApproximateNotice(t, hasApproximate, { onDismiss: onDismissApproximate }),
-            state.status === 'error'
+            state.status === 'error' && data !== null
               ? h('div', { className: 'cs-alert' }, h('strong', null, t('errorTitle')), ` · ${t('retryHint')}`)
               : null,
             renderBackfillBanner(effectiveBackfill, {
@@ -6361,22 +8545,51 @@ window.__ModuleLoader__.load({
               h('div', { className: `cs-curtain${switchingView ? ' is-on' : ''}`, 'aria-hidden': true }),
               h('section', {
                 key: view,
+                ref: viewSurfaceRef,
                 id: `cs-view-${view}`,
                 className: `cs-view${switchingView ? ' is-leaving' : ''}`,
+                inert: switchingView ? '' : undefined,
                 role: 'tabpanel',
                 'aria-labelledby': `cs-tab-${view}`,
                 'data-view': view,
               },
                 view === 'settings' ? h('style', null, DSH_TIMESPAN_SETTINGS_CSS) : null,
                 ...renderView())),
-            h('footer', { className: 'cs-foot' },
+            data ? h('footer', { className: 'cs-foot' },
               h('span', null, `${t('todayActive')} ${formatDuration(data.cycles.day.activeMs, durationFormat)} · ${t('todayOnline')} ${formatDuration(data.cycles.day.onlineMs, durationFormat)}`),
-              renderInfo(footerLines.join('；'), null, footerLines)),
+              renderInfo(footerLines.join('；'), null, footerLines)) : null,
             h(HoverTip, { key: 'hover-tip', tip: hoverTip.tip })))
       }
     }
 
     /** 页面与设置页共用同一套自定义下拉外观；颜色跟随所在页面作用域的主题变量。 */
+    const CS_INTERACTION_CSS = `
+      .cs-selection-group { position: relative; isolation: isolate; }
+      .cs-selection-group > :not(.cs-selection-thumb) { position: relative; z-index: 1; }
+      .cs-selection-thumb { position: absolute; z-index: 0; pointer-events: none; top: 0; left: 0;
+        width: var(--cs-indicator-width, 0px); height: var(--cs-indicator-height, 0px);
+        transform: translate(var(--cs-indicator-x, 0px), var(--cs-indicator-y, 0px));
+        border-radius: var(--cs-indicator-radius, 6px); background: var(--cs-indicator-color, var(--dsw-alias-bg-layer-2));
+        visibility: hidden; transition: none; }
+      .cs-selection-group[data-selection-ready] > .cs-selection-thumb { visibility: visible; }
+      .cs-selection-group[data-selection-motion="true"] > .cs-selection-thumb {
+        transition: transform 240ms cubic-bezier(.2,.7,.2,1), width 240ms cubic-bezier(.2,.7,.2,1), height 240ms cubic-bezier(.2,.7,.2,1), background-color 240ms ease; }
+      .cs-collapse { display: grid; grid-template-rows: 0fr; visibility: hidden; opacity: 0;
+        transition: grid-template-rows 240ms cubic-bezier(.2,.7,.2,1), opacity 120ms ease, visibility 240ms; }
+      .cs-collapse.is-open { grid-template-rows: 1fr; visibility: visible; opacity: 1; }
+      .cs-collapse-body { min-height: 0; overflow: hidden; }
+      .cs-triangle, .cs-disclosure > summary::before { display: inline-block; content: ''; flex: none; width: 0; height: 0;
+        border-block: 4px solid transparent; border-inline-start: 6px solid currentColor; transform-origin: 2px center;
+        transition: transform 180ms cubic-bezier(.2,.7,.2,1); }
+      .cs-disclosure > summary { display: flex; align-items: center; gap: 7px; list-style: none; cursor: pointer; }
+      .cs-disclosure > summary::-webkit-details-marker { display: none; }
+      .cs-disclosure[open]:not([data-review-expanded="false"]) > summary::before,
+      .cs-disclosure[data-review-expanded="true"] > summary::before { transform: rotate(90deg); }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-selection-group > .cs-selection-thumb, .cs-collapse, .cs-triangle, .cs-disclosure > summary::before { transition: none; }
+      }
+    `
+
     const CS_SELECT_CSS = `
       .cs-select { position: relative; display: inline-flex; vertical-align: middle; min-width: 0; }
       .cs-select-btn {
@@ -6417,17 +8630,12 @@ window.__ModuleLoader__.load({
         padding: 4px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px;
         background: var(--dsw-alias-bg-layer-1);
         box-shadow: 0 14px 34px rgba(0, 0, 0, .16);
-        animation: cs-menu-in 180ms ease both;
       }
       .cs-select-menu[hidden] { display: none !important; }
-      /* 向上偏好只决定入场动画方向；实际上下由视口空间夹取决定。 */
-      .cs-select.is-top .cs-select-menu { animation-name: cs-menu-in-top; }
       .cs-select-menu.is-grid {
         display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px;
         min-width: 224px; max-height: none; overflow: visible; padding: 6px;
       }
-      @keyframes cs-menu-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes cs-menu-in-top { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       .cs-opt {
         display: flex; align-items: center; justify-content: space-between; gap: 8px;
         width: 100%; min-width: 0; text-align: left; white-space: nowrap;
@@ -6462,12 +8670,12 @@ window.__ModuleLoader__.load({
 
     /**
      * 侧栏入口的独立主题作用域。入口落在宿主侧栏，拿不到 .cs-page 的变量，
-     * 因此在这里按 cs-palette-* / cs-appearance-* 重新声明三档蓝，并给任务段
+     * 因此在这里按 cs-palette-* / cs-appearance-* 声明信号色阶，并给任务段
      * 指定与活跃段明显区分的紫罗兰辅助色；不使用宿主的 success 绿。
      */
     const CS_CHART_MOTION_CSS = `
       /* 绘入与悬停分别作用于内外层，避免入场过程覆盖交互缩放。 */
-      .cs-reveal-ring, .cs-reveal-x, .cs-reveal-y {
+      .cs-reveal-ring, .cs-reveal-x, .cs-reveal-y, .cs-reveal-cell {
         animation-duration: var(--cs-dur-enter, 420ms);
         animation-delay: var(--cs-chart-delay, 0ms);
         animation-timing-function: var(--cs-ease, cubic-bezier(.22,.7,.24,1));
@@ -6476,13 +8684,28 @@ window.__ModuleLoader__.load({
       .cs-reveal-ring { animation-name: cs-ring-draw; }
       .cs-reveal-x { transform-origin: left center; animation-name: cs-bar-draw-x; }
       .cs-reveal-y { transform-box: fill-box; transform-origin: center bottom; animation-name: cs-bar-draw-y; }
-      [data-chart-reveal="pending"] :is(.cs-reveal-ring, .cs-reveal-x, .cs-reveal-y) { animation-play-state: paused; }
+      .cs-reveal-cell { animation-name: cs-heat-appear; }
+      [data-chart-reveal="pending"] :is(.cs-reveal-ring, .cs-reveal-x, .cs-reveal-y, .cs-reveal-cell) { animation-play-state: paused; }
+      @keyframes cs-heat-appear { from { opacity: 0; } }
       @keyframes cs-ring-draw { from { stroke-dasharray: 0 var(--cs-ring-length, 100); } }
       @keyframes cs-bar-draw-x { from { transform: scaleX(0); } }
       @keyframes cs-bar-draw-y { from { transform: scaleY(0); } }
       @media (prefers-reduced-motion: reduce) {
-        .cs-reveal-ring, .cs-reveal-x, .cs-reveal-y { animation: none; }
+        .cs-reveal-ring, .cs-reveal-x, .cs-reveal-y, .cs-reveal-cell { animation: none; }
       }
+    `
+
+    const CS_CORAL_LIGHT = `
+      --cs-palette-primary: #FF5B3B;
+      --cs-signal-deep: #7E291F;
+      --cs-signal: #A63D28;
+      --cs-signal-soft: #FFBAA7;
+    `
+    const CS_CORAL_DARK = `
+      --cs-palette-primary: #FF5B3B;
+      --cs-signal-deep: #FFCBBE;
+      --cs-signal: #FF8B73;
+      --cs-signal-soft: #9C493B;
     `
 
     const DSH_TIMESPAN_SIDEBAR_CSS = `
@@ -6539,6 +8762,7 @@ window.__ModuleLoader__.load({
       .dsh-timespan-nav-entry.cs-palette-clay {
         --cs-signal-deep: #6b3b26; --cs-signal: #a35a37; --cs-signal-soft: #e2ac86;
       }
+      .dsh-timespan-nav-entry.cs-palette-coral { ${CS_CORAL_LIGHT} --cs-active-dot: var(--cs-palette-primary); }
       .dsh-timespan-nav-entry.cs-palette-blue.cs-appearance-light {
         --cs-active-dot: var(--cs-signal-soft);
       }
@@ -6552,6 +8776,7 @@ window.__ModuleLoader__.load({
       .dsh-timespan-nav-entry.cs-appearance-dark.cs-palette-clay {
         --cs-signal-deep: #f0c0a4; --cs-signal: #e2ac86; --cs-signal-soft: #8a5a40;
       }
+      .dsh-timespan-nav-entry.cs-appearance-dark.cs-palette-coral { ${CS_CORAL_DARK} }
       .dsh-timespan-nav-ring {
         width: 18px; height: 18px; flex: 0 0 18px;
         display: inline-flex; align-items: center; justify-content: center;
@@ -6677,9 +8902,423 @@ window.__ModuleLoader__.load({
       }
     `
 
+    const CS_TIMER_CSS = `
+      ${CS_INTERACTION_CSS}
+      .cs-timer-overlay {
+        --cs-signal: #1F4E94; --cs-signal-soft: #79B3F9;
+        --cs-timer-surface: #fdfefe; --cs-timer-raised: #eff3f6;
+        --cs-timer-ink: #232a2d; --cs-timer-muted: #525d63; --cs-timer-line: #dfe5e9;
+        --cs-timer-error: #a63437; --cs-timer-on-accent: #fff;
+        display: contents;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        color-scheme: light;
+      }
+      .cs-timer-overlay.cs-palette-stone { --cs-signal: #4a5155; --cs-signal-soft: #aeb6b9; }
+      .cs-timer-overlay.cs-palette-clay { --cs-signal: #a35a37; --cs-signal-soft: #e2ac86; }
+      .cs-timer-overlay.cs-palette-coral { ${CS_CORAL_LIGHT} --cs-timer-on-accent: #30150e; }
+      .cs-timer-overlay.cs-appearance-dark {
+        --cs-signal: #79B3F9; --cs-signal-soft: #3f6ba8;
+        --cs-timer-surface: #202324; --cs-timer-raised: #303435;
+        --cs-timer-ink: #f1f2f1; --cs-timer-muted: #b1b6b5; --cs-timer-line: #414647;
+        --cs-timer-error: #f09691; --cs-timer-on-accent: #171a19;
+        color-scheme: dark;
+      }
+      .cs-timer-overlay.cs-appearance-dark.cs-palette-stone { --cs-signal: #aeb6b9; --cs-signal-soft: #6c7477; }
+      .cs-timer-overlay.cs-appearance-dark.cs-palette-clay { --cs-signal: #e2ac86; --cs-signal-soft: #8a5a40; }
+      .cs-timer-overlay.cs-appearance-dark.cs-palette-coral { ${CS_CORAL_DARK} }
+      .cs-floating-menu { position: fixed; z-index: 110; width: min(218px, calc(100vw - 24px));
+        padding: 5px; border: 1px solid var(--cs-timer-line); border-radius: 10px;
+        background: var(--cs-timer-surface); color: var(--cs-timer-ink); box-shadow: 0 10px 30px #0002; pointer-events: auto; }
+      .cs-floating-menu[hidden] { display: none; }
+      .cs-floating-menu > button { display: flex; align-items: center; gap: 8px; width: 100%;
+        border: 0; border-radius: 6px; padding: 8px; background: transparent; color: inherit; font: inherit; font-size: 13px;
+        text-align: left; cursor: pointer; transition: background-color 160ms ease; }
+      .cs-floating-menu > button:hover { background: var(--cs-timer-raised); }
+      .cs-floating-menu > button:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: -2px; }
+      .cs-floating-menu > button:disabled { cursor: wait; opacity: .6; }
+      .cs-floating-menu > p { margin: 4px 8px 7px; color: var(--cs-timer-muted); font-size: 11px; line-height: 1.6; }
+      .cs-floating-menu > p.is-error { color: var(--cs-timer-error); }
+      .cs-timer-popover, .cs-timer-notice {
+        --timer-paper: var(--cs-timer-surface, var(--dsw-alias-bg-layer-1));
+        --timer-rail: var(--cs-timer-raised, var(--dsw-alias-bg-layer-2));
+        --timer-ink: var(--cs-timer-ink, var(--dsw-alias-label-primary));
+        --timer-muted: var(--cs-timer-muted, var(--dsw-alias-label-secondary));
+        --timer-rule: var(--cs-timer-line, var(--dsw-alias-border-l1));
+        --timer-accent: var(--cs-palette-primary, var(--cs-signal));
+        --timer-control: var(--cs-palette-primary, var(--dsw-alias-brand-primary));
+        --timer-text-accent: var(--cs-signal);
+        --timer-button-ink: var(--cs-timer-on-accent, var(--cs-solid-ink, var(--cs-on-accent, #fff)));
+        --timer-mono: var(--cs-mono, "Cascadia Mono", Consolas, "Liberation Mono", monospace);
+        box-sizing: border-box;
+        color: var(--timer-ink);
+        font-family: inherit; font-size: 12px; line-height: 1.5;
+      }
+      .cs-timer-popover *, .cs-timer-notice * { box-sizing: border-box; }
+      .cs-timer-topbar { position: relative; }
+      .cs-timer-trigger, .cs-timer-button, .cs-timer-notice-close {
+        appearance: none; font: inherit; font-size: 12px; line-height: 18px; cursor: pointer;
+        border: 1px solid var(--timer-rule); border-radius: 8px; background: var(--timer-paper); color: var(--timer-ink);
+      }
+      .cs-timer-trigger {
+        position: relative; display: inline-flex; min-width: 30px; min-height: 30px; align-items: center; justify-content: center; padding: 6px;
+        color: var(--timer-muted); transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+      }
+      .cs-timer-trigger.is-pinned {
+        color: var(--timer-text-accent);
+        border-color: color-mix(in srgb, var(--timer-accent) 50%, var(--timer-rule));
+      }
+      .cs-timer-trigger.is-pinned { background: color-mix(in srgb, var(--timer-accent) 11%, var(--timer-paper)); }
+      .cs-timer-trigger:hover:not(.is-pinned) { background: var(--timer-rail); }
+      .cs-timer-trigger .cs-detail-glyph { color: var(--timer-ink); }
+      .cs-timer-trigger .cs-detail-glyph path { stroke: var(--timer-text-accent); }
+      .cs-timer-popover .cs-timer-trigger.has-error { color: var(--cs-timer-error, var(--dsw-alias-state-error-primary)); }
+      .cs-timer-trigger.has-error .cs-detail-glyph path { stroke: var(--cs-timer-error, var(--dsw-alias-state-error-primary)); }
+      .cs-timer-compact-digits { font: 600 11px/18px var(--timer-mono); font-variant-numeric: tabular-nums; }
+      .cs-timer-popover :is(button, input):focus-visible, .cs-timer-notice button:focus-visible {
+        outline: 2px solid var(--timer-text-accent); outline-offset: 2px;
+      }
+      .cs-timer-flyout[hidden] { display: none; }
+      .cs-timer-flyout {
+        z-index: 61; position: fixed; width: min(280px, calc(100vw - 20px));
+      }
+      .cs-timer-panel {
+        max-height: min(555px, calc(100dvh - 20px)); padding: 14px; overflow: auto;
+        border: 1px solid var(--timer-rule); border-radius: 13px; background: var(--timer-paper);
+        box-shadow: 0 12px 42px #0003, 0 3px 10px #0001;
+      }
+      .cs-clock-face { display: grid; justify-items: center; gap: 5px; margin: 0 0 10px; }
+      .cs-clock-face svg { display: block; width: 132px; max-width: 100%; }
+      .cs-clock-rim { fill: none; stroke: var(--timer-rule); }
+      .cs-clock-tick { stroke: var(--timer-rule); stroke-width: 1.65; stroke-linecap: round; }
+      .cs-clock-tick.is-quarter { stroke: var(--timer-muted); stroke-width: 2.05; }
+      .cs-clock-hour, .cs-clock-minute { stroke: var(--timer-ink); stroke-linecap: round; }
+      .cs-clock-hour { stroke-width: 4.8; }
+      .cs-clock-minute { stroke-width: 2.6; }
+      .cs-clock-second { stroke: var(--timer-accent); stroke-width: 1.45; stroke-linecap: round; }
+      .cs-clock-pivot { fill: var(--timer-accent); stroke: var(--timer-paper); stroke-width: .85; }
+      .cs-clock-caption { display: flex; align-items: baseline; gap: 7px; font-size: 11px; color: var(--timer-muted); }
+      .cs-clock-caption time { font-family: var(--timer-mono); font-variant-numeric: tabular-nums; }
+      .cs-timer-controls { display: grid; gap: 8px; font-size: 12px; }
+      .cs-timer-controls > .cs-collapse { margin-block: -4px; transition: grid-template-rows 240ms cubic-bezier(.2,.7,.2,1), opacity 120ms ease, visibility 240ms, margin 240ms ease; }
+      .cs-timer-controls > .cs-collapse.is-open { margin-block: 0; }
+      .cs-timer-heading { display: flex; gap: 8px; justify-content: space-between; align-items: baseline; }
+      .cs-timer-heading strong { font-size: 13px; font-weight: 650; }
+      .cs-timer-state, .cs-timer-mode { color: var(--timer-muted); font-size: 11px; }
+      .cs-timer-mode-slot { display: flex; align-items: center; min-height: 30px; }
+      .cs-timer-state:is(.is-running, .is-completed) { color: var(--timer-text-accent); }
+      .cs-timer-readout {
+        font-family: var(--timer-mono); font-size: clamp(23px, 3.35vw, 30px); font-weight: 650; line-height: 1.25; letter-spacing: -.055em;
+        font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+      }
+      .cs-timer-modes, .cs-timer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+      .cs-timer-modes { --cs-indicator-color: var(--timer-paper); width: fit-content; padding: 2px; border-radius: 7px; background: var(--timer-rail); }
+      .cs-timer-modes button { padding: 4px 7px; font: inherit; color: var(--timer-muted); border: 0; border-radius: 5px; background: none; cursor: pointer; }
+      .cs-timer-modes button[aria-pressed="true"] { background: var(--timer-paper); color: var(--timer-ink); box-shadow: 0 1px 2px #0002; }
+      .cs-timer-modes[data-selection-ready] button[aria-pressed="true"] { background: transparent; box-shadow: none; }
+      .cs-timer-button { min-height: 30px; padding: 4px 8px; transition: background-color 160ms ease, color 160ms ease, transform 80ms ease; }
+      .cs-timer-button:hover:not(:disabled) { background: color-mix(in srgb, var(--timer-accent) 14%, var(--timer-paper)); }
+      .cs-timer-button:active:not(:disabled) { transform: scale(.97); }
+      .cs-timer-button.is-primary { border-color: var(--timer-control); background: var(--timer-control); color: var(--timer-button-ink); font-weight: 650; }
+      .cs-timer-button.is-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--timer-control) 88%, var(--timer-ink)); }
+      .cs-timer-popover button:disabled { opacity: .57; cursor: default; }
+      .cs-timer-duration {
+        min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin: 0; padding: 0; border: 0;
+      }
+      .cs-timer-duration legend { padding: 0 0 3px; color: var(--timer-muted); font-size: 11px; }
+      .cs-timer-unit { display: inline-flex; align-items: center; gap: 4px; color: var(--timer-muted); }
+      .cs-timer-unit input {
+        width: 68px; min-height: 29px; padding: 4px 6px; border: 1px solid var(--timer-rule); border-radius: 6px;
+        background: var(--timer-paper); color: var(--timer-ink); font: 12px/18px var(--timer-mono);
+      }
+      .cs-timer-progress { display: block; width: 100%; height: 5px; accent-color: var(--timer-accent); }
+      .cs-timer-feedback { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; margin: 0; font-size: 11px; color: var(--timer-muted); }
+      .cs-timer-feedback.is-error { color: var(--cs-timer-error, var(--dsw-alias-state-error-primary)); }
+      .cs-timer-result { display: flex; align-items: center; gap: 7px; padding-top: 7px; border-top: 1px solid var(--timer-rule); color: var(--timer-muted); font-size: 11px; }
+      .cs-timer-result-copy { display: grid; gap: 1px; flex: 1; min-width: 0; }
+      .cs-timer-result-delete { position: relative; display: grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; color: var(--timer-muted); background: none; border: 0; border-radius: 6px; cursor: pointer; transition: color 150ms ease, background-color 150ms ease; }
+      .cs-timer-result-delete:hover:not(:disabled) { color: var(--cs-timer-error, var(--dsw-alias-state-error-primary)); background: color-mix(in srgb, currentColor 8%, transparent); }
+      .cs-delete-dot { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: currentColor; transition: opacity 140ms ease, transform 140ms ease; }
+      .cs-timer-result-delete > svg { opacity: 0; transform: scale(.75); transition: opacity 140ms ease, transform 140ms ease; }
+      .cs-timer-result-delete:is(:hover, :focus-visible) .cs-delete-dot { opacity: 0; transform: scale(.5); }
+      .cs-timer-result-delete:is(:hover, :focus-visible) > svg { opacity: 1; transform: scale(1); }
+      @media (hover: none) { .cs-delete-dot { display: none; } .cs-timer-result-delete > svg { opacity: 1; transform: none; } }
+      .cs-floating-window {
+        position: fixed; z-index: 26; width: max-content; max-width: calc(100vw - 24px); pointer-events: auto;
+        background: transparent; border: 0; box-shadow: none;
+        --timer-ink: var(--dsw-alias-label-primary);
+        --timer-muted: var(--dsw-alias-label-secondary);
+        --timer-paper: var(--dsw-alias-bg-base);
+        --timer-rule: var(--dsw-alias-border-l1);
+        --timer-text-accent: color-mix(in srgb, var(--timer-ink) 65%, var(--timer-accent));
+        --floating-halo: color-mix(in srgb, var(--timer-accent) 24%, transparent);
+        text-shadow: 0 1px 2px var(--timer-paper), 0 0 10px var(--floating-halo);
+      }
+      /* 玻璃表面的祖先不保留 opacity 动画，否则会隔断 backdrop 的取样范围。 */
+      .cs-floating-entry { animation: cs-tools-in 180ms ease-out; }
+      .cs-floating-content[hidden] { display: none; }
+      .cs-floating-panel {
+        width: min(246px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto;
+        padding: 9px 14px 14px; scrollbar-width: thin; border-radius: 18px;
+        background: color-mix(in srgb, var(--timer-paper) 94%, transparent);
+        border: 1px solid color-mix(in srgb, var(--timer-ink) 14%, transparent);
+        box-shadow: 0 12px 32px #00000020, inset 0 1px 0 color-mix(in srgb, var(--timer-ink) 7%, transparent);
+      }
+      .cs-floating-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+      .cs-floating-entry, .cs-floating-grip, .cs-floating-minimize, .cs-floating-dock {
+        display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0;
+        color: var(--timer-ink); background: none; border: 0; font: inherit; text-shadow: inherit; cursor: pointer;
+      }
+      .cs-floating-entry { min-width: 40px; min-height: 40px; padding: 4px 6px; border-radius: 50%; touch-action: none; cursor: grab;
+        background: color-mix(in srgb, var(--timer-paper) 94%, transparent); border: 1px solid color-mix(in srgb, var(--timer-ink) 12%, transparent); }
+      @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+        .cs-floating-panel, .cs-floating-entry {
+          background: color-mix(in srgb, var(--timer-paper) 72%, transparent);
+          -webkit-backdrop-filter: blur(20px) saturate(1.15); backdrop-filter: blur(20px) saturate(1.15);
+        }
+      }
+      .cs-floating-entry svg { filter: drop-shadow(0 0 5px var(--floating-halo)); }
+      .cs-floating-entry.is-running { color: var(--timer-text-accent); }
+      .cs-floating-entry.has-error { color: var(--cs-timer-error); }
+      .cs-floating-grip { flex: 1; min-height: 26px; justify-content: flex-start; touch-action: none; cursor: grab; color: var(--timer-muted); }
+      .cs-floating-minimize { min-width: 28px; min-height: 28px; color: var(--timer-muted); }
+      .cs-floating-window.is-dragging, .cs-floating-window.is-dragging * { cursor: grabbing; user-select: none; }
+      .cs-floating-window :is(.cs-floating-grip, .cs-floating-minimize, .cs-floating-entry):hover { color: var(--timer-text-accent); }
+      .cs-floating-window .cs-clock-face { margin: 0 0 12px; }
+      .cs-floating-window .cs-clock-rim { fill: none; stroke: color-mix(in srgb, var(--timer-text-accent) 24%, transparent); }
+      .cs-floating-window .cs-clock-face svg { filter: drop-shadow(0 0 5px var(--floating-halo)); }
+      .cs-floating-window .cs-clock-pivot { stroke: none; }
+      .cs-floating-window .cs-timer-readout { font-size: 34px; font-weight: 600; letter-spacing: -.045em; text-shadow: 0 0 16px var(--floating-halo); }
+      .cs-floating-window .cs-timer-modes { --cs-indicator-color: color-mix(in srgb, var(--timer-accent) 12%, transparent); background: none; }
+      .cs-floating-window .cs-timer-modes button { text-shadow: inherit; }
+      .cs-floating-window .cs-timer-modes button[aria-pressed="true"] { color: var(--timer-text-accent); box-shadow: none; }
+      .cs-floating-window .cs-timer-button { background: transparent; border-color: transparent; border-radius: 6px; padding-inline: 10px; text-shadow: inherit; }
+      .cs-floating-window .cs-timer-button.is-primary { background: color-mix(in srgb, var(--timer-accent) 8%, transparent); color: var(--timer-text-accent); font-weight: 650; }
+      .cs-floating-window .cs-timer-button:hover:not(:disabled) { background: color-mix(in srgb, var(--timer-accent) 18%, transparent); }
+      .cs-floating-window .cs-timer-unit input { width: 64px; background: none; border: 0; border-radius: 0; border-bottom: 1px solid var(--timer-rule); text-shadow: inherit; }
+      .cs-floating-window .cs-timer-result { border: 0; padding-top: 4px; }
+      .cs-floating-window .cs-timer-heading strong { font-size: 12px; }
+      .cs-floating-window .cs-timer-progress { height: 3px; }
+      .cs-floating-dock { width: 100%; height: 100%; }
+      .cs-floating-dock span { display: block; width: 4px; height: 36px; border-radius: 9px; background: var(--timer-text-accent); box-shadow: 0 0 8px var(--floating-halo); opacity: .65; }
+      .cs-floating-window:is(.dock-top, .dock-bottom) .cs-floating-dock span { width: 36px; height: 4px; }
+      .cs-floating-window.is-docked { max-width: none; }
+      .cs-timer-notice {
+        position: fixed; z-index: 65; right: max(12px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom));
+        width: min(292px, calc(100vw - 24px)); display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 9px;
+        padding: 12px; border: 1px solid var(--timer-rule); border-radius: 11px; pointer-events: auto;
+        background: var(--timer-paper); box-shadow: 0 8px 26px #0003; animation: cs-tools-in 150ms ease-out both;
+      }
+      .cs-timer-notice > svg { color: var(--timer-text-accent); }
+      .cs-timer-notice-message { display: grid; gap: 4px; font-size: 12px; }
+      .cs-timer-notice-message span { color: var(--timer-muted); }
+      .cs-timer-notice-message button { justify-self: start; }
+      .cs-timer-notice-close { display: grid; place-items: center; width: 25px; height: 25px; padding: 0; background: transparent; color: var(--timer-muted); }
+      @media (max-height: 540px) { .cs-clock-face svg { width: 105px; } }
+      @media (prefers-reduced-motion: reduce) { .cs-timer-notice, .cs-floating-entry { animation: none; }
+        .cs-timer-controls > .cs-collapse, .cs-selection-group[data-selection-motion="true"] > .cs-selection-thumb,
+        .cs-timer-trigger, .cs-timer-result-delete, .cs-timer-button, .cs-delete-dot, .cs-timer-result-delete > svg { transition: none; } }
+      @keyframes cs-tools-in { from { opacity: 0; } to { opacity: 1; } }
+    `
+
+    const CS_ANALYSIS_CSS = `
+      .cs-analysis-page {
+        --cs-analysis-padding: clamp(14px, 2cqi, 22px);
+        --cs-chart-label-size: 11px;
+        display: grid; align-content: start; gap: 16px; width: min(100%, 1160px); min-width: 0; margin-inline: auto;
+      }
+      .cs-analysis-empty {
+        min-width: 0; border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; background: var(--cs-surface);
+      }
+      .cs-analysis-toolbar {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: end; gap: 12px; min-width: 0; padding: 12px 2px 8px;
+      }
+      .cs-analysis-toolbar:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 4px; }
+      .cs-analysis-field { display: grid; gap: 4px; min-width: 0; font-size: 11px; color: var(--dsw-alias-label-secondary); }
+      .cs-analysis-field .cs-select-btn { min-width: 0; width: 100%; }
+      .cs-analysis-state { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+      .cs-analysis-state.is-error { color: var(--dsw-alias-state-error-primary); }
+      .cs-analysis-state > button { margin-inline-start: 8px; }
+      .cs-analysis-status {
+        display: grid; gap: 4px; padding: 8px 10px; border-radius: 7px; line-height: 1.55; font-size: 12px;
+        background: var(--dsw-alias-bg-layer-2); overflow-wrap: anywhere;
+      }
+      .cs-analysis-status > span { color: var(--dsw-alias-label-secondary); }
+      .cs-analysis-status progress { width: min(185px, 100%); height: 6px; accent-color: var(--cs-signal); }
+      .cs-analysis-empty { display: flex; align-items: center; gap: 14px; padding: var(--cs-analysis-padding); }
+      .cs-analysis-empty-icon {
+        display: grid; flex: none; place-items: center; width: 42px; height: 42px; border-radius: 10px;
+        color: var(--cs-signal); background: color-mix(in srgb, var(--cs-signal) 10%, var(--cs-surface));
+      }
+      .cs-analysis-empty h2 { margin: 0 0 5px; font-size: 17px; line-height: 1.3; }
+      .cs-analysis-report { display: grid; gap: 16px; min-width: 0; }
+      .cs-analysis-report p { margin: 0; }
+      .cs-analysis-report-header { padding: 5px 1px 0; min-width: 0; }
+      .cs-analysis-report-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 20px; }
+      .cs-analysis-report-identity { flex: 1 1 290px; min-width: 0; }
+      .cs-review-title { display: flex; align-items: center; gap: 6px; }
+      .cs-review-title h2 { margin: 0; font-size: 24px; font-weight: 650; line-height: 1.3; }
+      .cs-analysis-report-dates { margin: 5px 0 0; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.6; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+      .cs-analysis-report-actions { display: flex; align-items: center; gap: 5px; }
+      .cs-analysis-page .cs-info > button.cs-review-icon { width: 34px; height: 34px; border: 1px solid transparent; border-radius: 8px; }
+      .cs-analysis-page .cs-info > button.cs-review-generated { width: 28px; height: 28px; }
+      .cs-analysis-page .cs-info > button.cs-review-icon:hover { border-color: var(--dsw-alias-border-l1); }
+      .cs-analysis-page .cs-info > button.is-done { color: var(--cs-signal); }
+      .cs-analysis-page .cs-info > button.is-error { color: var(--dsw-alias-state-error-primary); }
+      .cs-analysis-page .cs-review-generate { display: inline-flex; align-items: center; gap: 6px; width: auto; height: 34px; margin-inline-start: 7px; padding: 6px 12px; white-space: nowrap; font: inherit; font-size: 12px; font-weight: 550; }
+      .cs-analysis-page .cs-info > button.cs-review-generate { width: auto; height: 34px; gap: 6px; padding: 6px 12px; border: 1px solid var(--dsw-alias-border-l1); }
+      .cs-analysis-page .cs-info > button.cs-review-generate.is-primary { background: var(--cs-palette-primary, var(--cs-signal)); border-color: var(--cs-palette-primary, var(--cs-signal)); color: var(--cs-solid-ink, var(--cs-on-accent, #fff)); font: inherit; font-size: 12px; font-weight: 600; }
+      .cs-analysis-page .cs-info > button.cs-review-generate:disabled { cursor: default; opacity: .5; }
+      .cs-review-context { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-top: 16px; }
+      .cs-review-periods { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; }
+      .cs-review-periods button { border: 0; border-radius: 5px; padding: 5px 13px; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; transition: background-color 140ms ease, color 140ms ease; }
+      .cs-review-periods button.is-current { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); font-weight: 600; }
+      .cs-review-periods[data-selection-ready] button.is-current { background: transparent; }
+      .cs-review-periods button:hover { color: var(--dsw-alias-label-primary); }
+      .cs-review-filter-toggle { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 6px 7px; border: 0; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; }
+      .cs-review-filter-toggle > span:not(.cs-review-filter-chevron) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cs-review-filter-toggle svg { flex: none; }
+      .cs-review-filter-toggle:hover, .cs-review-filter-toggle[aria-expanded=true] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); }
+      .cs-review-filter-toggle[aria-expanded=true] .cs-review-filter-chevron { transform: rotate(90deg); }
+      .cs-review-periods button:focus-visible, .cs-review-filter-toggle:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
+      .cs-review-filter-region { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 240ms cubic-bezier(.2,.7,.2,1), visibility 240ms; }
+      .cs-review-filter-region.is-open { grid-template-rows: 1fr; visibility: visible; }
+      .cs-review-filter-content { min-height: 0; overflow: hidden; }
+      .cs-review-filter-content .cs-analysis-route { padding: 0 2px 6px; }
+      .cs-review-messages { display: grid; gap: 8px; }
+      .cs-review-messages:not(:empty) { margin-top: 10px; }
+      .cs-analysis-copy-field { display: grid; justify-items: start; gap: 6px; margin-top: 6px; }
+      .cs-analysis-copy-field textarea {
+        width: 100%; padding: 8px 10px; resize: vertical; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px;
+        color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); font: 12px/1.55 ui-monospace, monospace;
+      }
+      .cs-analysis-copy-field textarea:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
+      .cs-analysis-past-scope {
+        padding: 8px 10px; border-radius: 7px; background: var(--dsw-alias-bg-layer-2);
+      }
+      .cs-analysis-abstract {
+        padding: 13px 18px; border-inline-start: 3px solid var(--cs-signal);
+        border-start-end-radius: 8px; border-end-end-radius: 8px;
+        background: color-mix(in srgb, var(--cs-signal) 6%, var(--cs-surface));
+      }
+      .cs-analysis-abstract h3 { margin: 0 0 5px; font-size: 12px; font-weight: 600; color: var(--dsw-alias-label-secondary); }
+      .cs-analysis-abstract p { font-size: 15px; font-weight: 550; line-height: 1.7; max-width: 100ch; overflow-wrap: anywhere; white-space: pre-wrap; }
+      .cs-review-metrics { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; min-width: 0;
+        background: var(--cs-surface); border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; }
+      .cs-review-metric { display: grid; gap: 5px; min-width: 0; padding: 15px var(--cs-analysis-padding); }
+      .cs-review-metric + .cs-review-metric, .cs-review-coverage-meter { border-inline-start: 1px solid var(--dsw-alias-border-l1); }
+      .cs-review-metric-label { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+      .cs-review-metric strong { font: 600 clamp(23px, 2.7cqi, 30px)/1.2 var(--cs-mono); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+      .cs-review-metric.is-active { background: color-mix(in srgb, var(--cs-chart-active) 7%, transparent); border-radius: 12px 0 0 12px; }
+      .cs-review-metric.is-active strong, .cs-review-metric.is-active .cs-detail-glyph { color: var(--cs-signal); }
+      .cs-review-metric.is-task strong, .cs-review-metric.is-task .cs-detail-glyph { color: var(--cs-task); }
+      .cs-review-metric small, .cs-review-coverage-meter small { font-size: 11px; line-height: 1.5; color: var(--dsw-alias-label-secondary); }
+      .cs-review-metric > small { min-height: 1.5em; }
+      .cs-review-coverage-meter { display: flex; align-items: center; gap: 10px; padding: 15px 18px; min-width: 0; }
+      .cs-review-coverage-meter svg { flex: none; }
+      .cs-review-coverage-meter > div { display: grid; gap: 3px; }
+      .cs-review-coverage-meter strong { font: 600 25px/1.25 ui-monospace, monospace; }
+      .cs-review-coverage-meter strong small { font: 500 16px/1.25 ui-monospace, monospace; }
+      .cs-review-coverage-meter:only-child { border: 0; grid-column: 1 / -1; }
+      .cs-review-visuals, .cs-review-next { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+      .cs-review-next.is-single { grid-template-columns: minmax(0, 1fr); }
+      .cs-analysis-report .cs-card { padding: 16px var(--cs-analysis-padding); min-width: 0; }
+      .cs-review-trend .cs-chart { margin-top: 12px; }
+      .cs-review-trend .cs-plot { height: 118px; }
+      .cs-analysis-report .cs-review-chart-note { margin-top: 12px; font-size: 11px; }
+      .cs-review-empty-chart { display: flex; align-items: center; justify-content: center; min-height: 110px; font-size: 13px; color: var(--dsw-alias-label-secondary); }
+      .cs-review-ranks { display: grid; gap: 14px; padding: 0; margin: 14px 0 0; list-style: none; }
+      .cs-review-ranks li > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; }
+      .cs-review-ranks li > div:first-child > span { min-width: 0; overflow-wrap: anywhere; }
+      .cs-review-ranks b { white-space: nowrap; font: 550 12px/1.5 ui-monospace, monospace; }
+      .cs-review-rank-bottom { display: flex; align-items: center; gap: 9px; margin-top: 5px; }
+      .cs-review-rank-bottom small { width: 34px; text-align: end; color: var(--dsw-alias-label-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+      .cs-review-track { display: block; height: 5px; flex: 1; border-radius: 3px; overflow: hidden; background: var(--dsw-alias-border-l1); }
+      .cs-review-track i { display: block; height: 100%; border-radius: inherit; background: var(--cs-chart-active); }
+      .cs-review-points { display: grid; gap: 10px; list-style: none; margin: 12px 0 0; padding: 0; }
+      .cs-review-points > li { min-width: 0; padding-inline-start: 11px; border-inline-start: 2px solid color-mix(in srgb, var(--cs-signal) 28%, var(--dsw-alias-border-l1)); }
+      .cs-review-observations .cs-review-points { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; }
+      .cs-review-point { min-width: 0; }
+      .cs-review-point-title { font-weight: 650; color: var(--dsw-alias-label-primary); }
+      .cs-review-point p, .cs-review-excerpt { font-size: 13px; line-height: 1.7; color: var(--dsw-alias-label-secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
+      .cs-review-long > summary { cursor: pointer; list-style: none; }
+      .cs-review-long > summary::-webkit-details-marker { display: none; }
+      .cs-review-excerpt { display: block; }
+      .cs-review-expand, .cs-review-collapse { color: var(--cs-signal); font-size: 12px; line-height: 1.8; }
+      .cs-review-collapse { display: none; }
+      .cs-review-long[open] > summary .cs-review-collapse { display: inline; }
+      .cs-review-long[open] > summary .cs-review-expand, .cs-review-long[open] > summary .cs-review-excerpt { display: none; }
+      .cs-review-fold-body { display: flow-root; }
+      .cs-review-more { margin-top: 12px; font-size: 12px; color: var(--cs-signal); }
+      .cs-review-more > summary { display: flex; align-items: center; gap: 7px; width: fit-content; line-height: 1.8; cursor: pointer; list-style: none; }
+      .cs-review-more .cs-review-point { color: var(--dsw-alias-label-primary); }
+      .cs-review-long > summary:focus-visible, .cs-review-more > summary:focus-visible, .cs-review-evidence-details > summary:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 4px; border-radius: 3px; }
+      .cs-analysis-work { display: grid; gap: 16px; list-style: none; padding: 0; margin: 14px 0 0; }
+      .cs-analysis-work > li:not(:first-child) { padding-top: 14px; border-top: 1px solid var(--dsw-alias-border-l1); }
+      .cs-review-count { color: var(--dsw-alias-label-secondary); font: 500 12px/1.4 ui-monospace, monospace; }
+      .cs-review-snapshot-note { padding: 12px 15px; border: 1px dashed var(--dsw-alias-border-l1); border-radius: 8px; }
+      .cs-review-coverage-note { display: flex; align-items: baseline; gap: 7px; }
+      .cs-review-coverage-note svg { flex: none; align-self: center; }
+      .cs-review-evidence { padding: 12px 2px 3px; border-top: 1px solid var(--dsw-alias-border-l1); }
+      .cs-review-evidence-details > summary { cursor: pointer; font-size: 12px; font-weight: 600; }
+      .cs-review-evidence-details > summary > span { display: inline-block; margin-inline-start: 7px; font-weight: 400; color: var(--dsw-alias-label-secondary); line-height: 1.7; }
+      .cs-analysis-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
+      .cs-analysis-source {
+        display: inline-flex; align-items: center; gap: 5px; min-width: 0; max-width: 100%; text-align: start;
+      }
+      .cs-analysis-source > span { min-width: 0; overflow-wrap: anywhere; }
+      .cs-analysis-source > svg { flex: none; }
+      .cs-analysis-sidebar {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-width: 0; margin-top: 14px;
+        color: var(--dsw-alias-label-secondary);
+        font-size: 12px; line-height: 1.6; overflow-wrap: anywhere;
+      }
+      .cs-analysis-sidebar h3 { margin: 0; color: var(--dsw-alias-label-primary); font-size: 13px; font-weight: 650; }
+      .cs-analysis-meta { display: grid; gap: 11px; margin: 0; }
+      .cs-analysis-meta dt { margin-bottom: 2px; }
+      .cs-analysis-meta dd { margin: 0; color: var(--dsw-alias-label-primary); font-weight: 600; }
+      .cs-analysis-coverage { display: grid; gap: 5px; }
+      .cs-analysis-coverage-notes { margin: 0; padding-inline-start: 17px; }
+      .cs-analysis-failures {
+        margin: 4px 0; border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 42%, var(--dsw-alias-border-l1));
+        border-radius: 8px; background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 5%, var(--dsw-alias-bg-layer-1));
+        font-size: 12px; line-height: 1.5;
+      }
+      .cs-analysis-failures summary { padding: 7px 9px; border-radius: inherit; color: var(--dsw-alias-state-error-primary); cursor: pointer; }
+      .cs-analysis-failures summary:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 2px; }
+      .cs-analysis-failure-details-label { margin-inline-start: 8px; color: var(--dsw-alias-label-secondary); }
+      .cs-analysis-failure-list { display: grid; gap: 0; margin: 0; padding: 0 9px; list-style: none; }
+      .cs-analysis-failure-item, .cs-analysis-failure-note {
+        display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px;
+        padding: 7px 0; border-top: 1px solid var(--dsw-alias-border-l1);
+      }
+      .cs-analysis-failure-identity { display: grid; gap: 2px; min-width: 0; flex: 1 1 170px; overflow-wrap: anywhere; }
+      .cs-analysis-failure-identity strong { color: var(--dsw-alias-label-primary); font-weight: 650; }
+      .cs-analysis-failure-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+      .cs-analysis-failure-actions .cs-btn, .cs-analysis-failure-note .cs-btn { padding-inline: 8px; }
+      .cs-analysis-failure-note { margin: 0 9px; }
+      .cs-analysis-source-list summary { width: fit-content; color: var(--cs-signal); font-weight: 600; cursor: pointer; }
+      .cs-analysis-source-list summary:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 3px; }
+      @container cs-shell (max-width: 760px) {
+        .cs-review-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .cs-review-metric.is-task { border-inline-start: 0; border-top: 1px solid var(--dsw-alias-border-l1); }
+        .cs-review-coverage-meter { border-top: 1px solid var(--dsw-alias-border-l1); }
+        .cs-review-visuals, .cs-review-next { grid-template-columns: minmax(0, 1fr); }
+        .cs-analysis-sidebar { grid-template-columns: minmax(0, 1fr); }
+      }
+      @container cs-shell (max-width: 620px) {
+        .cs-review-observations .cs-review-points { grid-template-columns: minmax(0, 1fr); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-review-periods button, .cs-review-filter-region, .cs-review-filter-chevron { transition: none; }
+      }
+    `
+
     const DSH_TIMESPAN_CSS = `
       ${CS_CHART_MOTION_CSS}
       ${CS_SELECT_CSS}
+      ${CS_TIMER_CSS}
+      ${CS_ANALYSIS_CSS}
       .cs-page {
         box-sizing: border-box;
         min-height: 100%;
@@ -6889,7 +9528,7 @@ window.__ModuleLoader__.load({
       .cs-chart { position: relative; width: 100%; min-width: 0; }
       .cs-chart svg { display: block; width: 100%; height: 138px; }
       .cs-axis { position: relative; height: 16px; margin-top: 2px; }
-      .cs-axis span { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px; line-height: 16px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .cs-axis span { position: absolute; top: 0; transform: translateX(-50%); font-size: var(--cs-chart-label-size, 10px); line-height: 16px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
       .cs-table-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
       .cs-range { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
       .cs-row {
@@ -7013,7 +9652,7 @@ window.__ModuleLoader__.load({
         .cs-foot { line-height: 18px; }
       }
 
-      /* 视觉基座：三档蓝是焦点信息与全部数据状态的唯一来源；灰只做表面、边框、轨道与次级文字。 */
+      /* 视觉基座：焦点与活跃使用当前配色的信号色阶，任务总量使用独立任务紫；普通灰用于表面、边框、轨道与次级文字。 */
       .cs-page {
         --cs-bg: #f3f3f2;
         --cs-surface: #ffffff;
@@ -7050,7 +9689,7 @@ window.__ModuleLoader__.load({
         --cs-sp-1: 4px; --cs-sp-2: 8px; --cs-sp-3: 12px; --cs-sp-4: 20px; --cs-sp-5: 32px;
         --cs-radius: 10px; --cs-radius-sm: 6px;
         --cs-num-lg: 46px; --cs-num-md: 20px; --cs-num-sm: 14px;
-        --cs-dur-tap: 160ms; --cs-dur-exit: 180ms; --cs-dur-view: 300ms; --cs-dur-enter: 420ms;
+        --cs-dur-tap: 160ms; --cs-dur-exit: 120ms; --cs-dur-view: 240ms; --cs-dur-enter: 420ms;
         --cs-ease: cubic-bezier(.22,.7,.24,1);
         --cs-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
         --cs-mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", monospace;
@@ -7075,6 +9714,13 @@ window.__ModuleLoader__.load({
       }
       .cs-page.cs-palette-clay {
         --cs-signal-deep: #6b3b26; --cs-signal: #a35a37; --cs-signal-soft: #e2ac86;
+      }
+      .cs-page.cs-palette-coral {
+        ${CS_CORAL_LIGHT}
+        --cs-brand-ring-high: var(--cs-palette-primary);
+        --cs-solid-ink: #30150E;
+        --cs-heat-0: #fff1ed; --cs-heat-1: #ffddd1; --cs-heat-2: #ffb9a5;
+        --cs-heat-3: #ff9077; --cs-heat-4: #FF5B3B; --cs-heat-5: #952f20;
       }
       /* 热力图蓝色阶梯：浅色由雾蓝到深海蓝共六档，色相连续、明度均匀递进。 */
       .cs-page.cs-palette-blue.cs-appearance-light {
@@ -7168,6 +9814,12 @@ window.__ModuleLoader__.load({
       .cs-page.cs-appearance-dark.cs-palette-clay {
         --cs-signal-deep: #f0c0a4; --cs-signal: #e2ac86; --cs-signal-soft: #8a5a40;
       }
+      .cs-page.cs-appearance-dark.cs-palette-coral {
+        ${CS_CORAL_DARK}
+        --cs-brand-ring-high: var(--cs-palette-primary);
+        --cs-heat-0: #352320; --cs-heat-1: #583027; --cs-heat-2: #853f31;
+        --cs-heat-3: #bc5340; --cs-heat-4: #FF5B3B; --cs-heat-5: #ffad99;
+      }
       .cs-segment.is-active { color: var(--cs-on-accent); }
       .cs-appearance-dark .cs-cycle.is-current .cs-cycle-share { color: color-mix(in srgb, var(--cs-on-accent) 72%, var(--cs-surface)); }
       .cs-appearance-dark .cs-segment.is-active { color: var(--cs-on-accent); }
@@ -7208,7 +9860,7 @@ window.__ModuleLoader__.load({
       @media (max-width: 860px) { .cs-summary { padding: 10px 12px; } .cs-toggle { margin: -5px -5px -5px 0; } }
       @media (max-width: 600px) { .cs-cycle { min-height: 96px; } .cs-summary { padding: 12px 10px; } .cs-sessions { padding-left: 16px; } }
 
-      /* 构成圆环与工作区排行均来自当前周期的真实会话累计数据；色阶全部由三档蓝派生。 */
+      /* 构成圆环与工作区排行均来自当前周期的真实会话累计数据；类别色阶由当前配色派生。 */
       .cs-page {
         --cs-chart-active: var(--cs-live);
         --cs-selection: var(--cs-chart-active);
@@ -7228,6 +9880,17 @@ window.__ModuleLoader__.load({
         --cs-series-wait: color-mix(in srgb, var(--cs-signal-soft) 58%, var(--cs-surface));
         --cs-series-other: color-mix(in srgb, var(--cs-signal-soft) 28%, var(--cs-surface));
         --cs-series-unknown: color-mix(in srgb, var(--cs-signal-soft) 15%, var(--cs-surface));
+      }
+      .cs-page.cs-palette-coral {
+        --cs-chart-active: var(--cs-palette-primary);
+        --cs-on-selection: var(--cs-solid-ink);
+        --cs-series-tool: var(--cs-palette-primary);
+        --cs-series-wait: color-mix(in srgb, var(--cs-signal-soft) 74%, var(--cs-surface));
+        --cs-series-other: color-mix(in srgb, var(--cs-signal-soft) 45%, var(--cs-surface));
+        --cs-series-unknown: color-mix(in srgb, var(--cs-signal-soft) 22%, var(--cs-surface));
+      }
+      .cs-page.cs-palette-coral :is(.cs-segment.is-active, .cs-btn.is-primary, .cs-appearance-check) {
+        color: var(--cs-solid-ink); background: var(--cs-palette-primary); border-color: var(--cs-palette-primary);
       }
       .cs-cycle.is-current { color: var(--cs-on-selection); }
       .cs-appearance-light .cs-cycle.is-current .cs-cycle-share { color: inherit; }
@@ -7291,18 +9954,19 @@ window.__ModuleLoader__.load({
       .cs-ranking-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
       .cs-ranking-bar { height: 8px; border-radius: 5px; background: var(--dsw-alias-bg-layer-2); overflow: hidden; }
       .cs-ranking-bar i { display: block; height: 100%; background: var(--dsw-alias-brand-primary); border-radius: inherit; }
-      .cs-page.cs-palette-blue:not(.cs-appearance-dark) .cs-ranking-bar i { background: var(--cs-chart-active); }
+      .cs-page.cs-palette-blue:not(.cs-appearance-dark) .cs-ranking-bar i,
+      .cs-page.cs-palette-coral .cs-ranking-bar i { background: var(--cs-chart-active); }
       @media (max-width: 1000px) { .cs-analysis-grid { grid-template-columns: 1fr; } }
       @media (max-width: 520px) { .cs-composition-body { gap: 14px; } .cs-donut { width: 118px; } .cs-donut-center strong { font-size: 14px; } .cs-ranking-row { grid-template-columns: 20px minmax(55px, 1fr) minmax(30px, .7fr) auto; gap: 7px; } }
 
       .cs-backfill-waiting { color: var(--dsw-alias-label-secondary); }
       .cs-plot { position: relative; padding-left: 58px; }
-      .cs-y-axis { position: absolute; left: 0; top: 0; bottom: 0; width: 50px; color: var(--dsw-alias-label-secondary); font-size: 10px; font-variant-numeric: tabular-nums; }
+      .cs-y-axis { position: absolute; left: 0; top: 0; bottom: 0; width: 50px; color: var(--dsw-alias-label-secondary); font-size: var(--cs-chart-label-size, 10px); font-variant-numeric: tabular-nums; }
       .cs-y-axis span { position: absolute; right: 0; transform: translateY(-50%); white-space: nowrap; }
       .cs-axis { margin-left: 58px; }
       .cs-axis.has-future { height: 31px; }
       .cs-axis .cs-axis-future { display: block; position: static; font-size: 10px; line-height: 15px; font-weight: 400; transform: none; }
-      @media (max-width: 520px) { .cs-plot { padding-left: 50px; } .cs-y-axis { width: 43px; font-size: 9px; } .cs-axis { margin-left: 50px; } }
+      @media (max-width: 520px) { .cs-plot { padding-left: 50px; } .cs-y-axis { width: 43px; font-size: var(--cs-chart-label-size, 9px); } .cs-axis { margin-left: 50px; } }
 
       /* 解释性信息改为悬浮/聚焦即显示：位置由 JS 按视口夹取，fixed 定位不被卡片裁切。 */
       .cs-data-panels { display: flex; flex-direction: column; gap: 16px; }
@@ -7311,10 +9975,10 @@ window.__ModuleLoader__.load({
       .cs-info button { appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
       .cs-info button:hover, .cs-info:hover button, .cs-info:focus-within button, .cs-info button:focus-visible { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); }
       .cs-info button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
-      .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: fixed; z-index: 90; width: max-content; max-width: min(280px, 68vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 12px 30px #0003; font-size: 13px; font-weight: 400; line-height: 1.65; white-space: normal; transition: opacity 120ms var(--cs-ease), transform 120ms var(--cs-ease); }
+      .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: fixed; z-index: 90; width: max-content; max-width: min(280px, 68vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 12px 30px #0003; font-size: 13px; font-weight: 400; line-height: 1.65; white-space: normal; transition: opacity 120ms var(--cs-ease), transform 120ms var(--cs-ease), visibility 0s 120ms; }
       .cs-info:hover .cs-info-tip,
-      .cs-info:focus-within .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); }
-      .cs-info.is-escaped .cs-info-tip { visibility: hidden !important; opacity: 0 !important; }
+      .cs-info:focus-within .cs-info-tip { visibility: visible; opacity: 1; transform: translateY(0); transition-delay: 0s; }
+      .cs-info.is-escaped .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); transition-delay: 0s, 0s, 120ms; }
       .cs-info-tip.cs-info-tip-lines { max-width: min(320px, 74vw); padding: 10px 12px; }
       .cs-info-lines { display: flex; flex-direction: column; gap: 6px; }
       .cs-info-line { position: relative; display: block; padding-left: 11px; }
@@ -7456,7 +10120,7 @@ window.__ModuleLoader__.load({
         .cs-session-last { margin-left: auto; padding-right: 2px; }
       }
 
-      /* 票 10：次级导航与四视图骨架。 */
+      /* 次级导航与五视图骨架。 */
       .cs-tabs {
         position: relative; display: flex; align-items: center; gap: 2px;
         min-height: 40px; border-bottom: 1px solid var(--dsw-alias-border-l1);
@@ -7477,7 +10141,7 @@ window.__ModuleLoader__.load({
       .cs-tab:hover { color: var(--dsw-alias-label-primary); }
       .cs-tab:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -2px; border-radius: 6px; }
       .cs-tab.is-active { color: var(--dsw-alias-label-primary); font-weight: 650; }
-      /* 四个同级视图紧随品牌标题，状态与外观控制保持靠右；窄窗导航独立换行。 */
+      /* 五个同级视图紧随品牌标题，状态与外观控制保持靠右；窄窗导航独立换行。 */
       .cs-topbar > .cs-brand { flex: none; width: auto; }
       .cs-topbar > .cs-topbar-divider { height: 24px; }
       .cs-topbar > .cs-tabs { flex: 1 1 240px; min-width: 0; margin: 0; border-bottom: 0; }
@@ -7490,8 +10154,7 @@ window.__ModuleLoader__.load({
         .cs-topbar > .cs-topbar-right { justify-content: flex-end; }
       }
       .cs-views { position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-      .cs-view { display: flex; flex-direction: column; gap: 10px; animation: viewIn var(--cs-dur-view) cubic-bezier(.2, .8, .2, 1) both; }
-      .cs-view.is-leaving { animation: viewOut var(--cs-dur-exit) ease both; }
+      .cs-view { display: flex; flex-direction: column; gap: 10px; }
       .cs-curtain {
         position: absolute; inset: 0; z-index: 20; border-radius: 12px;
         background: var(--dsw-alias-bg-base); opacity: 0; pointer-events: none;
@@ -7499,8 +10162,6 @@ window.__ModuleLoader__.load({
       }
       .cs-curtain.is-on { opacity: .84; pointer-events: auto; }
       /* 只动 opacity：保留 transform 会让 .cs-view 成为 fixed 浮层的包含块，导致定位错乱。 */
-      @keyframes viewIn { from { opacity: .45; } to { opacity: 1; } }
-      @keyframes viewOut { from { opacity: 1; } to { opacity: 0; } }
 
       .cs-recent-list { display: flex; flex-direction: column; }
       .cs-recent-row {
@@ -7658,7 +10319,7 @@ window.__ModuleLoader__.load({
       .cs-settings-card > .cs-settings-row { flex: 1 1 auto; }
       .cs-settings-wide { grid-column: 1 / -1; }
       .cs-settings-recheck { margin-top: auto; justify-content: flex-start; }
-      .cs-btn.is-primary { color: #fff; background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); }
+      .cs-btn.is-primary { color: var(--cs-on-accent, #fff); background: var(--dsw-alias-brand-primary); border-color: var(--dsw-alias-brand-primary); }
       .cs-btn.is-primary:hover:not(:disabled) { filter: brightness(1.05); }
       @media (max-width: 860px) {
         .cs-trend-layout, .cs-settings-grid { grid-template-columns: 1fr; }
@@ -7692,10 +10353,16 @@ window.__ModuleLoader__.load({
         stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
       }
       .cs-overview-metrics {
+        --cs-indicator-color: var(--cs-chart-active); --cs-indicator-radius: 9px;
         display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.1fr) repeat(2, minmax(0, 1fr));
         align-items: stretch; min-height: 142px; padding: 12px 14px; gap: 4px;
       }
       .cs-overview-today { position: relative; min-width: 0; }
+      .cs-overview-metrics[data-selection="day"] { --cs-indicator-color: transparent; }
+      .cs-overview-metrics[data-selection-ready] > .cs-cycle.is-current { background: transparent; }
+      .cs-cycles { --cs-indicator-color: var(--cs-chart-active); --cs-indicator-radius: 12px; }
+      .cs-cycles[data-selection-ready] > .cs-cycle { background: transparent; }
+      .cs-cycles[data-selection-ready] > .cs-cycle.is-current { border-color: transparent; }
       .cs-overview-today .cs-cycle { height: 100%; }
       .cs-overview-today .cs-zoom-btn { top: 2px; right: 5px; }
       .cs-overview-metric-pair {
@@ -8238,7 +10905,7 @@ window.__ModuleLoader__.load({
       .cs-trend-layout .cs-trend-card .cs-plot svg { flex: 1 1 auto; height: 100%; min-height: 120px; }
       .cs-summary { padding: 8px 12px; }
       .cs-trend-card, .cs-table-card { gap: 10px; }
-      /* 矮窗四个视图共用顶栏和导航间距，概览图表按剩余高度调整尺寸。 */
+      /* 矮窗各视图共用顶栏和导航间距，概览图表按剩余高度调整尺寸。 */
       @media (max-height: 850px) {
         .cs-page { padding-block: 12px; }
         .cs-shell { gap: 6px; }
@@ -8327,12 +10994,12 @@ window.__ModuleLoader__.load({
       .cs-inspector-series.is-model { background: var(--cs-signal-deep); }
       .cs-inspector-series.is-tool { background: var(--cs-signal-soft); }
       .cs-inspector-series.is-wait { background: #bd934e; }
-      .cs-palette-clay .cs-inspector-series.is-wait { background: #6099b8; }
+      :is(.cs-palette-clay, .cs-palette-coral) .cs-inspector-series.is-wait { background: #6099b8; }
       .cs-inspector-series.is-other { background: var(--cs-tone-other); }
       .cs-inspector-series.is-unknown { background: var(--cs-tone-faint); }
       /* 浅色明细保留当前配色，暖色等待和中性未拆分便于识别相邻小段。 */
       .cs-appearance-light .cs-inspector-series.is-wait { background: #a87522; }
-      .cs-appearance-light.cs-palette-clay .cs-inspector-series.is-wait { background: #417b9b; }
+      .cs-appearance-light:is(.cs-palette-clay, .cs-palette-coral) .cs-inspector-series.is-wait { background: #417b9b; }
       .cs-appearance-light .cs-inspector-series.is-other { background: color-mix(in srgb, var(--cs-signal-soft) 24%, var(--cs-surface)); }
       .cs-inspector-series.is-other { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cs-signal) 30%, transparent); }
       .cs-appearance-light .cs-inspector-series.is-unknown { background: repeating-linear-gradient(135deg, #7f868b 0 2px, #edf0f2 2px 4px); }
@@ -8379,7 +11046,7 @@ window.__ModuleLoader__.load({
       .cs-page .cs-summary.cs-workspace-head { display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; min-height: 46px; padding: 7px 8px; border: 0; border-radius: 8px; cursor: pointer; transition: background var(--cs-dur-tap) var(--cs-ease); }
       .cs-page .cs-summary.cs-workspace-head:hover { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 4%, transparent); }
       .cs-workspace-chevron { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex: none; color: var(--dsw-alias-label-secondary); }
-      .cs-workspace-chevron .cs-chevron { width: 7px; height: 7px; margin-top: -3px; }
+      .cs-workspace-chevron .cs-triangle.is-open { transform: rotate(90deg); }
       .cs-workspace-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; line-height: 19px; font-weight: 600; color: var(--dsw-alias-label-secondary); }
       .cs-group.is-open .cs-workspace-name { color: var(--dsw-alias-label-primary); }
       .cs-workspace-count { display: inline-flex; align-items: center; justify-content: center; min-width: 19px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary); font-size: 10.5px; line-height: 18px; font-variant-numeric: tabular-nums; }
@@ -8480,6 +11147,31 @@ window.__ModuleLoader__.load({
       .cs-settings-control .cs-settings-select .cs-select-btn { min-width: 72px; font-size: 12px; }
       .cs-settings-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
       .cs-settings-switch input { width: 16px; height: 16px; accent-color: var(--dsw-alias-brand-primary); cursor: pointer; }
+      .cs-time-tools-settings { display: grid; gap: 12px 20px; }
+      .cs-settings-tools-card { grid-column: 1 / -1; }
+      .cs-settings-board .cs-time-tools-settings { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+      .cs-time-tools-settings section { min-width: 0; }
+      .cs-time-tools-settings h3 { margin: 0 0 2px; font-size: 13px; font-weight: 650; }
+      .cs-tools-settings-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 7px; }
+      .cs-model-catalog-refresh {
+        appearance: none; padding: 4px 8px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 7px;
+        background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; cursor: pointer;
+      }
+      .cs-model-catalog-refresh:hover:not(:disabled) { border-color: var(--dsw-alias-brand-primary); }
+      .cs-model-catalog-refresh:disabled { opacity: .6; cursor: default; }
+      .cs-model-catalog-refresh:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      .cs-analysis-model-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+      .cs-analysis-model-fields .cs-analysis-field { display: grid; gap: 4px; min-width: 0; font-size: 11px; color: var(--dsw-alias-label-secondary); }
+      .cs-analysis-model-fields .cs-select-btn { min-width: 0; width: 100%; }
+      .cs-analysis-model-settings .cs-settings-status { margin: 6px 0 0; overflow-wrap: anywhere; }
+      .cs-analysis-model-settings .cs-settings-row-hint { overflow-wrap: anywhere; }
+      .cs-timer-reminder-settings { border-top: 1px solid var(--dsw-alias-border-l1); padding-top: 12px; }
+      .cs-settings-board .cs-timer-reminder-settings { border-top: 0; border-inline-start: 1px solid var(--dsw-alias-border-l1); padding: 0 0 0 16px; }
+      .cs-timer-reminder-settings .cs-settings-switch { margin: 5px 0 2px; }
+      @media (max-width: 620px) {
+        .cs-settings-board .cs-time-tools-settings { grid-template-columns: minmax(0, 1fr); }
+        .cs-settings-board .cs-timer-reminder-settings { border: 0; border-top: 1px solid var(--dsw-alias-border-l1); padding: 12px 0 0; }
+      }
       /* Dashboard 设置：12 列双栏板。统计与数字格式在上，外观/初始化/通知/数据交错排布，
          宽屏利用横向空间，窄屏自动回到单列；每张卡只占内容需要的高度。 */
       .cs-settings-board .cs-settings-grid {
@@ -8495,7 +11187,7 @@ window.__ModuleLoader__.load({
       .cs-settings-feedback .cs-settings-status { font-size: 11px; }
       .cs-settings-scope {
         flex: none; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l1);
-        color: var(--dsw-alias-label-secondary); font-size: 10px; line-height: 16px; letter-spacing: .02em;
+        color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; letter-spacing: .02em;
       }
       .cs-settings-list { display: flex; flex-direction: column; margin-top: 6px; }
       .cs-settings-list .cs-settings-row:last-child { border-bottom: 0; padding-bottom: 1px; }
@@ -8512,7 +11204,7 @@ window.__ModuleLoader__.load({
       .cs-settings-board .cs-format-card .cs-format-section {
         display: flex; flex: 1 1 auto; flex-direction: column; height: 100%;
       }
-      /* 与左侧统计卡同高时，把五档排成两列三行，竖向填满而不是堆在顶部。 */
+      /* 与左侧统计卡同高时，六档排成两列三行，竖向居中。 */
       @media (min-width: 1101px) {
         .cs-settings-board .cs-format-grid {
           display: grid; flex: 1 1 auto; grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -8521,7 +11213,6 @@ window.__ModuleLoader__.load({
         .cs-settings-board .cs-format-opt {
           flex: none; min-height: 32px; justify-content: flex-start; padding: 5px 9px;
         }
-        .cs-settings-board .cs-format-opt:last-child { grid-column: 1 / -1; }
       }
       .cs-format-live { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 10px; padding: 10px 0; border-top: 1px solid var(--dsw-alias-border-l1); margin-top: 10px; }
       .cs-data-danger { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--dsw-alias-border-l1); }
@@ -8532,7 +11223,7 @@ window.__ModuleLoader__.load({
       .cs-format-sidebar > .dsh-timespan-nav-entry { width: auto; min-width: 120px; max-width: 220px; padding: 4px 8px; border-radius: 6px; background: var(--dsw-alias-bg-layer-2); }
       .cs-format-shared {
         margin: auto 0 0; padding-top: 10px; border-top: 1px solid var(--dsw-alias-border-l1);
-        font-size: 10.5px; line-height: 16px; color: var(--dsw-alias-label-secondary);
+        font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary);
       }
       /* 最底一排两张卡共享行高，底边保持齐平；内容多的数据管理决定这一排的高度。 */
       .cs-settings-board .cs-notices-card,
@@ -8546,6 +11237,9 @@ window.__ModuleLoader__.load({
       }
       .cs-appearance-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
       .cs-appearance-options, .cs-palette-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+      .cs-appearance-group:has(.cs-palette-options) { container: cs-palette-options / inline-size; }
+      .cs-palette-options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      @container cs-palette-options (max-width: 280px) { .cs-palette-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
       .cs-appearance-opt, .cs-palette-opt {
         position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
         padding: 7px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 9px;
@@ -8582,6 +11276,7 @@ window.__ModuleLoader__.load({
       .cs-palette-opt.cs-palette-blue { --cs-swatch-1: #133463; --cs-swatch-2: #1F4E94; --cs-swatch-3: #79B3F9; }
       .cs-palette-opt.cs-palette-stone { --cs-swatch-1: #2b3033; --cs-swatch-2: #4a5155; --cs-swatch-3: #aeb6b9; }
       .cs-palette-opt.cs-palette-clay { --cs-swatch-1: #6b3b26; --cs-swatch-2: #a35a37; --cs-swatch-3: #e2ac86; }
+      .cs-palette-opt.cs-palette-coral { --cs-swatch-1: #7E291F; --cs-swatch-2: #FF5B3B; --cs-swatch-3: #FFBAA7; }
       @media (max-width: 1100px) {
         .cs-settings-board .cs-settings-grid { grid-template-columns: minmax(0, 1fr); }
         .cs-settings-main, .cs-settings-side { grid-column: 1 / -1; }
@@ -8610,10 +11305,10 @@ window.__ModuleLoader__.load({
         font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
         font-variant-numeric: tabular-nums; font-size: 11.5px; line-height: 17px;
       }
-      .cs-format-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+      .cs-format-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
       .cs-format-opt {
         display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-        flex: 1 1 80px; min-height: 30px; padding: 4px 7px;
+        min-width: 0; min-height: 34px; padding: 5px 7px; flex-wrap: wrap;
         border: 1px solid var(--dsw-alias-border-l1); border-radius: 7px;
         background: transparent; color: inherit; font: inherit; cursor: pointer;
         transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
@@ -8631,7 +11326,7 @@ window.__ModuleLoader__.load({
         display: block; width: 1px; height: 11px; flex: 0 0 1px;
         background: color-mix(in srgb, var(--dsw-alias-label-secondary) 42%, transparent);
       }
-      .cs-format-opt span { font-size: 10px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+      .cs-format-opt span { font-size: 11px; color: var(--dsw-alias-label-secondary); }
       .cs-format-preview-value { display: inline-block; animation: cs-format-time-swap 160ms ease-out both; }
       @keyframes cs-format-time-swap {
         from { opacity: 0; }
@@ -8704,13 +11399,14 @@ window.__ModuleLoader__.load({
         const t = translate
 
         // 活跃采集不依赖侧边栏入口是否固定；放在始终挂载的 frame-wide overlay。
+        const timerClient = createTimerClient(ctx)
         ctx.slots.inject('shell.overlay', () =>
           ctx.slots.register(
             {
               name: 'shell.overlay',
               id: 'dsh-timespan-presence',
             },
-            createPresenceReporter(ctx),
+            createPresenceReporter(ctx, timerClient),
           ),
         )
 
@@ -8735,7 +11431,7 @@ window.__ModuleLoader__.load({
               locale: NS,
               inject: () => ({ t }),
             },
-            createPage(ctx),
+            createPage(ctx, timerClient),
           ),
         )
 

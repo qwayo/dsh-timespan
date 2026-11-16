@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="hero-title hero-desc">
-  <title id="hero-title">dsh-timespan：记录 DSH 的在线、活跃与任务时长</title>
-  <desc id="hero-desc">dsh-timespan 插件标题版面：左侧为插件名、一句话价值与零依赖、无构建、本地存储、Node 24 四个标签，右侧为今日在线、活跃、任务三项时长的三段构成环，分段交界处留有小空隙。</desc>
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="zh-CN" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">dsh-timespan 记录并回顾 DSH 使用时长</title>
+  <desc id="hero-desc">记录在线、活跃与任务时长，提供独立的正计时、倒计时与按需生成的时间回顾。右侧以 TimeSpan 标识为基础示意三种时长的构成。</desc>
 
   <!-- 画布：白色背景与浅色边框 -->
   <rect width="1200" height="360" rx="24" fill="#ffffff"/>
@@ -8,38 +8,37 @@
 
   <!-- 左侧标题区 -->
   <g id="title-block">
-    <!-- 眉题：完整的三段小圆环 -->
     <g transform="translate(72 54)">
-      <circle cx="9" cy="9" r="8" fill="none" stroke="#eaecee" stroke-width="2.4"/>
-      <g transform="rotate(-90 9 9)">
-        <circle cx="9" cy="9" r="8" fill="none" stroke="#1f4e94" stroke-width="2.4"
-                pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>
-        <circle cx="9" cy="9" r="8" fill="none" stroke="#79B3F9" stroke-width="2.4"
-                pathLength="100" stroke-dasharray="30 70" stroke-dashoffset="-50"/>
-        <circle cx="9" cy="9" r="8" fill="none" stroke="#7a5aa6" stroke-width="2.4"
-                pathLength="100" stroke-dasharray="20 80" stroke-dashoffset="-80"/>
+      <g transform="translate(0 -2)" fill="none" stroke-width="2.2" stroke-linecap="round">
+        <path d="M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23" stroke="#1f4e94"/>
+        <path d="M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31" stroke="#7a5aa6"/>
+        <path d="M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77" stroke="#79b3f9"/>
+        <path d="M12 12l4-4" stroke="#133463" stroke-width="2"/>
+        <circle cx="12" cy="12" r="1.8" fill="#133463" stroke="none"/>
       </g>
       <text x="27" y="15" font-size="17" letter-spacing="2.8" fill="#606568"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH 插件 · 时长统计</text>
     </g>
 
-    <text x="70" y="162" font-size="74" font-weight="700" letter-spacing="-1" fill="#181a1c"
+    <text x="70" y="154" font-size="74" font-weight="700" letter-spacing="-1" fill="#181a1c"
           font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">dsh-timespan</text>
 
-    <text x="72" y="210" font-size="24" fill="#42494e"
-          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">记录 DSH 的在线、活跃与任务时长，数据只留在本机。</text>
+    <g fill="#42494e" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+      <text x="72" y="208" font-size="29">自动记录 DSH 的在线、活跃与任务时长</text>
+      <text x="72" y="245" font-size="25">手动正计时与倒计时 · 按需生成时间回顾</text>
+    </g>
 
     <!-- 元数据胶囊 -->
-    <g id="meta-chips" font-size="15" fill="#42494e"
+    <g id="meta-chips" font-size="16" fill="#42494e"
        font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">
-      <rect x="72" y="244" width="68" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="106" y="264" text-anchor="middle">零依赖</text>
-      <rect x="152" y="244" width="68" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="186" y="264" text-anchor="middle">无构建</text>
-      <rect x="232" y="244" width="68" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="266" y="264" text-anchor="middle">本地存储</text>
-      <rect x="312" y="244" width="86" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="355" y="264" text-anchor="middle">Node 24</text>
+      <rect x="72" y="280" width="68" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="106" y="301" text-anchor="middle">零依赖</text>
+      <rect x="152" y="280" width="68" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="186" y="301" text-anchor="middle">无构建</text>
+      <rect x="232" y="280" width="84" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="274" y="301" text-anchor="middle">本地存储</text>
+      <rect x="328" y="280" width="110" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="383" y="301" text-anchor="middle">Node 24+</text>
     </g>
   </g>
 
@@ -63,7 +62,7 @@
     <circle cx="900" cy="178" r="10" fill="#133463"/>
 
     <!-- 分段标注 -->
-    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="19">
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22">
       <g id="label-online">
         <path d="M1004 185 1029 195" stroke="#c3cad4" stroke-width="1.5" fill="none"/>
         <circle cx="1038" cy="199" r="4.5" fill="#1f4e94"/>
@@ -83,6 +82,6 @@
 
     <text x="900" y="332" text-anchor="middle"
           font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace"
-          font-size="17" fill="#606568">今日构成环 · 侧栏入口同款</text>
+          font-size="19" fill="#606568">时长构成示意</text>
   </g>
 </svg>

@@ -1,84 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="arch-title arch-desc">
+<svg xmlns="http://www.w3.org/2000/svg" xml:lang="en" width="1200" height="506" viewBox="0 0 1200 506" role="img" aria-labelledby="arch-title arch-desc">
   <title id="arch-title">How dsh-timespan works</title>
-  <desc id="arch-desc">dsh-timespan has two halves. The Host is the background half running with DSH: it records the online heartbeat, listens to session events, computes every statistic, writes to local storage and registers the read-only timespan_stats tool. The Client is the half you see on the page: the sidebar entry, the presence heartbeat, the overview / trend / sessions views and the settings page. It only reports what happened to the Host.</desc>
+  <desc id="arch-desc">The DSH Host records its own heartbeat and session events, computes and stores statistics, maintains a separate manual timer and serves the read-only timespan_stats tool. The Web Client reports presence and sends requests over the plugin RPC. To generate a review, the Host sends statistics and session material from the selected range through the configured Provider and model.</desc>
 
-  <rect width="1200" height="440" rx="24" fill="#ffffff"/>
-  <rect x="0.75" y="0.75" width="1198.5" height="438.5" rx="23.25" fill="none" stroke="#dedfdd" stroke-width="1.5"/>
+  <rect width="1200" height="506" rx="24" fill="#fff"/>
+  <rect x="0.75" y="0.75" width="1198.5" height="504.5" rx="23.25" fill="none" stroke="#dedfdd" stroke-width="1.5"/>
 
   <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
-
-    <!-- Eyebrow -->
-    <g transform="translate(72 42)">
-      <circle cx="10" cy="10" r="8" fill="none" stroke="#eaecee" stroke-width="2.2"/>
-      <g transform="rotate(-90 10 10)">
-        <circle cx="10" cy="10" r="8" fill="none" stroke="#1f4e94" stroke-width="2.2"
-                pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>
-        <circle cx="10" cy="10" r="8" fill="none" stroke="#79B3F9" stroke-width="2.2"
-                pathLength="100" stroke-dasharray="30 70" stroke-dashoffset="-50"/>
-        <circle cx="10" cy="10" r="8" fill="none" stroke="#7a5aa6" stroke-width="2.2"
-                pathLength="100" stroke-dasharray="20 80" stroke-dashoffset="-80"/>
+    <g transform="translate(72 41)">
+      <g transform="translate(0 -2)" fill="none" stroke-width="2.2" stroke-linecap="round">
+        <path d="M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23" stroke="#1f4e94"/>
+        <path d="M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31" stroke="#7a5aa6"/>
+        <path d="M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77" stroke="#79b3f9"/>
+        <path d="M12 12l4-4" stroke="#133463" stroke-width="2"/>
+        <circle cx="12" cy="12" r="1.8" fill="#133463" stroke="none"/>
       </g>
-      <text x="28" y="15" font-size="15" letter-spacing="2.4" fill="#606568"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">HOW IT WORKS · HOST + CLIENT</text>
+      <text x="34" y="19" font-size="30" font-weight="700" fill="#181a1c">How it works</text>
     </g>
 
-    <!-- ===== Background: DSH Host ===== -->
     <g id="host-box">
-      <rect x="72" y="70" width="1056" height="132" rx="16" fill="#f7f8f9" stroke="#c3cad4" stroke-width="1.5"/>
-      <circle cx="98" cy="101" r="7" fill="#79B3F9"/>
-      <text x="116" y="110" font-size="25" font-weight="700" fill="#181a1c"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Host</text>
-      <text x="252" y="109" font-size="18" fill="#606568">Runs alongside DSH; every statistic is computed here</text>
-
-      <g font-size="18" fill="#42494e" text-anchor="middle">
-        <rect x="96" y="136" width="152" height="40" rx="20" fill="#eaecee"/>
-        <text x="172" y="161">30s heartbeat</text>
-        <rect x="260" y="136" width="160" height="40" rx="20" fill="#eaecee"/>
-        <text x="340" y="161">Session events</text>
-        <rect x="432" y="136" width="169" height="40" rx="20" fill="#eaecee"/>
-        <text x="516.5" y="161">One calculation</text>
-        <rect x="613" y="136" width="186" height="40" rx="20" fill="#eaecee"/>
-        <text x="706" y="161">Local · no upload</text>
-        <rect x="811" y="136" width="195" height="40" rx="20" fill="#eaecee"/>
-        <text x="908.5" y="161">timespan_stats tool</text>
+      <rect x="72" y="83" width="1056" height="130" rx="16" fill="#f7f8f9" stroke="#c3cad4" stroke-width="1.5"/>
+      <circle cx="98" cy="117" r="7" fill="#79b3f9"/>
+      <text x="116" y="126" font-size="27" font-weight="700" fill="#181a1c" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Host</text>
+      <text x="280" y="125" font-size="21" fill="#606568">Processes and stores time records</text>
+      <g font-size="20" fill="#42494e" text-anchor="middle">
+        <rect x="96" y="148" width="252" height="44" rx="22" fill="#eaecee"/>
+        <text x="222" y="177">30s heartbeat and events</text>
+        <rect x="360" y="148" width="248" height="44" rx="22" fill="#eaecee"/>
+        <text x="484" y="177">Stats and local storage</text>
+        <rect x="620" y="148" width="230" height="44" rx="22" fill="#eaecee"/>
+        <text x="735" y="177">Separate manual timer</text>
+        <rect x="862" y="148" width="242" height="44" rx="22" fill="#eaecee"/>
+        <text x="983" y="177">Read-only timespan_stats</text>
       </g>
     </g>
 
-    <!-- ===== Two-way channel ===== -->
     <g id="channel">
-      <line x1="300" y1="274" x2="300" y2="210" stroke="#79B3F9" stroke-width="2"/>
-      <path d="M294 216 300 206 306 216" fill="none" stroke="#79B3F9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <text x="322" y="242" font-size="16" fill="#42494e">Facts: visible, focus, turn edges</text>
-
-      <line x1="790" y1="208" x2="790" y2="274" stroke="#4c81c6" stroke-width="2"/>
-      <path d="M784 268 790 278 796 268" fill="none" stroke="#4c81c6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      <text x="812" y="242" font-size="16" fill="#42494e">Same source as timespan_stats</text>
-
-      <rect x="598" y="221" width="140" height="28" rx="14" fill="#e7f0fe" stroke="#b9cdf0" stroke-width="1"/>
-      <text x="668" y="240" text-anchor="middle" font-size="12" fill="#1f4e94"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">in-package RPC</text>
+      <path d="M102 277V222m-5 6 5-6 5 6" fill="none" stroke="#4c81c6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="126" y="256" font-size="20" fill="#42494e">Presence, timer and review requests</text>
+      <rect x="513" y="234" width="174" height="34" rx="17" fill="#e7f0fe" stroke="#b9cdf0"/>
+      <text x="600" y="257" font-size="20" font-weight="600" text-anchor="middle" fill="#1f4e94">Plugin RPC</text>
+      <path d="M748 222v55m-5-6 5 6 5-6" fill="none" stroke="#4c81c6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="772" y="256" font-size="20" fill="#42494e">Stats, timer state and reports</text>
     </g>
 
-    <!-- ===== Page: DSH Web Client ===== -->
     <g id="client-box">
-      <rect x="72" y="278" width="1056" height="112" rx="16" fill="#f7f8f9" stroke="#c3cad4" stroke-width="1.5"/>
-      <circle cx="98" cy="309" r="7" fill="#4c81c6"/>
-      <text x="116" y="318" font-size="25" font-weight="700" fill="#181a1c"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Web Client</text>
-      <text x="338" y="317" font-size="18" fill="#606568">The half you see; it reports facts and renders results</text>
-
-      <g font-size="18" fill="#42494e" text-anchor="middle">
-        <rect x="96" y="334" width="152" height="36" rx="18" fill="#eaecee"/>
-        <text x="172" y="357">Sidebar entry</text>
-        <rect x="260" y="334" width="160" height="36" rx="18" fill="#eaecee"/>
-        <text x="340" y="357">presence / 15s</text>
-        <rect x="432" y="334" width="264" height="36" rx="18" fill="#eaecee"/>
-        <text x="564" y="357">Overview / Trend / Sessions</text>
-        <rect x="708" y="334" width="238" height="36" rx="18" fill="#eaecee"/>
-        <text x="827" y="357">Appearance and colors</text>
+      <rect x="72" y="286" width="1056" height="130" rx="16" fill="#f7f8f9" stroke="#c3cad4" stroke-width="1.5"/>
+      <circle cx="98" cy="321" r="7" fill="#4c81c6"/>
+      <text x="116" y="330" font-size="27" font-weight="700" fill="#181a1c" font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH Web Client</text>
+      <text x="365" y="329" font-size="21" fill="#606568">Reports presence every 15 seconds</text>
+      <g font-size="21" fill="#42494e" text-anchor="middle">
+        <rect x="96" y="352" width="192" height="44" rx="22" fill="#eaecee"/>
+        <text x="192" y="381">Sidebar entry</text>
+        <rect x="300" y="352" width="192" height="44" rx="22" fill="#eaecee"/>
+        <text x="396" y="381">Floating timer</text>
+        <rect x="504" y="352" width="600" height="44" rx="22" fill="#eaecee"/>
+        <text x="804" y="381">Overview · Trend · Sessions · Review · Settings</text>
       </g>
     </g>
 
-    <text x="600" y="426" text-anchor="middle" font-size="18" fill="#42494e">The page only reports facts; the Host computes every number and keeps it on this device.</text>
+    <g id="review-path">
+      <circle cx="99" cy="445" r="6" fill="#7a5aa6"/>
+      <text x="116" y="452" font-size="22" font-weight="700" fill="#382555">On-demand review</text>
+      <text x="358" y="452" font-size="21" fill="#42494e">Uses the separately selected Provider and model</text>
+      <text x="358" y="479" font-size="20" fill="#606568">Sends statistics and session material from the selected range</text>
+    </g>
   </g>
 </svg>
