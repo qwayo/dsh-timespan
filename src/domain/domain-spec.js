@@ -64,13 +64,21 @@ function parseMeta(value) {
 
 /** 报告和对应的发送前请求前缀一次落盘；独立于频繁写入的心跳元数据。 */
 export function emptyAnalysisState() {
-  return { reports: parseAnalysisReports(), successfulRequests: { day: null, week: null, month: null }, latestRequest: null }
+  return {
+    reports: parseAnalysisReports(),
+    successfulRequests: Object.fromEntries(PERIODS.map((period) => [period, null])),
+    latestRequest: null,
+  }
 }
 
 function parseAnalysisState(value) {
   if (!isPlainObject(value) || !isPlainObject(value.successfulRequests)) throw new Error('分析状态必须是对象')
   const state = emptyAnalysisState()
-  state.reports = parseAnalysisReports(value.reports)
+  // 已移除的回顾范围可能还留在旧存储里；只读取当前三个周期，避免整份状态失效。
+  const storedReports = isPlainObject(value.reports)
+    ? Object.fromEntries(PERIODS.map((period) => [period, value.reports[period]]))
+    : value.reports
+  state.reports = parseAnalysisReports(storedReports)
   for (const period of PERIODS) {
     const request = value.successfulRequests[period]
     if (request == null) continue
@@ -78,16 +86,19 @@ function parseAnalysisState(value) {
     if (parsed.period !== period || state.reports[period] === null) throw new Error('分析请求与报告周期不符')
     state.successfulRequests[period] = parsed
   }
-  if (value.latestRequest != null) state.latestRequest = parseAnalysisRequest(value.latestRequest)
+  // 旧版本可能留下已移除范围的最近请求；读取时直接丢弃，不让整份状态失效。
+  if (value.latestRequest != null && isPeriod(value.latestRequest.period)) {
+    state.latestRequest = parseAnalysisRequest(value.latestRequest)
+  }
   return state
 }
 
-/** 备份与存储共用报告白名单；每个周期只有一个结果槽位。 */
+/** 备份与存储共用报告白名单；每个回顾范围只有一个结果槽位。 */
 export function parseAnalysisReports(value) {
   if (value != null && (!isPlainObject(value) || Object.keys(value).some((key) => !isPeriod(key)))) {
-    throw new Error('分析报告集合只能包含日、周、月三个周期')
+    throw new Error('分析报告集合只能包含日、周、月')
   }
-  const reports = { day: null, week: null, month: null }
+  const reports = Object.fromEntries(PERIODS.map((period) => [period, null]))
   for (const period of PERIODS) {
     if (value?.[period] == null) continue
     const report = parseAnalysisReport(value[period])
@@ -244,7 +255,7 @@ const ANALYSIS_REQUEST_EVENT_TYPES = ['turn/start', 'step/start', 'system/messag
 export function parseAnalysisRequest(value) {
   if (!isPlainObject(value) || !isPeriod(value.period) || !Array.isArray(value.events) ||
       value.events.length !== ANALYSIS_REQUEST_EVENT_TYPES.length) {
-    throw new Error('分析请求日志必须包含日、周或月周期及完整事件前缀')
+    throw new Error('分析请求日志必须包含有效的回顾范围及完整事件前缀')
   }
   const at = value.events[0]?.time
   if (!isDateMs(at)) throw new Error('分析请求事件时刻无效')

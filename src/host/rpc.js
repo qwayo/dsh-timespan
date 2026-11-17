@@ -15,6 +15,7 @@
  */
 
 import { initialBackfillStatus } from '../domain/backfill.js'
+import { isPeriod } from '../domain/periods.js'
 
 export const RPC_CHANNEL = 'dsh-timespan'
 export const RPC_PATH = `/api/${RPC_CHANNEL}`
@@ -134,7 +135,7 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
     if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
       throw new Error('generateAnalysis 载荷必须是对象')
     }
-    const options = { period: normalizePeriod(payload.period) }
+    const options = { period: normalizeAnalysisPeriod(payload.period) }
     for (const key of ['workspaceId', 'sessionId']) {
       const value = payload[key]
       if (value === undefined || value === null || value === '') continue
@@ -373,6 +374,12 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
     if (value === undefined) return 'day'
     if (value === 'day' || value === 'week' || value === 'month') return value
     throw new Error(`未知统计周期：${String(value)}`)
+  }
+
+  function normalizeAnalysisPeriod(value) {
+    if (value === undefined) return 'day'
+    if (isPeriod(value)) return value
+    throw new Error(`未知回顾范围：${String(value)}`)
   }
 
   return fetchRegistry.register({

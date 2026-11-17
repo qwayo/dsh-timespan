@@ -910,7 +910,7 @@ export function createDshTimespanDomain({ domain, clock }) {
     return queryStatsAt(options, now())
   }
 
-  function queryStatsAt({ from, to, period, weekStartsOn, view, groupBy, workspace, session } = {}, current, analysis = false) {
+  function queryStatsAt({ from, to, period, weekStartsOn, view, groupBy, workspace, session, trendPeriod } = {}, current, analysis = false) {
     const requestedPeriod = isPeriod(period) ? period : null
     // 未显式指定时以 Host 设置为准：设置一改，周窗口、周期卡与趋势桶同步换边界。
     const weekStart = normalizeWeekStart(weekStartsOn ?? currentSettings().weekStartsOn)
@@ -955,7 +955,7 @@ export function createDshTimespanDomain({ domain, clock }) {
       from: startBoundary,
       to: endBoundary,
       range,
-      period: requestedPeriod,
+      period: analysis && isPeriod(trendPeriod) ? trendPeriod : requestedPeriod,
       weekStartsOn: weekStart,
       // 在线时长是应用级指标，不归属到任何工作区或会话；带归属筛选时不能把
       // 全应用在线时间冒充成该筛选范围的时间，故归零并在工具文本里省略。
@@ -978,7 +978,7 @@ export function createDshTimespanDomain({ domain, clock }) {
     if (groupBy === 'workspace' || groupBy === 'session') {
       stats.groups = projectStatsGroups(workspaces, groupBy)
     }
-    if (analysis) return { ...stats, workspaces, trend: computeTrend(requestedPeriod, current, weekStart, filters) }
+    if (analysis) return { ...stats, workspaces, trend: computeTrend(trendPeriod ?? requestedPeriod, current, weekStart, filters) }
     stats.tasks = (filters === null ? taskRows : taskRows.filter(matchRow)).sort((left, right) => right.start - left.start)
     if (view !== 'dashboard' && view !== 'details') return stats
     // 子代理任务不进总计，但要能在父会话明细中看到：按 parentSessionId 交给页面
@@ -1010,15 +1010,20 @@ export function createDshTimespanDomain({ domain, clock }) {
 
   /** 固定一次 Host 采样时刻。趋势、汇总和会话来源都使用同一查询窗口。 */
   function queryAnalysisInput({ period, workspaceId = null, sessionId = null, at } = {}) {
-    if (!isPeriod(period)) throw new Error('分析需要指定日、周或月周期')
+    if (!isPeriod(period)) throw new Error('分析需要指定有效的回顾范围')
     for (const id of [workspaceId, sessionId]) {
       if (id !== null && (typeof id !== 'string' || id.length > 512 || id.trim() === '')) {
         throw new Error('分析需要使用有效的工作区或会话标识')
       }
     }
     if (at !== undefined && (!Number.isSafeInteger(at) || at < 0)) throw new Error('分析采样时刻无效')
-    const current = now()
-    const stats = queryStatsAt({ period, workspace: workspaceId, session: sessionId }, Math.min(current, at ?? current), true)
+    const current = Math.min(now(), at ?? now())
+    const stats = queryStatsAt({
+      period,
+      trendPeriod: period,
+      workspace: workspaceId,
+      session: sessionId,
+    }, current, true)
     const sessions = stats.workspaces.flatMap((group) => group.sessions
       .filter((row) => row.sessionId !== null)
       .map(({ workspaceId, workspaceTitle, sessionId, sessionTitle, lastActivityAt }) => ({
@@ -1725,7 +1730,11 @@ export function createDshTimespanDomain({ domain, clock }) {
   /** 趋势桶的活跃与任务双系列；桶之间互不重叠，裁剪后可直接相加。 */
   function computeTrend(period, current, weekStartsOn, filters = null) {
     if (period === null) return []
-    return trendBuckets(period, current, { weekStartsOn }).map((bucket) => {
+    return computeTrendBuckets(trendBuckets(period, current, { weekStartsOn }), current, filters)
+  }
+
+  function computeTrendBuckets(buckets, current, filters = null) {
+    return buckets.map((bucket) => {
       if (bucket.to <= bucket.from) return { ...bucket, activeMs: 0, taskMs: 0 }
       const ranges = projectActiveRanges(bucket.from, bucket.to, current).filter((row) =>
         matchesStatsFilter(row, filters),

@@ -31,10 +31,10 @@ Scope: there is no separate "idle time" metric, and task time is not part of act
 - Settings: interface language (Chinese by default, English available; affects this plugin's wording only), idle threshold (1–15 min), start of the statistical week (Monday / Sunday), appearance (follows the system by default), palette (Sky Blue by default), six number formats (compact units by default, e.g. `2h 48m`; decimal hours are also available, e.g. `2.80 h`), whether to show subagent detail, and whether the sidebar shows status text and a permanent duration (online by default).
 - Export JSON / CSV, and import backups de-duplicated by ID. New exports use the `dsh-timespan-export` format; older `chronoscope-export` backups still import. Destructive actions such as clearing data ask for a second confirmation.
 - On first enable, task time is backfilled for existing historical sessions
-- Sky Blue, Stone, Clay and Coral support both light and dark appearance. Coral uses `#FF5B3B` as its primary color.
-- The frosted conversation timer starts at the top left, below the conversation header. Drag it to save a position; it docks after 3 seconds near an edge with the pointer away, and restores on hover. Settings can hide it or add the optional analog clock, which is off by default. Right-click and choose Exit floating timer to save the hidden state; enable it again in Settings. Timing and completion reminders continue while it is hidden.
+- Sky Blue, Stone, Cyan and Coral support both light and dark appearance. Coral uses `#FF5B3B` as its primary color.
+- The frosted conversation timer starts at the top right, below the conversation header, with the same safe margin as the left side. Drag it to save a position; it docks after 3 seconds near an edge with the pointer away, and restores on hover. Settings can hide it or add the optional analog clock, which is off by default. Right-click and choose Exit floating timer to save the hidden state; enable it again in Settings. Timing and completion reminders continue while it is hidden.
 - The dashboard and floating window control one global stopwatch or countdown, separate from online, active and task statistics. Timing survives page changes, sleep and restarts using elapsed wall time; paused time is excluded. A countdown stops at zero with a quiet notice and an optional chime, enabled by default. Only the current timer and latest completed result are kept. Hover or focus the dot beside that result to reveal its delete icon.
-- Generate a review in the Review tab, just before Settings, for the selected day, week or month, optionally narrowed to a workspace or session. Reports show key durations, activity rhythm, workspace distribution and concise findings using the statistics captured at generation, include sources and coverage, and retain the latest successful result per period. Failures preserve the previous report. Analysis itself is excluded from task time. Copy the report as Markdown or export a .md file.
+- Generate a review in the Review tab, just before Settings, for today, this week or this month, optionally narrowed to a workspace or session. Reports show key durations, activity rhythm, workspace distribution and concise findings using the statistics captured at generation, include sources and coverage, and retain the latest successful result per review scope. Failures preserve the previous report. Analysis itself is excluded from task time. Copy the report as Markdown or export a .md file.
 - Choose an existing DSH Provider and model in Settings. Statistical records are stored locally; generating a report sends the selected statistics and conversation material to that Provider. JSON backups include reports and the latest timer result. Import never starts or replaces an active timer; clearing data removes these records and stops timing.
 
 ## How it works
@@ -59,7 +59,7 @@ The package is published to npm; this is the easiest route. Say this in a sessio
 
 > Install the plugin @qwayo/dsh-timespan
 
-`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.4.0` instead. Restart DSH when it says a restart is needed.
+`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.4.1` instead. Restart DSH when it says a restart is needed.
 
 ### Option 2: install from GitHub
 

@@ -76,6 +76,10 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
       cycleAppearance: typeof cycleAppearance === 'function' ? cycleAppearance : undefined,
       resolveAppearance: typeof resolveAppearance === 'function' ? resolveAppearance : undefined,
       formatDuration: typeof formatDuration === 'function' ? formatDuration : undefined,
+      renderDurationDigits: typeof renderDurationDigits === 'function' ? renderDurationDigits : undefined,
+      DurationTween: typeof DurationTween === 'function' ? DurationTween : undefined,
+      tweenDurationMs: typeof tweenDurationMs === 'function' ? tweenDurationMs : undefined,
+      DURATION_TWEEN_MS: typeof DURATION_TWEEN_MS === 'number' ? DURATION_TWEEN_MS : undefined,
       normalizeDurationFormat: typeof normalizeDurationFormat === 'function' ? normalizeDurationFormat : undefined,
       settingsDraft: typeof settingsDraft === 'function' ? settingsDraft : undefined,
       resetSettingsToDefaults: typeof resetSettingsToDefaults === 'function' ? resetSettingsToDefaults : undefined,
@@ -115,7 +119,7 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
       createPage, useSettingsEditor, subscribeSettingsChanged, notifySettingsChanged,
       countdownDuration, projectTimer, timerDigits, createTimerClient, TimerPopover, TimerControls, ClockDial,
       AnalysisPage, AnalysisReport, TimeToolsSettings,
-      FloatingTimer, TimerOverlay, floatingRect, floatingEdge, moveFloatingPosition, normalizeFloatingPosition, floatingDockStyle,
+      FloatingTimer, TimerOverlay, floatingRect, floatingEdge, moveFloatingPosition, normalizeFloatingPosition, floatingDockStyle, floatingConversationAnchor,
       normalizeView: typeof normalizeView === 'function' ? normalizeView : undefined,
       nextTabIndex: typeof nextTabIndex === 'function' ? nextTabIndex : undefined,
       viewLabels: typeof viewLabels === 'function' ? viewLabels : undefined,
@@ -170,6 +174,8 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
       buildYearMatrix: typeof buildYearMatrix === 'function' ? buildYearMatrix : undefined,
       renderHeatRangePicker: typeof renderHeatRangePicker === 'function' ? renderHeatRangePicker : undefined,
       renderTrendCard: typeof renderTrendCard === 'function' ? renderTrendCard : undefined,
+      ChartReveal: typeof ChartReveal === 'function' ? ChartReveal : undefined,
+      TextFade: typeof TextFade === 'function' ? TextFade : undefined,
       trendFocusStats: typeof trendFocusStats === 'function' ? trendFocusStats : undefined,
       renderTrendFocusPage: typeof renderTrendFocusPage === 'function' ? renderTrendFocusPage : undefined,
       TREND_FOCUS_HEIGHT: typeof TREND_FOCUS_HEIGHT === 'number' ? TREND_FOCUS_HEIGHT : undefined,
@@ -236,7 +242,7 @@ async function createSessionBrowserHarness(testContext, savedExpanded = {}) {
 async function createSettingsEditorHarness(testContext) {
   const requests = []
   const timers = new Map()
-  const stored = new Map([['dsh-timespan.palette', 'clay'], ['dsh-timespan.appearance', 'dark']])
+  const stored = new Map([['dsh-timespan.palette', 'cyan'], ['dsh-timespan.appearance', 'dark']])
   let nextTimer = 0
   const functions = await loadClientFunctions({
     setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id },
@@ -454,7 +460,7 @@ test('客户端设置编辑：重置失败保留确认步骤与外观，允许�
   assert.equal(result.messageKey, 'settingsResetError')
   assert.equal(result.resetStep, true)
   assert.equal(result.resetting, false)
-  assert.equal(harness.stored.get('dsh-timespan.palette'), 'clay')
+  assert.equal(harness.stored.get('dsh-timespan.palette'), 'cyan')
   assert.deepEqual(harness.themes, [])
   result.cancelReset()
   assert.equal(harness.render().resetStep, false)
@@ -485,7 +491,7 @@ test('客户端设置编辑：离开后写入仍广播，重新进入时读取�
 test('客户端设置入口：宿主面板与仪表盘共用保存、重置流程，导入后表单同步', async (t) => {
   for (const entrance of ['宿主面板', '仪表盘']) {
     await t.test(entrance, async (testContext) => {
-      const stored = new Map([['dsh-timespan.palette', 'clay'], ['dsh-timespan.appearance', 'dark']])
+      const stored = new Map([['dsh-timespan.palette', 'cyan'], ['dsh-timespan.appearance', 'dark']])
       const session = new Map([['dsh-timespan.view', 'settings']])
       const storage = (values) => ({ getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) })
       const functions = await loadClientFunctions({
@@ -573,10 +579,10 @@ test('客户端设置入口：宿主面板与仪表盘共用保存、重置流�
         assert.match(textOf(selectedFormat), /10096/)
         assert.equal(settings.approximateNoticeDismissed, false)
 
-        button(tree, 'paletteClay').props.onClick()
+        button(tree, 'paletteCyan').props.onClick()
         findAll(tree, (node) => hasClass(node, 'cs-appearance-opt-light'))[0].props.onClick()
         tree = render()
-        assert.ok(hasClass(tree, 'cs-palette-clay'))
+        assert.ok(hasClass(tree, 'cs-palette-cyan'))
         assert.ok(hasClass(tree, 'cs-appearance-light'))
         button(tree, 'settingsResetButton').props.onClick()
         tree = render()
@@ -676,6 +682,15 @@ async function loadSettingsCss() {
   return source.slice(start, end)
 }
 
+async function loadClientTimerCss() {
+  const source = await readFile(new URL('../client.js', import.meta.url), 'utf8')
+  const start = source.indexOf('const CS_TIMER_CSS = `')
+  assert.ok(start >= 0, '计时样式入口不存在')
+  const end = source.indexOf('\n    `', start)
+  assert.ok(end > start, '计时样式结束标记不存在')
+  return source.slice(start, end)
+}
+
 /** 汇总同一选择器在样式表中的全部声明，避免被后写的覆盖块漏检。 */
 function declarationsFor(css, selector) {
   const pattern = new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`, 'g')
@@ -712,18 +727,46 @@ test('客户端配色：顶栏在四套配色间循环，珊瑚实底和任务�
   const Page = createPage({})
   const render = () => React.render(Page, { t: translate })
   let tree = render()
-  for (const palette of ['stone', 'clay', 'coral', 'blue']) {
+  for (const palette of ['stone', 'cyan', 'coral', 'blue']) {
     findByClass(tree, 'cs-palette-toggle').props.onClick()
     tree = render()
     assert.ok(hasClass(tree, `cs-palette-${palette}`))
     assert.equal(storage.get('dsh-timespan.palette'), palette)
-    assert.match(findByClass(tree, 'cs-palette-toggle').props.title, /蓝 → 石墨 → 赤陶 → 珊瑚橙/)
+    assert.match(findByClass(tree, 'cs-palette-toggle').props.title, /蓝 → 石墨 → 青色 → 珊瑚橙/)
   }
   const css = dshTimespanCss()
   assert.match(declarationsFor(css, '.cs-page.cs-palette-coral'), /--cs-palette-primary:\s*#FF5B3B/)
   assert.match(declarationsFor(css, '.cs-page.cs-palette-coral'), /--cs-on-selection:\s*var\(--cs-solid-ink\)/)
   assert.doesNotMatch(declarationsFor(css, '.cs-page.cs-appearance-dark.cs-palette-coral'), /--cs-task:/)
   assert.match(declarationsFor(dshTimespanSidebarCss(), '.dsh-timespan-nav-entry.cs-appearance-dark.cs-palette-coral'), /#FF5B3B/)
+  assert.match(css, /\.cs-page\.cs-palette-stone:not\(\.cs-appearance-dark\)[\s\S]*?--cs-chart-active:\s*var\(--cs-signal-soft\)/, '浅色石墨活跃柱使用浅石色')
+  assert.match(css, /\.cs-page\.cs-palette-cyan:not\(\.cs-appearance-dark\)[\s\S]*?--cs-chart-active:\s*var\(--cs-signal-soft\)/, '浅色青色活跃柱使用浅青色')
+  const blueLight = declarationsFor(css, '.cs-page.cs-palette-blue:not(.cs-appearance-dark)')
+  assert.match(blueLight, /--cs-series-model:\s*color-mix\(in srgb, var\(--cs-signal-soft\) 50%, var\(--cs-signal\)\)/, '浅色晴空蓝任务构成的模型段取中浅蓝')
+  assert.match(css, /\.cs-page\.cs-palette-stone:not\(\.cs-appearance-dark\)[\s\S]*?--cs-series-model:\s*color-mix\(in srgb, var\(--cs-signal-soft\) 50%, var\(--cs-signal\)\)/, '浅色石墨任务构成的模型段取中浅灰')
+  assert.match(css, /\.cs-page\.cs-palette-cyan:not\(\.cs-appearance-dark\)[\s\S]*?--cs-series-model:\s*color-mix\(in srgb, var\(--cs-signal-soft\) 50%, var\(--cs-signal\)\)/, '浅色青色任务构成的模型段取中浅青')
+  const coralLight = declarationsFor(css, '.cs-page.cs-palette-coral:not(.cs-appearance-dark)')
+  assert.match(coralLight, /--cs-series-model:\s*color-mix\(in srgb, var\(--cs-signal-soft\) 50%, var\(--cs-signal-deep\)\)/, '浅色珊瑚任务构成的模型段取中浅暖红')
+  assert.match(declarationsFor(css, '.cs-page.cs-appearance-dark.cs-palette-blue'), /--cs-chart-active:\s*#4F9BFF/, '深色晴空蓝活跃项用强蓝，与在线浅蓝拉开')
+  const stoneDark = declarationsFor(css, '.cs-page.cs-appearance-dark.cs-palette-stone')
+  assert.match(stoneDark, /--cs-signal-deep:\s*#8F9A9E/, '深色石墨在线时长降到中阶灰')
+  assert.match(stoneDark, /--cs-chart-active:\s*#E6EDEF/, '深色石墨活跃项取整套配色里最亮的灰阶')
+  assert.match(stoneDark, /--cs-heat-5:\s*#D9DEE0/, '深色石墨热力最高档保持原有浅灰，不随在线色变暗')
+  assert.match(stoneDark, /--cs-series-model:\s*#D9DEE0/, '深色石墨任务构成的模型色保持浅灰')
+  assert.match(declarationsFor(css, '.cs-page.cs-appearance-dark.cs-palette-cyan'), /--cs-chart-active:\s*#22D3EE/, '深色青色活跃项用强青色')
+  assert.doesNotMatch(css, /\.cs-palette-clay/, '赤陶配色已从页面样式中移除')
+  assert.doesNotMatch(css, /#E07B4B/i, '旧赤陶色值不得残留')
+  const paletteIcon = findAll(tree, (node) => String(node.type?.name) === 'PaletteIcon')[0]
+  const paletteSvg = paletteIcon.type(paletteIcon.props)
+  assert.equal(paletteSvg.children.find((child) => child.props?.className === 'cs-palette-signal').props.fill,
+    'var(--cs-chart-active, var(--cs-palette-primary, var(--cs-signal)))', '配色按钮圆点跟随活跃状态点色')
+  const sidebarCss = dshTimespanSidebarCss()
+  assert.match(sidebarCss, /\.dsh-timespan-nav-entry\.cs-palette-stone\.cs-appearance-light\s*\{\s*--cs-active-dot:\s*#aeb6b9/, '浅色石墨状态点')
+  assert.match(sidebarCss, /\.dsh-timespan-nav-entry\.cs-palette-cyan\.cs-appearance-light\s*\{\s*--cs-active-dot:\s*#67E8F9/, '浅色青色状态点')
+  assert.match(sidebarCss, /\.dsh-timespan-nav-entry\.cs-appearance-dark\.cs-palette-blue\s*\{\s*--cs-active-dot:\s*#4F9BFF/, '深色晴空蓝状态点')
+  assert.match(sidebarCss, /\.dsh-timespan-nav-entry\.cs-appearance-dark\.cs-palette-stone\s*\{[\s\S]*?--cs-active-dot:\s*#E6EDEF/, '深色石墨状态点用最亮灰阶')
+  assert.match(sidebarCss, /\.dsh-timespan-nav-entry\.cs-appearance-dark\.cs-palette-cyan\s*\{[\s\S]*?--cs-active-dot:\s*#22D3EE/, '深色青色状态点')
+  assert.doesNotMatch(sidebarCss, /\.cs-palette-clay/, '赤陶配色已从侧栏样式中移除')
 })
 
 test('客户端计时：使用 Host 快照同步两个入口，运行投影与失败安全重试', async () => {
@@ -909,6 +952,30 @@ test('客户端悬浮窗：四边判定、越界拖动及窄窗重排都保留�
   assert.equal(JSON.stringify(moved), JSON.stringify({ x: 1, y: 0 }))
   const narrow = floatingRect(moved, size, { width: 180, height: 200 })
   assert.ok(narrow.left >= 0 && narrow.top >= 0 && narrow.left + narrow.width <= 180 && narrow.top + narrow.height <= 200)
+})
+
+test('客户端悬浮窗：默认位置贴会话区右上角，左右留同一内边距', async () => {
+  const rects = {
+    'conversation.header': { left: 100, right: 1000, top: 50, bottom: 80, width: 900, height: 30 },
+    'main.conversation': { left: 100, right: 1000, top: 50, bottom: 800, width: 900, height: 750 },
+  }
+  const { floatingConversationAnchor, floatingRect, moveFloatingPosition } = await loadClientFunctions({ innerWidth: 1200 }, {
+    document: {
+      querySelectorAll(selector) {
+        const name = selector.match(/data-slot="([^"]+)"/)?.[1]
+        const rect = rects[name]
+        return rect ? [{ firstElementChild: null, getBoundingClientRect: () => rect }] : []
+      },
+    },
+  })
+  const anchor = floatingConversationAnchor()
+  assert.equal(anchor.right, 988, '右锚点按会话区右边缘减一个安全边距')
+  const viewport = { width: 1200, height: 900 }
+  const size = { width: 224, height: 220 }
+  const position = moveFloatingPosition({ x: 0, y: 0 }, size, viewport,
+    anchor.right - size.width - 12, anchor.top - 12)
+  const rect = floatingRect(position, size, viewport)
+  assert.equal(Math.round(rect.left + rect.width), 988, '默认右边缘与左侧一样留 12px')
 })
 
 test('客户端悬浮窗：默认无钟、闲置贴边、靠近恢复，拖动与键盘焦点不会被收起', async (t) => {
@@ -1125,7 +1192,7 @@ test('客户端模型设置：读取原生目录，失效选择保留并可刷�
 
 function analysisPageWithSlots(tree) {
   const header = findAll(tree, node => node.type?.name === 'AnalysisReportHeader')[0]
-  return { ...tree, children: [...tree.children, header?.props.context, header?.props.messages, header?.props.generationControl] }
+  return { ...tree, children: [...tree.children, header?.props.context, header?.props.messages, header?.props.notices, header?.props.generationControl] }
 }
 
 test('客户端 AI 分析：固定请求范围，切周期可取消，在失败后保留对应周期的旧报告', async (t) => {
@@ -1139,6 +1206,8 @@ test('客户端 AI 分析：固定请求范围，切周期可取消，在失败�
     sources: [source], coverage: { totalSessions: 1, readSessions: 1, includedSessions: 1 } }
   const reports = { day: report, week: null, month: null }
   const workspaces = [{ key: 'w1', workspaceTitle: '项目甲', sessions: [source] }]
+  const scopeData = { period: 'day', range: { from, to: from + 1500 },
+    workspaces: [{ workspaceId: 'w1', workspaceTitle: '项目甲', sessions: [source] }] }
   let refreshedModels = 0
   const props = { ctx: host.ctx, t: translate, period: 'day', modelChoice: { provider: 'p', model: 'm' },
     data: { period: 'day', range: { from }, workspaces }, onOpenSettings() {}, onOpenSource: () => true,
@@ -1151,6 +1220,7 @@ test('客户端 AI 分析：固定请求范围，切周期可取消，在失败�
   const button = (tree, label) => findAll(tree, (node) => node.props.label === translate(label) || node.type === 'button' && textOf(node) === translate(label))[0]
   const loadingIdentity = findByClass(render(), 'cs-review-content').props.identity
   host.take('getAnalysisState').success({ phase: 'idle', request: null, reports })
+  host.take('queryStats').success(scopeData)
   let tree = await settle()
   assert.equal(findByClass(tree, 'cs-review-content').props.identity, loadingIdentity, '异步读取成功不会触发正文重复入场')
   assert.equal(findAll(tree, (node) => node.type === AnalysisReport)[0].props.report.summary, '上一份分析')
@@ -1158,8 +1228,7 @@ test('客户端 AI 分析：固定请求范围，切周期可取消，在失败�
   tree = render()
   select(tree, 'analysisSession').props.onChange('s1')
   tree = render()
-  assert.equal(findAll(tree, (node) => node.type === AnalysisReport)[0].props.scopeChanged, true)
-  assert.match(textOf(tree), /将所选范围的统计与会话内容交给 p \/ m 分析/)
+  assert.match(textOf(tree), /以下为上一份报告，使用它生成时的实际范围。/)
   button(tree, 'analysisRegenerate').props.onClick()
   const started = host.take('generateAnalysis')
   assert.equal(JSON.stringify(started.payload), JSON.stringify({ period: 'day', workspaceId: 'w1', sessionId: 's1', expectedProvider: 'p', expectedModel: 'm' }))
@@ -1180,6 +1249,8 @@ test('客户端 AI 分析：固定请求范围，切周期可取消，在失败�
   tree = await settle()
   button(tree, 'cycleToday').props.onClick()
   tree = render()
+  host.take('queryStats').success(scopeData)
+  tree = await settle()
   button(tree, 'analysisRegenerate').props.onClick()
   host.take('generateAnalysis').success({ phase: 'failed', request, reports, error: { code: 'generation-failed' } })
   tree = await settle()
@@ -1192,7 +1263,6 @@ test('客户端 AI 分析：固定请求范围，切周期可取消，在失败�
   tree = await settle()
   assert.equal(refreshedModels, 1)
   assert.match(textOf(tree), /分析模型已更新/)
-  assert.match(textOf(tree), /new-p \/ new-m/)
   assert.equal(host.requests.length, 0, '显示新模型后由用户再次启动')
   assert.equal(findAll(tree, (node) => node.type === AnalysisReport)[0].props.report.id, 'old')
 })
@@ -1238,6 +1308,8 @@ test('客户端 AI 报告：失败详情显示会话和原因，选择后返回�
     data: { period: 'day', range: { from }, workspaces: [{ key: 'w1', workspaceTitle: '项目甲', sessions: [failedSessions[0]] }] },
     onOpenSource(source) { opened.push(source); return false },
   }
+  const scopeData = { period: 'day', range: { from, to: from + 1000 },
+    workspaces: [{ workspaceId: 'w1', workspaceTitle: '项目甲', sessions: [failedSessions[0]] }] }
   const opened = []
   let focused = 0
   let scrolled = 0
@@ -1252,6 +1324,7 @@ test('客户端 AI 报告：失败详情显示会话和原因，选择后返回�
   const valueFor = (tree, label) => findAll(tree, (node) => node.type === Select && node.props.ariaLabel === translate(label))[0].props.value
   render()
   host.take('getAnalysisState').success({ phase: 'succeeded', request: null, reports })
+  host.take('queryStats').success(scopeData)
   await new Promise(setImmediate)
   let tree = render()
   const details = findByClass(viewReport(tree), 'cs-analysis-failures')
@@ -1276,7 +1349,8 @@ test('客户端 AI 报告：失败详情显示会话和原因，选择后返回�
   assert.ok(focused >= 1)
   assert.equal(scrolled, 1)
   assert.equal(host.requests.length, 0, '切换范围不会自动开始分析')
-  assert.match(textOf(viewReport(tree)), /上一份报告.*已有报告/)
+  assert.match(textOf(tree), /以下为上一份报告，使用它生成时的实际范围。/)
+  assert.match(textOf(viewReport(tree)), /已有报告/)
   const button = findAll(tree, (node) => node.props.label === translate('analysisRegenerate'))[0]
   button.props.onClick()
   const generate = host.take('generateAnalysis')
@@ -1328,7 +1402,7 @@ function fakeEvent(rect = { left: 100, top: 80, width: 24, height: 100, right: 1
 }
 
 test('客户端：柱图每个时段分组有可聚焦命中区并浮出活跃与任务', async () => {
-  const { renderTrendChart } = await loadClientFunctions()
+  const { renderTrendChart, ChartReveal, React } = await loadClientFunctions()
   const labels = { activeLabel: '活跃', taskLabel: '任务' }
   const t = (key) => labels[key] ?? key
   const trend = [
@@ -1344,6 +1418,9 @@ test('客户端：柱图每个时段分组有可聚焦命中区并浮出活跃�
   assert.equal(groups.length, 2)
   const bars = allOf(chart, byClass('cs-bar'))
   assert.equal(bars.length, 3, '零值不画柱')
+  const reveal = React.render(ChartReveal, { className: 'cs-chart' })
+  assert.equal(reveal.props['data-chart-settled'], undefined, '图表不永久关闭入场动画')
+  assert.match(reveal.props['data-chart-reveal'], /^(visible|pending)$/)
   for (const { props: { rx, ry, width, height } } of bars) {
     assert.ok(rx > width / 3 && rx < width / 2, '圆角向端面中央延伸，留出短平边')
     assert.ok(ry > 0 && ry < rx && ry <= height / 2, '端面弧度较浅，短柱圆角不超过柱高一半')
@@ -1379,6 +1456,13 @@ test('客户端：柱图每个时段分组有可聚焦命中区并浮出活跃�
   assert.deepEqual(focused, [1], '方向键在分组之间移动焦点')
 })
 
+test('客户端：周期标题旧文字单行收住，避免切换时把末尾字挤到下一帧', async () => {
+  const { dshTimespanCss } = await loadClientFunctions()
+  const css = dshTimespanCss()
+  assert.match(css, /\.cs-text-fade-prev \{[^}]*white-space:\s*nowrap/, '旧标题不换行')
+  assert.match(css, /\.cs-text-fade-prev \{[^}]*overflow:\s*hidden/, '旧标题超出当前宽度时裁掉')
+})
+
 test('客户端：圆环扇区与右侧列表双向联动并浮出占比与时长', async () => {
   const { renderComposition } = await loadClientFunctions()
   const labels = {
@@ -1387,7 +1471,7 @@ test('客户端：圆环扇区与右侧列表双向联动并浮出占比与时�
     shareLabel: '占比', durationLabel: '时长',
   }
   const t = (key) => labels[key] ?? key
-  const data = { workspaces: [{ sessions: [{ taskMs: 120000, modelMs: 60000, toolMs: 60000, waitMs: 0, otherMs: 0, hasBreakdown: true }] }] }
+  const data = { period: 'day', workspaces: [{ sessions: [{ taskMs: 120000, modelMs: 60000, toolMs: 60000, waitMs: 0, otherMs: 0, hasBreakdown: true }] }] }
   const events = []
   const tree = renderComposition(data, t, { kind: 'composition', key: 'model' }, {
     onHover: (tip, event) => events.push({ tip, event }),
@@ -1397,6 +1481,7 @@ test('客户端：圆环扇区与右侧列表双向联动并浮出占比与时�
   assert.match(donut.props.className, /has-hot/, '有高亮段时其它段淡出')
   const segments = allOf(tree, byClass('cs-donut-seg'))
   assert.equal(segments.length, 2)
+  assert.deepEqual(segments.map((segment) => segment.props.key), ['day-model', 'day-tool'], '周期切换时扇区按新周期重新挂载')
   for (const segment of segments) {
     assert.equal(segment.props.tabIndex, 0, '扇区可被 Tab 聚焦')
     assert.equal(segment.props.role, 'button')
@@ -1425,6 +1510,9 @@ test('客户端：圆环扇区与右侧列表双向联动并浮出占比与时�
 
   modelSegment.props.onFocus(fakeEvent())
   assert.equal(events[1].tip.title, '模型', '从扇区聚焦也能浮出同一份数值')
+
+  const weekSegments = allOf(renderComposition({ ...data, period: 'week' }, t), byClass('cs-donut-seg'))
+  assert.deepEqual(weekSegments.map((segment) => segment.props.key), ['week-model', 'week-tool'], '换周期后的扇区是新节点，入场动画重新播放')
 })
 
 test('客户端：统一浮层按视口夹取位置并渲染标题与数值', async () => {
@@ -1604,6 +1692,30 @@ test('客户端：自定义下拉支持键盘开合、移动与选择', async ()
   assert.equal(trigger().props['aria-expanded'], false)
 })
 
+test('客户端：自定义下拉首次展开按最终最小宽度定位，不从右偏移', async () => {
+  const { Select, React } = await loadClientFunctions({
+    innerWidth: 1200, innerHeight: 900, addEventListener() {}, removeEventListener() {},
+  })
+  const props = {
+    value: 'a',
+    options: [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }],
+    ariaLabel: '范围',
+    onChange: () => {},
+  }
+  let tree = React.render(Select, props)
+  findByClass(tree, 'cs-select-btn').props.ref.current = {
+    getBoundingClientRect: () => ({ left: 500, top: 100, width: 300, height: 32 }),
+  }
+  findByClass(tree, 'cs-select-btn').props.onClick()
+  tree = React.render(Select, props)
+  findByClass(tree, 'cs-select-menu').props.ref.current = { offsetWidth: 100, offsetHeight: 180 }
+  React.flushEffects()
+  tree = React.render(Select, props)
+  const style = findByClass(tree, 'cs-select-menu').props.style
+  assert.equal(style.minWidth, '300px', '首次定位使用触发器宽度作为最终宽度')
+  assert.equal(style.left, '500px', '以最终宽度居中，不按未套用 minWidth 的窄菜单偏移')
+})
+
 test('客户端：自定义下拉点击外部关闭', async () => {
   const { isSelectOutside, createSelectOutsideHandler } = await loadClientFunctions()
   const inside = { id: 'inside' }
@@ -1681,7 +1793,7 @@ test('客户端：品牌时钟圆环三段固定，明暗两套主题对调上�
   const rightArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M20.31 13.77'))[0]
   assert.ok(rightArc, '圆环右下段单独画一段弧')
   assert.match(rightArc.props.d, /A8\.5 8\.5 0 0 1 13\.77 20\.31$/, '右下段从 3 点方向画到 6 点方向')
-  assert.match(rightArc.props.stroke, /var\(--cs-task, #7A5AA6\)/, '右下段使用任务紫')
+  assert.match(rightArc.props.stroke, /var\(--cs-task, #C29BE8\)/, '右下段使用任务紫')
   const leftArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M10.23 20.31'))[0]
   assert.ok(leftArc, '圆环左下段单独画一段弧')
   assert.match(leftArc.props.d, /A8\.5 8\.5 0 0 1 3\.69 13\.77$/, '左下段从 6 点方向画到 9 点方向')
@@ -1709,18 +1821,19 @@ test('客户端：品牌时钟圆环三段固定，明暗两套主题对调上�
   assert.equal(center?.props?.fill, 'var(--cs-brand-hand, #ffffff)', '轴心与指针同色，浅色模式一起变深')
 })
 
-test('客户端：配色归一化为 blue/stone/clay，旧值回落到默认蓝', async () => {
+test('客户端：配色归一化为 blue/stone/cyan，旧赤陶迁移青色、其余旧值回落默认蓝', async () => {
   const { normalizePalette } = await loadClientFunctions()
   assert.equal(typeof normalizePalette, 'function')
   assert.equal(normalizePalette('blue'), 'blue')
   assert.equal(normalizePalette('stone'), 'stone')
-  assert.equal(normalizePalette('clay'), 'clay')
+  assert.equal(normalizePalette('cyan'), 'cyan')
+  assert.equal(normalizePalette('clay'), 'cyan', '旧赤陶存储值迁移到新青色')
   for (const legacy of ['mono', 'green', 'warm', '', null, undefined, 'unknown']) {
     assert.equal(normalizePalette(legacy), 'blue', `旧配色 ${String(legacy)} 必须落回默认蓝`)
   }
 })
 
-test('客户端：视觉基座导出三档蓝 token、三套配色与派生色阶', async () => {
+test('客户端：视觉基座导出三档蓝 token、四套配色与派生色阶', async () => {
   const { dshTimespanCss } = await loadClientFunctions()
   assert.equal(typeof dshTimespanCss, 'function')
   const css = dshTimespanCss()
@@ -1729,8 +1842,8 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与派生色�
   assert.match(css, /--cs-signal-soft\s*:\s*#79B3F9/i)
   assert.match(css, /--cs-accent\s*:\s*var\(--cs-signal/)
   assert.match(css, /--cs-live\s*:\s*var\(--cs-signal\)/)
-  assert.match(css, /--cs-task\s*:\s*#7A5AA6/i, '任务系列使用与活跃蓝分开的紫罗兰辅助色')
-  assert.match(css, /--cs-task\s*:\s*#C29BE8/i, '深色外观使用更亮的紫罗兰')
+  assert.match(css, /--cs-task\s*:\s*#C29BE8/i, '任务系列使用与活跃蓝分开的紫罗兰辅助色')
+  assert.doesNotMatch(css, /#7A5AA6|#5f418a/i, '浅色与深色外观使用同一个任务紫')
   assert.match(css, /--cs-brand-ring-high\s*:\s*var\(--cs-signal\)/, '上下半圆环使用独立变量，便于主题对调')
   assert.match(css, /--cs-brand-ring-low\s*:\s*var\(--cs-signal-soft\)/, '左下圆环在明暗主题都取同色系柔和档')
   assert.match(css, /--cs-brand-hand\s*:\s*var\(--cs-signal-deep\)/, '浅色外观的指针与轴心改用深色，白针不再落在白底上')
@@ -1741,7 +1854,7 @@ test('客户端：视觉基座导出三档蓝 token、三套配色与派生色�
   assert.match(css, /--cs-tone-other\s*:/)
   for (let step = 0; step <= 5; step += 1) assert.match(css, new RegExp(`--cs-heat-${step}\\s*:`))
   assert.match(css, /\.cs-page\.cs-palette-stone\s*\{/)
-  assert.match(css, /\.cs-page\.cs-palette-clay\s*\{/)
+  assert.match(css, /\.cs-page\.cs-palette-cyan\s*\{/)
   assert.match(css, /\.cs-page\.cs-palette-blue\s*\{/)
   assert.match(css, /\.cs-page\.cs-appearance-dark\s*\{/)
   // ⓘ 改回鼠标悬浮 + 键盘聚焦触发：浮层仍 fixed 定位并做视口夹取，紧贴图标下方。
@@ -1897,7 +2010,7 @@ test('客户端：散落小字收进 ⓘ 消息，信息不丢失', async () => 
 
 test('客户端：任务构成、工作区排行、今日 24 小时与最近会话不再显示说明图标', async () => {
   const {
-    renderComposition, renderWorkspaceRanking, renderTrendCard, renderRecentSessions, Info,
+    renderComposition, renderWorkspaceRanking, renderTrendCard, renderRecentSessions, Info, TextFade,
   } = await loadClientFunctions()
   const labels = {
     compositionTitle: '任务时长构成', noTaskComposition: '暂无任务', accumulated: '累计工时',
@@ -1911,6 +2024,7 @@ test('客户端：任务构成、工作区排行、今日 24 小时与最近会�
   assert.equal(countInfo(renderWorkspaceRanking({ workspaces: [] }, t)), 0, '工作区任务排行去掉右上角说明图标')
   const trend = renderTrendCard({ workspaces: [], trend: [] }, t, true, { tip: null, show() {}, hide() {} }, 'hms', 'day', {})
   assert.equal(countInfo(trend), 0, '今日 24 小时去掉标题右侧说明图标')
+  assert.equal(findAll(trend, (node) => node.type === TextFade).length, 1, '周期标题用独立文字渐变层，不重载整个模块')
   const recent = renderRecentSessions({ workspaces: [] }, t, Date.now(), () => {}, 'hms')
   assert.equal(countInfo(recent), 0, '最近会话去掉标题右侧说明图标')
 })
@@ -2175,11 +2289,11 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(css, /--cs-signal\s*:\s*#1F4E94/i)
   assert.match(css, /--cs-signal-soft\s*:\s*#79B3F9/i)
   assert.match(css, /--cs-live\s*:\s*var\(--cs-signal\)/)
-  assert.match(css, /--cs-task\s*:\s*#7A5AA6/i, '侧栏任务构成段使用独立紫罗兰辅助色')
-  assert.match(css, /--cs-task\s*:\s*#C29BE8/i, '侧栏深色外观使用更亮的紫罗兰')
+  assert.match(css, /--cs-task\s*:\s*#C29BE8/i, '侧栏任务构成段使用独立紫罗兰辅助色')
+  assert.doesNotMatch(css, /#7A5AA6|#5f418a/i, '侧栏浅色与深色外观使用同一个任务紫')
   assert.match(css, /\.dsh-timespan-nav-entry\.cs-palette-blue/)
   assert.match(css, /\.dsh-timespan-nav-entry\.cs-palette-stone/)
-  assert.match(css, /\.dsh-timespan-nav-entry\.cs-palette-clay/)
+  assert.match(css, /\.dsh-timespan-nav-entry\.cs-palette-cyan/)
   assert.match(css, /\.dsh-timespan-nav-entry\.cs-appearance-dark/)
   assert.doesNotMatch(css, /--dsw-alias-state-success-primary/, '侧栏入口不得再吃宿主 success 绿')
   assert.match(css, /html\[data-dsh-timespan-hide-name\] button\[aria-label="TimeSpan"\]:not\(\[role="menuitem"\]\) > span \+ span/,
@@ -2190,6 +2304,8 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(entry, /display:\s*inline-flex/)
   assert.match(entry, /flex-wrap:\s*nowrap/, '入口保持单行')
   assert.match(entry, /white-space:\s*nowrap/)
+  assert.match(entry, /--cs-ring-online:\s*var\(--cs-signal-soft\)/, '深色默认在线段使用柔和信号色')
+  assert.match(css, /\.dsh-timespan-nav-entry\.cs-appearance-light\s*\{[^}]*--cs-ring-online:\s*color-mix\(in srgb, var\(--cs-signal-soft\) 50%, var\(--cs-signal\)\)/, '浅色在线段改用中阶信号色，避开活跃状态点')
   assert.match(declarationsFor(css, '.dsh-timespan-nav-entry.is-dot-end'), /width:\s*100%/, '贴右时入口占满宿主行宽')
   assert.match(css, /\.dsh-timespan-nav-entry\.is-dot-end \.dsh-timespan-nav-dot\s*\{[^}]*margin-left:\s*auto[^}]*margin-right:\s*3px/, '状态点用 auto 外边距推到最右侧，并留 3px 避免贴得过右')
   assert.match(css, /button\[aria-label="TimeSpan"\] > span:has\(\.dsh-timespan-nav-entry\.is-dot-end\)\s*\{[^}]*flex:\s*1 1 auto/, '宿主定宽 icon 容器被撑开，圆点才能贴到整行最右')
@@ -2215,6 +2331,7 @@ test('客户端：侧栏入口使用插件主题 token，不再继承宿主 succ
   assert.match(css, /52%, 100% \{ transform: scale\(2\.15\); opacity: 0; \}/, '扩散结束后留出不可见的空档再开始下一轮')
   assert.doesNotMatch(css, /\.dsh-timespan-nav-dot\.is-task::after/, '只保留单圈扩散，旧环未结束不会叠出第二圈')
   assert.match(declarationsFor(css, '.dsh-timespan-nav-dot'), /border-radius:\s*999px\s*!important/, '状态点强制标准圆形，不被宿主方角覆盖')
+  assert.match(declarationsFor(css, '.dsh-timespan-nav-dot.is-live'), /background:\s*var\(--cs-active-dot\)/, '活跃状态点使用 --cs-active-dot')
   assert.match(declarationsFor(css, '.dsh-timespan-nav-dot.is-task'), /background:\s*var\(--cs-task\)/, '任务态状态点使用紫色')
   assert.match(css, /\.dsh-timespan-nav-dot\.is-task::before\s*\{[^}]*border-color:\s*color-mix\(in srgb, var\(--cs-task\) 58%, transparent\)/, '任务态扩散环改为紫色并覆盖活跃环')
   assert.match(declarationsFor(css, '.dsh-timespan-nav-tip'), /position:\s*fixed/, '时长浮层固定定位')
@@ -2234,11 +2351,11 @@ test('客户端：侧栏构成环按今日在线/活跃/任务三项毫秒分段
   assert.equal(segments.map((segment) => segment.key).join(','), 'online,active,task', '三段口径固定为在线、活跃、任务')
   assert.equal(segments.map((segment) => segment.ms).join(','), '14400000,10800000,3600000')
   assert.equal(segments.map((segment) => segment.share).join(','), '0.5,0.375,0.125', '按三项之和归一化')
-  assert.equal(segments.map((segment) => segment.color).join(','), '--cs-signal-soft,--cs-live,--cs-task')
+  assert.equal(segments.map((segment) => segment.color).join(','), '--cs-ring-online,--cs-active-dot,--cs-task', '活跃段与状态点共用活跃色，在线段使用环专用色')
   const gradient = sidebarRingGradient(segments)
   assert.match(gradient, /^conic-gradient\(/)
-  assert.match(gradient, /var\(--cs-signal-soft\)\s+0%\s+50%/)
-  assert.match(gradient, /var\(--cs-live\)\s+50%\s+87\.5%/)
+  assert.match(gradient, /var\(--cs-ring-online\)\s+0%\s+50%/)
+  assert.match(gradient, /var\(--cs-active-dot\)\s+50%\s+87\.5%/)
   assert.match(gradient, /var\(--cs-task\)\s+87\.5%\s+100%/)
   const empty = sidebarRingGradient(sidebarRingSegments({ onlineMs: 0, activeMs: 0, taskMs: 0 }))
   assert.match(empty, /--cs-ring-track/, '全零时不除零，只画轨道')
@@ -2267,11 +2384,12 @@ test('客户端：侧栏主题跟随 localStorage 的配色与外观，system �
       })[key] ?? null,
     },
   })
-  assert.equal(JSON.stringify(readStoredTheme()), JSON.stringify({ palette: 'clay', appearance: 'system' }))
+  assert.equal(JSON.stringify(readStoredTheme()), JSON.stringify({ palette: 'cyan', appearance: 'system' }), '旧赤陶存储值读成青色')
   assert.equal(sidebarThemeClass('blue', 'light', false), 'cs-palette-blue cs-appearance-light')
   assert.equal(sidebarThemeClass('blue', 'system', true), 'cs-palette-blue cs-appearance-dark', 'system 在深色系统下解析为 dark')
   assert.equal(sidebarThemeClass('stone', 'system', false), 'cs-palette-stone cs-appearance-light')
-  assert.equal(sidebarThemeClass('clay', 'dark', false), 'cs-palette-clay cs-appearance-dark')
+  assert.equal(sidebarThemeClass('cyan', 'dark', false), 'cs-palette-cyan cs-appearance-dark')
+  assert.equal(sidebarThemeClass('clay', 'dark', false), 'cs-palette-cyan cs-appearance-dark', '旧赤陶直接传值也迁移到青色')
   assert.equal(sidebarThemeClass('legacy', 'auto', true), 'cs-palette-blue cs-appearance-dark', '旧值回落到蓝与跟随系统')
 })
 
@@ -2330,7 +2448,10 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
   assert.match(tree.props.className, /is-nameless/, '隐藏名称后入口进入居中的无名称布局')
   assert.equal(tree.props.tabIndex, 0, '入口可被键盘聚焦')
   assert.ok(findByClass(tree, 'dsh-timespan-nav-ring'), '迷你构成环存在')
-  assert.equal(findAll(tree, (node) => hasClass(node, 'dsh-timespan-nav-ring-seg')).length, 3, '标准圆环由三段 SVG 弧组成')
+  const ringSegments = findAll(tree, (node) => hasClass(node, 'dsh-timespan-nav-ring-seg'))
+  assert.equal(ringSegments.length, 3, '标准圆环由三段 SVG 弧组成')
+  assert.equal(ringSegments.map((segment) => segment.props.stroke).join(','),
+    'var(--cs-ring-online),var(--cs-active-dot),var(--cs-task)', '活跃段颜色与状态点活跃色一致')
   assert.equal(findByClass(tree, 'dsh-timespan-nav-name'), undefined, '隐藏名称后不渲染名称节点')
   const navTime = findByClass(tree, 'dsh-timespan-nav-time')
   assert.equal(textOf(navTime), '4h 0m', '隐藏名称后默认显示在线时长')
@@ -2358,6 +2479,7 @@ test('客户端：侧栏入口保留时长与状态点，悬停延迟展示三�
   assert.equal(shown[0].immediate, false, '鼠标悬停走延迟')
   assert.equal(shown[1].immediate, true, '键盘聚焦立即出现')
   assert.equal(shown[0].tip.rows.length, 3, '浮层包含三项时长')
+  assert.equal(shown[0].tip.rows[1].color, '--cs-active-dot', '浮层活跃色与状态点活跃色一致')
   assert.match(shown[0].tip.rows[0].share, /50%/, '在线时长占环上一半')
   assert.equal(findAll(tree, (node) => hasClass(node, 'dsh-timespan-nav-tip')).length, 0, '未展示时入口内不渲染浮层节点')
   assert.match(tree.props['aria-label'], /在线时长 4h 0m/, '在线时长仍留在无障碍标签里')
@@ -2737,6 +2859,30 @@ test('客户端：统一 formatDuration 输出六档，非法值与负数安全�
   assert.equal(formatDuration(ms, 'unknown'), '2h 48m', '非法格式回落紧凑单位')
   assert.equal(normalizeDurationFormat('zh'), 'zh')
   assert.equal(normalizeDurationFormat('bogus'), 'short')
+})
+
+test('客户端：时长只把数字段标成强调色，单位与符号保持正文色', async () => {
+  const { formatDuration, renderDurationDigits } = await loadClientFunctions()
+  const msec = 2 * 3_600_000 + 48 * 60_000 + 16_000
+  const parts = (ms, format) => renderDurationDigits(formatDuration(ms, format))
+    .map((part) => [textOf(part), part.props.className])
+  assert.equal(JSON.stringify(parts(msec, 'short')), JSON.stringify([
+    ['2', 'cs-duration-number'], ['h ', 'cs-duration-unit'],
+    ['48', 'cs-duration-number'], ['m', 'cs-duration-unit'],
+  ]), '紧凑格式区分数字与 h/m')
+  assert.equal(JSON.stringify(parts(msec, 'zh')), JSON.stringify([
+    ['2', 'cs-duration-number'], [' 小时 ', 'cs-duration-unit'],
+    ['48', 'cs-duration-number'], [' 分', 'cs-duration-unit'],
+  ]), '中文格式区分数字与中文单位')
+  assert.equal(JSON.stringify(parts(msec, 'padded')), JSON.stringify([
+    ['02', 'cs-duration-number'], [':', 'cs-duration-unit'],
+    ['48', 'cs-duration-number'], [':', 'cs-duration-unit'],
+    ['16', 'cs-duration-number'],
+  ]), '补零格式的数字成组，冒号留给正文色')
+  assert.equal(JSON.stringify(parts(msec, 'decimal')), JSON.stringify([
+    ['2', 'cs-duration-number'], ['.', 'cs-duration-unit'],
+    ['80', 'cs-duration-number'], [' h', 'cs-duration-unit'],
+  ]), '小数格式的小数点与单位留在正文色')
 })
 
 test('客户端：设置草稿包含数字格式，六档紧凑选项条与预览可用，预览事件广播并支持退订', async () => {
@@ -3357,7 +3503,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     appearanceLight: '浅色', appearanceDark: '深色', appearanceSystem: '跟随系统',
     appearanceToggle: '外观：{mode}，点击切换', paletteLabel: '配色',
     paletteToggle: '配色：{name}，点击循环 {order}',
-    paletteBlue: '蓝', paletteStone: '石墨', paletteClay: '赤陶',
+    paletteBlue: '蓝', paletteStone: '石墨', paletteCyan: '青色', paletteCoral: '珊瑚橙',
     settingsSectionGeneral: '统计口径', settingsSectionBasics: '统计与显示',
     settingsBasicsHint: '统计口径、明细展示与侧栏入口',
     settingsIdleLabel: '活跃判定阈值', settingsIdleHint: '空闲多久后不计入',
@@ -3400,7 +3546,7 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   const appearanceCalls = []
   const settingsProps = {
     t, draft, phase: 'ready', message: '', noticeState: { status: 'ready', data: backfill },
-    appearance: 'system', palette: 'clay', dataBusy: '', dataMessage: null, clearStep: false,
+    appearance: 'system', palette: 'cyan', dataBusy: '', dataMessage: null, clearStep: false,
     retrying: false, retryError: null,
     onPatch: () => {}, onSelectFormat: (value) => calls.push(['format', value]),
     onSave: () => calls.push(['save']), onRetryLoad: () => {}, onExport: (value) => calls.push(['export', value]),
@@ -3442,7 +3588,9 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   assert.equal(durationSelect?.props?.options?.length, 3, '侧栏显示时长提供三种口径')
   const palettes = allOf(tree, byClass('cs-palette-opt'))
   assert.equal(palettes.length, 4, '配色区可预览四套色板')
+  assert.ok(palettes.some((node) => hasClass(node, 'cs-palette-cyan')), '可直接选择青色')
   assert.ok(palettes.some((node) => hasClass(node, 'cs-palette-coral')), '可直接选择珊瑚橙')
+  assert.ok(!palettes.some((node) => hasClass(node, 'cs-palette-clay')), '赤陶选项已移除')
   const appearanceOptions = allOf(tree, byClass('cs-appearance-opt'))
   assert.equal(appearanceOptions.length, 3, '外观区提供浅色、深色、跟随系统三个入口')
   assert.equal(appearanceOptions.find((node) => node.props['aria-pressed'] === true)?.props['aria-label'], '跟随系统', '当前外观有按下态')
@@ -3573,9 +3721,13 @@ test('客户端：周期按钮切换下方统计，首排保留所选主指标�
   }
   for (const [index, period] of ['day', 'week', 'month'].entries()) {
     const metrics = renderOverviewMetrics({ ...common, period })
-    assert.equal(textOf(allOf(metrics, byClass('cs-hero-num'))[0]), '2:48:16', '切换周期时主数字仍是今日活跃')
-    assert.match(textOf(metrics), /今日在线时长\s*5:58:08/)
-    assert.match(textOf(metrics), /今日任务时长\s*1:37:14/)
+    const mainMetric = allOf(metrics, byClass('cs-hero-num'))[0]
+    assert.equal(textOf(mainMetric).replace(/\s+/g, ''), '2:48:16', '切换周期时主数字仍是今日活跃')
+    assert.equal(allOf(mainMetric, byClass('cs-duration-number')).length, 3, '主数字按三段数字分别包进强调层')
+    assert.equal(allOf(mainMetric, byClass('cs-duration-unit')).map(textOf).join(''), '::', '冒号留给正文色')
+    const metricText = textOf(metrics).replace(/\s+/g, '')
+    assert.match(metricText, /今日在线时长5:58:08/)
+    assert.match(metricText, /今日任务时长1:37:14/)
     assert.equal(allOf(metrics, (node) => node.type === 'time')[0].props.dateTime, '2026-11-13')
     const buttons = allOf(metrics, byClass('cs-cycle'))
     assert.equal(buttons.length, 3)
@@ -3614,9 +3766,13 @@ test('客户端：首屏放大页重新排版为大数字、多项统计与活�
     data: heroSampleData(), t, format: 'hms', onToggleFocus: (value) => calls.push(value),
   })
   assert.equal(allOf(page, byClass('cs-hero-focus')).length, 1, '放大态是独立首屏页')
+  const heroBody = allOf(page, byClass('cs-hero-focus-body'))[0]
+  assert.equal(heroBody.props.retain, undefined, '首屏主体保持挂载，圆环可直接过渡而不是整块重播')
+  assert.equal(allOf(heroBody, byClass('cs-hero-num-value')).length, 1, '大数字使用独立的数字渐变层')
   assert.doesNotMatch(textOf(page), /首屏概览/, '放大页标题右侧不再显示「首屏概览」小字')
   assert.equal(textOf(allOf(page, byClass('cs-hero-num'))[0]).trim(), '2:48:16', '大数字沿用统一格式')
   const panelText = textOf(allOf(page, byClass('cs-focus-panel'))[0])
+  const panelValues = panelText.replace(/\s+/g, '')
   for (const expected of ['在线时长', '任务时长', '今日活跃', '本周活跃', '本月活跃']) {
     assert.match(panelText, new RegExp(expected), `放大页统计面板含「${expected}」`)
   }
@@ -3624,10 +3780,10 @@ test('客户端：首屏放大页重新排版为大数字、多项统计与活�
   assert.match(textOf(allOf(page, byClass('cs-hero-meta'))[0]), /任务次数/, '任务次数移到只读文字行')
   assert.equal(allOf(page, byClass('cs-share-block')).length, 0, '大数字下方不再保留重复占比块')
   assert.equal(allOf(page, byClass('cs-focus-bar')).length, 0, '圆环已表达占比，不再渲染横条')
-  assert.match(panelText, /5:58:08/, '在线时长')
-  assert.match(panelText, /1:37:14/, '任务时长')
-  assert.match(panelText, /5:51:01/, '本周活跃')
-  assert.match(panelText, /14:14:00/, '本月活跃')
+  assert.match(panelValues, /5:58:08/, '在线时长')
+  assert.match(panelValues, /1:37:14/, '任务时长')
+  assert.match(panelValues, /5:51:01/, '本周活跃')
+  assert.match(panelValues, /14:14:00/, '本月活跃')
   const ring = allOf(page, byClass('cs-hero-ring'))[0]
   assert.ok(ring, '首屏右栏使用圆环')
   assert.equal(ring.props['aria-label'], '活跃占比 47%', '圆环有无障碍读数')
@@ -3723,10 +3879,14 @@ test('客户端：首屏主指标五个时长项可点切换，非法持久化�
     const overview = renderOverviewView({ ...base, period: 'day', focus: null, heroMetric: metric })
     const main = allOf(overview, byClass('cs-cycle-today'))[0]
     const mainValue = findByClass(main, 'cs-hero-num')
-    assert.equal(textOf(mainValue), value, `缩回概览仍显示 ${metric} 的数值`)
-    assert.equal(hasClass(mainValue, 'is-today-online'), metric === 'online')
+    assert.equal(textOf(mainValue).replace(/\s+/g, ''), value, `缩回概览仍显示 ${metric} 的数值`)
+    assert.equal(hasClass(mainValue, `is-metric-${metric === 'online' ? 'online' : metric === 'task' ? 'task' : 'active'}`), true, '概览主数字按口径带语义色')
+    const mainGlyph = allOf(main, (node) => String(node.type?.name) === 'DetailGlyph')[0]
+    assert.equal(mainGlyph?.props?.name, {
+      online: 'online', task: 'task', active: 'active', week: 'active-week', month: 'active-month',
+    }[metric], '概览主卡图标按周期区分')
     const secondary = findByClass(overview, 'cs-overview-metric-pair')
-    assert.equal(allOf(secondary, byClass('is-today-online')).length, Number(metric === 'active' || metric === 'task'))
+    assert.equal(allOf(secondary, byClass('is-metric-online')).length, metric === 'online' ? 0 : 1, '副指标按在线/活跃/任务分别带语义色')
     const focusTitle = textOf(allOf(page, (node) => node.type === 'h2')[0]).trim()
     assert.equal(textOf(findByClass(main, 'cs-cycle-title')), metric === 'active' ? '今日活跃' : focusTitle)
     const ring = findByClass(page, 'cs-hero-ring')
@@ -3738,6 +3898,21 @@ test('客户端：首屏主指标五个时长项可点切换，非法持久化�
   const buttons = allOf(page, byClass('cs-fs-button'))
   assert.equal(buttons.length, 5, '五个时长项是可点按钮')
   assert.ok(buttons.every((button) => button.type === 'button'))
+  assert.deepEqual(
+    buttons.map((button) => ['online', 'task', 'active'].find((tone) => hasClass(button, `is-metric-${tone}`))),
+    ['online', 'task', 'active', 'active', 'active'],
+    '五项读数分别按在线、任务与活跃口径着色',
+  )
+  const glyphNodes = buttons.map((button) => allOf(button, (node) => String(node.type?.name) === 'DetailGlyph')[0])
+  assert.deepEqual(glyphNodes.map((node) => node?.props?.name), ['online', 'task', 'active', 'active-week', 'active-month'],
+    '五项读数各有可区分的语义图标')
+  const glyphShapes = glyphNodes.map((node) => {
+    const svg = node.type(node.props)
+    return svg.children.map((shape) => shape.props.d
+      ?? `${shape.type}:${shape.props.x},${shape.props.y},${shape.props.width},${shape.props.height}`).join('|')
+  })
+  assert.equal(new Set(glyphShapes.slice(2)).size, 3, '今日、本周、本月活跃的图标形状互不相同')
+  assert.match(glyphShapes[3], /M10\.2 2\.5h3\.6l-2\.3 5\.3/, '本周活跃以数字 7 标出一周')
   assert.equal(allOf(page, byClass('cs-fs-item')).length - buttons.length, 0, '统计面板里不再混入不可点的只读项')
   const panel = allOf(page, byClass('cs-focus-panel'))[0]
   assert.equal(allOf(panel, byClass('cs-fs-item')).length, 5, '面板内每项都可点，不误导用户')
@@ -3897,10 +4072,66 @@ test('客户端：首屏缩放按钮、圆环与无边框样式，并尊重减�
   assert.match(declarationsFor(css, '.cs-zoom-btn svg'), /stroke:\s*var\(--cs-ink-2\)/, '图标用次级文字色')
   const number = declarationsFor(css, '.cs-hero-focus .cs-hero-num')
   assert.match(number, /font-size:[^;]+cqw[^;]+svh/, '首屏主数字同时受内容宽度和窗口高度约束')
-  assert.match(number, /overflow-wrap:\s*anywhere/, '长时长可以在窄窗换行')
+  assert.match(number, /white-space:\s*nowrap/, '首屏主数字始终单行横排，两位数小时和分钟也不换行')
+  assert.doesNotMatch(number, /overflow-wrap:\s*anywhere/, '主数字不再允许在字符间折行')
   assert.doesNotMatch(css, /\.cs-focus-bar/, '大数字下方不再保留占比横条')
   assert.doesNotMatch(css, /\.cs-share-block/, '不再保留重复占比块的样式')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-focus-panel'), /grid-auto-flow:\s*column/, '首屏五项主指标固定横排，不因本月数值变长而竖排')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-focus-panel'), /grid-auto-columns:\s*minmax\(0,\s*1fr\)/, '五项等宽分满一行')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-fs-item b'), /font-size:\s*17px/, '首屏底部五项读数略微缩小，给横排留出余量')
+  assert.match(number, /color:\s*var\(--cs-metric-color\)/, '首屏大数字整段使用当前口径色')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-hero-num .cs-duration-number'), /color:\s*inherit/, '首屏大数字的符号与单位跟随数字颜色')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-hero-num.is-metric-online'), /--cs-metric-color:\s*var\(--cs-signal-deep\)/, '在线口径使用信号深阶')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-hero-num.is-metric-active'), /--cs-metric-color:\s*var\(--cs-chart-active\)/, '活跃口径使用活跃状态点色')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-hero-num.is-metric-task'), /--cs-metric-color:\s*var\(--cs-task\)/, '任务口径使用任务紫')
+  assert.match(declarationsFor(css, '.cs-cycle-today .cs-hero-num'), /font-size:[^;]+50px/, '概览今日主数字略微放大')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-hero-num.is-long'), /font-size:[^;]+13cqw/, '八字符读数收一档字号')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-hero-num.is-extra-long'), /font-size:[^;]+11\.5cqw/, '更长读数再收一档字号')
+  assert.match(declarationsFor(css, '.cs-fs-button b'), /color:\s*var\(--cs-metric-color\)/, '五项小模块读数整段使用各自口径色')
+  assert.match(declarationsFor(css, '.cs-fs-item b'), /color:\s*var\(--cs-metric-color, var\(--cs-ink\)\)/, '五项小模块符号与单位跟随数字颜色')
+  assert.match(declarationsFor(css, '.cs-fs-button.is-metric-online'), /--cs-metric-color:\s*var\(--cs-signal-deep\)/, '在线小模块使用信号深阶')
+  assert.match(declarationsFor(css, '.cs-fs-button.is-metric-active'), /--cs-metric-color:\s*var\(--cs-chart-active\)/, '活跃小模块使用活跃状态点色')
+  assert.match(declarationsFor(css, '.cs-fs-button.is-metric-task'), /--cs-metric-color:\s*var\(--cs-task\)/, '任务小模块使用任务紫')
+  assert.match(declarationsFor(css, '.cs-fs-button .cs-detail-glyph'), /color:\s*var\(--cs-metric-color\)/, '五项小模块图标与数值同色')
+  assert.match(declarationsFor(css, '.cs-overview-metric.is-online'), /--cs-metric-color:\s*var\(--cs-signal-deep\)/, '今日在线副指标使用信号深阶')
+  assert.match(declarationsFor(css, '.cs-overview-metric.is-active'), /--cs-metric-color:\s*var\(--cs-chart-active\)/, '今日活跃副指标使用活跃状态点色')
+  assert.match(declarationsFor(css, '.cs-overview-metric.is-task'), /--cs-metric-color:\s*var\(--cs-task\)/, '今日任务副指标使用任务紫')
+  assert.match(declarationsFor(css, '.cs-overview-metric strong'), /color:\s*var\(--cs-metric-color/, '副指标读数整段使用口径色')
+  assert.match(declarationsFor(css, '.cs-overview-metric .cs-detail-glyph'), /color:\s*var\(--cs-metric-color/, '副指标图标与数值使用同一口径色')
+  assert.match(declarationsFor(css, '.cs-cycle-today .cs-card-icon'), /color:\s*var\(--cs-metric-color\)/, '概览主卡图标跟随主指标色')
+  assert.match(declarationsFor(css, '.cs-hero-focus .cs-focus-panel .cs-fs-item:last-child:nth-child(odd)'), /grid-column:\s*auto/, '窄窗也不让第五项跨列换行')
+  assert.doesNotMatch(css, /\.cs-cycle-today\.is-current \.cs-hero-num[^}]*::before/, '概览主数字不再带会随主指标忽隐忽现的左侧装饰线')
+  assert.doesNotMatch(declarationsFor(css, '.cs-overview-metric-pair'), /border-left/, '概览副指标区不再和主卡之间拉一条竖线')
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-hero-focus/, '减少动效下首屏直接到位')
+})
+
+test('客户端：首屏大数字用数值渐变而不是旧值淡出', async () => {
+  const { renderHeroFocusPage, DurationTween, tweenDurationMs, DURATION_TWEEN_MS } = await loadClientFunctions()
+  assert.equal(DURATION_TWEEN_MS, 900, '数字渐变用 900ms，慢—快—慢的节奏更明显')
+  assert.equal(tweenDurationMs(0, 1_000, 0), 0, '起点保持旧值')
+  assert.equal(tweenDurationMs(0, 1_000, 1), 1_000, '终点落到新值')
+  assert.equal(tweenDurationMs(0, 1_000, 0.5), 500, '中点平滑经过一半')
+  assert.ok(tweenDurationMs(0, 1_000, 0.25) < 100, '五次缓入让起步更慢')
+  assert.ok(tweenDurationMs(0, 1_000, 0.75) > 900, '五次缓出让收尾更稳')
+  const labels = {
+    todayActive: '今日活跃时长', actualOccupied: '实际占用', focusSet: '设为首屏', focusUnset: '退出首屏',
+    todayOnline: '今日在线时长', todayTask: '任务时长', taskLabel: '任务', taskCountShort: '任务次数',
+    focusTodayActive: '今日活跃', onlineLabel: '在线时长', activeShare: '活跃占比', activeLabel: '活跃',
+    taskShare: '任务占比', weekOnline: '本周在线', weekTask: '本周任务', monthOnline: '本月在线', monthTask: '本月任务',
+  }
+  const t = (key) => labels[key] ?? key
+  const page = renderHeroFocusPage({ data: heroSampleData(), t, format: 'hms', heroMetric: 'task', onToggleFocus() {} })
+  const number = allOf(page, byClass('cs-hero-num-value'))[0]
+  assert.equal(number.type, DurationTween, '大数字交给数字渐变组件')
+  assert.equal(number.props.identity, 'task')
+  assert.equal(number.props.value, 5_834_000)
+  assert.equal(number.props.format, 'hms')
+  assert.equal(textOf(number).trim(), '1:37:14', '首帧仍显示目标读数，测试替身不跑逐帧动画')
+  assert.equal(String(allOf(page, byClass('cs-hero-num'))[0].props.className), 'cs-hero-num is-metric-task', '七字符读数保持基础字号并带任务色类')
+  const onlinePage = renderHeroFocusPage({ data: heroSampleData(), t, format: 'hms', heroMetric: 'online', onToggleFocus() {} })
+  assert.equal(String(allOf(onlinePage, byClass('cs-hero-num'))[0].props.className), 'cs-hero-num is-metric-online', '在线指标使用自己的语义色类')
+  const monthPage = renderHeroFocusPage({ data: heroSampleData(), t, format: 'hms', heroMetric: 'month', onToggleFocus() {} })
+  assert.match(String(allOf(monthPage, byClass('cs-hero-num'))[0].props.className), /is-long/, '八字符读数按长读数收字号')
 })
 
 test('客户端：周期卡选中态的占比横条与纯色背景保持可分辨', async () => {
@@ -5055,14 +5286,17 @@ test('客户端：热力图首屏上半区整幅热力图、下半区统计与�
   assert.match(panel, /display:\s*grid/)
   assert.match(panel, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/, '六项统计三列两行')
   assert.match(declarationsFor(css, '.heat-focus-panel .cs-fs-item'), /border-left:\s*1px/, '统计项之间用细竖线分隔')
+  assert.match(css, /\.cs-fs-item\.is-current \+ \.cs-fs-item\s*\{[^}]*border-left-color:\s*transparent/, '选中项右侧邻项的竖线也隐藏')
   assert.match(declarationsFor(css, '.heat-focus-bars'), /min-height:\s*96px/, '月度条区保持完整高度')
   assert.match(declarationsFor(css, '.cs-heatmap-focus .heat-month-bars'), /height:[^;]+svh/, '月度条随窗高调整')
   assert.match(declarationsFor(css, '.heat-focus-layout.is-year .heat-focus-bars'), /height:[^;]+svh/, '全年格子按宽度定高，月度条随窗高放大')
   assert.match(css, /@container cs-overview \(max-width: 680px\)\s*\{[\s\S]*?\.heat-focus-bottom\s*\{[^}]*grid-template-columns:\s*1fr/, '内容区较窄时下半区回落单列')
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.cs-heatmap-focus-page/, '减少动效下首屏直接到位')
   assert.match(declarationsFor(css, '.cs-hero-ring'), /aspect-ratio:\s*1/, 'hero 右栏圆环保持正圆')
-  assert.match(declarationsFor(css, '.cs-hero-ring-value'), /stroke:\s*var\(--cs-signal\)/, '圆环使用当前重点色')
+  assert.match(declarationsFor(css, '.cs-hero-ring-value'), /stroke:\s*var\(--cs-chart-active\)/, '圆环与活跃状态点共用同一图形色')
   assert.match(declarationsFor(css, '.cs-hero-ring-legend'), /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, '圆环图例双列排布')
+  assert.match(declarationsFor(css, '.cs-hero-ring-legend-item i'), /background:\s*var\(--cs-chart-active\)/, '图例色块与圆环共用活跃状态色')
+  assert.match(declarationsFor(css, '.cs-live.is-live.is-active .cs-dot'), /background:\s*var\(--cs-chart-active\)/, '首屏圆环与顶栏活跃状态点使用同一 token')
   assert.doesNotMatch(css, /\.cs-hero-mini-chart/, '首屏右栏不再保留旧条状图样式')
   const yearBody = declarationsFor(css, '.heatmap-body.is-year')
   assert.match(yearBody, /display:\s*grid/, '全年热力图改用自适应网格')
@@ -5192,10 +5426,13 @@ test('客户端：全年 Bento 跨行、范围选择器紧凑尺寸与顶栏图�
   assert.doesNotMatch(css, /\.cs-period-display/, '顶栏不再保留当前周期圆角徽标样式')
   assert.doesNotMatch(css, /\.cs-palette-label/, '顶栏不再有配色下拉的标签')
   assert.doesNotMatch(css, /\.cs-palette-name/, '取消常显配色名，名称与循环顺序收进 tooltip')
-  assert.match(css, /\.cs-palette-toggle svg \.cs-palette-signal/, '循环图标用当前套信号色圆点表当前值')
+  assert.match(css, /\.cs-palette-toggle svg \.cs-palette-signal/, '循环图标用当前配色的活跃状态点色圆点表当前值')
   assert.match(css, /\.cs-palette-toggle svg \.cs-palette-ring/, '循环图标外围是白色圆环')
   assert.match(css, /\.cs-palette-ring[^}]*stroke:\s*#fff/, '白色圆环不随配色变化')
   assert.doesNotMatch(css, /\.cs-palette-dot/, '不再用三枚小色点编码当前套')
+  const timerCss = await loadClientTimerCss()
+  assert.match(declarationsFor(timerCss, '.cs-timer-trigger .cs-detail-glyph path'),
+    /stroke:\s*var\(--cs-chart-active,\s*var\(--timer-text-accent\)\)/, '时钟指针跟随当前配色的活跃状态点')
 })
 
 

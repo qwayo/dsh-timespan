@@ -46,7 +46,7 @@ export function createAnalysisService({ ctx, service, clock = Date }) {
     if (lifetime.signal.aborted) throw new Error('分析服务已关闭')
     if (current !== null) return getState()
     const period = options?.period
-    if (!isPeriod(period)) throw new Error('分析需要指定日、周或月周期')
+    if (!isPeriod(period)) throw new Error('分析需要指定有效的回顾范围')
     const workspaceId = optionalId(options.workspaceId)
     const sessionId = optionalId(options.sessionId)
     const { analysisProvider: provider, analysisModel: model, language } = service.getSettings()
