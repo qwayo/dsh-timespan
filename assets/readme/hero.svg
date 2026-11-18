@@ -20,25 +20,23 @@
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH 插件 · 时长统计</text>
     </g>
 
-    <text x="70" y="154" font-size="74" font-weight="700" letter-spacing="-1" fill="#181a1c"
+    <text x="70" y="162" font-size="74" font-weight="700" letter-spacing="-1" fill="#181a1c"
           font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">dsh-timespan</text>
 
-    <g fill="#42494e" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
-      <text x="72" y="208" font-size="29">自动记录 DSH 的在线、活跃与任务时长</text>
-      <text x="72" y="245" font-size="25">手动正计时与倒计时 · 按需生成时间回顾</text>
-    </g>
+    <text x="72" y="210" font-size="24" fill="#42494e"
+          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">记录 DSH 的在线、活跃与任务时长，数据只留在本机</text>
 
     <!-- 元数据胶囊 -->
-    <g id="meta-chips" font-size="16" fill="#42494e"
+    <g id="meta-chips" font-size="15" fill="#42494e"
        font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">
-      <rect x="72" y="280" width="68" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="106" y="301" text-anchor="middle">零依赖</text>
-      <rect x="152" y="280" width="68" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="186" y="301" text-anchor="middle">无构建</text>
-      <rect x="232" y="280" width="84" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="274" y="301" text-anchor="middle">本地存储</text>
-      <rect x="328" y="280" width="110" height="33" rx="16.5" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
-      <text x="383" y="301" text-anchor="middle">Node 24+</text>
+      <rect x="72" y="244" width="68" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="106" y="264" text-anchor="middle">零依赖</text>
+      <rect x="152" y="244" width="68" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="186" y="264" text-anchor="middle">无构建</text>
+      <rect x="232" y="244" width="76" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="270" y="264" text-anchor="middle">本地存储</text>
+      <rect x="320" y="244" width="86" height="30" rx="15" fill="none" stroke="#c3cad4" stroke-width="1.5"/>
+      <text x="363" y="264" text-anchor="middle">Node 24+</text>
     </g>
   </g>
 
@@ -69,7 +67,7 @@
         <text x="1050" y="206" fill="#42494e">在线</text>
       </g>
       <g id="label-active">
-        <path d="M803 228 780 247" stroke="#c3cad4" stroke-width="1.5" fill="none"/>
+        <path d="M809 223 780 247" stroke="#c3cad4" stroke-width="1.5" fill="none"/>
         <circle cx="772" cy="253" r="4.5" fill="#79B3F9"/>
         <text x="760" y="260" text-anchor="end" fill="#42494e">活跃</text>
       </g>
