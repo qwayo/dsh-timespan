@@ -53,6 +53,9 @@ window.__ModuleLoader__.load({
     const SIDEBAR_DOT_POSITION_DEFAULT = 'inline'
     const PAGE_REFRESH_MS = 10_000
     const TIMER_REFRESH_MS = 2_000
+    /** DSH 设置页右上角的项目入口：项目页与 Issue 列表，Star 入口复用项目页。 */
+    const PROJECT_REPOSITORY_URL = 'https://github.com/qwayo/dsh-timespan'
+    const PROJECT_ISSUES_URL = `${PROJECT_REPOSITORY_URL}/issues`
     const ANALYSIS_REFRESH_MS = 1_250
     const COUNTDOWN_MAX_MINUTES = 7 * 24 * 60
     const FLOATING_POSITION_KEY = 'dsh-timespan.floatingPosition'
@@ -149,6 +152,10 @@ window.__ModuleLoader__.load({
       actualOccupied: '实际占用',
       focusSet: '设为首屏',
       focusUnset: '退出首屏',
+      settingsLinksLabel: '项目链接',
+      settingsRepoAction: '打开 GitHub 项目页',
+      settingsIssueAction: '提交或查看 Issue',
+      settingsStarAction: '为这个项目点个 Star 吧',
       activeShare: '活跃占比',
       taskShare: '任务占比',
       weekActiveShare: '本周活跃占比',
@@ -184,7 +191,7 @@ window.__ModuleLoader__.load({
       periodMonth: '月',
       periodLabel: '统计周期',
       paletteLabel: '配色',
-      paletteToggle: '配色：{name}，点击循环 {order}',
+      paletteToggle: '配色：{name}',
       appearanceLabel: '外观',
       appearanceLight: '浅色',
       appearanceDark: '深色',
@@ -267,8 +274,8 @@ window.__ModuleLoader__.load({
       dailyAverageHint: '日均按自然日计算',
       recordSinceBoot: '在线和活跃从插件启用时开始记录，历史数据只回填任务时长。',
       paletteBlue: '晴空蓝',
-      paletteStone: '石墨',
-      paletteCyan: '青色',
+      paletteStone: '石墨灰',
+      paletteCyan: '松石青',
       paletteCoral: '珊瑚橙',
       paletteSaveError: '外观设置未能保存，刷新后可能恢复默认',
       timerTitle: '手动计时',
@@ -367,6 +374,8 @@ window.__ModuleLoader__.load({
       analysisGeneratedAt: '生成时间',
       analysisRunRange: '本次分析范围',
       analysisReportScopeMismatch: '以下为上一份报告，使用它生成时的实际范围。',
+      analysisReportScopeMismatchShort: '上一份报告',
+      analysisModelRequiredShort: '分析模型未配置',
       analysisCoverage: '涉及 {total} 个会话 · 已读 {read} · 纳入 {included}',
       analysisCoverageFailed: '{count} 个会话读取失败',
       analysisFailureDetails: '失败详情',
@@ -541,6 +550,13 @@ window.__ModuleLoader__.load({
       backfillRetry: '重试',
       backfillRetrying: '正在重新回填…',
       backfillDismiss: '知道了',
+      backfillChipRunning: '回填中',
+      backfillChipDone: '回填完成',
+      backfillChipFailed: '回填失败',
+      backfillChipUnavailable: '回填状态不可用',
+      topbarNoticesLabel: '通知',
+      noticeDismiss: '关闭通知',
+      approximateChipLabel: '近似记录',
       backfillNoticeCount: '累计回填 {tasks} 条',
       backfillNoticeRead: '已读',
       backfillNoticeUnread: '待确认',
@@ -680,6 +696,10 @@ window.__ModuleLoader__.load({
       actualOccupied: 'Actual occupied',
       focusSet: 'Set as focus view',
       focusUnset: 'Exit focus view',
+      settingsLinksLabel: 'Project links',
+      settingsRepoAction: 'Open the GitHub project page',
+      settingsIssueAction: 'Submit or view an issue',
+      settingsStarAction: 'Star this project on GitHub',
       activeShare: 'Active share',
       taskShare: 'Task share',
       weekActiveShare: 'Active share this week',
@@ -715,7 +735,7 @@ window.__ModuleLoader__.load({
       periodMonth: 'Month',
       periodLabel: 'Period',
       paletteLabel: 'Colors',
-      paletteToggle: 'Colors: {name}; click to cycle {order}',
+      paletteToggle: 'Colors: {name}',
       appearanceLabel: 'Appearance',
       appearanceLight: 'Light',
       appearanceDark: 'Dark',
@@ -898,6 +918,8 @@ window.__ModuleLoader__.load({
       analysisGeneratedAt: 'Generated',
       analysisRunRange: 'Analysis scope',
       analysisReportScopeMismatch: 'The last report is shown with the scope it used when generated.',
+      analysisReportScopeMismatchShort: 'Previous report',
+      analysisModelRequiredShort: 'Analysis model not set',
       analysisCoverage: '{total} sessions in scope · {read} read · {included} included',
       analysisCoverageFailed: '{count} sessions could not be read',
       analysisFailureDetails: 'Failure details',
@@ -1072,6 +1094,13 @@ window.__ModuleLoader__.load({
       backfillRetry: 'Retry',
       backfillRetrying: 'Restarting backfill…',
       backfillDismiss: 'Got it',
+      backfillChipRunning: 'Backfilling',
+      backfillChipDone: 'Backfill done',
+      backfillChipFailed: 'Backfill failed',
+      backfillChipUnavailable: 'Backfill unavailable',
+      topbarNoticesLabel: 'Notifications',
+      noticeDismiss: 'Dismiss notification',
+      approximateChipLabel: 'Approximate records',
       backfillNoticeCount: 'Cumulative total: {tasks} tasks',
       backfillNoticeRead: 'Read',
       backfillNoticeUnread: 'Unread',
@@ -1326,11 +1355,13 @@ window.__ModuleLoader__.load({
       if (name === 'active') {
         return h('svg', common, h('path', { d: 'M1.5 8h3l2-4.5 3 9 2-4.5h3' }))
       }
-      // 本周/本月沿用活跃脉冲线：本周以「7」标出一周，本月以日历框标出整月。
+      // 本周用七根日柱表达一周七天；今日保持脉冲线，本月用日历框，三种周期一眼可分。
       if (name === 'active-week') {
         return h('svg', common,
-          h('path', { d: 'M1.4 10.4h2.2l1.6-3.3 2.5 6.4 1.6-3.2h1.4' }),
-          h('path', { d: 'M10.2 2.5h3.6l-2.3 5.3' }))
+          h('path', {
+            strokeWidth: 1.2,
+            d: 'M1.3 12.7V9.3M3.5 12.7V6.1M5.7 12.7V8.1M7.9 12.7V3.6M10.1 12.7V7M12.3 12.7V5.2M14.5 12.7V9.8',
+          }))
       }
       if (name === 'active-month') {
         return h('svg', common,
@@ -1361,6 +1392,48 @@ window.__ModuleLoader__.load({
       if (name === 'report') {
         return h('svg', common,
           h('path', { d: 'M10 2.3H4.1A1.4 1.4 0 0 0 2.7 3.7v8.6a1.4 1.4 0 0 0 1.4 1.4h7.3a1.4 1.4 0 0 0 1.4-1.4V5.2zM10 2.3v2.9h2.8M5.4 8h4.5M5.4 10.8h3.2' }))
+      }
+      // 首次生成报告：文档加笔；重新生成与失败重试继续沿用 refresh 重置箭头。
+      if (name === 'generate') {
+        return h('svg', common,
+          h('path', { d: 'M9.8 2.2H4.1A1.4 1.4 0 0 0 2.7 3.6v8.6a1.4 1.4 0 0 0 1.4 1.4h7.3a1.4 1.4 0 0 0 1.4-1.4V6.9M12.3 2.1l1.6 1.6-4.6 4.6-2.1.5.5-2.1z' }))
+      }
+      // 设置页项目入口：GitHub 标记用实心，Issue 用聊天气泡，Star 用实心金色星标。
+      if (name === 'github') {
+        return h('svg', {
+          className: 'cs-detail-glyph', viewBox: '0 0 16 16', width: size, height: size,
+          fill: 'currentColor', 'aria-hidden': true,
+        }, h('path', { d: 'M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z' }))
+      }
+      if (name === 'issue') {
+        return h('svg', common,
+          h('path', { d: 'M3 3.1h10a1.5 1.5 0 0 1 1.5 1.5v5.2a1.5 1.5 0 0 1-1.5 1.5H7.4l-2.6 2.3v-2.3H3a1.5 1.5 0 0 1-1.5-1.5V4.6A1.5 1.5 0 0 1 3 3.1z' }),
+          h('circle', { className: 'cs-issue-dot cs-issue-dot-a', cx: 5.9, cy: 7.2, r: .72, fill: 'currentColor', stroke: 'none' }),
+          h('circle', { className: 'cs-issue-dot cs-issue-dot-b', cx: 10.1, cy: 7.2, r: .72, fill: 'currentColor', stroke: 'none' }))
+      }
+      if (name === 'star') {
+        return h('svg', {
+          className: 'cs-detail-glyph', viewBox: '0 0 16 16', width: size, height: size,
+          'aria-hidden': true,
+        },
+        h('defs', null,
+          h('linearGradient', { id: 'cs-star-gold', x1: '4', y1: '2', x2: '12.4', y2: '14', gradientUnits: 'userSpaceOnUse' },
+            h('stop', { offset: '0', stopColor: '#FFD76A' }),
+            h('stop', { offset: '.55', stopColor: '#F2B21C' }),
+            h('stop', { offset: '1', stopColor: '#E39A00' }))),
+        h('path', { fill: 'url(#cs-star-gold)', d: 'M8 1.7l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.5l-3.8 2 .7-4.3-3.1-3 4.3-.6z' }))
+      }
+      if (name === 'info') {
+        return h('svg', common,
+          h('circle', { cx: 8, cy: 8, r: 5.5 }),
+          h('path', { d: 'M8 7.2v3.4' }),
+          h('circle', { cx: 8, cy: 4.9, r: .7, fill: 'currentColor', stroke: 'none' }))
+      }
+      if (name === 'alert') {
+        return h('svg', common,
+          h('path', { d: 'M8 2.2 14 13H2z' }),
+          h('path', { d: 'M8 6.2v3.2' }),
+          h('circle', { cx: 8, cy: 11.2, r: .7, fill: 'currentColor', stroke: 'none' }))
       }
       if (name === 'close') return h('svg', common, h('path', { d: 'M4 4l8 8M12 4l-8 8' }))
       if (name === 'delete') return h('svg', common, h('path', { d: 'M2.5 4h11M6 4V2.5h4V4M4 4l.6 9.5h6.8L12 4M6.5 6.5v4.5M9.5 6.5v4.5' }))
@@ -1902,7 +1975,7 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** 配色只认 blue / stone / cyan / coral；旧赤陶 clay 迁移到青色，其余旧值回落到默认晴空蓝。 */
+    /** 配色只认 blue / stone / cyan / coral；旧赤陶 clay 迁移到松石青，其余旧值回落到默认晴空蓝。 */
     function normalizePalette(value) {
       if (value === 'clay') return 'cyan'
       return PALETTES.includes(value) ? value : 'blue'
@@ -2854,7 +2927,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 首次进入可视区才播放；同 key 的刷新数值、悬停和滚动返回保留已显示状态，周期切换的新节点重新入场。 */
-    function ChartReveal({ as = 'div', children, ...props }) {
+    function ChartReveal({ as = 'div', children, threshold = .08, ...props }) {
       const ref = React.useRef(null)
       const [visible, setVisible] = React.useState(() => prefersReducedMotion()
         || typeof window.IntersectionObserver !== 'function')
@@ -2865,10 +2938,10 @@ window.__ModuleLoader__.load({
             setVisible(true)
             observer.disconnect()
           }
-        }, { threshold: .08 })
+        }, { threshold })
         observer.observe(ref.current)
         return () => observer.disconnect()
-      }, [visible])
+      }, [visible, threshold])
       // 首帧仍由可视区触发；之后切换周期时，新的柱子/格子是新的 DOM 节点，
       // 会各自播放入场动画，已有同 key 节点的轮询更新则不重播。
       return h(as, {
@@ -3253,6 +3326,50 @@ window.__ModuleLoader__.load({
       return h('span', { ...props, className }, renderDurationDigits(formatDuration(shownMs, format)))
     }
 
+    /**
+     * 手动计时读数：正／倒计时切换时从当前读数缓动到目标读数，避免整块数字淡出再淡入；
+     * 同一模式下的实时走秒与同步更新仍直接落值，不拖慢每秒读数。
+     */
+    function TimerReadout({ identity, value, roundUp = false, className = '', ...props }) {
+      const target = Number.isFinite(value) ? Math.max(0, value) : null
+      const [shownMs, setShownMs] = React.useState(target)
+      const shownRef = React.useRef(target)
+      const identityRef = React.useRef(identity)
+      React.useEffect(() => {
+        const from = shownRef.current
+        const switching = identityRef.current !== identity
+        identityRef.current = identity
+        if (target === null) {
+          shownRef.current = null
+          setShownMs(null)
+          return undefined
+        }
+        const raf = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+          ? window.requestAnimationFrame.bind(window)
+          : null
+        const cancel = typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function'
+          ? window.cancelAnimationFrame.bind(window)
+          : null
+        if (!switching || from === null || from === target || prefersReducedMotion() || !raf) {
+          shownRef.current = target
+          setShownMs(target)
+          return undefined
+        }
+        const startedAt = Date.now()
+        let frame = 0
+        const step = () => {
+          const progress = Math.min(1, (Date.now() - startedAt) / DURATION_TWEEN_MS)
+          const next = tweenDurationMs(from, target, progress)
+          shownRef.current = next
+          setShownMs(next)
+          if (progress < 1) frame = raf(step)
+        }
+        frame = raf(step)
+        return () => { if (cancel) cancel(frame) }
+      }, [identity, target])
+      return h('div', { ...props, className }, shownMs === null ? '––:––:––' : timerDigits(shownMs, roundUp))
+    }
+
     /** 折叠结束再卸载内容；首次关闭的分组不提前渲染全部会话。 */
     function AnimatedCollapse({ open, className = '', children }) {
       const retained = React.useRef(null)
@@ -3325,7 +3442,7 @@ window.__ModuleLoader__.load({
             key: option, type: 'button', 'aria-pressed': mode === option, disabled,
             onClick: () => setMode(option),
           }, t(label)))) : timer ? h('span', { className: 'cs-timer-mode' }, t(countdown ? 'timerCountdown' : 'timerStopwatch')) : null),
-        h(ContentTransition, { identity: isIdle ? mode : timer?.mode, retain: true, className: 'cs-timer-readout', role: 'timer', 'aria-live': 'off' }, Number.isFinite(value) ? timerDigits(value, countdown) : '––:––:––'),
+        h(TimerReadout, { identity: isIdle ? mode : timer?.mode, value, roundUp: countdown, className: 'cs-timer-readout', role: 'timer', 'aria-live': 'off' }),
         h(AnimatedCollapse, { open: countdown && !isIdle && timer?.durationMs > 0 }, countdown && timer?.durationMs > 0 ? h('progress', {
           className: 'cs-timer-progress', max: timer.durationMs, value: projection.elapsedMs, 'aria-label': t('timerCountdown'),
         }) : null),
@@ -3699,7 +3816,7 @@ window.__ModuleLoader__.load({
             h(TimerControls, { client, snapshot, at, t })) ))
     }
 
-    function TimerPopover({ client, snapshot, t }) {
+    function TimerPopover({ client, snapshot, t, hoverTip = null }) {
       const [pinned, setPinned] = React.useState(false)
       const [position, setPosition] = React.useState(null)
       const rootRef = React.useRef(null)
@@ -3773,7 +3890,7 @@ window.__ModuleLoader__.load({
           className: `cs-timer-trigger${pinned ? ' is-pinned' : ''}${timer?.status === 'running' ? ' is-running' : ''}${error ? ' has-error' : ''}`,
           type: 'button', ref: anchorRef, 'aria-label': triggerLabel, 'aria-expanded': expanded,
           'aria-controls': expanded ? panelId : undefined,
-          title: triggerLabel,
+          ...hoverTipProps(hoverTip, triggerLabel, [], { prefer: 'bottom' }),
           onClick: () => {
             if (pinned) close()
             else setPinned(true)
@@ -3786,9 +3903,9 @@ window.__ModuleLoader__.load({
           h(TimerControls, { client, snapshot, at, t }))))
     }
 
-    function DashboardTimer({ client, t }) {
+    function DashboardTimer({ client, t, hoverTip = null }) {
       const snapshot = useTimerClient(client)
-      return h(TimerPopover, { client, snapshot, t })
+      return h(TimerPopover, { client, snapshot, t, hoverTip })
     }
 
     function TimerOverlay({ ctx, client, conversation }) {
@@ -4018,6 +4135,120 @@ window.__ModuleLoader__.load({
         backfill.eventId !== backfill.readEventId
     }
 
+    /**
+     * 顶栏通知：页面里会打断内容的可关闭提示统一收进顶栏右侧，
+     * 胶囊只留一句短标签，完整解释交给统一 HoverTip；顺序按是否需要处理排列。
+     */
+    function buildTopbarNotices(props) {
+      const {
+        t, backfill, hasApproximate, paletteSaveError = false, stateError = false, analysisNotices = [],
+        onDismissApproximate, onDismissBackfill, onRetryBackfill,
+        dismissingBackfill = false, retryingBackfill = false, dismissError = null, retryError = null,
+      } = props
+      const notices = []
+      if (paletteSaveError) {
+        notices.push({
+          key: 'palette', tone: 'error', icon: 'alert',
+          label: t('paletteSaveError'), detail: t('paletteSaveError'),
+        })
+      }
+      if (stateError) {
+        notices.push({
+          key: 'state', tone: 'error', icon: 'alert',
+          label: t('errorTitle'), detail: t('retryHint'),
+        })
+      }
+      if (backfill?.status === 'running') {
+        const total = Math.max(0, Math.round(finite(backfill.total)))
+        const scanned = Math.max(0, Math.round(finite(backfill.scanned)))
+        notices.push({
+          key: 'backfill', tone: 'info', spinner: true,
+          label: t('backfillChipRunning'),
+          detail: t('backfillProgress')
+            .replace('{done}', String(scanned))
+            .replace('{total}', String(total))
+            .replace('{tasks}', String(finite(backfill.tasksWritten))),
+          progress: total > 0 ? Math.max(0, Math.min(100, Math.round((scanned / total) * 100))) : 0,
+        })
+      } else if (backfill?.status === 'failed') {
+        notices.push({
+          key: 'backfill', tone: 'error', icon: 'alert',
+          label: t('backfillChipFailed'),
+          detail: retryError || backfill.error || t('backfillFailed'),
+          actionLabel: retryingBackfill ? t('backfillRetrying') : t('backfillRetry'),
+          onAction: onRetryBackfill, actionDisabled: retryingBackfill,
+        })
+      } else if (isBackfillUnread(backfill)) {
+        notices.push({
+          key: 'backfill', tone: dismissError ? 'error' : 'success', icon: dismissError ? 'alert' : 'check',
+          label: t('backfillChipDone'),
+          detail: dismissError || t('backfillDoneHint').replace('{tasks}', String(backfill.tasksWritten)),
+          dismissLabel: t('backfillDismiss'), onDismiss: onDismissBackfill,
+          dismissDisabled: dismissingBackfill,
+        })
+      } else if (backfill?.status === 'unavailable') {
+        notices.push({
+          key: 'backfill', tone: 'error', icon: 'alert',
+          label: t('backfillChipUnavailable'), detail: t('backfillUnavailable'),
+        })
+      }
+      for (const notice of Array.isArray(analysisNotices) ? analysisNotices : []) {
+        notices.push({
+          key: `analysis-${notice.key}`, tone: 'info', icon: 'report',
+          label: notice.label, detail: notice.message,
+          dismissLabel: t('analysisNoticeDismiss'), onDismiss: notice.onDismiss,
+        })
+      }
+      if (hasApproximate) {
+        notices.push({
+          key: 'approximate', tone: 'info', icon: 'info',
+          label: t('approximateChipLabel'), detail: t('approximateNotice'),
+          dismissLabel: t('approximateDismiss'), onDismiss: onDismissApproximate,
+        })
+      }
+      return notices
+    }
+
+    function renderTopbarNoticeChip(notice, hoverTip, t) {
+      const detail = notice.detail || notice.label
+      return h('div', {
+        key: notice.key,
+        className: `cs-notice-chip is-${notice.tone || 'info'}`,
+        role: 'status',
+        'aria-label': detail === notice.label ? notice.label : `${notice.label}：${detail}`,
+        ...hoverTipProps(hoverTip, detail, [], { prefer: 'bottom' }),
+      },
+      notice.spinner
+        ? h('span', { className: 'cs-spinner is-notice', 'aria-hidden': true })
+        : h(DetailGlyph, { name: notice.icon || 'info', size: 13 }),
+      h('span', { className: 'cs-notice-chip-label' }, notice.label),
+      notice.actionLabel
+        ? h('button', {
+            type: 'button', className: 'cs-notice-chip-action',
+            disabled: notice.actionDisabled === true,
+            onClick: () => { hoverTip?.hide?.(); notice.onAction?.() },
+          }, notice.actionLabel)
+        : null,
+      notice.onDismiss
+        ? h('button', {
+            type: 'button', className: 'cs-notice-chip-close',
+            'aria-label': notice.dismissLabel || t('noticeDismiss'),
+            disabled: notice.dismissDisabled === true,
+            onClick: () => { hoverTip?.hide?.(); notice.onDismiss?.() },
+          }, '×')
+        : null,
+      notice.progress === undefined
+        ? null
+        : h('span', { className: 'cs-notice-chip-progress', 'aria-hidden': true },
+            h('i', { style: { width: `${notice.progress}%` } })))
+    }
+
+    function renderTopbarNotices(notices, hoverTip, t) {
+      if (!Array.isArray(notices) || notices.length === 0) return null
+      return h('div', { className: 'cs-topbar-notices', role: 'group', 'aria-label': t('topbarNoticesLabel') },
+        notices.map((notice) => renderTopbarNoticeChip(notice, hoverTip, t)))
+    }
+
     function normalizeSubagentTasks(value) {
       if (!Array.isArray(value)) return []
       return value.map((row) => ({
@@ -4070,14 +4301,6 @@ window.__ModuleLoader__.load({
     function approximateNoticeVisible(data) {
       return data?.approximate === true ||
         (Array.isArray(data?.workspaces) && data.workspaces.some((row) => row.approximate === true))
-    }
-
-    function renderApproximateNotice(t, visible, { onDismiss } = {}) {
-      if (!visible) return null
-      return h('div', { className: 'cs-backfill cs-approx', role: 'status' },
-        h('span', { className: 'cs-approx-label' }, t('approximateTag')),
-        h('span', null, t('approximateNotice')),
-        h('button', { type: 'button', className: 'cs-approx-dismiss', 'aria-label': t('approximateDismiss'), onClick: onDismiss }, '×'))
     }
 
     const DASHBOARD_LOADING = { status: 'loading', data: null, receivedAt: 0, rangeKey: null }
@@ -4341,7 +4564,7 @@ window.__ModuleLoader__.load({
         }, {
           width: typeof window !== 'undefined' ? window.innerWidth : 0,
           height: typeof window !== 'undefined' ? window.innerHeight : 0,
-        }))
+        }, { prefer: tip.prefer }))
       }, [tip])
       if (!tip) return null
       return renderHoverTip(tip, position, { id, ref })
@@ -4371,9 +4594,9 @@ window.__ModuleLoader__.load({
      * 行内说明一律走统一 HoverTip（fixed 定位 + 视口夹取），不再使用原生 title 属性，
      * 避免小字被容器裁切；同时保留键盘聚焦时的同等呈现。
      */
-    function hoverTipProps(hoverTip, title, rows = []) {
+    function hoverTipProps(hoverTip, title, rows = [], options = {}) {
       if (!hoverTip || !title) return {}
-      const content = { title, rows }
+      const content = { title, rows, prefer: options.prefer }
       return {
         onMouseEnter: (event) => hoverTip.show?.(content, event),
         onMouseLeave: () => hoverTip.hide?.(),
@@ -5037,67 +5260,6 @@ window.__ModuleLoader__.load({
           : null))
     }
 
-    /** 「回填中 / 已完成 / 失败可重试」三态与进度；完成后可收起提示。 */
-    function renderBackfillBanner(backfill, handlers, t) {
-      if (backfill.status === 'unavailable') {
-        return h('div', { className: 'cs-backfill cs-backfill-waiting', role: 'status' }, t('backfillUnavailable'))
-      }
-      if (backfill.status === 'idle') {
-        return h('div', { className: 'cs-backfill cs-backfill-waiting', role: 'status' }, t('backfillIdle'))
-      }
-      if (backfill.status === 'done') {
-        if (handlers.dismissed === true || !isBackfillUnread(backfill)) return null
-        return h('div', { className: 'cs-backfill is-done' },
-          h('span', { className: 'cs-backfill-icon' }, '✓'),
-          h('span', { className: 'cs-backfill-label' }, t('backfillDone')),
-          h('span', { className: 'cs-backfill-hint' },
-            t('backfillDoneHint').replace('{tasks}', String(backfill.tasksWritten))),
-          h('button', {
-            type: 'button',
-            className: 'cs-backfill-dismiss',
-            disabled: handlers.dismissing === true,
-            onClick: handlers.onDismiss,
-          }, t('backfillDismiss')),
-          handlers.dismissError
-            ? h('span', { className: 'cs-backfill-hint' }, handlers.dismissError)
-            : null)
-      }
-      if (backfill.status === 'failed') {
-        return h('div', { className: 'cs-backfill is-failed' },
-          h('span', { className: 'cs-backfill-icon' }, '!'),
-          h('span', { className: 'cs-backfill-label' }, t('backfillFailed')),
-          h('span', { className: 'cs-backfill-hint' }, backfill.error ?? ''),
-          h('button', {
-            type: 'button',
-            className: 'cs-backfill-retry',
-            disabled: handlers.retrying === true,
-            onClick: handlers.onRetry,
-          }, handlers.retrying ? t('backfillRetrying') : t('backfillRetry')),
-          handlers.retryError === null
-            ? null
-            : h('span', { className: 'cs-backfill-hint' }, handlers.retryError))
-      }
-      const percent = backfill.total > 0
-        ? Math.max(0, Math.min(100, Math.round((backfill.scanned / backfill.total) * 100)))
-        : 0
-      return h('div', { className: 'cs-backfill is-running' },
-        h('span', { className: 'cs-spinner is-small' }),
-        h('span', { className: 'cs-backfill-label' },
-          backfill.status === 'running' ? t('backfillRunning') : t('backfillIdle')),
-        h('span', { className: 'cs-backfill-hint' },
-          t('backfillProgress')
-            .replace('{done}', String(backfill.scanned))
-            .replace('{total}', String(backfill.total))
-            .replace('{tasks}', String(backfill.tasksWritten))),
-        h('div', {
-          className: 'cs-backfill-bar',
-          role: 'progressbar',
-          'aria-valuenow': percent,
-          'aria-valuemin': 0,
-          'aria-valuemax': 100,
-        }, h('i', { style: { width: `${percent}%` } })))
-    }
-
     /**
      * 设置页通知记录。复用 queryStats/getBackfillStatus 的同一份 backfill
      * 数据：完成事件、累计回填条数、事件类型、时间与已读状态都可回看，
@@ -5407,6 +5569,7 @@ window.__ModuleLoader__.load({
         const editor = useSettingsEditor(ctx)
         const { draft, phase, busy, resetting, resetStep } = editor
         const message = editor.messageKey ? t(editor.messageKey) : ''
+        const hoverTip = useHoverTip()
         const [loadNonce, setLoadNonce] = React.useState(0)
         const [noticeState, setNoticeState] = React.useState({ status: 'loading', data: null })
         React.useEffect(() => subscribeSettingsChanged(() => setLoadNonce((value) => value + 1)), [])
@@ -5433,9 +5596,20 @@ window.__ModuleLoader__.load({
         return h('div', { className: 'cs-settings' },
           h('style', null, DSH_TIMESPAN_SETTINGS_CSS),
           h('div', { className: 'cs-settings-inner' },
-            h('header', null,
-              h('h2', { className: 'cs-settings-title' }, t('settingsTitle')),
-              h('p', { className: 'cs-settings-hint' }, t('settingsHint'))),
+            h('header', { className: 'cs-settings-header' },
+              h('div', { className: 'cs-settings-heading' },
+                h('h2', { className: 'cs-settings-title' }, t('settingsTitle')),
+                h('p', { className: 'cs-settings-hint' }, t('settingsHint'))),
+              h('nav', { className: 'cs-settings-links', 'aria-label': t('settingsLinksLabel') },
+                [
+                  ['github', PROJECT_REPOSITORY_URL, 'settingsRepoAction'],
+                  ['issue', PROJECT_ISSUES_URL, 'settingsIssueAction'],
+                  ['star', PROJECT_REPOSITORY_URL, 'settingsStarAction'],
+                ].map(([icon, href, labelKey]) => h('a', {
+                  key: icon, className: `cs-settings-link is-${icon}`, href, target: '_blank',
+                  rel: 'noreferrer noopener', 'aria-label': t(labelKey),
+                  ...hoverTipProps(hoverTip, t(labelKey)),
+                }, h(DetailGlyph, { name: icon, size: 17 }))))),
             h('section', { className: 'cs-settings-group' },
               ...renderBasicSettingsBody(t, draft, busy, editor.patch)),
             renderDurationFormatSection(t, draft?.durationFormat, {
@@ -5465,7 +5639,8 @@ window.__ModuleLoader__.load({
                     type: 'button', className: 'cs-btn', onClick: loadFailed ? () => { void editor.reload(); setLoadNonce((value) => value + 1) } : editor.retrySave,
                   }, t('settingsRetry'))
                 : null,
-              message ? h('span', { className: statusClass, role: 'status' }, message) : null)))
+              message ? h('span', { className: statusClass, role: 'status' }, message) : null)),
+            h(HoverTip, { tip: hoverTip.tip, id: 'dsh-timespan-settings-hover-tip' }))
       }
     }
 
@@ -6318,10 +6493,10 @@ window.__ModuleLoader__.load({
         extra)
     }
 
-    /** 对角双尖角图标：普通态右上+左下，首屏态左上+右下；两种状态方向相反，提示可放大/缩回。 */
+    /** 对角缩放图标：普通态两只外角朝外提示放大，首屏态同一对角的两只括号内收反扣，提示缩回。 */
     function zoomIcon(expanded) {
       const path = expanded
-        ? 'M7 2H2v5M9 14h5V9'
+        ? 'M10 2v4h4M6 14v-4H2'
         : 'M9 2h5v5M7 14H2V9'
       return h('svg', {
         viewBox: '0 0 16 16',
@@ -6625,7 +6800,7 @@ window.__ModuleLoader__.load({
           metricButton('month', t('focusMonthActive'), formatDuration(metricTable.month.value, format))))
     }
 
-    /** 月度条：12 个月共用同一套高度比例；普通全年视图与首屏下方的填充条复用。 */
+    /** 首屏下半区的月度条：高度按峰值比例，颜色沿用热力图 0–5 级色阶，并与柱状图共用向上生长入场。 */
     function renderMonthBars(bars, t, format = 'hms', className = 'heat-month-bars') {
       const list = Array.isArray(bars) ? bars : []
       const maxBar = Math.max(0, ...list.map((bar) => finite(bar.activeMs)))
@@ -6633,13 +6808,17 @@ window.__ModuleLoader__.load({
         className,
         role: 'group',
         'aria-label': t('monthBars'),
+        // 首屏下半区的月度条要等区块露出足够多再生长，避免只在底边露头时就在视野外放完。
+        threshold: .4,
       }, list.map((bar, index) => {
         const activeMs = finite(bar.activeMs)
         const ratio = maxBar > 0 ? activeMs / maxBar : 0
         const height = activeMs > 0 ? Math.max(4, Math.round(ratio * 100)) : 0
+        // 与每日热力图同口径：按当月活跃相对峰值取 0–5 级，最高月用最深一级、最低有记录月用最浅一级。
+        const level = heatLevel(activeMs, maxBar)
         return h('div', {
           key: `bar-${bar.month}`,
-          className: 'heat-month-bar',
+          className: `heat-month-bar is-level-${level}`,
           style: { height: `${height}%`, ...chartStagger(index, list.length) },
           'data-month': bar.abbr,
           'data-active-ms': activeMs,
@@ -7045,6 +7224,11 @@ window.__ModuleLoader__.load({
       return [source.sessionTitle || source.sessionId, source.workspaceTitle || source.workspaceId].filter(Boolean).join(' · ')
     }
 
+    /** 首次生成报告用文档加笔；已有报告、失败重试与重新生成继续沿用重置箭头。 */
+    function analysisGenerateGlyph(report, retrying) {
+      return report || retrying ? 'refresh' : 'generate'
+    }
+
     function analysisReportDetails(report, t) {
       const coverage = report.coverage ?? {}
       const sources = Array.isArray(report.sources) ? report.sources.filter(sessionIsOpenable) : []
@@ -7193,7 +7377,7 @@ window.__ModuleLoader__.load({
           onReviewScope ? h('button', { type: 'button', className: 'cs-btn cs-analysis-failure-review', onClick: onReviewScope }, t('analysisReturnToRange')) : null) : null)
     }
 
-    function AnalysisReportHeader({ report, dates, generatedAt, t, period = 'day', generationControl = null, notices = null, context = null, messages = null }) {
+    function AnalysisReportHeader({ report, dates, generatedAt, t, period = 'day', generationControl = null, context = null, messages = null }) {
       const [feedbackState, setFeedback] = React.useState(null)
       const reportKey = JSON.stringify([period, report?.id, report?.generatedAt])
       // 报告变化时在渲染阶段隔离旧反馈，不等待 effect 清理才隐藏手动复制框。
@@ -7261,13 +7445,12 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-analysis-report-actions', role: 'group', 'aria-label': t('reportActions') },
             report ? h(Info, { message: t(feedback?.key === 'reportCopied' ? 'reportCopied' : 'reportCopy'), label: t('reportCopy'),
               icon: h(DetailGlyph, { name: feedback?.key === 'reportCopied' ? 'check' : 'copy', size: 17 }),
-              buttonClassName: `cs-review-icon${feedback?.key === 'reportCopied' ? ' is-done' : ''}`, onClick: copy, buttonRef: copyButtonRef }) : null,
+              buttonClassName: `cs-review-icon is-copy${feedback?.key === 'reportCopied' ? ' is-done' : ''}`, onClick: copy, buttonRef: copyButtonRef }) : null,
             report ? h(Info, { message: t(['reportExportStarted', 'reportExportError'].includes(feedback?.key) ? feedback.key : 'reportExport'), label: t('reportExport'),
               icon: h(DetailGlyph, { name: feedback?.key === 'reportExportStarted' ? 'check' : feedback?.key === 'reportExportError' ? 'approx' : 'download', size: 17 }),
-              buttonClassName: `cs-review-icon${feedback?.key === 'reportExportStarted' ? ' is-done' : ''}${feedback?.key === 'reportExportError' ? ' is-error' : ''}`, onClick: download }) : null,
+              buttonClassName: `cs-review-icon is-export${feedback?.key === 'reportExportStarted' ? ' is-done' : ''}${feedback?.key === 'reportExportError' ? ' is-error' : ''}`, onClick: download }) : null,
             generationControl)),
         h('span', { className: 'cs-sr-only cs-analysis-action-status', role: 'status' }, feedback ? t(feedback.key) : null),
-        notices,
         context,
         messages,
         h(AnimatedCollapse, { key: reportKey, open: manual }, manual ? h('div', { className: 'cs-analysis-copy-field' },
@@ -7492,7 +7675,7 @@ window.__ModuleLoader__.load({
         footerActions ? h('div', { className: 'cs-review-footer-actions' }, footerActions) : null)
     }
 
-    function AnalysisPage({ ctx, t, period, data, modelChoice, onRetryModel, onOpenSettings, onOpenSource, hoverTip, durationFormat }) {
+    function AnalysisPage({ ctx, t, period, data, modelChoice, onRetryModel, onOpenSettings, onOpenSource, hoverTip, durationFormat, onNoticesChange = null }) {
       const analysis = useAnalysisState(ctx, onRetryModel)
       const [selected, setSelected] = React.useState({ period, workspaceId: '', sessionId: '' })
       const [sourceFailure, setSourceFailure] = React.useState(null)
@@ -7576,6 +7759,7 @@ window.__ModuleLoader__.load({
       }, [needsModel])
 
       const generateLabel = t(reportError || operation.error ? 'analysisRetryGenerate' : report ? 'analysisRegenerate' : 'analysisGenerate')
+      const generateGlyph = analysisGenerateGlyph(Boolean(report), Boolean(reportError || operation.error))
       const selectionLabel = sessionOptions.find((row) => row.value === sessionId)?.label
         || workspaceOptions.find((row) => row.value === workspaceId)?.label || t('reviewAllScope')
       const canGenerate = Boolean(state) && !scopeLocked && !unavailableScope && modelConfigured && !loadError
@@ -7587,7 +7771,7 @@ window.__ModuleLoader__.load({
             ? t('analysisModelUse').replace('{route}', () => modelChoice.provider + ' / ' + modelChoice.model) + ' · ' + t(ANALYSIS_PERIOD_LABELS[reviewPeriod]) + ' · ' + selectionLabel
             : modelChoice === false ? t('analysisModelReadError') : !modelChoice ? t('analysisModelLoading') : t('analysisModelRequired'),
           buttonClassName: `cs-btn cs-review-generate${canGenerate ? ' is-primary' : ' is-disabled'}`,
-          icon: h(React.Fragment, null, h(DetailGlyph, { name: 'refresh', size: 15 }), generateLabel),
+          icon: h(React.Fragment, null, h(DetailGlyph, { name: generateGlyph, size: 15 }), generateLabel),
           ariaDisabled: !canGenerate,
           onClick: () => {
             if (!canGenerate) return
@@ -7598,13 +7782,27 @@ window.__ModuleLoader__.load({
           },
         }),
         needsModel ? h('button', { type: 'button', className: 'cs-btn is-primary cs-review-generate', onClick: onOpenSettings }, t('analysisGoToSettings')) : null)
-      const notice = (key, message) => h('div', { className: 'cs-analysis-notice', role: 'status' },
-        h('span', null, message),
-        h('button', { type: 'button', className: 'cs-analysis-notice-dismiss', 'aria-label': t('analysisNoticeDismiss'), onClick: () => dismissNotice(key) }, '×'))
-      const notices = scopeChanged && !ANALYSIS_NOTICE_DISMISSED.scopeMismatch || needsModel && !errorKey && !running && !ANALYSIS_NOTICE_DISMISSED.modelRequired
-        ? h('div', { className: 'cs-review-notices' },
-          scopeChanged && !ANALYSIS_NOTICE_DISMISSED.scopeMismatch ? notice('scopeMismatch', t('analysisReportScopeMismatch')) : null,
-          needsModel && !errorKey && !running && !ANALYSIS_NOTICE_DISMISSED.modelRequired ? notice('modelRequired', t('analysisModelRequired')) : null) : null
+      // 回顾页的提示登记到顶栏通知区；离开回顾页时撤销，不把上下文提示带到别的视图。
+      const noticeItems = []
+      if (scopeChanged && !ANALYSIS_NOTICE_DISMISSED.scopeMismatch) {
+        noticeItems.push({
+          key: 'scopeMismatch', label: t('analysisReportScopeMismatchShort'),
+          message: t('analysisReportScopeMismatch'), onDismiss: () => dismissNotice('scopeMismatch'),
+        })
+      }
+      if (needsModel && !errorKey && !running && !ANALYSIS_NOTICE_DISMISSED.modelRequired) {
+        noticeItems.push({
+          key: 'modelRequired', label: t('analysisModelRequiredShort'),
+          message: t('analysisModelRequired'), onDismiss: () => dismissNotice('modelRequired'),
+        })
+      }
+      const noticeSignature = noticeItems.map((item) => `${item.key}:${item.label}:${item.message}`).join('|')
+      const noticeItemsRef = React.useRef(noticeItems)
+      noticeItemsRef.current = noticeItems
+      React.useEffect(() => {
+        onNoticesChange?.(noticeItemsRef.current)
+      }, [noticeSignature, onNoticesChange])
+      React.useEffect(() => () => { onNoticesChange?.([]) }, [onNoticesChange])
       const context = h(React.Fragment, null,
         h('div', { className: 'cs-review-context' },
           h(SelectionGroup, { value: reviewPeriod, className: 'cs-review-periods', role: 'group', 'aria-label': t('analysisPeriod') },
@@ -7649,7 +7847,7 @@ window.__ModuleLoader__.load({
       return h('section', { className: 'cs-analysis-page' },
         h(AnalysisReportHeader, { report, period: reviewPeriod, t,
           dates: details?.dates, generatedAt: details?.generatedAt,
-          generationControl: generationActions(), notices, context, messages }),
+          generationControl: generationActions(), context, messages }),
         // 只随用户切换范围转场；异步读取/轮询到报告时不再把整块正文重置为入场透明度。
         h(ContentTransition, { identity: reviewPeriod, className: 'cs-review-content' },
         report ? h(AnalysisReport, { report, t, onOpenSource: open, hoverTip, durationFormat, showHeader: false,
@@ -8097,6 +8295,8 @@ window.__ModuleLoader__.load({
         const [recentLimit, setRecentLimit] = React.useState(RECENT_SESSIONS_DEFAULT)
         const [switchingView, setSwitchingView] = React.useState(false)
         const [pendingView, setPendingView] = React.useState(null)
+        // 回顾页的上下文提示由页面上报到顶栏，离开回顾页即撤销，不跨视图残留。
+        const [analysisNotices, setAnalysisNotices] = React.useState([])
         const switchingTimerRef = React.useRef(null)
         const viewsRef = React.useRef(null)
         const viewSurfaceRef = React.useRef(null)
@@ -8150,8 +8350,7 @@ window.__ModuleLoader__.load({
           changePalette(PALETTES[(index + 1) % PALETTES.length])
         }
         const paletteNameKey = PALETTE_LABELS[palette]
-        const paletteOrder = PALETTES.map((key) => t(PALETTE_LABELS[key])).join(' → ')
-        const paletteToggleLabel = t('paletteToggle').replace('{name}', t(paletteNameKey)).replace('{order}', paletteOrder)
+        const paletteToggleLabel = t('paletteToggle').replace('{name}', t(paletteNameKey))
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.period', period) } catch {} }, [period])
         React.useEffect(() => { try { window.sessionStorage.setItem('dsh-timespan.view', view) } catch {} }, [view])
         const [pollMs, setPollMs] = React.useState(PAGE_REFRESH_MS)
@@ -8590,6 +8789,7 @@ window.__ModuleLoader__.load({
               onRetryModel: () => setSettingsLoadNonce((value) => value + 1),
               onOpenSettings: () => goToView('settings'),
               onOpenSource: (source) => openSessionInHost(ctx, source),
+              onNoticesChange: setAnalysisNotices,
             })]
           }
           if (view === 'settings') {
@@ -8657,6 +8857,17 @@ window.__ModuleLoader__.load({
         if (view === 'overview') footerLines.push(...overviewInfoMessages(data, t))
         else if (view === 'trend') footerLines.push(t('trendInfo'))
 
+        const topbarNotices = buildTopbarNotices({
+          t, backfill: data === null ? null : effectiveBackfill, hasApproximate, paletteSaveError,
+          stateError: state.status === 'error' && data !== null,
+          analysisNotices,
+          onDismissApproximate, onDismissBackfill, onRetryBackfill,
+          dismissingBackfill, retryingBackfill: retrying, dismissError, retryError,
+        })
+        // 通知集合变化（关闭、回填结束、离开回顾）时收起可能已失去锚点的浮层。
+        const topbarNoticeSignature = topbarNotices.map((notice) => notice.key).join('|')
+        React.useEffect(() => { hoverTip.hide() }, [topbarNoticeSignature])
+
         return h('div', { className: view === 'overview' && focus !== null ? `${pageClassName} is-overview-focused` : pageClassName },
           h('style', null, DSH_TIMESPAN_CSS),
           h('div', { className: 'cs-shell' },
@@ -8668,6 +8879,8 @@ window.__ModuleLoader__.load({
               h('span', { className: 'cs-topbar-divider', 'aria-hidden': true }),
               h(TabNav, { view: pendingView ?? view, t, locale: isZh ? 'zh' : 'en', onChange: goToView }),
               h('div', { className: 'cs-topbar-right' },
+                // 通知夹在导航末端的「设置」与状态点之间：既贴近操作区，也不挤占最右侧的循环按钮。
+                renderTopbarNotices(topbarNotices, hoverTip, t),
                 data ? h('div', { className: 'cs-topbar-group' },
                   h('span', {
                     className: `cs-live cs-live-status${data.taskRunning ? ' is-live is-task' : data.activeRunning ? ' is-live is-active' : ' is-idle'}`,
@@ -8676,34 +8889,22 @@ window.__ModuleLoader__.load({
                     t(data.taskRunning ? 'taskRunning' : data.activeRunning ? 'live' : 'idle'))) : null,
                 data ? h('span', { className: 'cs-topbar-divider', 'aria-hidden': true }) : null,
                 h('div', { className: 'cs-topbar-group' },
-                  h(DashboardTimer, { client: timerClient, t }),
+                  h(DashboardTimer, { client: timerClient, t, hoverTip }),
                   h('button', {
                     type: 'button',
-                    className: 'cs-icon-toggle',
-                    title: appearanceToggleLabel,
+                    className: 'cs-icon-toggle cs-appearance-toggle',
+                    'data-appearance': appearance,
                     'aria-label': appearanceToggleLabel,
+                    ...hoverTipProps(hoverTip, appearanceToggleLabel, [], { prefer: 'bottom' }),
                     onClick: cycleAppearanceMode,
                   }, h(AppearanceIcon, { mode: appearance })),
                   h('button', {
                     type: 'button',
                     className: 'cs-icon-toggle cs-palette-toggle',
-                    title: paletteToggleLabel,
                     'aria-label': paletteToggleLabel,
+                    ...hoverTipProps(hoverTip, paletteToggleLabel, [], { prefer: 'bottom' }),
                     onClick: cyclePalette,
                   }, h(PaletteIcon))))),
-            paletteSaveError ? h('div', { className: 'cs-alert', role: 'status' }, t('paletteSaveError')) : null,
-            renderApproximateNotice(t, hasApproximate, { onDismiss: onDismissApproximate }),
-            state.status === 'error' && data !== null
-              ? h('div', { className: 'cs-alert' }, h('strong', null, t('errorTitle')), ` · ${t('retryHint')}`)
-              : null,
-            renderBackfillBanner(effectiveBackfill, {
-              dismissing: dismissingBackfill,
-              dismissError,
-              onDismiss: onDismissBackfill,
-              retrying,
-              retryError,
-              onRetry: onRetryBackfill,
-            }, t),
             h('div', { className: 'cs-views', ref: viewsRef },
               h('div', { className: `cs-curtain${switchingView ? ' is-on' : ''}`, 'aria-hidden': true }),
               h('section', {
@@ -9139,16 +9340,30 @@ window.__ModuleLoader__.load({
       }
       .cs-timer-trigger {
         position: relative; display: inline-flex; min-width: 30px; min-height: 30px; align-items: center; justify-content: center; padding: 6px;
-        color: var(--timer-muted); transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+        color: var(--timer-muted);
+        transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease,
+          transform 220ms cubic-bezier(.34, 1.56, .64, 1), box-shadow 220ms ease;
       }
       .cs-timer-trigger.is-pinned {
         color: var(--timer-text-accent);
         border-color: color-mix(in srgb, var(--timer-accent) 50%, var(--timer-rule));
       }
       .cs-timer-trigger.is-pinned { background: color-mix(in srgb, var(--timer-accent) 11%, var(--timer-paper)); }
-      .cs-timer-trigger:hover:not(.is-pinned) { background: var(--timer-rail); }
+      .cs-timer-trigger:hover:not(.is-pinned) {
+        background: var(--timer-rail); transform: translateY(-1px);
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--timer-accent) 14%, transparent);
+      }
+      .cs-timer-trigger:active { transform: translateY(0) scale(.93); transition-duration: 80ms; }
       .cs-timer-trigger .cs-detail-glyph { color: var(--timer-ink); }
       .cs-timer-trigger .cs-detail-glyph path { stroke: var(--cs-chart-active, var(--timer-text-accent)); }
+      /* 悬停时指针钟轻摆一格，呼应正在走的时钟。 */
+      .cs-timer-trigger:hover .cs-detail-glyph, .cs-timer-trigger:focus-visible .cs-detail-glyph { animation: cs-clock-tick 560ms cubic-bezier(.34, 1.3, .4, 1); }
+      @keyframes cs-clock-tick {
+        0% { transform: rotate(0); }
+        28% { transform: rotate(-14deg); }
+        58% { transform: rotate(5deg); }
+        100% { transform: rotate(0); }
+      }
       .cs-timer-popover .cs-timer-trigger.has-error { color: var(--cs-timer-error, var(--dsw-alias-state-error-primary)); }
       .cs-timer-trigger.has-error .cs-detail-glyph path { stroke: var(--cs-timer-error, var(--dsw-alias-state-error-primary)); }
       .cs-timer-compact-digits { font: 600 11px/18px var(--timer-mono); font-variant-numeric: tabular-nums; }
@@ -9294,7 +9509,8 @@ window.__ModuleLoader__.load({
       @media (max-height: 540px) { .cs-clock-face svg { width: 105px; } }
       @media (prefers-reduced-motion: reduce) { .cs-timer-notice, .cs-floating-entry { animation: none; }
         .cs-timer-controls > .cs-collapse, .cs-selection-group[data-selection-motion="true"] > .cs-selection-thumb,
-        .cs-timer-trigger, .cs-timer-result-delete, .cs-timer-button, .cs-delete-dot, .cs-timer-result-delete > svg { transition: none; } }
+        .cs-timer-trigger, .cs-timer-result-delete, .cs-timer-button, .cs-delete-dot, .cs-timer-result-delete > svg { transition: none; }
+        .cs-timer-trigger .cs-detail-glyph { animation: none !important; } }
       @keyframes cs-tools-in { from { opacity: 0; } to { opacity: 1; } }
     `
 
@@ -9341,6 +9557,14 @@ window.__ModuleLoader__.load({
       .cs-analysis-page .cs-info > button.cs-review-icon { width: 34px; height: 34px; border: 1px solid transparent; border-radius: 8px; }
       .cs-analysis-page .cs-info > button.cs-review-generated { width: 28px; height: 28px; }
       .cs-analysis-page .cs-info > button.cs-review-icon:hover { border-color: var(--dsw-alias-border-l1); }
+      /* 复制像抽出一张纸，导出箭头向下轻点：两枚报告操作各有可读的悬停手势。 */
+      .cs-review-icon.is-copy > svg rect, .cs-review-icon.is-copy > svg path {
+        transition: transform 230ms cubic-bezier(.34, 1.56, .64, 1);
+      }
+      .cs-review-icon.is-copy:hover > svg rect { transform: translate(1.4px, -1.4px); }
+      .cs-review-icon.is-copy:hover > svg path { transform: translate(-.9px, .9px); }
+      .cs-review-icon.is-export > svg { transition: transform 230ms cubic-bezier(.34, 1.56, .64, 1); }
+      .cs-review-icon.is-export:hover > svg { transform: translateY(2px); }
       .cs-analysis-page .cs-info > button.is-done { color: var(--cs-signal); }
       .cs-analysis-page .cs-info > button.is-error { color: var(--dsw-alias-state-error-primary); }
       .cs-analysis-page .cs-review-generate { display: inline-flex; align-items: center; gap: 6px; width: auto; height: 34px; margin-inline-start: 7px; padding: 6px 12px; white-space: nowrap; font: inherit; font-size: 12px; font-weight: 550; }
@@ -9348,22 +9572,6 @@ window.__ModuleLoader__.load({
       .cs-analysis-page .cs-info > button.cs-review-generate.is-primary { background: var(--cs-palette-primary, var(--cs-signal)); border-color: var(--cs-palette-primary, var(--cs-signal)); color: var(--cs-solid-ink, var(--cs-on-accent, #fff)); font: inherit; font-size: 12px; font-weight: 600; }
       .cs-analysis-page .cs-info > button.cs-review-generate:disabled,
       .cs-analysis-page .cs-info > button.cs-review-generate.is-disabled { cursor: default; opacity: .5; }
-      .cs-review-notices { display: grid; gap: 6px; margin-top: 9px; }
-      .cs-analysis-notice {
-        display: flex; align-items: flex-start; gap: 8px; padding: 6px 9px;
-        border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px;
-        background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-secondary);
-        font-size: 12px; line-height: 1.55;
-      }
-      .cs-analysis-notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-      .cs-analysis-notice-dismiss {
-        appearance: none; display: grid; place-items: center; flex: none;
-        width: 20px; height: 20px; margin: -1px -2px 0 0; padding: 0;
-        border: 0; border-radius: 5px; background: transparent; color: var(--dsw-alias-label-secondary);
-        font: inherit; font-size: 15px; line-height: 1; cursor: pointer;
-      }
-      .cs-analysis-notice-dismiss:hover { color: var(--dsw-alias-label-primary); background: var(--cs-surface); }
-      .cs-analysis-notice-dismiss:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 1px; }
       .cs-review-footer-actions { display: flex; justify-content: flex-end; align-items: center; gap: 7px; padding-top: 2px; }
       .cs-review-footer-actions .cs-info > button.cs-review-generate { margin-inline-start: 0; }
       .cs-review-context { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-top: 16px; }
@@ -9549,8 +9757,53 @@ window.__ModuleLoader__.load({
       }
       .cs-brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
       .cs-brand-text h1 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 650; letter-spacing: -0.01em; }
-      .cs-topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; min-width: 0; }
+      .cs-topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; row-gap: 6px; min-width: 0; }
       .cs-topbar-group { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+      /* 顶栏通知：统一胶囊高度与字号，长说明留给 HoverTip，不再用整行横幅挤占内容。 */
+      .cs-topbar-notices { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; min-width: 0; }
+      .cs-notice-chip {
+        position: relative; display: inline-flex; align-items: center; gap: 5px;
+        max-width: 240px; min-width: 0; height: 26px; padding: 0 5px 0 8px;
+        border-radius: 999px; font-size: 11px; line-height: 1; white-space: nowrap;
+        color: var(--cs-signal-deep);
+        border: 1px solid color-mix(in srgb, currentColor 28%, var(--dsw-alias-border-l1));
+        background: color-mix(in srgb, currentColor 7%, var(--dsw-alias-bg-layer-1));
+        animation: cs-notice-chip-in 180ms cubic-bezier(.2, .8, .2, 1) both;
+      }
+      .cs-notice-chip.is-success { color: var(--dsw-alias-state-success-primary); }
+      .cs-notice-chip.is-error { color: var(--dsw-alias-state-error-primary); }
+      .cs-notice-chip > .cs-detail-glyph { flex: none; }
+      .cs-notice-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+      .cs-notice-chip-action {
+        appearance: none; flex: none; padding: 2px 7px; border: 0; border-radius: 999px;
+        background: color-mix(in srgb, currentColor 13%, transparent); color: inherit;
+        font: inherit; font-size: 10px; line-height: 1.4; cursor: pointer;
+      }
+      .cs-notice-chip-action:hover { background: color-mix(in srgb, currentColor 22%, transparent); }
+      .cs-notice-chip-action:disabled { opacity: .55; cursor: default; }
+      .cs-notice-chip-close {
+        appearance: none; flex: none; width: 18px; height: 18px; padding: 0; margin-left: 1px;
+        display: inline-grid; place-items: center; border: 0; border-radius: 50%;
+        background: transparent; color: inherit; opacity: .62;
+        font: inherit; font-size: 13px; line-height: 1; cursor: pointer;
+      }
+      .cs-notice-chip-close:hover { opacity: 1; background: color-mix(in srgb, currentColor 14%, transparent); }
+      .cs-notice-chip-close:focus-visible,
+      .cs-notice-chip-action:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
+      .cs-notice-chip-progress {
+        position: absolute; left: 9px; right: 9px; bottom: 2px; height: 2px;
+        border-radius: 999px; overflow: hidden; background: color-mix(in srgb, currentColor 18%, transparent);
+      }
+      .cs-notice-chip-progress i { display: block; height: 100%; border-radius: inherit; background: currentColor; transition: width .25s ease; }
+      .cs-spinner.is-notice { width: 11px; height: 11px; border-width: 1.5px; flex: none; }
+      @keyframes cs-notice-chip-in {
+        from { opacity: 0; transform: translateY(-3px) scale(.96); }
+        to { opacity: 1; transform: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-notice-chip { animation: none; }
+        .cs-notice-chip-progress i { transition: none; }
+      }
       .cs-topbar-divider { flex: none; width: 1px; height: 20px; background: var(--dsw-alias-border-l1); }
       /* 顶栏两枚循环图标成对：外观保持线描；配色图标改成白色外环包住当前套信号色圆心。 */
       .cs-palette-toggle svg .cs-palette-ring {
@@ -9590,72 +9843,6 @@ window.__ModuleLoader__.load({
         background: color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, transparent);
         box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-brand-primary) 40%, transparent);
       }
-      .cs-alert {
-        padding: 7px 12px; border-radius: 9px; font-size: 12px; line-height: 18px;
-        color: var(--dsw-alias-state-error-primary);
-        border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
-        background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
-      }
-      .cs-backfill {
-        display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
-        padding: 7px 12px; border-radius: 9px; font-size: 12px; line-height: 18px;
-        border: 1px solid var(--dsw-alias-border-l1); background: var(--dsw-alias-bg-layer-1);
-      }
-      .cs-backfill.is-running { border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, var(--dsw-alias-border-l1)); }
-      /* 近似说明压成一行，长文案省略；关闭按钮只在悬停/聚焦时显色。 */
-      .cs-backfill.cs-approx {
-        display: flex; align-items: center; gap: 8px; flex-wrap: nowrap;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 28%, var(--dsw-alias-border-l1));
-        background: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, var(--dsw-alias-bg-layer-1));
-      }
-      .cs-approx-label { flex: none; font-weight: 650; color: var(--dsw-alias-brand-primary); }
-      .cs-approx .cs-approx-label + span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-      .cs-approx-dismiss {
-        appearance: none; flex: none; width: 22px; height: 22px; padding: 0;
-        display: inline-flex; align-items: center; justify-content: center;
-        margin-left: auto; border: 0; border-radius: 6px; background: transparent;
-        color: var(--dsw-alias-label-secondary); font: inherit; font-size: 15px; line-height: 1;
-        cursor: pointer; opacity: .5;
-      }
-      .cs-approx-dismiss:hover { opacity: 1; color: var(--dsw-alias-label-primary); background: color-mix(in srgb, var(--dsw-alias-label-secondary) 12%, transparent); }
-      .cs-approx-dismiss:focus-visible { opacity: 1; outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
-      .cs-backfill.is-done {
-        border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 30%, var(--dsw-alias-border-l1));
-        background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 7%, var(--dsw-alias-bg-layer-1));
-      }
-      .cs-backfill.is-failed {
-        color: var(--dsw-alias-state-error-primary);
-        border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent);
-        background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent);
-      }
-      .cs-backfill-icon {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto;
-        font-size: 11px; font-weight: 700; color: var(--dsw-alias-bg-base);
-        background: var(--dsw-alias-state-success-primary);
-      }
-      .cs-backfill.is-failed .cs-backfill-icon { background: var(--dsw-alias-state-error-primary); }
-      .cs-backfill-label { font-weight: 600; color: var(--dsw-alias-label-primary); }
-      .cs-backfill.is-failed .cs-backfill-label { color: var(--dsw-alias-state-error-primary); }
-      .cs-backfill-hint { color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; min-width: 0; word-break: break-word; }
-      .cs-spinner.is-small { width: 14px; height: 14px; border-width: 2px; flex: 0 0 auto; }
-      .cs-backfill-bar {
-        flex: 1 1 140px; min-width: 90px; height: 5px; border-radius: 999px; overflow: hidden;
-        background: color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, var(--dsw-alias-border-l1));
-      }
-      .cs-backfill-bar i {
-        display: block; height: 100%; border-radius: 999px;
-        background: var(--dsw-alias-brand-primary); transition: width 0.25s ease;
-      }
-      .cs-backfill-dismiss, .cs-backfill-retry {
-        appearance: none; margin-left: auto; flex: 0 0 auto;
-        border: 1px solid var(--dsw-alias-border-l1); border-radius: 7px;
-        background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary);
-        font: inherit; font-size: 11px; line-height: 16px; padding: 2px 10px; cursor: pointer;
-      }
-      .cs-backfill-retry { border-color: var(--dsw-alias-state-error-primary); color: var(--dsw-alias-state-error-primary); }
-      .cs-backfill-retry:disabled { opacity: 0.55; cursor: default; }
       .cs-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .cs-section-title { font-size: 13px; line-height: 18px; font-weight: 600; }
       .cs-tag { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); padding: 2px 9px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l1); white-space: nowrap; }
@@ -9829,7 +10016,7 @@ window.__ModuleLoader__.load({
       @media (max-width: 860px) {
         .cs-topbar { display: flex; flex-wrap: wrap; justify-content: flex-start; }
         .cs-brand { width: 100%; justify-content: flex-start; }
-        .cs-topbar-right { width: 100%; justify-content: space-between; flex-wrap: wrap; }
+        .cs-topbar-right { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
         .cs-cycles { grid-template-columns: 1fr; gap: 10px; }
         .cs-cycle { padding: 10px 14px; }
         .cs-table-head { display: none; }
@@ -9958,15 +10145,51 @@ window.__ModuleLoader__.load({
       .cs-mark { width: 44px; height: 44px; border-radius: 0; background: transparent; color: var(--cs-signal); border: 0; }
       .cs-brand-text h1 { font-size: 20px; line-height: 26px; }
       .cs-icon-toggle {
-        appearance: none; display: inline-flex; align-items: center; justify-content: center;
+        appearance: none; position: relative; display: inline-flex; align-items: center; justify-content: center;
         width: 30px; height: 30px; padding: 0; border-radius: 8px; cursor: pointer;
         color: var(--dsw-alias-label-secondary); background: var(--dsw-alias-bg-layer-1);
         border: 1px solid var(--dsw-alias-border-l1);
-        transition: color var(--cs-dur-tap) var(--cs-ease), border-color var(--cs-dur-tap) var(--cs-ease), background-color var(--cs-dur-tap) var(--cs-ease);
+        transition: color var(--cs-dur-tap) var(--cs-ease), border-color var(--cs-dur-tap) var(--cs-ease),
+          background-color var(--cs-dur-tap) var(--cs-ease), transform 220ms cubic-bezier(.34, 1.56, .64, 1),
+          box-shadow 220ms var(--cs-ease);
       }
-      .cs-icon-toggle:hover { color: var(--dsw-alias-label-primary); border-color: color-mix(in srgb, var(--cs-accent) 45%, var(--dsw-alias-border-l1)); }
+      /* 悬停时先浮起一层柔和色晕，再让图标按各自语义做一次短促动作。 */
+      .cs-icon-toggle::before {
+        content: ""; position: absolute; inset: -4px; border-radius: 11px; pointer-events: none;
+        background: radial-gradient(circle at 50% 52%, color-mix(in srgb, var(--cs-accent) 20%, transparent), transparent 70%);
+        opacity: 0; transform: scale(.78);
+        transition: opacity 160ms ease, transform 260ms cubic-bezier(.34, 1.56, .64, 1);
+      }
+      .cs-icon-toggle:hover {
+        color: var(--dsw-alias-label-primary);
+        border-color: color-mix(in srgb, var(--cs-accent) 45%, var(--dsw-alias-border-l1));
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--cs-accent) 13%, transparent);
+      }
+      .cs-icon-toggle:hover::before, .cs-icon-toggle:focus-visible::before { opacity: 1; transform: scale(1); }
+      .cs-icon-toggle:active { transform: translateY(0) scale(.93); transition-duration: 80ms; }
       .cs-icon-toggle:focus-visible { outline: 2px solid var(--cs-accent); outline-offset: 2px; }
-      .cs-icon-toggle svg { display: block; }
+      .cs-icon-toggle svg { display: block; transform-origin: 50% 50%; transition: transform 260ms cubic-bezier(.34, 1.56, .64, 1), filter 260ms var(--cs-ease); }
+      .cs-icon-toggle:hover svg { filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--cs-accent) 26%, transparent)); }
+      /* 太阳转半格、月亮侧倾、系统屏轻抬：三种外观状态各自可辨。 */
+      .cs-appearance-toggle[data-appearance="light"]:hover svg,
+      .cs-appearance-toggle[data-appearance="light"]:focus-visible svg { transform: rotate(45deg) scale(1.08); }
+      .cs-appearance-toggle[data-appearance="dark"]:hover svg,
+      .cs-appearance-toggle[data-appearance="dark"]:focus-visible svg { transform: translateY(-1px) rotate(-18deg) scale(1.08); }
+      .cs-appearance-toggle[data-appearance="system"]:hover svg,
+      .cs-appearance-toggle[data-appearance="system"]:focus-visible svg { transform: translateY(-1px) scale(1.12); }
+      /* 配色按钮：中心色点向外轻弹，白色外环泛起一圈回声。 */
+      .cs-palette-signal, .cs-palette-ring { transform-box: fill-box; transform-origin: center; transition: transform 260ms cubic-bezier(.34, 1.56, .64, 1); }
+      .cs-palette-toggle:hover .cs-palette-signal, .cs-palette-toggle:focus-visible .cs-palette-signal { transform: scale(1.24); }
+      .cs-palette-toggle:hover .cs-palette-ring, .cs-palette-toggle:focus-visible .cs-palette-ring { transform: scale(1.04); }
+      .cs-palette-toggle::after {
+        content: ""; position: absolute; inset: 2px; border-radius: 6px; pointer-events: none;
+        border: 1px solid color-mix(in srgb, var(--cs-chart-active, var(--cs-signal)) 55%, transparent);
+        opacity: 0; transform: scale(.55);
+        transition: opacity 150ms ease, transform 280ms cubic-bezier(.34, 1.56, .64, 1);
+      }
+      /* 回声环与按钮同心同圆角，停在边框内侧，不再与边框相交或留下角部空隙。 */
+      .cs-palette-toggle:hover::after, .cs-palette-toggle:focus-visible::after { opacity: .95; transform: scale(1); }
       .cs-segmented { background: var(--dsw-alias-bg-layer-1); }
       .cs-segment { padding: 7px 16px; }
       .cs-segment.is-active { background: var(--dsw-alias-brand-primary); color: #fff; box-shadow: none; }
@@ -10026,7 +10249,7 @@ window.__ModuleLoader__.load({
       .cs-page.cs-appearance-dark.cs-palette-blue {
         --cs-chart-active: #4F9BFF;
       }
-      /* 深色石墨：活跃项取整套配色里最亮的浅灰，在线降到中阶，热力最高档与任务模型保留原浅灰。 */
+      /* 深色石墨灰：活跃项取整套配色里最亮的浅灰，在线降到中阶，热力最高档与任务模型保留原浅灰。 */
       .cs-page.cs-appearance-dark.cs-palette-stone {
         --cs-signal-deep: #8F9A9E; --cs-signal: #AEB6B9; --cs-signal-soft: #6C7477;
         --cs-chart-active: #E6EDEF;
@@ -10186,7 +10409,6 @@ window.__ModuleLoader__.load({
       @media (max-width: 1000px) { .cs-analysis-grid { grid-template-columns: 1fr; } }
       @media (max-width: 520px) { .cs-composition-body { gap: 14px; } .cs-donut { width: 118px; } .cs-donut-center strong { font-size: 14px; } .cs-ranking-row { grid-template-columns: 20px minmax(55px, 1fr) minmax(30px, .7fr) auto; gap: 7px; } }
 
-      .cs-backfill-waiting { color: var(--dsw-alias-label-secondary); }
       .cs-plot { position: relative; padding-left: 58px; }
       .cs-y-axis { position: absolute; left: 0; top: 0; bottom: 0; width: 50px; color: var(--dsw-alias-label-secondary); font-size: var(--cs-chart-label-size, 10px); font-variant-numeric: tabular-nums; }
       .cs-y-axis span { position: absolute; right: 0; transform: translateY(-50%); white-space: nowrap; }
@@ -10201,6 +10423,10 @@ window.__ModuleLoader__.load({
       .cs-info { position: relative; display: inline-flex; align-items: center; flex: none; }
       .cs-info button { appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; border-radius: 6px; cursor: pointer; color: var(--dsw-alias-label-secondary); }
       .cs-info button:hover, .cs-info:hover button, .cs-info:focus-within button, .cs-info button:focus-visible { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-2); }
+      /* 说明与报告操作按钮：图标在悬停时轻抬并侧倾，提示这一下可以点。 */
+      .cs-info button > svg { transition: transform 240ms cubic-bezier(.34, 1.56, .64, 1); }
+      .cs-info button:hover > svg, .cs-info button:focus-visible > svg { transform: translateY(-1px) rotate(-5deg) scale(1.08); }
+      .cs-info button:active > svg { transform: scale(.94); transition-duration: 80ms; }
       .cs-info button:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
       .cs-info-tip { visibility: hidden; opacity: 0; transform: translateY(-2px); pointer-events: none; position: fixed; z-index: 90; width: max-content; max-width: min(280px, 68vw); padding: 9px 11px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 8px; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: 0 12px 30px #0003; font-size: 13px; font-weight: 400; line-height: 1.65; white-space: normal; transition: opacity 120ms var(--cs-ease), transform 120ms var(--cs-ease), visibility 0s 120ms; }
       .cs-info:hover .cs-info-tip,
@@ -10569,15 +10795,30 @@ window.__ModuleLoader__.load({
       .cs-zoom-btn {
         position: absolute; top: 8px; right: 8px; z-index: 2;
         display: grid; place-items: center; width: 24px; height: 24px; padding: 0;
-        border: 0; border-radius: 0; background: transparent; color: var(--cs-ink-2);
+        border: 0; border-radius: 50%; background: transparent; color: var(--cs-ink-2);
         cursor: pointer; opacity: .55;
-        transition: opacity var(--cs-dur-tap) var(--cs-ease), transform var(--cs-dur-tap) var(--cs-ease);
+        transition: opacity var(--cs-dur-tap) var(--cs-ease), color var(--cs-dur-tap) var(--cs-ease);
       }
-      .cs-zoom-btn:hover { opacity: 1; transform: scale(1.15); }
+      .cs-zoom-btn::before {
+        content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+        background: color-mix(in srgb, var(--cs-ink-2) 10%, transparent);
+        opacity: 0; transform: scale(.55);
+        transition: opacity 150ms ease, transform 240ms cubic-bezier(.34, 1.56, .64, 1);
+      }
+      .cs-zoom-btn:hover { opacity: 1; color: var(--cs-signal); }
+      .cs-zoom-btn:hover::before, .cs-zoom-btn:focus-visible::before { opacity: 1; transform: scale(1); }
       .cs-zoom-btn:focus-visible { opacity: 1; outline: 2px solid var(--cs-signal); outline-offset: 2px; }
       .cs-zoom-btn svg {
-        width: 15px; height: 15px; stroke: var(--cs-ink-2); fill: none;
+        position: relative; width: 15px; height: 15px; stroke: currentColor; fill: none;
         stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+        transform-origin: 50% 50%; transition: stroke 160ms ease;
+      }
+      /* 悬停时四只角括号向外弹开，像把卡片撑到首屏。 */
+      .cs-zoom-btn:hover svg, .cs-zoom-btn:focus-visible svg { animation: cs-zoom-open 360ms cubic-bezier(.3, .8, .3, 1) both; }
+      @keyframes cs-zoom-open {
+        0% { transform: scale(.82); }
+        55% { transform: scale(1.26); }
+        100% { transform: scale(1.16); }
       }
       .cs-overview-metrics {
         --cs-indicator-color: var(--cs-chart-active); --cs-indicator-radius: 9px;
@@ -10881,7 +11122,12 @@ window.__ModuleLoader__.load({
       }
       @media (prefers-reduced-motion: reduce) {
         .cs-view, .cs-view.is-leaving, .cs-curtain, .cs-tab-thumb,
-        .cs-hero-focus, .cs-trend-focus, .cs-zoom-btn { animation: none !important; transition: none !important; }
+        .cs-hero-focus, .cs-trend-focus, .cs-zoom-btn, .cs-zoom-btn::before,
+        .cs-zoom-btn svg, .cs-icon-toggle, .cs-icon-toggle::before, .cs-icon-toggle svg,
+        .cs-palette-signal, .cs-palette-ring, .cs-palette-toggle::after,
+        .cs-info button > svg, .cs-session-inspect .cs-detail-glyph,
+        .cs-inspector-open .cs-detail-glyph, .cs-review-icon.is-copy > svg rect,
+        .cs-review-icon.is-copy > svg path, .cs-review-icon.is-export > svg { animation: none !important; transition: none !important; }
         .cs-trend-focus .cs-bar-group .cs-bar-pair { transition: none !important; }
       }
 
@@ -11013,6 +11259,13 @@ window.__ModuleLoader__.load({
         transition: height 200ms var(--cs-ease);
       }
       .cs-month-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--cs-heat-3); }
+      /* 月度条沿用每日热力图的 0–5 级色阶：最高月用最深一级，最低有记录月用最浅一级。 */
+      .heat-month-bar.is-level-0 .cs-month-fill { background: var(--cs-heat-0); }
+      .heat-month-bar.is-level-1 .cs-month-fill { background: var(--cs-heat-1); }
+      .heat-month-bar.is-level-2 .cs-month-fill { background: var(--cs-heat-2); }
+      .heat-month-bar.is-level-3 .cs-month-fill { background: var(--cs-heat-3); }
+      .heat-month-bar.is-level-4 .cs-month-fill { background: var(--cs-heat-4); }
+      .heat-month-bar.is-level-5 .cs-month-fill { background: var(--cs-heat-5); }
       .heat-month-bar::after {
         content: attr(data-month); position: absolute; top: calc(100% + 4px); left: 50%;
         transform: translateX(-50%); font-size: 10px; line-height: 12px;
@@ -11126,6 +11379,10 @@ window.__ModuleLoader__.load({
         font-size: 11px; line-height: 16px; color: var(--cs-ink-3); font-variant-numeric: tabular-nums;
       }
       .cs-heatmap-focus .heat-month-bars { height: clamp(76px, 16svh, 184px); padding-bottom: 16px; }
+      /* 月度条与趋势柱同一套生长入场；起点错到首屏淡入之后，让逐月生长清楚可见。 */
+      .cs-heatmap-focus .heat-month-bars .cs-reveal-y {
+        animation-delay: calc(200ms + var(--cs-chart-delay, 0ms));
+      }
       /* 全年网格的格高受宽度限制，余量优先交给下方图表，统计项维持紧凑。 */
       .heat-focus-layout.is-year { display: grid; grid-template-rows: 1fr auto; }
       .heat-focus-layout.is-year .heat-focus-bottom { align-items: center; }
@@ -11204,9 +11461,6 @@ window.__ModuleLoader__.load({
         .cs-overview-bottom .cs-recent-row { min-height: calc(38px + var(--cs-overview-room) * .065); padding-block: 3px; }
         @container cs-overview (min-width: 850px) {
           .cs-overview-grid { --cs-overview-room: clamp(0px, calc((100vh - 726px) * .74), 90px); }
-          .cs-shell:has(> :is(.cs-backfill, .cs-alert)) .cs-overview-grid {
-            --cs-overview-room: clamp(0px, calc((100vh - 782px) * .74), 54px);
-          }
         }
         @container cs-composition (min-width: 230px) and (max-width: 310px) {
           .cs-overview-analysis .cs-composition-body { flex-direction: row; gap: 8px; }
@@ -11282,10 +11536,16 @@ window.__ModuleLoader__.load({
       .cs-inspector-active { color: var(--cs-ink-2); }
       .cs-inspector-active b { color: var(--cs-signal); font-weight: 500; }
       .cs-inspector-open { display: inline-flex; align-items: center; gap: 8px; justify-content: center; width: 100%; }
+      .cs-inspector-open .cs-detail-glyph { transition: transform 220ms cubic-bezier(.34, 1.56, .64, 1); }
+      .cs-inspector-open:hover .cs-detail-glyph, .cs-inspector-open:focus-visible .cs-detail-glyph { transform: translate(2px, -2px); }
       .cs-inspector-note, .cs-session-inspector.is-empty p { margin: 0; font-size: 11px; line-height: 1.8; color: var(--cs-ink-2); }
       .cs-session-inspector.is-empty { align-items: center; padding-top: 50px; text-align: center; }
-      .cs-session-inspect { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 30px; height: 30px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--cs-ink-2); cursor: pointer; }
+      .cs-session-inspect { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 30px; height: 30px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--cs-ink-2); cursor: pointer;
+        transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease; }
       .cs-session-inspect:hover, .cs-session-inspect[aria-pressed="true"] { color: var(--cs-signal); background: var(--cs-tone-faint); }
+      .cs-session-inspect:hover { border-color: color-mix(in srgb, var(--cs-signal) 26%, transparent); }
+      .cs-session-inspect .cs-detail-glyph { transition: transform 240ms cubic-bezier(.34, 1.56, .64, 1); }
+      .cs-session-inspect:hover .cs-detail-glyph, .cs-session-inspect:focus-visible .cs-detail-glyph { transform: scale(1.16) rotate(-6deg); }
       .cs-page .cs-session.is-selected { background: var(--cs-tone-faint); }
       .cs-page .cs-session.is-selected::before { content: ''; position: absolute; top: 0; right: auto; bottom: 0; left: -1px; width: 2px; border-radius: 0; background: var(--cs-signal); box-shadow: none; animation: none; pointer-events: none; }
       .cs-page .cs-session.is-selectable { cursor: pointer; transition: background var(--cs-dur-tap) var(--cs-ease); }
@@ -11397,6 +11657,78 @@ window.__ModuleLoader__.load({
       .cs-settings { box-sizing: border-box; color: var(--dsw-alias-label-primary); font-family: inherit; }
       .cs-settings *, .cs-settings *::before, .cs-settings *::after { box-sizing: border-box; }
       .cs-settings-inner { display: flex; flex-direction: column; gap: 18px; max-width: 720px; }
+      .cs-settings-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .cs-settings-heading { min-width: 0; }
+      .cs-settings-links { display: flex; align-items: center; gap: 2px; margin: -3px 0 0 auto; flex: none; }
+      .cs-settings-link {
+        position: relative; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
+        color: var(--dsw-alias-label-secondary); text-decoration: none;
+        transition: background 160ms ease, color 160ms ease;
+      }
+      .cs-settings-link:hover { background: var(--dsw-alias-bg-layer-2); color: var(--dsw-alias-label-primary); }
+      .cs-settings-link:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      .cs-settings-link .cs-detail-glyph { display: block; }
+      /* 三个入口各自有可识别的悬停动作：GitHub 轻摆、Issue 气泡打字、Star 旋起金星光晕。 */
+      .cs-settings-link .cs-detail-glyph {
+        transition: transform 240ms cubic-bezier(.22, .8, .26, 1.2), filter 240ms ease;
+        transform-origin: 50% 55%;
+      }
+      .cs-settings-link.is-github:hover .cs-detail-glyph,
+      .cs-settings-link.is-github:focus-visible .cs-detail-glyph { transform: translateY(-1px) rotate(-8deg) scale(1.1); }
+      .cs-settings-link.is-issue:hover .cs-detail-glyph,
+      .cs-settings-link.is-issue:focus-visible .cs-detail-glyph { transform: translateY(-1px) scale(1.12); }
+      .cs-settings-link.is-star:hover .cs-detail-glyph,
+      .cs-settings-link.is-star:focus-visible .cs-detail-glyph {
+        transform: rotate(-12deg) scale(1.2);
+        filter: brightness(1.06) drop-shadow(0 1px 4px rgba(233, 162, 0, .55));
+      }
+      .cs-settings-link:active .cs-detail-glyph { transform: scale(.94); transition-duration: 80ms; }
+      .cs-issue-dot { transform-box: fill-box; transform-origin: center; }
+      @keyframes cs-issue-dot-bounce {
+        0%, 100% { transform: translateY(0); opacity: .82; }
+        40% { transform: translateY(-1.5px); opacity: 1; }
+      }
+      .cs-settings-link.is-issue:hover .cs-issue-dot-a,
+      .cs-settings-link.is-issue:focus-visible .cs-issue-dot-a { animation: cs-issue-dot-bounce .52s ease-in-out infinite; }
+      .cs-settings-link.is-issue:hover .cs-issue-dot-b,
+      .cs-settings-link.is-issue:focus-visible .cs-issue-dot-b { animation: cs-issue-dot-bounce .52s ease-in-out .13s infinite; }
+      /* Star 保持金色实心，悬浮只换底色，不跟着其他入口变成正文色。 */
+      .cs-settings-link.is-star { color: #e9a200; }
+      .cs-settings-link.is-star:hover, .cs-settings-link.is-star:focus-visible { color: #f2b21c; }
+      .cs-settings-link.is-star::before {
+        content: ''; position: absolute; inset: 3px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(255, 196, 60, .3), transparent 68%);
+        opacity: 0; transform: scale(.55); pointer-events: none;
+        transition: opacity 220ms ease, transform 260ms cubic-bezier(.22, .8, .26, 1.2);
+      }
+      .cs-settings-link.is-star:hover::before,
+      .cs-settings-link.is-star:focus-visible::before { opacity: 1; transform: scale(1); }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-settings-link .cs-detail-glyph { transition: none; }
+        .cs-settings-link:hover .cs-detail-glyph,
+        .cs-settings-link:focus-visible .cs-detail-glyph,
+        .cs-settings-link:active .cs-detail-glyph { transform: none; }
+        .cs-settings-link.is-issue:hover .cs-issue-dot,
+        .cs-settings-link.is-issue:focus-visible .cs-issue-dot { animation: none; }
+        .cs-settings-link.is-star::before { transition: none; }
+      }
+      /* 设置页独立挂载，悬停浮层样式随模块一起加载，不等同页面的图表浮层。 */
+      .cs-hover-tip {
+        position: fixed; left: 0; top: 0; z-index: 90;
+        min-width: 132px; max-width: 264px; padding: 8px 10px; border-radius: 8px;
+        background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, .24); pointer-events: none;
+        font-size: 11px; line-height: 1.7; font-variant-numeric: tabular-nums;
+        animation: cs-tip-in 160ms ease both;
+      }
+      .cs-hover-tip-title { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 650; }
+      .cs-hover-tip-row { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; white-space: nowrap; }
+      .cs-hover-tip-label { color: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 72%, transparent); }
+      .cs-hover-tip-value { font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-weight: 600; }
+      @keyframes cs-tip-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-hover-tip { animation: none; transition: none; }
+      }
       .cs-settings-title { margin: 0; font-size: 18px; line-height: 24px; font-weight: 650; }
       .cs-settings-hint { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: var(--dsw-alias-label-secondary); }
       .cs-settings-group { display: flex; flex-direction: column; gap: 2px; }

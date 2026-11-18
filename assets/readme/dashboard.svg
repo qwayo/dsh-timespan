@@ -10,14 +10,15 @@
       .muted { fill: #606568; }
       .signal { fill: #1f4e94; }
       .signal-deep { fill: #133463; }
-      .task { fill: #7a5aa6; }
+      .chart-active { fill: #79b3f9; }
+      .task { fill: #C29BE8; }
       .card { fill: #fff; stroke: #dedfdd; }
       .rule { fill: none; stroke: #dedfdd; }
       .glyph { fill: none; stroke: #606568; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
     </style>
     <g id="timespan-rings" fill="none" stroke-width="2.2" stroke-linecap="round">
       <path d="M3.69 10.23A8.5 8.5 0 0 1 20.31 10.23" stroke="#1f4e94"/>
-      <path d="M20.31 13.77A8.5 8.5 0 0 1 13.77 20.31" stroke="#7a5aa6"/>
+      <path d="M20.31 13.77A8.5 8.5 0 0 1 13.77 20.31" stroke="#C29BE8"/>
       <path d="M10.23 20.31A8.5 8.5 0 0 1 3.69 13.77" stroke="#79b3f9"/>
     </g>
     <g id="monitor" stroke-linejoin="round" stroke-linecap="round">
@@ -26,7 +27,7 @@
     </g>
     <g id="timer-clock">
       <circle cx="8" cy="8" r="5.5" stroke="#181a1c"/>
-      <path d="M8 4.7V8l2.2 1.4" stroke="#1f4e94"/>
+      <path d="M8 4.7V8l2.2 1.4" stroke="#79b3f9"/>
     </g>
     <path id="compare-detail" d="M3 9v4h4m2-10h4v4"/>
     <g id="info">
@@ -72,8 +73,8 @@
       <g transform="rotate(-90 25 177)" fill="none" stroke-width="2.6">
         <circle cx="25" cy="177" r="7.2" stroke="#ccdaec"/>
         <circle cx="25" cy="177" r="7.2" pathLength="100" stroke="#79b3f9" stroke-dasharray="43.38 56.62"/>
-        <circle cx="25" cy="177" r="7.2" pathLength="100" stroke="#1f4e94" stroke-dasharray="31.44 68.56" stroke-dashoffset="-45.48"/>
-        <circle cx="25" cy="177" r="7.2" pathLength="100" stroke="#7a5aa6" stroke-dasharray="20.99 79.01" stroke-dashoffset="-78.31"/>
+        <circle cx="25" cy="177" r="7.2" pathLength="100" stroke="#4c80c7" stroke-dasharray="31.44 68.56" stroke-dashoffset="-45.48"/>
+        <circle cx="25" cy="177" r="7.2" pathLength="100" stroke="#C29BE8" stroke-dasharray="20.99 79.01" stroke-dashoffset="-78.31"/>
       </g>
       <text x="38" y="182" class="mono" font-size="15" font-weight="700">6h 0m</text>
       <circle cx="92" cy="177" r="6" fill="none" stroke="#79b3f9" opacity=".27"/>
@@ -134,29 +135,28 @@
         <rect x="1151.5" y="26.5" width="30" height="30" rx="7" class="card"/>
         <circle cx="1166.5" cy="41.5" r="6.4" fill="none" stroke="#aab5c2"/>
         <circle cx="1166.5" cy="41.5" r="5.6" fill="none" stroke="#fff"/>
-        <circle cx="1166.5" cy="41.5" r="3.5" fill="#1f4e94"/>
+        <circle cx="1166.5" cy="41.5" r="3.5" fill="#79b3f9"/>
       </g>
     </g>
 
     <!-- 统计卡：今日主指标、副指标和周/月周期 -->
     <g id="overview-metrics">
       <rect x="210.5" y="75.5" width="971" height="149" rx="10" class="card"/>
-      <path d="M548.5 88v124M563 149.5h194" class="rule"/>
+      <path d="M563 149.5h194" class="rule"/>
 
-      <path d="M234 106h3.6l2.5-4.7 3 9.2 2.8-5.1h3.8" class="glyph"/>
+      <path d="M234 106h3.6l2.5-4.7 3 9.2 2.8-5.1h3.8" class="glyph" style="stroke:#79b3f9"/>
       <text x="256" y="111" font-size="15" font-weight="600" class="signal-deep">今日活跃</text>
       <use xlink:href="#compare-detail" x="522" y="98" class="glyph" opacity=".72"/>
-      <rect x="227" y="125" width="2" height="39" rx="1" fill="#1f4e94"/>
-      <text x="235" y="161" class="mono signal-deep" font-size="44" font-weight="700">4h 24m</text>
+      <text x="235" y="161" class="mono chart-active" font-size="44" font-weight="700">4h 24m</text>
       <text x="235" y="190" font-size="14" class="muted">11月14日周六</text>
       <text x="519" y="200" font-size="11.5" text-anchor="end" class="muted">活跃占比 73%</text>
       <rect x="235" y="206" width="284" height="4" rx="2" fill="#e7f0fe"/>
       <rect x="235" y="206" width="207.3" height="4" rx="2" fill="#79b3f9"/>
 
-      <use xlink:href="#monitor" x="563" y="124" class="glyph" style="stroke:#1f4e94"/>
+      <use xlink:href="#monitor" x="563" y="124" class="glyph" style="stroke:#133463"/>
       <text x="584" y="137" font-size="13.5" class="muted">今日在线时长</text>
-      <text x="757" y="137" font-size="16" font-weight="700" text-anchor="end" class="mono">6h 0m</text>
-      <g transform="translate(563 156)" class="glyph" style="stroke:#7a5aa6">
+      <text x="757" y="137" font-size="16" font-weight="700" text-anchor="end" class="mono signal-deep">6h 0m</text>
+      <g transform="translate(563 156)" class="glyph" style="stroke:#C29BE8">
         <rect x="2" y="2" width="12" height="12" rx="2.4"/>
         <path d="m5.3 8 1.8 1.9 3.8-4.2"/>
       </g>
@@ -167,17 +167,17 @@
         <rect x="775" y="113" width="42" height="22" rx="4" fill="#ececeb"/>
         <text x="782" y="128.5" class="muted">本周</text>
         <text x="958" y="128.5" font-weight="700" text-anchor="end" class="mono" style="fill:#7b8da8">11.09–11.14</text>
-        <text x="775" y="164" font-size="27" font-weight="700" class="mono signal-deep">15h 12m</text>
+        <text x="775" y="164" font-size="27" font-weight="700" class="mono chart-active">15h 12m</text>
         <text x="958" y="185" font-size="11.5" text-anchor="end" class="muted">活跃占比 76%</text>
-        <rect x="775" y="191" width="183" height="4" rx="2" fill="#ececeb"/>
+        <rect x="775" y="191" width="183" height="4" rx="2" fill="#e8f1fe"/>
         <rect x="775" y="191" width="139.1" height="4" rx="2" fill="#79b3f9"/>
 
         <rect x="977" y="113" width="42" height="22" rx="4" fill="#ececeb"/>
         <text x="984" y="128.5" class="muted">本月</text>
         <text x="1160" y="128.5" font-weight="700" text-anchor="end" class="mono" style="fill:#7b8da8">11.01–11.14</text>
-        <text x="977" y="164" font-size="27" font-weight="700" class="mono signal-deep">30h 24m</text>
+        <text x="977" y="164" font-size="27" font-weight="700" class="mono chart-active">30h 24m</text>
         <text x="1160" y="185" font-size="11.5" text-anchor="end" class="muted">活跃占比 72%</text>
-        <rect x="977" y="191" width="183" height="4" rx="2" fill="#ececeb"/>
+        <rect x="977" y="191" width="183" height="4" rx="2" fill="#e8f1fe"/>
         <rect x="977" y="191" width="131.8" height="4" rx="2" fill="#79b3f9"/>
       </g>
     </g>
@@ -189,7 +189,7 @@
       <text x="251" y="271" class="heading">今日 24 小时</text>
       <rect x="708" y="262" width="9" height="9" rx="2" fill="#79b3f9"/>
       <text x="723" y="271" font-size="12" class="muted">活跃</text>
-      <rect x="755" y="262" width="9" height="9" rx="2" fill="#7a5aa6"/>
+      <rect x="755" y="262" width="9" height="9" rx="2" fill="#C29BE8"/>
       <text x="770" y="271" font-size="12" class="muted">任务</text>
       <use xlink:href="#compare-detail" x="802" y="246" class="glyph" opacity=".72"/>
 
@@ -213,7 +213,7 @@
         <rect x="655.5" y="363.4" width="7.5" height="27.1" rx="2.3"/>
         <rect x="677.5" y="354.3" width="7.5" height="36.2" rx="2.3"/>
       </g>
-      <g fill="#7a5aa6">
+      <g fill="#C29BE8">
         <rect x="488.5" y="354.3" width="7.5" height="36.2" rx="2.3"/>
         <rect x="510.5" y="339.9" width="7.5" height="50.6" rx="2.3"/>
         <rect x="532.5" y="350.7" width="7.5" height="39.8" rx="2.3"/>
@@ -254,7 +254,7 @@
         <circle cx="916" cy="367" r="53" pathLength="100" stroke="#3162a8" stroke-dasharray="49.3 100" stroke-dashoffset="-.35"/>
         <circle cx="916" cy="367" r="53" pathLength="100" stroke="#79b3f9" stroke-dasharray="24.3 100" stroke-dashoffset="-50.35"/>
         <circle cx="916" cy="367" r="53" pathLength="100" stroke="#b1d3fc" stroke-dasharray="9.3 100" stroke-dashoffset="-75.35"/>
-        <circle cx="916" cy="367" r="53" pathLength="100" stroke="#d9eafe" stroke-dasharray="14.3 100" stroke-dashoffset="-85.35"/>
+        <circle cx="916" cy="367" r="53" pathLength="100" stroke="#d9eafd" stroke-dasharray="14.3 100" stroke-dashoffset="-85.35"/>
       </g>
       <text x="916" y="365" font-size="20" font-weight="700" text-anchor="middle">3h 0m</text>
       <text x="916" y="384" font-size="12" text-anchor="middle" class="muted">累计工时</text>
@@ -265,7 +265,7 @@
         <text x="1009" y="359">工具</text>
         <rect x="993" y="377" width="9" height="9" rx="2" fill="#b1d3fc"/>
         <text x="1009" y="386">等待</text>
-        <rect x="993" y="404" width="9" height="9" rx="2" fill="#d9eafe"/>
+        <rect x="993" y="404" width="9" height="9" rx="2" fill="#d9eafd"/>
         <text x="1009" y="413">其他</text>
         <g text-anchor="end">
           <text x="1109" y="332" class="muted">50%</text>
