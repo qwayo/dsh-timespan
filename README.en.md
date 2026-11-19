@@ -19,11 +19,11 @@ Scope: there is no separate "idle time" metric, and task time is not part of act
 ## What you see
 
 <p align="center">
-  <img src="./assets/readme/dashboard.en.svg" width="100%" alt="dsh-timespan period overview (sample data): sidebar online duration, today's active, online and task time, weekly and monthly totals, 24-hour trend, task breakdown, daily active heatmap, workspace task ranking and recent sessions">
+  <img src="./assets/readme/dashboard.en.svg" width="100%" alt="dsh-timespan period overview (sample data): sidebar online duration, today's online, active and task time, weekly and monthly totals, 24-hour trend, task breakdown, daily active heatmap, workspace task ranking and recent sessions">
 </p>
 
 - A permanent sidebar entry shows the duration you select (online by default) and today's ring; hovering for about 200 ms shows a tooltip
-- The dashboard has five views: Overview, Trend, Sessions, Review and Settings. A single overview card shows the headline metric, two supporting durations, and weekly and monthly totals, with horizontal bars for shares. The headline, trend chart and heatmap each open in a focus view. In the headline focus view, choose from five durations and see the corresponding share in a ring. The Trend view also shows time distribution and trend insights.
+- The dashboard has five views: Overview, Trend, Sessions, Review and Settings. A single overview card shows the headline metric (today's online duration by default), two supporting durations, and weekly and monthly totals, with horizontal bars for shares. The headline, trend chart and heatmap each open in a focus view. In the headline focus view, choose from five durations and see the corresponding share in a ring. The Trend view also shows time distribution and trend insights. Module icons beside overview card titles move on hover; after about 600 ms they show a one-line description, and keyboard focus shows it immediately.
 - The bottom row shows the daily active heatmap, workspace task ranking and recent sessions, from left to right. The heatmap resets to the last 3 months when you enter Overview. The year view spans a row of its own, with weeks starting on Monday.
 - The plugin mark swaps its ring lightness with the theme: dark mode has a light upper arc, dark lower-left arc and white needle; light mode reverses the two arcs and uses a deep-blue needle, so the white needle no longer disappears on white
 - Workspace → Sessions: workspaces are grouped by name and session count. Select a session row or title to preview its statistics on the right; use the separate Open session action to enter the host conversation. If opening fails, the statistics remain available and the session is highlighted. Choose today, last 3 days, last week, last 30 days or all time; all-time results are shown in batches.
@@ -59,7 +59,7 @@ The package is published to npm; this is the easiest route. Say this in a sessio
 
 > Install the plugin @qwayo/dsh-timespan
 
-`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.5.0` instead. Restart DSH when it says a restart is needed.
+`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.5.1` instead. Restart DSH when it says a restart is needed.
 
 ### Option 2: install from GitHub
 

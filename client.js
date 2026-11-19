@@ -114,10 +114,12 @@ window.__ModuleLoader__.load({
     const FOCUS_TRANSITION_MS = 240
     /** 条状图首屏的 SVG 视图高度；柱高与网格按它重新计算，而不是拉伸普通卡片。 */
     const TREND_FOCUS_HEIGHT = 360
-    /** 首屏主指标：五个可切换的时长项，持久化在浏览器本地设置；非法值回落今日活跃时长。 */
-    const HERO_METRIC_KEY = 'dsh-timespan.heroMetric'
+    /** 首屏主指标：五个可切换的时长项，持久化在浏览器本地设置；非法值回落今日在线时长。 */
+    const HERO_METRIC_KEY = 'dsh-timespan.heroMetric.v2'
+    /** 旧键只读不写：迁移旧默认「今日活跃」到新的「今日在线」。 */
+    const HERO_METRIC_LEGACY_KEY = 'dsh-timespan.heroMetric'
     const HERO_METRIC_VALUES = ['active', 'online', 'task', 'week', 'month']
-    const HERO_METRIC_DEFAULT = 'active'
+    const HERO_METRIC_DEFAULT = 'online'
     /**
      * 插件界面语言：两档，默认中文，设置页可切到英文。
      * 这是插件自己的设置项（存在 Host 权威设置里），刻意不跟随宿主 locale：
@@ -222,6 +224,10 @@ window.__ModuleLoader__.load({
       trendInsightNote: '前三集中度：最活跃的三个时段占本周期活跃时长的比例',
       trendFocusTitle: '活跃与任务趋势',
       heatmapFocusTitle: '每日活跃热力图',
+      moduleTipTrend: '按小时或按天查看活跃与任务时长；右上角可放大',
+      moduleTipComposition: '模型、工具、等待与其他四段的耗时占比',
+      moduleTipRanking: '按活跃时长比较各工作区；悬停可看任务占比',
+      moduleTipRecent: '按最后活动时间列出会话，点按可打开',
       rangeOnline: '范围在线',
       rangeActive: '范围活跃',
       rangeTask: '范围任务',
@@ -766,6 +772,10 @@ window.__ModuleLoader__.load({
       trendInsightNote: 'Top-3 concentration: the three busiest periods as a share of total active time',
       trendFocusTitle: 'Active and task trend',
       heatmapFocusTitle: 'Daily activity heatmap',
+      moduleTipTrend: 'Active and task time by hour or day; enlarge from the corner',
+      moduleTipComposition: 'Share of model, tool, wait and other task time',
+      moduleTipRanking: 'Compare workspaces by active time; hover for task share',
+      moduleTipRecent: 'Sessions by last activity; click to open',
       rangeOnline: 'Online in range',
       rangeActive: 'Active in range',
       rangeTask: 'Task in range',
@@ -1369,20 +1379,45 @@ window.__ModuleLoader__.load({
           h('path', { d: 'M1.8 6.1h12.4M5.2 1.5v1.7M10.8 1.5v1.7' }),
           h('path', { d: 'M3.4 9.9h1.6l1.2-2.3 1.9 4.6 1.2-2.3h2.3' }))
       }
+      if (name === 'summary') {
+        // 本周期概览：半圆仪表、指针与两端刻度，表达一眼看全本期关键读数。
+        return h('svg', common,
+          h('path', { d: 'M2.6 10.8a5.4 5.4 0 0 1 10.8 0' }),
+          h('path', { d: 'M2.6 10.8v1.5M13.4 10.8v1.5' }),
+          h('path', { d: 'M8 10.8 10.5 7.5' }),
+          h('circle', { cx: 8, cy: 10.8, r: .85, fill: 'currentColor', stroke: 'none' }))
+      }
       if (name === 'online') {
         return h('svg', common,
           h('rect', { x: 2, y: 2.5, width: 12, height: 8, rx: 1.8 }),
           h('path', { d: 'M8 10.5v3M5.5 13.5h5' }))
       }
       if (name === 'task') {
+        // 任务时长：秒表表冠 + 表盘内对勾，表示「一次任务从开始到完成」的计时。
         return h('svg', common,
-          h('rect', { x: 2.3, y: 2.3, width: 11.4, height: 11.4, rx: 2.6 }),
-          h('path', { d: 'M5.2 8.2l1.8 1.8 3.8-4' }))
+          h('circle', { cx: 8, cy: 8.9, r: 4.55 }),
+          h('path', { d: 'M6.5 2.1h3M8 2.1v1.9' }),
+          h('path', { d: 'M11.8 5.2l1.1-1.1' }),
+          h('path', { d: 'M5.9 9.1l1.5 1.5 3-3.2' }))
+      }
+      if (name === 'heat') {
+        // 每日活跃：九宫格热力块，用明暗表达一天的热度，和正式热力图同一语言。
+        return h('svg', { ...common, fill: 'currentColor', stroke: 'none' },
+          ...[[2.1, 2.1, .9], [6.3, 2.1, .4], [10.5, 2.1, .65],
+            [2.1, 6.3, .5], [6.3, 6.3, 1], [10.5, 6.3, .3],
+            [2.1, 10.5, .75], [6.3, 10.5, .45], [10.5, 10.5, .85]].map(([x, y, opacity], index) =>
+            h('rect', { key: index, x, y, width: 3.4, height: 3.4, rx: 1, opacity })))
       }
       if (name === 'count') {
         return h('svg', common,
           h('path', { d: 'M3 5.2h10M3 8h10M3 10.8h6.4' }),
           h('circle', { cx: 12.2, cy: 10.8, r: 1.1, fill: 'currentColor', stroke: 'none' }))
+      }
+      if (name === 'stats') {
+        // 会话统计：卡片框内三根小柱，与趋势图区分，表达单项会话的分项统计。
+        return h('svg', common,
+          h('rect', { x: 2.3, y: 2.6, width: 11.4, height: 10.8, rx: 2.2 }),
+          h('path', { d: 'M5.4 10.6V8.4M8 10.6V5.9M10.6 10.6V7.2' }))
       }
       if (name === 'clock') {
         return h('svg', common,
@@ -4858,13 +4893,20 @@ window.__ModuleLoader__.load({
       return typeof value === 'string' ? value.replace(/。\s*/gu, '；').replace(/\.(?=\s|$)/gu, ';').replace(/[；;]\s*$/u, '').trim() : value
     }
 
-    /** 口径说明：悬停、聚焦或点击显示；操作型图标仍执行自己的动作。 */
-    function Info({ message, content = null, lines = null, icon = null, onClick, buttonRef, label = message, buttonClassName = '', disabled = false, ariaDisabled = false }) {
+    /** 口径说明：悬停、聚焦或点击显示；delay > 0 时悬停先停留一段时间，聚焦仍立即显示。 */
+    function Info({ message, content = null, lines = null, icon = null, onClick, buttonRef, label = message, buttonClassName = '', disabled = false, ariaDisabled = false, delay = 0 }) {
       const [position, setPosition] = React.useState(null)
       const [escaped, setEscaped] = React.useState(false)
       const localRef = React.useRef(null)
       const anchorRef = buttonRef ?? localRef
       const tipRef = React.useRef(null)
+      const timerRef = React.useRef(null)
+      const clearPending = () => {
+        if (timerRef.current !== null) {
+          clearTimeout(timerRef.current)
+          timerRef.current = null
+        }
+      }
       const place = () => {
         const anchor = anchorRef.current
         const node = tipRef.current
@@ -4878,9 +4920,30 @@ window.__ModuleLoader__.load({
           { gap: 4, prefer: 'bottom' },
         ))
       }
-      const show = () => { setEscaped(false); place() }
-      const hide = () => { setEscaped(true) }
+      const show = () => {
+        clearPending()
+        setEscaped(false)
+        place()
+      }
+      const showOnHover = () => {
+        if (!(delay > 0)) {
+          show()
+          return
+        }
+        clearPending()
+        const wait = Number(delay)
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null
+          setEscaped(false)
+          place()
+        }, Number.isFinite(wait) ? wait : 0)
+      }
+      const hide = () => {
+        clearPending()
+        setEscaped(true)
+      }
       React.useEffect(() => { if (position) place() }, [message])
+      React.useEffect(() => () => clearPending(), [])
       React.useEffect(() => {
         // Esc 仍可收起当前这次悬浮/聚焦；移出或失焦后重新进入即可再看。
         const onKey = (event) => { if (event?.key === 'Escape') setEscaped(true) }
@@ -4897,7 +4960,9 @@ window.__ModuleLoader__.load({
           type: 'button', 'aria-label': infoText(label), 'aria-description': label !== message ? infoText(message) : undefined,
           'aria-disabled': ariaDisabled ? 'true' : undefined, className: buttonClassName,
           onClick: onClick ?? show, disabled,
-          onMouseEnter: show, onMouseLeave: hide, onFocus: show, onBlur: hide,
+          // 鼠标点击不抢焦点：否则 :focus-within 的色块和浮层会一直留到点击别处；键盘聚焦不变。
+          onMouseDown: (event) => { if (event?.button === 0) event.preventDefault() },
+          onMouseEnter: showOnHover, onMouseLeave: hide, onFocus: show, onBlur: hide,
         },
           icon ?? h('svg', { viewBox: '0 0 20 20', width: 16, height: 16, fill: 'none', 'aria-hidden': true },
             h('circle', { cx: 10, cy: 10, r: 7.5, stroke: 'currentColor', strokeWidth: 1.4 }),
@@ -4990,7 +5055,7 @@ window.__ModuleLoader__.load({
       })
       return h('section', { className: `cs-card cs-composition${hotKey ? ' has-hot' : ''}` },
         h('div', { className: 'cs-card-head' },
-          renderCardTitle(t('compositionTitle'), 'breakdown')),
+          renderCardTitle(t('compositionTitle'), 'breakdown', null, t('moduleTipComposition'))),
         total === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: 'cs-composition-body' },
               h(ChartReveal, {
@@ -5038,7 +5103,7 @@ window.__ModuleLoader__.load({
     function renderWorkspaceRanking(data, t, format = 'hms', hoverTip = null) {
       const rows = [...data.workspaces].filter((row) => row.taskMs > 0).sort((a, b) => b.taskMs - a.taskMs).slice(0, 5)
       return h('section', { className: 'cs-card cs-ranking' },
-        h('div', { className: 'cs-card-head' }, renderCardTitle(t('workspaceRanking'), 'ranking')),
+        h('div', { className: 'cs-card-head' }, renderCardTitle(t('workspaceRanking'), 'ranking', null, t('moduleTipRanking'))),
         rows.length === 0 ? h('div', { className: 'cs-empty' }, t('noTaskComposition'))
           : h('div', { className: `cs-ranking-list${rows.length <= 2 ? ' is-short' : ''}` }, rows.map((row, index) => {
               const name = row.workspaceTitle ?? t('unassigned')
@@ -5667,7 +5732,8 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function TimeToolsSettings({ ctx, t, draft, busy, onPatch }) {
+    /** 分析模型：先选 Provider 再选模型，目录可独立刷新。 */
+    function AnalysisModelSettings({ ctx, t, draft, busy, onPatch }) {
       const [catalog, setCatalog] = React.useState({ status: 'loading', value: null })
       const [revision, setRevision] = React.useState(0)
       React.useEffect(() => {
@@ -5688,41 +5754,51 @@ window.__ModuleLoader__.load({
       const selectedError = providerMissing ? 'analysisSavedProviderMissing' : modelMissing ? 'analysisSavedModelMissing' : ''
       const field = (label, value, options, disabled, onChange) => h('div', { className: 'cs-analysis-field' },
         h('span', null, t(label)), h(Select, { value, options, disabled, ariaLabel: t(label), onChange }))
+      return h('section', { className: 'cs-analysis-model-settings' },
+        h('div', { className: 'cs-tools-settings-head' },
+          h('div', null, h('h3', null, t('settingsAnalysisTitle')), h('p', { className: 'cs-settings-row-hint' }, t('settingsAnalysisHint'))),
+          h('button', {
+            type: 'button', className: 'cs-btn cs-model-catalog-refresh', disabled: catalog.status === 'loading',
+            onClick: () => setRevision((value) => value + 1),
+          }, t('analysisCatalogRefresh'))),
+        h('div', { className: 'cs-analysis-model-fields' },
+          field('analysisProvider', provider, providerOptions, busy || !ready || !providers.length, (value) => onPatch('analysisProvider', value)),
+          field('analysisModel', model, modelOptions, busy || !ready || !models.length, (value) => onPatch('analysisModel', value))),
+        !ready ? h('p', { className: `cs-settings-status${catalog.status === 'error' ? ' is-error' : ''}`, role: 'status' },
+          t(catalog.status === 'error' ? 'analysisCatalogError' : 'analysisCatalogLoading')) : null,
+        ready && selectedError ? h('p', { className: 'cs-settings-status is-error', role: 'status' }, t(selectedError)) : null,
+        ready && failures.length ? h('p', { className: 'cs-settings-row-hint' },
+          t('analysisCatalogPartial').replace('{providers}', failures.map((row) => row.name || row.id).join(' · '))) : null,
+        ready && !providers.length && !failures.length ? h('p', { className: 'cs-settings-row-hint' }, t('analysisCatalogEmpty')) : null)
+    }
+
+    /** 悬浮窗与到期提醒：开关与说明按「显示 / 提醒」上下排列，设置板内与模型选择并排。 */
+    function FloatingTimerSettings({ t, draft, busy, onPatch }) {
+      return h('section', { className: 'cs-timer-reminder-settings' },
+        h('h3', null, t('settingsFloatingTitle')),
+        h('label', { className: 'cs-settings-switch' },
+          h('input', { type: 'checkbox', disabled: busy, checked: draft?.floatingEnabled !== false,
+            onChange: (event) => onPatch('floatingEnabled', event.target.checked),
+          }), t('settingsFloatingEnabled')),
+        h('p', { className: 'cs-settings-row-hint' }, t('settingsFloatingEnabledHint')),
+        h('label', { className: 'cs-settings-switch' },
+          h('input', { type: 'checkbox', disabled: busy, checked: draft?.floatingShowClock === true,
+            onChange: (event) => onPatch('floatingShowClock', event.target.checked),
+          }), t('settingsFloatingClock')),
+        h('p', { className: 'cs-settings-row-hint' }, t('settingsFloatingHint')),
+        h('h3', null, t('settingsTimerTitle')),
+        h('label', { className: 'cs-settings-switch' },
+          h('input', { type: 'checkbox', disabled: busy, checked: draft?.timerSound !== false,
+            onChange: (event) => onPatch('timerSound', event.target.checked),
+          }), t('settingsTimerSound')),
+        h('p', { className: 'cs-settings-row-hint' }, t('settingsTimerSoundHint')))
+    }
+
+    /** 分析模型与提醒上下排在同一组里；设置板中由外层卡片横向分成两栏。 */
+    function TimeToolsSettings(props) {
       return h('div', { className: 'cs-time-tools-settings' },
-        h('section', { className: 'cs-analysis-model-settings' },
-          h('div', { className: 'cs-tools-settings-head' },
-            h('div', null, h('h3', null, t('settingsAnalysisTitle')), h('p', { className: 'cs-settings-row-hint' }, t('settingsAnalysisHint'))),
-            h('button', {
-              type: 'button', className: 'cs-btn cs-model-catalog-refresh', disabled: catalog.status === 'loading',
-              onClick: () => setRevision((value) => value + 1),
-            }, t('analysisCatalogRefresh'))),
-          h('div', { className: 'cs-analysis-model-fields' },
-            field('analysisProvider', provider, providerOptions, busy || !ready || !providers.length, (value) => onPatch('analysisProvider', value)),
-            field('analysisModel', model, modelOptions, busy || !ready || !models.length, (value) => onPatch('analysisModel', value))),
-          !ready ? h('p', { className: `cs-settings-status${catalog.status === 'error' ? ' is-error' : ''}`, role: 'status' },
-            t(catalog.status === 'error' ? 'analysisCatalogError' : 'analysisCatalogLoading')) : null,
-          ready && selectedError ? h('p', { className: 'cs-settings-status is-error', role: 'status' }, t(selectedError)) : null,
-          ready && failures.length ? h('p', { className: 'cs-settings-row-hint' },
-            t('analysisCatalogPartial').replace('{providers}', failures.map((row) => row.name || row.id).join(' · '))) : null,
-          ready && !providers.length && !failures.length ? h('p', { className: 'cs-settings-row-hint' }, t('analysisCatalogEmpty')) : null),
-        h('section', { className: 'cs-timer-reminder-settings' },
-          h('h3', null, t('settingsFloatingTitle')),
-          h('label', { className: 'cs-settings-switch' },
-            h('input', { type: 'checkbox', disabled: busy, checked: draft?.floatingEnabled !== false,
-              onChange: (event) => onPatch('floatingEnabled', event.target.checked),
-            }), t('settingsFloatingEnabled')),
-          h('p', { className: 'cs-settings-row-hint' }, t('settingsFloatingEnabledHint')),
-          h('label', { className: 'cs-settings-switch' },
-            h('input', { type: 'checkbox', disabled: busy, checked: draft?.floatingShowClock === true,
-              onChange: (event) => onPatch('floatingShowClock', event.target.checked),
-            }), t('settingsFloatingClock')),
-          h('p', { className: 'cs-settings-row-hint' }, t('settingsFloatingHint')),
-          h('h3', null, t('settingsTimerTitle')),
-          h('label', { className: 'cs-settings-switch' },
-            h('input', { type: 'checkbox', disabled: busy, checked: draft?.timerSound !== false,
-              onChange: (event) => onPatch('timerSound', event.target.checked),
-            }), t('settingsTimerSound')),
-          h('p', { className: 'cs-settings-row-hint' }, t('settingsTimerSoundHint'))))
+        h(AnalysisModelSettings, props),
+        h(FloatingTimerSettings, props))
     }
 
     function settingsRow(t, labelKey, hintKey, ...controls) {
@@ -5745,7 +5821,8 @@ window.__ModuleLoader__.load({
       const selectClass = options.selectClass ?? 'cs-settings-select'
       const row = (t, labelKey, hintKey, ...controls) => options.split
         ? h('div', { className: 'cs-settings-row' },
-            h('div', { className: 'cs-settings-label' }, t(labelKey), renderInfo(t(hintKey))),
+            h('div', { className: 'cs-settings-label' }, t(labelKey),
+              h('span', { className: 'cs-row-info' }, renderInfo(t(hintKey)))),
             h('div', { className: 'cs-settings-control' }, ...controls))
         : settingsRow(t, labelKey, hintKey, ...controls)
       const rows = [
@@ -5951,17 +6028,25 @@ window.__ModuleLoader__.load({
       return reduced === true ? 0 : FOCUS_TRANSITION_MS
     }
 
-    /** 首屏主指标只认五个时长项；非法旧值、脏值一律回落今日活跃时长。 */
+    /** 首屏主指标只认五个时长项；非法旧值、脏值一律回落今日在线时长。 */
     function normalizeHeroMetric(value) {
       return HERO_METRIC_VALUES.includes(value) ? value : HERO_METRIC_DEFAULT
     }
 
-    /** 读取首屏主指标；storage 缺省用 window.localStorage，测试可注入假存储。 */
+    /**
+     * 读取首屏主指标；storage 缺省用 window.localStorage，测试可注入假存储。
+     * 旧版本默认「今日活跃」，升级到「今日在线」后用 v2 键存储；旧键里的
+     * active 视作旧默认迁移为 online，其余显式选择（任务/周/月）仍然保留。
+     */
     function readStoredHeroMetric(storage) {
       const store = storage === undefined ? defaultFocusStorage() : storage
       if (store === null || store === undefined || typeof store.getItem !== 'function') return HERO_METRIC_DEFAULT
       try {
-        return normalizeHeroMetric(store.getItem(HERO_METRIC_KEY))
+        const current = store.getItem(HERO_METRIC_KEY)
+        if (HERO_METRIC_VALUES.includes(current)) return current
+        const legacy = store.getItem(HERO_METRIC_LEGACY_KEY)
+        if (legacy === 'active') return HERO_METRIC_DEFAULT
+        return normalizeHeroMetric(legacy)
       } catch {
         return HERO_METRIC_DEFAULT
       }
@@ -6308,7 +6393,12 @@ window.__ModuleLoader__.load({
       const series = { breakdownModel: 'model', breakdownTool: 'tool', breakdownWait: 'wait', breakdownOther: 'other', notBroken: 'unknown' }
       const swatchClass = (row) => `cs-inspector-series is-${series[row.key]}`
       return h('aside', { id: 'cs-session-inspector', className: 'cs-session-inspector', 'aria-label': t('detailsInspector') },
-        h('div', { className: 'cs-inspector-label' }, t('detailsInspector'), renderInfo(t('compositionInfo'))),
+        h('div', { className: 'cs-inspector-label' },
+          h('span', { className: 'cs-card-icon has-tip' }, h(Info, {
+            message: t('compositionInfo'), delay: 600, label: t('compositionInfo'),
+            icon: h(DetailGlyph, { name: 'stats', size: 14 }), buttonClassName: 'cs-card-icon-btn',
+          })),
+          t('detailsInspector')),
         h('h3', null, session.sessionTitle ?? t('unknownSession')),
         h('div', { className: 'cs-inspector-workspace' }, session.workspaceTitle ?? t('unassigned'),
           session.taskRunning ? h('span', { className: 'cs-inspector-running' }, t('runningTag')) : null),
@@ -6417,8 +6507,9 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'cs-trend-bottom' },
         h('section', { className: 'cs-card cs-trend-breakdown' },
           h('div', { className: 'cs-card-head' },
-            renderCardTitle(t('trendBreakdownTitle'), 'clock'),
-            h('span', { className: 'cs-distribution-grain' }, t(shownPeriod === 'day' ? 'trendDistributionHour' : 'trendDistributionDay'), renderInfo(t('trendDistributionHint')))),
+            renderCardTitle(t('trendBreakdownTitle'), 'clock',
+              h('span', { className: 'cs-distribution-grain' }, t(shownPeriod === 'day' ? 'trendDistributionHour' : 'trendDistributionDay')),
+              t('trendDistributionHint'))),
           buckets.length === 0 ? h('div', { className: 'cs-empty' }, t('trendBreakdownEmpty'))
             : h('div', { className: 'cs-distribution' },
                 h(ChartReveal, { className: 'cs-distribution-strip', role: 'group', 'aria-label': t('trendBreakdownTitle') }, buckets.map((bucket, index) => {
@@ -6438,7 +6529,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-distribution-summary' }, h('span', null, t('trendInsightCoverage')), h('b', null, insights[1].value)),
           buckets.some((bucket) => bucket.future) ? h('span', { className: 'cs-distribution-future' }, t('trendFutureHint')) : null),
         h('section', { className: 'cs-card cs-trend-insights' },
-          h('div', { className: 'cs-card-head' }, renderCardTitle(t('trendInsightsTitle'), 'trend', renderInfo(t('trendInsightsHint')))),
+          h('div', { className: 'cs-card-head' }, renderCardTitle(t('trendInsightsTitle'), 'trend', null, t('trendInsightsHint'))),
           h('div', { className: 'cs-trend-insight-list' }, [insights[0], insights[2]].map((item) =>
             h('div', { className: 'cs-trend-insight-row', key: item.key },
               h('span', { className: 'cs-insight-icon' }, h(DetailGlyph, { name: item.key === 'peak' ? 'clock' : 'trend', size: 16 })),
@@ -6456,7 +6547,7 @@ window.__ModuleLoader__.load({
       const trendTitleKey = shownPeriod === 'day' ? 'trendDay' : shownPeriod === 'week' ? 'trendWeek' : 'trendMonth'
       return h('section', { className: `cs-card cs-trend-card${zoomable ? ' has-zoom' : ''}`, 'data-focus': 'trend' },
         h('div', { className: 'cs-card-head' },
-          renderCardTitle(t(trendTitleKey), 'trend'),
+          renderCardTitle(t(trendTitleKey), 'trend', null, t('moduleTipTrend')),
           h('div', { className: 'cs-legend' },
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel'))),
@@ -6484,11 +6575,24 @@ window.__ModuleLoader__.load({
         h('span', { key: `current-${state.key}`, className: 'cs-text-fade-current' }, state.value))
     }
 
-    /** 概览卡片标题：15px 线性图标只做识别锚点，不进入标题的可读文字。 */
-    function renderCardTitle(label, iconName, extra = null) {
+    /**
+     * 概览卡片标题：15px 线性图标只做识别锚点，不进入标题的可读文字。
+     * 传 moduleTip 时图标变成悬停说明入口：停留片刻后浮出简短功能介绍，图标同时轻动。
+     */
+    function renderCardTitle(label, iconName, extra = null, moduleTip = null) {
+      const glyph = h(DetailGlyph, { name: iconName, size: 15 })
       return h('div', { className: 'cs-card-heading' },
         h('h2', { className: 'cs-card-title' },
-          h('span', { className: 'cs-card-icon' }, h(DetailGlyph, { name: iconName, size: 15 })),
+          h('span', { className: `cs-card-icon${moduleTip ? ' has-tip' : ''}` },
+            moduleTip
+              ? h(Info, {
+                  message: moduleTip,
+                  delay: 600,
+                  icon: glyph,
+                  label: moduleTip,
+                  buttonClassName: 'cs-card-icon-btn',
+                })
+              : glyph),
           h(TextFade, { text: label })),
         extra)
     }
@@ -6767,8 +6871,17 @@ window.__ModuleLoader__.load({
                 identity: metric, value: current.value, format, className: 'cs-hero-num-value',
               }, heroNumber)),
             h('div', { className: 'cs-hero-meta' },
-              ...meta.map(([labelKey, value]) => h('span', { key: labelKey }, `${t(labelKey)} ${formatDuration(value, format)}`)),
-              h('span', null, `${t('taskCountShort')} ${String(heroTaskCount(data, metric))}`))),
+              meta.map(([labelKey, value]) => {
+                const tone = labelKey.endsWith('Task') ? 'task' : labelKey.endsWith('Active') ? 'active' : 'online'
+                return h('span', { key: labelKey, className: `cs-hero-meta-item is-${tone}` },
+                  h(DetailGlyph, { name: tone, size: 13 }),
+                  h('span', { className: 'cs-hero-meta-label' }, t(labelKey)),
+                  h('b', { className: 'cs-hero-meta-value' }, renderDurationDigits(formatDuration(value, format))))
+              }),
+              h('span', { className: 'cs-hero-meta-item is-count' },
+                h(DetailGlyph, { name: 'count', size: 13 }),
+                h('span', { className: 'cs-hero-meta-label' }, t('taskCountShort')),
+                h('b', { className: 'cs-hero-meta-value' }, String(heroTaskCount(data, metric)))))),
           h('div', { className: 'cs-hero-focus-aside' },
             h(ChartReveal, {
               className: `cs-hero-ring${ring.tone === 'task' ? ' is-task' : ''}`,
@@ -6877,8 +6990,13 @@ window.__ModuleLoader__.load({
       const phase = status ?? (hasSeries ? 'ready' : 'loading')
       const head = h('div', { className: 'cs-card-head' },
         h('div', { className: 'cs-card-heading' },
-          h('h2', null, titleText),
-          renderInfo(t('heatLegendLabel'), renderHeatLegend(t))),
+          h('h2', { className: 'cs-card-title' },
+            h('span', { className: 'cs-card-icon has-tip' }, h(Info, {
+              message: t('heatLegendLabel'), content: renderHeatLegend(t),
+              delay: 600, label: t('heatLegendLabel'),
+              icon: h(DetailGlyph, { name: 'heat', size: 15 }), buttonClassName: 'cs-card-icon-btn',
+            })),
+            h(TextFade, { text: titleText }))),
         h('div', { className: 'heat-card-actions' },
           renderHeatRangePicker({ value: normalizedValue, t, onSelectRange }),
           zoomable ? renderZoomButton({ t, focus, onToggleFocus, value: 'heatmap' }) : null))
@@ -7696,8 +7814,18 @@ window.__ModuleLoader__.load({
         view: 'details',
         range: reviewRange,
       })
-      const coordinatesReady = scopeState.status === 'ready'
-      const workspaces = coordinatesReady ? scopeState.data?.workspaces ?? [] : []
+      // 周期切换会让范围查询短暂回到 loading；保住上一份范围数据，避免筛选区清空后
+      // 闪一下「正在同步该周期的范围选项」。新数据到达后立即替换。
+      const lastScopeRef = React.useRef(null)
+      React.useEffect(() => {
+        if (scopeState.status === 'ready' && scopeState.data) lastScopeRef.current = scopeState.data
+      }, [scopeState.status, scopeState.data])
+      const scopeData = scopeState.status === 'ready'
+        ? scopeState.data
+        : reviewRange === null ? null : lastScopeRef.current
+      const coordinatesFresh = scopeState.status === 'ready'
+      const coordinatesReady = scopeData !== null
+      const workspaces = scopeData?.workspaces ?? []
       const requestWorkspace = request?.workspaceId ? workspaces.find((row) => row.key === request.workspaceId) : null
       const requestSession = request?.sessionId ? workspaces.flatMap((row) => row.sessions).find((row) => row.sessionId === request.sessionId) : null
       const requestScope = request ? analysisScopeLabel({ ...request, workspaceTitle: requestWorkspace?.workspaceTitle, sessionTitle: requestSession?.sessionTitle }, t) : ''
@@ -7707,12 +7835,12 @@ window.__ModuleLoader__.load({
       const reportError = failed && request?.period === reviewPeriod
       const errorKey = operation.error || (failed ? ANALYSIS_ERROR_LABELS[state?.error?.code] ?? 'analysisGenerationError' : '')
       const scopeChanged = Boolean(report && ((report.workspaceId || '') !== workspaceId || (report.sessionId || '') !== sessionId ||
-        coordinatesReady && reviewRange !== null && report.from !== reviewRange.from))
+        coordinatesFresh && reviewRange !== null && report.from !== reviewRange.from))
       const modelConfigured = Boolean(modelChoice?.provider && modelChoice?.model)
       const needsModel = Boolean(modelChoice && !modelConfigured)
       const modelError = errorKey === 'analysisModelRequired' || errorKey === 'analysisModelUnavailable'
       const { workspaceOptions, sessionOptions } = analysisScopeOptions(workspaces, workspaceId, t)
-      const unavailableScope = Boolean(coordinatesReady && (workspaceId && !workspaceOptions.some((row) => row.value === workspaceId) ||
+      const unavailableScope = Boolean(coordinatesFresh && (workspaceId && !workspaceOptions.some((row) => row.value === workspaceId) ||
         sessionId && !sessionOptions.some((row) => row.value === sessionId)))
       const scopeLocked = running || Boolean(operation.method) || !coordinatesReady
       const stage = operation.method ? (operation.method === 'generateAnalysis' ? 'analysisStarting' : 'analysisCancelling') : ANALYSIS_PHASE_LABELS[phase]
@@ -7826,7 +7954,7 @@ window.__ModuleLoader__.load({
           !modelChoice && !running ? h('div', { className: `cs-analysis-state${modelChoice === false ? ' is-error' : ''}`, role: 'status' },
             t(modelChoice === false ? 'analysisModelReadError' : 'analysisModelLoading'),
             modelChoice === false ? h('button', { type: 'button', className: 'cs-btn', onClick: onRetryModel }, t('settingsRetry')) : null) : null,
-          coordinatesReady && !sessionOptions.length && !running && !sessionId ? h('p', { className: 'cs-analysis-state' }, t('analysisNoScopeSessions')) : null,
+          coordinatesFresh && !sessionOptions.length && !running && !sessionId ? h('p', { className: 'cs-analysis-state' }, t('analysisNoScopeSessions')) : null,
           unavailableScope ? h('p', { className: 'cs-analysis-state is-error' }, t('analysisScopeUnavailable')) : null,
           stage ? h('div', { className: 'cs-analysis-status', role: 'status' },
             h('strong', null, t(stage), phase === 'collecting' && state.progress ? ` · ${state.progress.read}/${state.progress.total}` : ''),
@@ -7912,7 +8040,7 @@ window.__ModuleLoader__.load({
       return h('section', { className: 'cs-card cs-recent' },
         h('div', { className: 'cs-card-head' },
           renderCardTitle(t('recentSessions'), 'sessions',
-            rows.length > 0 ? h('span', { className: 'cs-tag' }, String(rows.length)) : null)),
+            rows.length > 0 ? h('span', { className: 'cs-tag' }, String(rows.length)) : null, t('moduleTipRecent'))),
         rows.length === 0
           ? h('div', { className: 'cs-empty' }, t('recentSessionsEmpty'))
           : h('div', { className: 'cs-recent-list' }, rows.map((session) => {
@@ -7948,9 +8076,7 @@ window.__ModuleLoader__.load({
           renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { showFoot: true }),
           h('section', { className: 'cs-card cs-trend-summary' },
             h('div', { className: 'cs-card-head' },
-              h('div', { className: 'cs-card-heading' },
-                h('h2', null, t('trendSummary')),
-                renderInfo(t('trendInfo')))),
+              renderCardTitle(t('trendSummary'), 'summary', null, t('trendInfo'))),
             h('div', { className: 'cs-stat-grid' },
               renderStatBox(t('dailyAverageActive'), formatDuration(averageMsPerDay(data, 'activeMs'), durationFormat)),
               renderStatBox(t('dailyAverageTask'), formatDuration(averageMsPerDay(data, 'taskMs'), durationFormat)),
@@ -9889,7 +10015,7 @@ window.__ModuleLoader__.load({
       .cs-card-heading { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
       .cs-heatmap-card .cs-card-heading { align-items: center; }
       .cs-card-heading h2 { margin: 0; font-size: 14px; line-height: 20px; font-weight: 620; }
-      .cs-card-title { display: inline-flex; align-items: center; gap: 7px; }
+      .cs-card-title { display: inline-flex; align-items: center; gap: 4px; }
       .cs-text-fade { position: relative; display: inline-block; max-width: 100%; }
       .cs-text-fade > span { display: block; min-width: 0; }
       .cs-text-fade-prev { position: absolute; inset: 0; white-space: nowrap; overflow: hidden; }
@@ -9898,6 +10024,30 @@ window.__ModuleLoader__.load({
       @keyframes cs-text-fade-out { from { opacity: 1; } to { opacity: 0; } }
       @keyframes cs-text-fade-in { from { opacity: 0; } to { opacity: 1; } }
       .cs-card-icon { display: inline-flex; color: var(--dsw-alias-label-secondary); }
+      .cs-card-icon.has-tip { color: var(--dsw-alias-label-secondary); }
+      /* 模块图标可作为说明入口：停留片刻浮出简介，图标轻弹一下；动作短促且只播一次。 */
+      .cs-card-icon-btn {
+        appearance: none; position: relative; display: inline-flex; align-items: center; justify-content: center;
+        width: 22px; height: 22px; margin: -4px 0 -4px -4px; padding: 0; border: 0; border-radius: 7px;
+        background: transparent; color: inherit; cursor: help;
+      }
+      .cs-card-icon-btn::before {
+        content: ""; position: absolute; inset: 0; border-radius: 7px; pointer-events: none;
+        background: color-mix(in srgb, currentColor 12%, transparent);
+        opacity: 0; transform: scale(.72);
+        transition: opacity 140ms ease, transform 220ms cubic-bezier(.34, 1.56, .64, 1);
+      }
+      .cs-card-icon-btn:hover::before, .cs-card-icon-btn:focus-visible::before { opacity: 1; transform: scale(1); }
+      .cs-card-icon-btn:hover .cs-detail-glyph, .cs-card-icon-btn:focus-visible .cs-detail-glyph {
+        animation: cs-card-glyph-pop 460ms cubic-bezier(.34, 1.56, .64, 1) both;
+      }
+      .cs-card-icon-btn:focus-visible { outline: 2px solid var(--cs-signal); outline-offset: 1px; }
+      @keyframes cs-card-glyph-pop {
+        0% { transform: scale(1) rotate(0); }
+        35% { transform: translateY(-1px) scale(1.2) rotate(-7deg); }
+        68% { transform: translateY(0) scale(1.06) rotate(3deg); }
+        100% { transform: scale(1.08) rotate(0); }
+      }
       .cs-card-hint { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
       .cs-legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
@@ -10436,7 +10586,7 @@ window.__ModuleLoader__.load({
       .cs-info-lines { display: flex; flex-direction: column; gap: 6px; }
       .cs-info-line { position: relative; display: block; padding-left: 11px; }
       .cs-info-line::before { content: ""; position: absolute; left: 1px; top: .68em; width: 3px; height: 3px; border-radius: 50%; background: var(--dsw-alias-label-secondary); }
-      /* 热力图说明只展示低→高六档色带，颜色直接取自当前主题变量。 */
+      /* 热力图说明只展示低→高六档色带，颜色直接取自当前主题变量；入口在标题左侧图标。 */
       .cs-heat-legend { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
       .cs-heat-legend-label { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-heat-legend-scale { display: inline-flex; align-items: center; gap: 2px; }
@@ -10788,10 +10938,23 @@ window.__ModuleLoader__.load({
         letter-spacing: -0.04em; color: var(--cs-ink);
       }
       .cs-hero-meta {
-        display: flex; flex-wrap: wrap; gap: 4px 16px;
+        display: flex; flex-wrap: wrap; align-items: center; gap: 7px 18px;
         font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary);
         font-variant-numeric: tabular-nums;
       }
+      /* 大数字下方的只读信息：图标、标签与数值分成三档，数值按在线/活跃/任务口径着色。 */
+      .cs-hero-meta-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+      .cs-hero-meta-item .cs-detail-glyph { flex: none; color: var(--cs-metric-color, var(--cs-signal)); }
+      .cs-hero-meta-item.is-online { --cs-metric-color: var(--cs-signal-deep); }
+      .cs-hero-meta-item.is-active { --cs-metric-color: var(--cs-chart-active); }
+      .cs-hero-meta-item.is-task { --cs-metric-color: var(--cs-task); }
+      .cs-hero-meta-item.is-count { --cs-metric-color: var(--cs-ink-2); }
+      .cs-hero-meta-label { font-size: 12px; color: var(--dsw-alias-label-secondary); }
+      .cs-hero-meta-value {
+        font-family: var(--cs-mono); font-size: 13.5px; line-height: 18px; font-weight: 650;
+        color: var(--cs-metric-color);
+      }
+      .cs-hero-meta-item.is-count .cs-hero-meta-value { color: var(--cs-ink); }
       .cs-zoom-btn {
         position: absolute; top: 8px; right: 8px; z-index: 2;
         display: grid; place-items: center; width: 24px; height: 24px; padding: 0;
@@ -11127,7 +11290,9 @@ window.__ModuleLoader__.load({
         .cs-palette-signal, .cs-palette-ring, .cs-palette-toggle::after,
         .cs-info button > svg, .cs-session-inspect .cs-detail-glyph,
         .cs-inspector-open .cs-detail-glyph, .cs-review-icon.is-copy > svg rect,
-        .cs-review-icon.is-copy > svg path, .cs-review-icon.is-export > svg { animation: none !important; transition: none !important; }
+        .cs-review-icon.is-copy > svg path, .cs-review-icon.is-export > svg,
+        .cs-card-icon-btn, .cs-card-icon-btn::before, .cs-card-icon-btn .cs-detail-glyph
+          { animation: none !important; transition: none !important; }
         .cs-trend-focus .cs-bar-group .cs-bar-pair { transition: none !important; }
       }
 
@@ -11510,7 +11675,7 @@ window.__ModuleLoader__.load({
       .cs-sessions-tools { display: flex; align-items: center; gap: 18px; }
       .cs-record-footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--cs-line); margin-top: 12px; padding: 12px 0 4px; font-size: 11px; color: var(--cs-ink-2); }
       .cs-session-inspector { display: flex; flex-direction: column; gap: 15px; align-self: start; min-width: 0; padding: 20px 0 20px 20px; border-left: 1px solid var(--cs-line); position: sticky; top: 12px; }
-      .cs-inspector-label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--cs-ink-2); }
+      .cs-inspector-label { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--cs-ink-2); }
       .cs-session-inspector h3 { margin: 0; font-size: 15px; line-height: 23px; font-weight: 600; overflow-wrap: anywhere; }
       .cs-inspector-workspace { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--cs-ink-2); }
       .cs-inspector-running { color: var(--cs-task); }
@@ -11776,7 +11941,7 @@ window.__ModuleLoader__.load({
         .cs-settings-board .cs-timer-reminder-settings { border: 0; border-top: 1px solid var(--dsw-alias-border-l1); padding: 12px 0 0; }
       }
       /* Dashboard 设置：12 列双栏板。统计与数字格式在上，外观/初始化/通知/数据交错排布，
-         宽屏利用横向空间，窄屏自动回到单列；每张卡只占内容需要的高度。 */
+         宽屏利用横向空间，窄屏自动回到单列；同一排的卡片撑满行高，底边与侧边保持齐平。 */
       .cs-settings-board .cs-settings-grid {
         grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; align-items: stretch;
       }
@@ -11804,6 +11969,17 @@ window.__ModuleLoader__.load({
       .cs-settings-sections .cs-settings-switch { font-size: 11px; gap: 5px; }
       .cs-settings-sections .cs-settings-row:last-child { border-bottom: 0; }
       .cs-settings-board .cs-format-card { align-self: stretch; }
+      /* 统计与显示：说明入口默认收起，悬停或键盘聚焦该行才出现，避免一排重复的感叹号。 */
+      .cs-row-info {
+        display: inline-flex; margin-left: 5px; vertical-align: middle;
+        opacity: 0; transform: translateY(1px) scale(.92);
+        transition: opacity 140ms ease, transform 140ms ease;
+      }
+      .cs-settings-row:hover .cs-row-info,
+      .cs-settings-row:focus-within .cs-row-info { opacity: 1; transform: none; }
+      @media (hover: none) { .cs-row-info { opacity: 1; transform: none; } }
+      /* 分析模型在设置板里不再拉满整行：两个下拉各自封顶，和上方统计行保持同一密度。 */
+      .cs-settings-board .cs-analysis-model-fields { grid-template-columns: repeat(2, minmax(0, 230px)); justify-content: start; }
       .cs-settings-board .cs-format-card .cs-format-section {
         display: flex; flex: 1 1 auto; flex-direction: column; height: 100%;
       }

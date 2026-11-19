@@ -77,9 +77,5 @@
         <text x="804" y="82" text-anchor="end" fill="#42494e">Task</text>
       </g>
     </g>
-
-    <text x="900" y="332" text-anchor="middle"
-          font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace"
-          font-size="19" fill="#606568">Illustrative time breakdown</text>
   </g>
 </svg>
