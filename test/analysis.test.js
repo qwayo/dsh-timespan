@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { execFileSync } from 'node:child_process'
 import { createAnalysisService } from '../src/host/analysis.js'
+import { prepareAnalysisCall } from '../src/host/analysis-llm.js'
 
 const FROM = Date.UTC(2026, 10, 16)
 const TO = FROM + 10_000
@@ -356,6 +357,103 @@ test('含工具调用的模型结果被拒绝，已成功报告继续可读', as
   assert.equal(result.error.code, 'invalid-output')
   assert.deepEqual(result.reports.day, OLD_REPORT)
   assert.equal(harness.order.includes('save-report'), false)
+})
+
+test('推理模型的前后说明、代码块、分条数组与省略来源仍可生成报告', async () => {
+  const text = [
+    '我先核对一下数据。',
+    '```json',
+    JSON.stringify({
+      summary: '本周以插件开发为主。',
+      statistics: { allocation: '投入集中在下午：两段会话合计 2 小时', concentration: '任务占比约 18%：完成三次构建' },
+      work: [
+        { text: '完成概览改版：热力图与趋势已对齐', sources: 's1，S2' },
+        '补充设置页布局：等待确认',
+      ],
+      suggestions: ['保留一次回归：确认数字格式切换'],
+    }),
+    '```',
+    '以上是本次回顾。',
+  ].join('\n')
+  const harness = createHarness({
+    sessions: [row('main'), row('other')],
+    snapshots: {
+      main: snapshot('main', [user('本次的正文', FROM)]),
+      other: snapshot('other', [user('另一个会话的正文', FROM + 1)]),
+    },
+    chunks: async function* () {
+      yield { type: 'block-start', index: 0, blockType: 'text' }
+      yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+  })
+  harness.analysis.start({ period: 'day' })
+  const report = (await stateUntil(harness.analysis, 'succeeded')).reports.day
+  assert.equal(report.summary, '本周以插件开发为主。')
+  assert.match(report.content.statistics, /allocation：投入集中在下午[\s\S]*concentration：任务占比约 18%/)
+  assert.deepEqual(report.content.work[0].sourceIds, ['main', 'other'])
+  assert.equal(report.content.work[1].sourceIds.length, 0)
+  assert.equal(report.content.suggestions, '保留一次回归：确认数字格式切换')
+})
+
+test('报告包在顶层数组或 report 外壳中仍可提取', async () => {
+  const text = JSON.stringify([
+    { note: '模型先给了一条说明' },
+    { report: { summary: '外壳报告', statistics: '统计正文', work: [], suggestions: '' } },
+  ])
+  const harness = createHarness({
+    chunks: async function* () {
+      yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+      yield { type: 'finish', reason: { kind: 'stop' } }
+    },
+  })
+  harness.analysis.start({ period: 'day' })
+  const report = (await stateUntil(harness.analysis, 'succeeded')).reports.day
+  assert.equal(report.summary, '外壳报告')
+})
+
+test('推理模型达到输出上限时，已写完的 JSON 报告仍然可用', async () => {
+  const text = JSON.stringify({ summary: '完整报告', statistics: '统计正文', work: [], suggestions: '' })
+  const harness = createHarness({
+    chunks: async function* () {
+      yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+      yield { type: 'finish', reason: { kind: 'max-tokens' } }
+    },
+  })
+  harness.analysis.start({ period: 'day' })
+  const report = (await stateUntil(harness.analysis, 'succeeded')).reports.day
+  assert.equal(report.summary, '完整报告')
+})
+
+test('推理模型达到输出上限且正文被截断时返回明确的输出上限错误', async () => {
+  const harness = createHarness({
+    chunks: async function* () {
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: '{"summary":"写到一半' } }
+      yield { type: 'finish', reason: { kind: 'max-tokens' } }
+    },
+  })
+  harness.analysis.start({ period: 'day' })
+  const failed = await stateUntil(harness.analysis, 'failed')
+  assert.equal(failed.error.code, 'invalid-output')
+  assert.match(failed.error.message, /输出上限/)
+})
+
+test('准备分析调用时为推理模型留足输出预算，并按模型与上下文上限收敛', async () => {
+  for (const [defaultMaxTokens, contextWindow, expected] of [
+    [64_000, 500_000, 16_384],
+    [2_048, 320_000, 2_048],
+    [64_000, 16_000, 4_000],
+  ]) {
+    let received
+    const llm = {
+      async prepareCall(config, _signal, configure) {
+        received = configure(config, { context: { contextWindow }, defaultMaxTokens })
+        return { config: { ...received, provider: MODEL.provider, model: MODEL.model }, stream() {} }
+      },
+    }
+    await prepareAnalysisCall(llm, MODEL, new AbortController().signal)
+    assert.equal(received.maxTokens, expected)
+  }
 })
 
 test('取消当前请求后可以生成新报告，模型迟到结果无法覆盖它', async () => {

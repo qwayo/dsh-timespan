@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:lang="zh-CN" width="1200" height="774" viewBox="0 0 1200 774" role="img" aria-labelledby="dash-title dash-desc">
   <title id="dash-title">TimeSpan 概览界面示意</title>
-  <desc id="dash-desc">晴空蓝浅色概览界面示意，使用示例数据。顶栏为概览、趋势、会话、回顾与设置，右侧是手动计时、外观与配色图标。统计卡显示今日活跃、在线与任务时长及本周、本月数据，其后有今日 24 小时趋势、任务时长构成、每日活跃热力图、工作区排行与最近会话。</desc>
+  <desc id="dash-desc">晴空蓝浅色概览界面示意，使用示例数据。顶栏为概览、趋势、会话、回顾与设置，右侧是手动计时、外观与配色图标。统计卡显示今日在线、活跃与任务时长及本周、本月数据，其后有今日 24 小时趋势、任务时长构成、每日活跃热力图、工作区排行与最近会话。</desc>
 
   <defs>
     <style>
@@ -144,21 +144,23 @@
       <rect x="210.5" y="75.5" width="971" height="149" rx="10" class="card"/>
       <path d="M563 149.5h194" class="rule"/>
 
-      <path d="M234 106h3.6l2.5-4.7 3 9.2 2.8-5.1h3.8" class="glyph" style="stroke:#79b3f9"/>
-      <text x="256" y="111" font-size="15" font-weight="600" class="signal-deep">今日活跃</text>
+      <use xlink:href="#monitor" x="235" y="98" class="glyph" style="stroke:#133463"/>
+      <text x="256" y="111" font-size="15" font-weight="600" class="signal-deep">今日在线</text>
       <use xlink:href="#compare-detail" x="522" y="98" class="glyph" opacity=".72"/>
-      <text x="235" y="161" class="mono chart-active" font-size="44" font-weight="700">4h 24m</text>
+      <text x="235" y="161" class="mono signal-deep" font-size="44" font-weight="700">6h 0m</text>
       <text x="235" y="190" font-size="14" class="muted">11月14日周六</text>
       <text x="519" y="200" font-size="11.5" text-anchor="end" class="muted">活跃占比 73%</text>
       <rect x="235" y="206" width="284" height="4" rx="2" fill="#e7f0fe"/>
       <rect x="235" y="206" width="207.3" height="4" rx="2" fill="#79b3f9"/>
 
-      <use xlink:href="#monitor" x="563" y="124" class="glyph" style="stroke:#133463"/>
-      <text x="584" y="137" font-size="13.5" class="muted">今日在线时长</text>
-      <text x="757" y="137" font-size="16" font-weight="700" text-anchor="end" class="mono signal-deep">6h 0m</text>
+      <path d="M563 132h3.6l2.5-4.7 3 9.2 2.8-5.1h3.8" class="glyph" style="stroke:#79b3f9"/>
+      <text x="584" y="137" font-size="13.5" class="muted">今日活跃时长</text>
+      <text x="757" y="137" font-size="16" font-weight="700" text-anchor="end" class="mono chart-active">4h 24m</text>
       <g transform="translate(563 156)" class="glyph" style="stroke:#C29BE8">
-        <rect x="2" y="2" width="12" height="12" rx="2.4"/>
-        <path d="m5.3 8 1.8 1.9 3.8-4.2"/>
+        <circle cx="8" cy="8.9" r="4.55"/>
+        <path d="M6.5 2.1h3M8 2.1v1.9"/>
+        <path d="M11.8 5.2l1.1-1.1"/>
+        <path d="M5.9 9.1l1.5 1.5 3-3.2"/>
       </g>
       <text x="584" y="169" font-size="13.5" class="muted">今日任务时长</text>
       <text x="757" y="169" font-size="16" font-weight="700" text-anchor="end" class="mono task">3h 0m</text>
