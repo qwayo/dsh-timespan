@@ -228,9 +228,9 @@ window.__ModuleLoader__.load({
       moduleTipComposition: '模型、工具、等待与其他四段的耗时占比',
       moduleTipRanking: '按活跃时长比较各工作区；悬停可看任务占比',
       moduleTipRecent: '按最后活动时间列出会话，点按可打开',
-      rangeOnline: '范围在线',
-      rangeActive: '范围活跃',
-      rangeTask: '范围任务',
+      rangeOnline: '累计在线',
+      rangeActive: '累计活跃',
+      rangeTask: '累计任务',
       peakDay: '最活跃日',
       activeDaysLabel: '活跃天数',
       searchPlaceholder: '搜索工作区或会话',
@@ -253,7 +253,7 @@ window.__ModuleLoader__.load({
       heatLegendHigh: '高',
       heatDayTitle: '{month}月{day}日',
       noRecord: '无记录',
-      heatSummary: '范围活跃 {active} · 活跃天数 {activeDays}/{observedDays}',
+      heatSummary: '累计活跃 {active} · {activeDays}/{observedDays} 天有活跃',
       heatmapLoading: '正在加载每日活跃…',
       heatmapEmpty: '暂无每日记录',
       heatmapError: '暂时无法读取每日活跃',
@@ -423,7 +423,12 @@ window.__ModuleLoader__.load({
       reviewMonth: '月度回顾',
       reviewMetrics: '时间概况',
       reviewRhythm: '投入节奏',
+      reviewRhythmHint: '按本周期的时间桶查看活跃与任务；柱越高，投入越集中',
       reviewWorkspaces: '工作区分布',
+      reviewWorkspacesHint: '按累计活跃比较工作区并标出占比；只列前四名和其余合计',
+      reviewObservationsHint: '本周期的时间事实：边界、口径与关键读数',
+      reviewWorkHint: '从纳入会话整理出的进展；展开可回到来源会话',
+      reviewNextHint: '基于本周期进展给出的下一步建议，可展开全部',
       reviewWorkspaceBasis: '累计活跃 · 按会话相加',
       reviewBasis: '统计口径',
       reviewActualTime: '实际占用 · 重叠只计一次',
@@ -776,9 +781,9 @@ window.__ModuleLoader__.load({
       moduleTipComposition: 'Share of model, tool, wait and other task time',
       moduleTipRanking: 'Compare workspaces by active time; hover for task share',
       moduleTipRecent: 'Sessions by last activity; click to open',
-      rangeOnline: 'Online in range',
-      rangeActive: 'Active in range',
-      rangeTask: 'Task in range',
+      rangeOnline: 'Online total',
+      rangeActive: 'Active total',
+      rangeTask: 'Task total',
       peakDay: 'Peak day',
       activeDaysLabel: 'Active days',
       searchPlaceholder: 'Search workspaces or sessions',
@@ -801,7 +806,7 @@ window.__ModuleLoader__.load({
       heatLegendHigh: 'More',
       heatDayTitle: '{month} {day}',
       noRecord: 'No record',
-      heatSummary: 'Active in range {active} · Active days {activeDays}/{observedDays}',
+      heatSummary: 'Total active {active} · Active on {activeDays}/{observedDays} days',
       heatmapLoading: 'Loading daily active time…',
       heatmapEmpty: 'No daily records yet',
       heatmapError: 'Unable to read daily active time',
@@ -971,7 +976,12 @@ window.__ModuleLoader__.load({
       reviewMonth: 'Monthly review',
       reviewMetrics: 'Time at a glance',
       reviewRhythm: 'Activity rhythm',
+      reviewRhythmHint: 'Active and task time by bucket in this period; taller bars mean more focused time',
       reviewWorkspaces: 'Across workspaces',
+      reviewWorkspacesHint: 'Compare workspaces by accumulated active time and show each share; top four plus the rest',
+      reviewObservationsHint: 'Time facts for this period: boundaries, definitions and key readings',
+      reviewWorkHint: 'Progress drawn from included sessions; expand to open the sources',
+      reviewNextHint: 'Suggested next steps based on this period; expand to read them all',
       reviewWorkspaceBasis: 'Accumulated active time · per session',
       reviewBasis: 'Measurement basis',
       reviewActualTime: 'Actual occupied time · overlaps counted once',
@@ -1494,6 +1504,19 @@ window.__ModuleLoader__.load({
         return h('svg', common,
           h('path', { d: 'M2.4 13.2h11.2' }),
           h('path', { d: 'M4 13V9.4M7.2 13V5.8M10.4 13V7.6M13.6 13V3.2' }))
+      }
+      // 趋势洞察：放大镜里画一条上行折线，表达「从趋势里读出结论」；手柄收短，让圆镜仍是主体。
+      if (name === 'insight') {
+        return h('svg', common,
+          h('circle', { cx: 6.8, cy: 6.8, r: 4.4 }),
+          h('path', { d: 'M4.4 8.4 6.1 6.5l1.2 1.1 1.9-2.3' }),
+          h('path', { d: 'M10.1 10.1l2.4 2.4' }))
+      }
+      // 下一步：两枚向右箭头，表达继续推进，与「打开会话」的斜向箭头区分。
+      if (name === 'next') {
+        return h('svg', common,
+          h('path', { d: 'M4.5 3.6 8.9 8l-4.4 4.4' }),
+          h('path', { d: 'M9.4 3.6 13.8 8l-4.4 4.4' }))
       }
       if (name === 'ranking') {
         return h('svg', common,
@@ -4716,8 +4739,15 @@ window.__ModuleLoader__.load({
       const count = trend.length
       const peak = Math.max(1, ...trend.map((bucket) => Math.max(bucket.activeMs, bucket.taskMs)))
       const slot = width / Math.max(1, count)
-      const barWidth = Math.max(1.5, Math.min(slot * 0.32, 16))
-      const gap = Math.max(1, slot * 0.05)
+      // 回顾卡只拿到已发生的桶（例如本周前四天）：柱宽和成对间距都按完整周期的槽位数计算，
+      // 避免几个桶平分整幅图宽后柱子突然变粗、配对也被拉开；概览沿用实际桶数。
+      const nominal = Math.max(count, finite(actions?.slotCount) || 0)
+      const barSlot = width / Math.max(1, nominal)
+      // 回顾卡的图较窄，周/月场景需要按槽位放宽柱宽；概览沿用原来的固定上限。
+      const barRatio = finite(actions?.barRatio) || 0.32
+      const barMax = finite(actions?.barMax) || 16
+      const barWidth = Math.max(1.5, Math.min(slot * barRatio, barSlot * barRatio, barMax))
+      const gap = Math.max(1, barSlot * 0.05)
       const renderBar = (key, x, duration, fill, index) => {
         const barHeight = Math.max(1.5, (duration / peak) * usable)
         return h('rect', {
@@ -4875,17 +4905,42 @@ window.__ModuleLoader__.load({
           h('i', { className: 'cs-reveal-x', style: { width: `${share}%` } })))
     }
 
-    /** 热力图图例：只用当前主题的六档热力色从左到右排成低→高色带，不再重复解释文字。 */
-    function renderHeatLegend(t) {
-      return h('span', { className: 'cs-heat-legend' },
-        h('span', { className: 'cs-heat-legend-label' }, t('heatLegendLow')),
-        h('span', { className: 'cs-heat-legend-scale', 'aria-hidden': true },
-          ...[0, 1, 2, 3, 4, 5].map((level) => h('i', {
-            key: level,
-            className: 'cs-heat-legend-swatch',
-            style: { background: `var(--cs-heat-${level})` },
-          }))),
-        h('span', { className: 'cs-heat-legend-label' }, t('heatLegendHigh')))
+    /**
+     * 热力图图例：当前主题的六档热力色从左到右排成低→高色带。
+     * 普通概览把范围汇总也收进同一浮层：色带下方给出覆盖度圆环与两份读数，
+     * 不再单独占据卡片标题下方的一行。
+     */
+    function renderHeatLegend(t, format = 'hms', summary = null) {
+      const hasSummary = summary !== null && summary.observedDays > 0
+      return h('span', { className: `cs-heat-legend${hasSummary ? ' has-summary' : ''}` },
+        h('span', { className: 'cs-heat-legend-row' },
+          h('span', { className: 'cs-heat-legend-label' }, t('heatLegendLow')),
+          h('span', { className: 'cs-heat-legend-scale', 'aria-hidden': true },
+            ...[0, 1, 2, 3, 4, 5].map((level) => h('i', {
+              key: level,
+              className: 'cs-heat-legend-swatch',
+              style: { background: `var(--cs-heat-${level})` },
+            }))),
+          h('span', { className: 'cs-heat-legend-label' }, t('heatLegendHigh'))),
+        hasSummary
+          ? h('span', {
+              className: 'cs-heat-legend-summary',
+              role: 'group',
+              'aria-label': summary.label,
+            },
+              h('span', {
+                className: 'cs-heat-legend-ring',
+                style: { '--cs-heat-coverage': `${Math.round((summary.activeDays / summary.observedDays) * 360)}deg` },
+                'aria-hidden': true,
+              }),
+              h('span', { className: 'cs-heat-legend-stat' },
+                h('span', null, t('activeDaysLabel')),
+                h('b', null, h(TextFade, { text: `${summary.activeDays}/${summary.observedDays}` }))),
+              h('span', { className: 'cs-heat-legend-divider', 'aria-hidden': true }),
+              h('span', { className: 'cs-heat-legend-stat' },
+                h('span', null, t('rangeActive')),
+                h('b', null, h(TextFade, { text: formatDuration(summary.activeMs, format) }))))
+          : null)
     }
 
     /** 只规范说明浮层的标点，正文、模型原文及小数保持原样。 */
@@ -5246,15 +5301,14 @@ window.__ModuleLoader__.load({
             tipTitle: `${t('colLast')} ${lastText}`,
             hoverTip,
           }),
-          typeof preview?.onSelect === 'function'
+          // 点整行已经会在右侧预览统计，这一格改成宿主会话入口；占位会话没有可打开的宿主页，留空。
+          sessionIsOpenable(session) && typeof preview?.openSession === 'function'
             ? h('button', {
-                type: 'button', className: 'cs-session-inspect',
-                'aria-label': `${t('detailsInspect')}：${sessionTitle}`,
-                'aria-pressed': preview.selected === true,
-                'aria-controls': 'cs-session-inspector',
-                ...hoverTipProps(hoverTip, t('detailsInspect')),
-                onClick: (event) => { event.stopPropagation(); preview.onSelect(session) },
-              }, h(DetailGlyph, { name: 'trend', size: 16 }))
+                type: 'button', className: 'cs-session-inspect cs-session-open',
+                'aria-label': `${t('openSession')}：${sessionTitle}`,
+                ...hoverTipProps(hoverTip, t('openSession')),
+                onClick: (event) => { event.stopPropagation(); preview.openSession(session) },
+              }, h(DetailGlyph, { name: 'open', size: 16 }))
             : null))
     }
 
@@ -5307,6 +5361,7 @@ window.__ModuleLoader__.load({
                       preview ? {
                         selected: preview.sessionId === session.sessionId,
                         onSelect: (value) => preview.onSelect?.({ ...value, workspaceKey: row.key, workspaceTitle }),
+                        openSession: preview.openSession,
                       } : null,
                     )),
                   paging && hiddenCount > 0
@@ -6529,7 +6584,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-distribution-summary' }, h('span', null, t('trendInsightCoverage')), h('b', null, insights[1].value)),
           buckets.some((bucket) => bucket.future) ? h('span', { className: 'cs-distribution-future' }, t('trendFutureHint')) : null),
         h('section', { className: 'cs-card cs-trend-insights' },
-          h('div', { className: 'cs-card-head' }, renderCardTitle(t('trendInsightsTitle'), 'trend', null, t('trendInsightsHint'))),
+          h('div', { className: 'cs-card-head' }, renderCardTitle(t('trendInsightsTitle'), 'insight', null, t('trendInsightsHint'))),
           h('div', { className: 'cs-trend-insight-list' }, [insights[0], insights[2]].map((item) =>
             h('div', { className: 'cs-trend-insight-row', key: item.key },
               h('span', { className: 'cs-insight-icon' }, h(DetailGlyph, { name: item.key === 'peak' ? 'clock' : 'trend', size: 16 })),
@@ -6814,9 +6869,7 @@ window.__ModuleLoader__.load({
         style: { '--cs-focus-ms': `${focusTransitionMs(prefersReducedMotion())}ms` },
       },
         h('div', { className: 'cs-card-head' },
-          h('div', { className: 'cs-card-heading' },
-            h('h2', null, t('trendFocusTitle')),
-            renderInfo(t('trendInfo'))),
+          renderCardTitle(t('trendFocusTitle'), 'trend', null, t('trendInfo')),
           h('div', { className: 'cs-legend' },
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
             h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel'))),
@@ -6857,7 +6910,11 @@ window.__ModuleLoader__.load({
         className: 'cs-card cs-hero cs-hero-focus',
         'data-focus': 'hero',
         'data-metric': metric,
-        style: { '--cs-focus-ms': `${focusTransitionMs(prefersReducedMotion())}ms` },
+        style: {
+          '--cs-focus-ms': `${focusTransitionMs(prefersReducedMotion())}ms`,
+          // 颜色渐变与读数共用同一个时长，避免两套 900ms 常量各自漂移。
+          '--cs-hero-color-ms': `${DURATION_TWEEN_MS}ms`,
+        },
       },
         h('div', { className: 'cs-card-head' },
           h('div', { className: 'cs-card-heading' },
@@ -6988,11 +7045,24 @@ window.__ModuleLoader__.load({
       const focusSummary = focusPage ? summarizeHeatFocus(scopedDays, hostSummary) : null
       const zoomable = typeof onToggleFocus === 'function'
       const phase = status ?? (hasSeries ? 'ready' : 'loading')
+      // 范围汇总收进标题左侧模块图标的浮层：与六档色带同处一个说明，不占卡片版面。
+      const summary = !focusPage && hasSeries && allDays.length > 0
+        ? summarizeHeatDays(scopedDays, hostSummary)
+        : null
+      const summaryText = summary
+        ? t('heatSummary')
+          .replace('{active}', formatDuration(summary.activeMs, format))
+          .replace('{activeDays}', String(summary.activeDays))
+          .replace('{observedDays}', String(summary.observedDays))
+        : ''
+      const legendSummary = summary && summary.observedDays > 0
+        ? { ...summary, label: summaryText }
+        : null
       const head = h('div', { className: 'cs-card-head' },
         h('div', { className: 'cs-card-heading' },
           h('h2', { className: 'cs-card-title' },
             h('span', { className: 'cs-card-icon has-tip' }, h(Info, {
-              message: t('heatLegendLabel'), content: renderHeatLegend(t),
+              message: t('heatLegendLabel'), content: renderHeatLegend(t, format, legendSummary),
               delay: 600, label: t('heatLegendLabel'),
               icon: h(DetailGlyph, { name: 'heat', size: 15 }), buttonClassName: 'cs-card-icon-btn',
             })),
@@ -7007,7 +7077,6 @@ window.__ModuleLoader__.load({
       } else if (allDays.length === 0) {
         body = h('div', { className: 'cs-empty' }, t('heatmapEmpty'))
       } else {
-        const summary = summarizeHeatDays(scopedDays, hostSummary)
         let maxActive = 0
         for (const day of scopedDays) {
           if (day?.hasObservations === true) maxActive = Math.max(maxActive, finite(day.activeMs))
@@ -7041,12 +7110,6 @@ window.__ModuleLoader__.load({
             onKeyDown: (event) => { if (isActivationKey(event)) hoverTip?.show(tip, event) },
           })
         }
-        const summaryText = t('heatSummary')
-          .replace('{active}', formatDuration(summary.activeMs, format))
-          .replace('{activeDays}', String(summary.activeDays))
-          .replace('{observedDays}', String(summary.observedDays))
-        const summaryNode = h('div', { className: 'heat-summary' }, summaryText)
-
         const renderWeekCells = (grid) => {
           const cells = []
           for (const week of grid.weeks) {
@@ -7096,12 +7159,10 @@ window.__ModuleLoader__.load({
               h('div', { className: 'heat-month-weekdays' }, weekdayLabels.map((label) =>
                 h('span', { key: label }, label))),
               h(ChartReveal, { className: 'heat-month-grid' }, cells)),
-            ...(focusPage ? [] : [summaryNode]),
           ]
         } else {
           // 全年与 3m/6m 共用 7 行周网格；全年把月份刻度移到网格下方，贴近参考图的扁宽比例。
           const isYear = layout === 'year'
-          const fitQuarter = !focusPage && normalizedValue === '3m'
           const range = hasRangeValue ? resolved : (series.range ?? resolved)
           const grid = buildHeatGrid(scopedDays, range, monthLabels, weekdayLabels)
           const cells = renderWeekCells(grid)
@@ -7121,8 +7182,8 @@ window.__ModuleLoader__.load({
           }
           body = [
             h('div', {
-              className: `heatmap-body${isYear ? ' is-year' : ''}${fitQuarter ? ' is-fit-quarter' : ''}`,
-              style: fitQuarter || (focusPage && !isYear) ? { '--cs-heat-columns': grid.weeks.length } : undefined,
+              className: `heatmap-body${isYear ? ' is-year' : ''}`,
+              style: focusPage && !isYear ? { '--cs-heat-columns': grid.weeks.length } : undefined,
               ref: alignHeatScroll,
             },
               weekdayRow,
@@ -7130,7 +7191,6 @@ window.__ModuleLoader__.load({
                 isYear ? null : monthRow,
                 h(ChartReveal, { className: 'heat-weekgrid' }, cells),
                 isYear ? monthRow : null)),
-            ...(focusPage ? [] : [summaryNode]),
           ]
         }
       }
@@ -7716,6 +7776,53 @@ window.__ModuleLoader__.load({
             h('small', null, t('reviewReadCount').replace('{read}', read).replace('{total}', total)))))
     }
 
+    /**
+     * 回顾条状图按卡片实际高度重算 viewBox：工作区列表把卡片拉高时，
+     * 柱顶圆角仍按像素绘制，不会被纵向拉伸成尖角。
+     */
+    function ReviewTrendChart({ trend, period, t, isZh, hover, actions, format }) {
+      const hostRef = React.useRef(null)
+      const [height, setHeight] = React.useState(0)
+      const measure = () => {
+        const node = hostRef.current
+        if (!node) return
+        const svg = node.querySelector('.cs-plot svg')
+        const next = Math.round(svg?.getBoundingClientRect?.().height ?? 0)
+        if (next > 0) setHeight((previous) => (Math.abs(previous - next) > 0.5 ? next : previous))
+      }
+      // 每次提交都在绘制前核对一次：切周期时卡片先变高，viewBox 要在同一帧跟上。
+      React.useLayoutEffect(() => { measure() })
+      React.useEffect(() => {
+        const node = hostRef.current
+        if (!node || typeof window === 'undefined') return undefined
+        measure()
+        let observer = null
+        if (typeof window.ResizeObserver === 'function') {
+          observer = new window.ResizeObserver(measure)
+          observer.observe(node)
+        }
+        if (typeof window.addEventListener === 'function') window.addEventListener('resize', measure)
+        return () => {
+          if (observer) observer.disconnect()
+          if (typeof window.removeEventListener === 'function') window.removeEventListener('resize', measure)
+        }
+      }, [])
+      return h('div', { ref: hostRef, className: 'cs-review-chart-fit' },
+        renderTrendChart(trend, period, t, isZh, hover, { ...actions, height: height || 130 }, format))
+    }
+
+    /** 回顾图的完整周期槽位数：报告只截取已发生的桶，柱宽仍按整日/整周/整月计算。 */
+    function reviewTrendSlotCount(period, trend) {
+      const list = Array.isArray(trend) ? trend : []
+      if (period === 'week') return 7
+      if (period === 'day') return 24
+      if (period === 'month') {
+        const anchor = new Date(finite(list[0]?.from) || Date.now())
+        return new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate()
+      }
+      return list.length
+    }
+
     function renderReviewCharts(report, t, hoverTip) {
       const snapshot = reviewSnapshotView(report, t)
       if (!snapshot) return h('p', { className: 'cs-analysis-state cs-review-snapshot-note' }, t('reviewSnapshotMissing'))
@@ -7723,16 +7830,20 @@ window.__ModuleLoader__.load({
       const hasActivity = trend.some((row) => row.activeMs > 0 || row.taskMs > 0)
       return h('div', { className: 'cs-review-visuals' },
         h('section', { className: 'cs-card cs-review-trend' },
-          h('div', { className: 'cs-card-head' }, renderCardTitle(t('reviewRhythm'), 'trend'),
+          h('div', { className: 'cs-card-head' }, renderCardTitle(t('reviewRhythm'), 'trend', null, t('reviewRhythmHint')),
             h('div', { className: 'cs-legend' },
               h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-active' }), t('activeLabel')),
               h('span', { className: 'cs-legend-item' }, h('i', { className: 'cs-swatch is-task' }), t('taskLabel')))),
-          hasActivity ? renderTrendChart(trend, report.period, t, isZh, hoverTip?.tip, {
-            onHover: hoverTip?.show, onLeave: hoverTip?.hide, height: 130,
-          }, 'short') : h('p', { className: 'cs-review-empty-chart' }, t('reviewNoActivity')),
+          hasActivity ? h(ReviewTrendChart, {
+            trend, period: report.period, t, isZh, hover: hoverTip?.tip, format: 'short',
+            actions: {
+              onHover: hoverTip?.show, onLeave: hoverTip?.hide, barRatio: 0.26, barMax: 24,
+              slotCount: reviewTrendSlotCount(report.period, trend),
+            },
+          }) : h('p', { className: 'cs-review-empty-chart' }, t('reviewNoActivity')),
           snapshot.omittedTrendBuckets > 0 ? h('p', { className: 'cs-analysis-state cs-review-chart-note' }, t('reviewSnapshotPartial')) : null),
         h('section', { className: 'cs-card cs-review-workspaces' },
-          h('div', { className: 'cs-card-head' }, renderCardTitle(t('reviewWorkspaces'), 'ranking')),
+          h('div', { className: 'cs-card-head' }, renderCardTitle(t('reviewWorkspaces'), 'ranking', null, t('reviewWorkspacesHint'))),
           ranked.length ? h(ChartReveal, { as: 'ol', className: 'cs-review-ranks' }, ranked.map((row, index) => h('li', { key: index },
             h('div', null, h('span', null, row.workspaceTitle || t('unassigned')), h('b', null, formatDuration(row.activeMs, 'short'))),
             h('div', { className: 'cs-review-rank-bottom' },
@@ -7762,16 +7873,16 @@ window.__ModuleLoader__.load({
         notes.length ? h('p', { className: 'cs-analysis-state cs-review-coverage-note' }, h(DetailGlyph, { name: 'approx' }), notes.join(' · ')) : null,
         renderReviewCharts(report, t, hoverTip),
         h('section', { className: 'cs-card cs-review-observations' },
-          h('div', { className: 'cs-card-head' }, renderCardTitle(t('analysisStatistics'), 'active')),
+          h('div', { className: 'cs-card-head' }, renderCardTitle(t('analysisStatistics'), 'active', null, t('reviewObservationsHint'))),
           renderReviewPoints(statistics, t)),
         h('div', { className: `cs-review-next${suggestions ? '' : ' is-single'}` },
           h('section', { className: 'cs-card cs-review-work' },
-            h('div', { className: 'cs-card-head' }, renderCardTitle(t('analysisWork'), 'task'), h('span', { className: 'cs-review-count' }, work.length)),
+            h('div', { className: 'cs-card-head' }, renderCardTitle(t('analysisWork'), 'task', h('span', { className: 'cs-review-count' }, work.length), t('reviewWorkHint'))),
             work.length ? h(React.Fragment, null, workList(work.slice(0, 3)), work.length > 3
               ? h('details', { className: 'cs-review-more cs-disclosure' }, reviewMoreSummary(work.length - 3, t), h('div', { className: 'cs-review-fold-body' }, workList(work.slice(3), 3))) : null)
               : h('p', { className: 'cs-analysis-state' }, t('analysisNoWork'))),
           suggestions ? h('section', { className: 'cs-card cs-review-actions' },
-            h('div', { className: 'cs-card-head' }, renderCardTitle(t('analysisSuggestions'), 'open')),
+            h('div', { className: 'cs-card-head' }, renderCardTitle(t('analysisSuggestions'), 'next', null, t('reviewNextHint'))),
             renderReviewPoints(suggestions, t, 'reviewAction')) : null),
         h('footer', { className: 'cs-review-evidence', 'aria-label': t('reportDetails') },
           h('details', { className: 'cs-review-evidence-details cs-disclosure' }, h('summary', { onClick: toggleReviewDetails }, t('reviewEvidenceTitle'), h('span', null, coverageSummary)),
@@ -7793,7 +7904,7 @@ window.__ModuleLoader__.load({
         footerActions ? h('div', { className: 'cs-review-footer-actions' }, footerActions) : null)
     }
 
-    function AnalysisPage({ ctx, t, period, data, modelChoice, onRetryModel, onOpenSettings, onOpenSource, hoverTip, durationFormat, onNoticesChange = null }) {
+    function AnalysisPage({ ctx, t, period, data, modelChoice, onRetryModel, onOpenSettings, onOpenSource, hoverTip, durationFormat, onNoticesChange = null, onReadyChange = null }) {
       const analysis = useAnalysisState(ctx, onRetryModel)
       const [selected, setSelected] = React.useState({ period, workspaceId: '', sessionId: '' })
       const [sourceFailure, setSourceFailure] = React.useState(null)
@@ -7806,6 +7917,10 @@ window.__ModuleLoader__.load({
       const reviewPeriod = selected.period
       const { workspaceId, sessionId } = selected
       const { state, error: loadError, running, operation } = analysis
+      // 首次读取完成（或失败）后正文高度才稳定；此时再让页脚出现。
+      React.useEffect(() => {
+        onReadyChange?.(state !== null || Boolean(loadError))
+      }, [state, loadError, onReadyChange])
       const request = state?.request
       const reviewRange = reviewScopeRange(reviewPeriod, data)
       // 回顾的筛选范围跟随回顾自己的时间范围，不再借用仪表盘当前周期的明细。
@@ -8029,13 +8144,13 @@ window.__ModuleLoader__.load({
           h('div', { className: `cs-overview-bottom${showYear ? ' is-year' : ''}` },
             ...(showYear ? [] : [heatmap]),
             renderWorkspaceRanking(data, t, durationFormat, hoverTip),
-            renderRecentSessions(data, t, nowMs, onOpenSession, durationFormat, recentLimit)),
+            renderRecentSessions(data, t, nowMs, onOpenSession, durationFormat, recentLimit, hoverTip)),
           ...(showYear ? [heatmap] : [])),
       ]
     }
 
     /** 最近会话卡：真实会话优先打开宿主会话页，失败回落明细定位；条数按概览底部行高动态取 3–6 条。 */
-    function renderRecentSessions(data, t, nowMs, onOpenSession, format = 'hms', limit = RECENT_SESSIONS_DEFAULT) {
+    function renderRecentSessions(data, t, nowMs, onOpenSession, format = 'hms', limit = RECENT_SESSIONS_DEFAULT, hoverTip = null) {
       const rows = flattenRecentSessions(data, limit)
       return h('section', { className: 'cs-card cs-recent' },
         h('div', { className: 'cs-card-head' },
@@ -8045,6 +8160,15 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'cs-empty' }, t('recentSessionsEmpty'))
           : h('div', { className: 'cs-recent-list' }, rows.map((session) => {
               const openable = sessionIsOpenable(session) && typeof onOpenSession === 'function'
+              const sessionTitle = session.sessionTitle ?? t('unknownSession')
+              // 悬停直接给一份与会话统计预览同源的关键读数，避免为了看时长先跳进会话页。
+              const tipRows = [
+                { key: 'workspace', label: t('colWorkspace'), value: session.workspaceTitle ?? t('unassigned') },
+                { key: 'active', label: t('activeLabel'), value: formatDuration(session.activeMs, format) },
+                { key: 'task', label: t('taskLabel'), value: formatDuration(session.taskMs, format) },
+                { key: 'count', label: t('taskCountShort'), value: String(finite(session.taskCount)) },
+                { key: 'last', label: t('colLast'), value: formatRelativeTime(session.lastActivityAt, t, nowMs) },
+              ]
               return h(openable ? 'button' : 'div', {
                 key: `${session.workspaceKey}:${session.sessionId}`,
                 ...(openable ? {
@@ -8052,12 +8176,13 @@ window.__ModuleLoader__.load({
                   onClick: () => onOpenSession(session),
                 } : {}),
                 className: `cs-recent-row${openable ? '' : ' is-static'}`,
+                ...hoverTipProps(hoverTip, sessionTitle, tipRows),
               },
                 h('span', { className: 'cs-recent-name' },
                   session.taskRunning === true ? h('span', {
                     className: 'cs-recent-status', role: 'img', 'aria-label': t('runningTag'), title: t('runningTag'),
                   }) : null,
-                  h('span', { className: 'cs-recent-title' }, session.sessionTitle ?? t('unknownSession')),
+                  h('span', { className: 'cs-recent-title' }, sessionTitle),
                   h('span', { className: 'cs-recent-workspace' }, session.workspaceTitle ?? t('unassigned'))),
                 h('span', { className: 'cs-recent-time' }, formatDuration(session.taskMs, format)),
                 h('span', { className: 'cs-recent-last' }, formatRelativeTime(session.lastActivityAt, t, nowMs)))
@@ -8164,7 +8289,7 @@ window.__ModuleLoader__.load({
                   row, expanded[row.key] === true, () => actions.toggleWorkspace(row.key),
                   t, nowMs, subagentByParent, durationFormat, hoverTip, highlight?.workspaceKey === row.key ? highlight.sessionId : null,
                   progressiveSessions ? { enabled: true, visibleCount: visibleSessionCounts[row.key] ?? DETAILS_SESSION_INITIAL, onShowMore: () => actions.showMore(row.key) } : null,
-                  { sessionId: session?.workspaceKey === row.key ? session.sessionId : null, onSelect: selectSession },
+                  { sessionId: session?.workspaceKey === row.key ? session.sessionId : null, onSelect: selectSession, openSession: onOpenSession },
                 ))),
             renderSessionInspector(session, t, durationFormat, onOpenSession, selection, hoverTip)),
           h('div', { className: 'cs-record-footer' },
@@ -8421,6 +8546,8 @@ window.__ModuleLoader__.load({
         const [recentLimit, setRecentLimit] = React.useState(RECENT_SESSIONS_DEFAULT)
         const [switchingView, setSwitchingView] = React.useState(false)
         const [pendingView, setPendingView] = React.useState(null)
+        // 回顾页异步读取报告状态：正文未就绪前不渲染页脚，避免页脚在页面变高时闪一下。
+        const [analysisReady, setAnalysisReady] = React.useState(false)
         // 回顾页的上下文提示由页面上报到顶栏，离开回顾页即撤销，不跨视图残留。
         const [analysisNotices, setAnalysisNotices] = React.useState([])
         const switchingTimerRef = React.useRef(null)
@@ -8642,11 +8769,13 @@ window.__ModuleLoader__.load({
           if (prefersReducedMotion()) {
             setPendingView(null)
             setSwitchingView(false)
+            if (next === 'analysis') setAnalysisReady(false)
             setView(next)
             return
           }
           setPendingView(next)
           setSwitchingView(true)
+          if (next === 'analysis') setAnalysisReady(false)
           switchingTimerRef.current = window.setTimeout(() => {
             switchingTimerRef.current = null
             setView(next)
@@ -8916,6 +9045,7 @@ window.__ModuleLoader__.load({
               onOpenSettings: () => goToView('settings'),
               onOpenSource: (source) => openSessionInHost(ctx, source),
               onNoticesChange: setAnalysisNotices,
+              onReadyChange: setAnalysisReady,
             })]
           }
           if (view === 'settings') {
@@ -8993,6 +9123,10 @@ window.__ModuleLoader__.load({
         // 通知集合变化（关闭、回填结束、离开回顾）时收起可能已失去锚点的浮层。
         const topbarNoticeSignature = topbarNotices.map((notice) => notice.key).join('|')
         React.useEffect(() => { hoverTip.hide() }, [topbarNoticeSignature])
+        // 回顾与会话的正文都是异步取数：高度稳定前不渲染页脚，避免它在页面上缘闪一下。
+        const footerReady = !switchingView &&
+          (view !== 'analysis' || analysisReady) &&
+          (view !== 'details' || sessionBrowser.model.loadStatus !== 'loading')
 
         return h('div', { className: view === 'overview' && focus !== null ? `${pageClassName} is-overview-focused` : pageClassName },
           h('style', null, DSH_TIMESPAN_CSS),
@@ -9045,8 +9179,9 @@ window.__ModuleLoader__.load({
               },
                 view === 'settings' ? h('style', null, DSH_TIMESPAN_SETTINGS_CSS) : null,
                 ...renderView())),
-            data ? h('footer', { className: 'cs-foot' },
-              renderInfo(footerLines.join('；'), null, footerLines)) : null,
+            data && footerReady
+              ? h('footer', { className: 'cs-foot' },
+                renderInfo(footerLines.join('；'), null, footerLines)) : null,
             h(HoverTip, { key: 'hover-tip', tip: hoverTip.tip })))
       }
     }
@@ -9754,8 +9889,13 @@ window.__ModuleLoader__.load({
       .cs-review-visuals, .cs-review-next { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
       .cs-review-next.is-single { grid-template-columns: minmax(0, 1fr); }
       .cs-analysis-report .cs-card { padding: 16px var(--cs-analysis-padding); min-width: 0; }
-      .cs-review-trend .cs-chart { margin-top: 12px; }
-      .cs-review-trend .cs-plot { height: 118px; }
+      /* 投入节奏与右侧工作区分布同高：图表吃掉卡片剩余高度，工作区较多时不再在底部留出空白。 */
+      .cs-review-trend { display: flex; flex-direction: column; }
+      .cs-review-chart-fit { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+      .cs-review-trend .cs-chart { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; margin-top: 12px; }
+      .cs-review-trend .cs-plot { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 118px; }
+      .cs-review-trend .cs-chart svg { flex: 1 1 auto; height: 100%; min-height: 118px; }
+      .cs-review-trend .cs-review-empty-chart { flex: 1 1 auto; }
       .cs-analysis-report .cs-review-chart-note { margin-top: 12px; font-size: 11px; }
       .cs-review-empty-chart { display: flex; align-items: center; justify-content: center; min-height: 110px; font-size: 13px; color: var(--dsw-alias-label-secondary); }
       .cs-review-ranks { display: grid; gap: 14px; padding: 0; margin: 14px 0 0; list-style: none; }
@@ -10586,8 +10726,10 @@ window.__ModuleLoader__.load({
       .cs-info-lines { display: flex; flex-direction: column; gap: 6px; }
       .cs-info-line { position: relative; display: block; padding-left: 11px; }
       .cs-info-line::before { content: ""; position: absolute; left: 1px; top: .68em; width: 3px; height: 3px; border-radius: 50%; background: var(--dsw-alias-label-secondary); }
-      /* 热力图说明只展示低→高六档色带，颜色直接取自当前主题变量；入口在标题左侧图标。 */
-      .cs-heat-legend { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+      /* 热力图说明只展示低→高六档色带，颜色直接取自当前主题变量；入口在标题左侧图标。
+         带汇总时浮层纵排：第一行色带，第二行覆盖度与读数。 */
+      .cs-heat-legend { display: inline-flex; flex-direction: column; gap: 8px; white-space: nowrap; }
+      .cs-heat-legend-row { display: inline-flex; align-items: center; gap: 7px; }
       .cs-heat-legend-label { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-heat-legend-scale { display: inline-flex; align-items: center; gap: 2px; }
       .cs-heat-legend-swatch {
@@ -11100,7 +11242,8 @@ window.__ModuleLoader__.load({
         font-size: clamp(44px, min(15cqw, 22svh), 220px); line-height: .96; margin-top: 0;
         letter-spacing: -0.065em; font-weight: 640; color: var(--cs-metric-color);
         white-space: nowrap; overflow-wrap: normal;
-        transition: color 240ms var(--cs-ease);
+        /* 颜色与读数同一节奏：时长来自 DurationTween，五次缓动近似慢—快—慢，切换口径时随数字一起变色。 */
+        transition: color var(--cs-hero-color-ms, 900ms) cubic-bezier(.86, 0, .07, 1);
       }
       .cs-hero-focus .cs-hero-num .cs-duration-number { color: inherit; }
       /* 读数变长时按字符数收一档字号，保证始终单行横排而不压到圆环。 */
@@ -11229,6 +11372,7 @@ window.__ModuleLoader__.load({
       }
       @media (prefers-reduced-motion: reduce) {
         .cs-fs-button { transition: none !important; }
+        .cs-hero-focus .cs-hero-num { transition: none !important; }
       }
       /* 条状图首屏：整页重排为按可用高度铺开的图表，再点右上角缩回。 */
       .cs-trend-card.has-zoom { position: relative; }
@@ -11302,6 +11446,13 @@ window.__ModuleLoader__.load({
         position: relative; overflow: visible;
         display: flex; flex-direction: column; gap: 12px;
       }
+      /* 普通概览的周网格以近 3 个月的 14 周贴合卡宽为基准，近半年沿用同一格子尺寸；
+         单月改用卡片宽度均分列宽，全年保持通栏等比布局。 */
+      .cs-heatmap-card:not(.cs-heatmap-focus) {
+        container-type: inline-size;
+        --cs-heat-gap: 2px;
+        --cs-heat-cell: clamp(9px, calc((100cqw - 30px - 13 * var(--cs-heat-gap)) / 14), 16px);
+      }
       /* 范围选择器只收窄触发器；弹出的三列 15 项菜单保持完整，避免选项被裁切。 */
       .heat-range-select .cs-select-btn {
         width: 78px; min-width: 78px; max-width: 78px;
@@ -11309,11 +11460,29 @@ window.__ModuleLoader__.load({
       }
       .heat-range-select .cs-select-val { font-size: 11.5px; }
       .heat-card-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+      /* 范围汇总收进模块图标的说明浮层：色带下方用细线隔开覆盖度圆环与两份读数。 */
+      .cs-heat-legend-summary {
+        display: flex; align-items: center; gap: 10px;
+        padding-top: 8px; border-top: 1px solid var(--dsw-alias-border-l1);
+        color: var(--dsw-alias-label-secondary);
+      }
+      .cs-heat-legend-ring {
+        width: 22px; height: 22px; border-radius: 50%; flex: none;
+        background: conic-gradient(var(--cs-chart-active) var(--cs-heat-coverage, 0deg), var(--cs-ring-track) 0);
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+        mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+      }
+      .cs-heat-legend-stat { display: inline-flex; flex-direction: column; gap: 1px; min-width: 0; line-height: 1; }
+      .cs-heat-legend-stat > span { font-size: 10px; line-height: 12px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+      .cs-heat-legend-stat > b { font-size: 11.5px; line-height: 14px; font-weight: 620; color: var(--dsw-alias-label-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .cs-heat-legend-divider { width: 1px; height: 18px; flex: none; background: var(--dsw-alias-border-l1); }
       .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
-      /* 普通概览近 3 个月按真实周列数适配卡宽；为中英星期列及 8px 间距预留 30px。 */
-      .heatmap-body.is-fit-quarter { container-type: inline-size; --cs-heat-gap: 2px; }
-      .heatmap-body.is-fit-quarter > * {
-        --cs-heat-cell: clamp(9px, calc((100cqw - 30px - (var(--cs-heat-columns) - 1) * var(--cs-heat-gap)) / var(--cs-heat-columns)), 16px);
+      /* 近半年网格会横向滚动：星期刻度钉在滚动视口左缘，不再随网格滑走。 */
+      .heatmap-body:not(.is-year) { gap: 0; }
+      .heatmap-body:not(.is-year) .heat-weekdays {
+        position: sticky; left: 0; z-index: 4;
+        padding-right: 8px;
+        background: var(--dsw-alias-bg-layer-1);
       }
       /* 全年 53 列压进卡片可用宽度：列宽等比分配、格子用 aspect-ratio 保持正方形，
          不再靠固定像素宽度撑出横向滚动条；月份刻度也走同一套等比列。 */
@@ -11397,7 +11566,6 @@ window.__ModuleLoader__.load({
         transform: scale(1.35); filter: brightness(1.12); z-index: 3;
       }
       .heat-cell:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
-      .heat-summary { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
 
       /* 全年：左侧月份刻度与 31 列格子共用同一张网格，保证逐行严格对齐。 */
       .heat-year { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -11437,15 +11605,29 @@ window.__ModuleLoader__.load({
         color: var(--dsw-alias-label-secondary); white-space: nowrap;
       }
 
-      /* 单月：7 列日历，星期刻度与格子共用同一列宽，保证严格对齐。 */
-      .heat-month { display: flex; flex-direction: column; gap: 4px; width: min(100%, 460px); min-width: 0; }
+      /* 单月：7 列日历与周网格共用同一格子尺寸，不再把日历撑到整张卡宽。 */
+      .heat-month {
+        display: flex; flex-direction: column; gap: var(--cs-heat-gap);
+        width: calc(7 * var(--cs-heat-cell) + 6 * var(--cs-heat-gap));
+        max-width: 100%; min-width: 0; margin-inline: auto;
+      }
+      /* 普通概览的单月按卡宽铺满：列宽均分，格子保持正方形；260px 上限让 6 行日历仍落在首屏内。 */
+      .cs-heatmap-card[data-layout="month"]:not(.cs-heatmap-focus) .heat-month {
+        width: 100%; max-width: 260px;
+      }
+      .cs-heatmap-card[data-layout="month"]:not(.cs-heatmap-focus) .heat-month-grid {
+        grid-auto-rows: auto;
+      }
+      .cs-heatmap-card[data-layout="month"]:not(.cs-heatmap-focus) .heat-month .heat-cell {
+        width: auto; height: auto; aspect-ratio: 1; border-radius: 5px;
+      }
       .heat-month-weekdays {
-        display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;
+        display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--cs-heat-gap);
         font-size: 10px; line-height: 12px; text-align: center;
         color: var(--dsw-alias-label-secondary);
       }
       .heat-month-grid {
-        display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;
+        display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--cs-heat-gap);
         min-width: 0;
       }
       .heat-month .heat-cell {
@@ -11619,13 +11801,12 @@ window.__ModuleLoader__.load({
         .cs-overview-analysis .cs-composition-list, .cs-overview-bottom .cs-ranking-list { gap: 5px; }
         .cs-overview-bottom .cs-ranking-row { min-height: 24px; grid-template-columns: 17px minmax(0, 1fr) minmax(22px, .8fr) auto; gap: 7px; }
         .cs-overview-bottom .cs-heatmap-card {
-          --cs-heat-cell: calc(clamp(10px, 1.45cqw, 15px) + var(--cs-overview-room) * .04);
-          --cs-heat-gap: calc(2px + var(--cs-overview-room) * .01);
           gap: 6px;
         }
         .cs-overview-bottom .cs-recent-row { min-height: calc(38px + var(--cs-overview-room) * .065); padding-block: 3px; }
         @container cs-overview (min-width: 850px) {
-          .cs-overview-grid { --cs-overview-room: clamp(0px, calc((100vh - 726px) * .74), 90px); }
+          /* 概览按可用高度补足留白：到窗口底部的余量全部换成图表、热力格与会话行的呼吸空间。 */
+          .cs-overview-grid { --cs-overview-room: clamp(0px, calc((100vh - 694px) * 1.2), 200px); }
         }
         @container cs-composition (min-width: 230px) and (max-width: 310px) {
           .cs-overview-analysis .cs-composition-body { flex-direction: row; gap: 8px; }
@@ -11644,7 +11825,6 @@ window.__ModuleLoader__.load({
       @media (max-height: 720px) {
         .cs-overview-grid { gap: 6px; }
         .cs-overview-grid .cs-card { padding-block: 8px; }
-        .cs-overview-bottom .cs-heatmap-card { --cs-heat-cell: clamp(10px, 1.35cqw, 13px); }
         .cs-overview-bottom .cs-recent .cs-card-head { margin-bottom: 4px; }
         .cs-overview-bottom .cs-recent-row { min-height: 0; padding-block: 2px; }
       }
@@ -11711,6 +11891,8 @@ window.__ModuleLoader__.load({
       .cs-session-inspect:hover { border-color: color-mix(in srgb, var(--cs-signal) 26%, transparent); }
       .cs-session-inspect .cs-detail-glyph { transition: transform 240ms cubic-bezier(.34, 1.56, .64, 1); }
       .cs-session-inspect:hover .cs-detail-glyph, .cs-session-inspect:focus-visible .cs-detail-glyph { transform: scale(1.16) rotate(-6deg); }
+      /* 打开宿主会话：沿用详情抽屉入口的斜向位移，和「预览统计」的放大旋转区分。 */
+      .cs-session-open:hover .cs-detail-glyph, .cs-session-open:focus-visible .cs-detail-glyph { transform: translate(2px, -2px); }
       .cs-page .cs-session.is-selected { background: var(--cs-tone-faint); }
       .cs-page .cs-session.is-selected::before { content: ''; position: absolute; top: 0; right: auto; bottom: 0; left: -1px; width: 2px; border-radius: 0; background: var(--cs-signal); box-shadow: none; animation: none; pointer-events: none; }
       .cs-page .cs-session.is-selectable { cursor: pointer; transition: background var(--cs-dur-tap) var(--cs-ease); }
@@ -11972,12 +12154,15 @@ window.__ModuleLoader__.load({
       /* 统计与显示：说明入口默认收起，悬停或键盘聚焦该行才出现，避免一排重复的感叹号。 */
       .cs-row-info {
         display: inline-flex; margin-left: 5px; vertical-align: middle;
-        opacity: 0; transform: translateY(1px) scale(.92);
-        transition: opacity 140ms ease, transform 140ms ease;
+        opacity: 0; transition: opacity 140ms ease;
       }
+      /* 缩放只放在按钮上：包装层一旦有 transform，固定定位的提示会以它为包含块而跳位。 */
+      .cs-row-info .cs-info > button { transform: translateY(1px) scale(.92); transition: transform 140ms ease; }
       .cs-settings-row:hover .cs-row-info,
-      .cs-settings-row:focus-within .cs-row-info { opacity: 1; transform: none; }
-      @media (hover: none) { .cs-row-info { opacity: 1; transform: none; } }
+      .cs-settings-row:focus-within .cs-row-info { opacity: 1; }
+      .cs-settings-row:hover .cs-row-info .cs-info > button,
+      .cs-settings-row:focus-within .cs-row-info .cs-info > button { transform: none; }
+      @media (hover: none) { .cs-row-info { opacity: 1; } .cs-row-info .cs-info > button { transform: none; } }
       /* 分析模型在设置板里不再拉满整行：两个下拉各自封顶，和上方统计行保持同一密度。 */
       .cs-settings-board .cs-analysis-model-fields { grid-template-columns: repeat(2, minmax(0, 230px)); justify-content: start; }
       .cs-settings-board .cs-format-card .cs-format-section {
