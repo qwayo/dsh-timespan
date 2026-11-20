@@ -34,6 +34,17 @@
       <circle cx="8" cy="8" r="6"/>
       <path d="M8 7.5v3.2M8 5v.1"/>
     </g>
+    <g id="heat" fill="#606568">
+      <rect x="2.1" y="2.1" width="3.4" height="3.4" rx="1" opacity=".9"/>
+      <rect x="6.3" y="2.1" width="3.4" height="3.4" rx="1" opacity=".4"/>
+      <rect x="10.5" y="2.1" width="3.4" height="3.4" rx="1" opacity=".65"/>
+      <rect x="2.1" y="6.3" width="3.4" height="3.4" rx="1" opacity=".5"/>
+      <rect x="6.3" y="6.3" width="3.4" height="3.4" rx="1"/>
+      <rect x="10.5" y="6.3" width="3.4" height="3.4" rx="1" opacity=".3"/>
+      <rect x="2.1" y="10.5" width="3.4" height="3.4" rx="1" opacity=".75"/>
+      <rect x="6.3" y="10.5" width="3.4" height="3.4" rx="1" opacity=".45"/>
+      <rect x="10.5" y="10.5" width="3.4" height="3.4" rx="1" opacity=".85"/>
+    </g>
     <g id="folder">
       <path d="M1.7 5V3.6c0-.6.5-1.1 1.1-1.1H6l1.6 1.6h5.6c.6 0 1.1.5 1.1 1.1v1.2M1.7 5.8h11.7c.6 0 1.1.5 1 1.1l-.6 5.4c-.1.6-.5 1-1.1 1H2.9c-.7 0-1.2-.5-1.2-1.2V5.8Z"/>
     </g>
@@ -285,8 +296,8 @@
     <!-- 每日活跃热力图 -->
     <g id="heatmap-card">
       <rect x="210.5" y="479.5" width="315" height="247" rx="10" class="card"/>
-      <text x="229" y="512" class="heading">每日活跃</text>
-      <use xlink:href="#info" x="310" y="498" class="glyph"/>
+      <use xlink:href="#heat" x="229" y="498"/>
+      <text x="251" y="512" class="heading">每日活跃</text>
       <rect x="411.5" y="492.5" width="75" height="27" rx="7" class="card"/>
       <text x="420" y="510" font-size="12" class="muted">近3个月</text>
       <path d="m473 504 3.4 3.4 3.4-3.4" class="glyph"/>
@@ -412,7 +423,6 @@
         <rect x="181.5" width="14" height="14" rx="3" fill="#dbe9f7"/>
         <rect x="198" width="14" height="14" rx="3" fill="#b8d4ef"/>
       </g>
-      <text x="229" y="704" font-size="12" class="muted">范围活跃 214h 0m · 活跃天数 73/93</text>
     </g>
 
     <!-- 当前周期的工作区排行 -->
