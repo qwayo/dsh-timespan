@@ -258,7 +258,7 @@ window.__ModuleLoader__.load({
       heatmapEmpty: '暂无每日记录',
       heatmapError: '暂时无法读取每日活跃',
       heatRangeLabel: '统计范围',
-      heatRange3m: '近3个月',
+      heatRange3m: '近三个月',
       heatRange6m: '近半年',
       heatRangeYear: '全年',
       heatRangeMonth: '{month}',
@@ -515,7 +515,6 @@ window.__ModuleLoader__.load({
       trendDistributionDay: '按天 · 活跃时长',
       trendDistributionHint: '颜色越深，活跃越久；空白表示无活跃，虚线表示尚未开始',
       settingsSidebarPreview: '侧栏效果',
-      settingsAutoSave: '更改后自动保存',
       settingsRulesGroup: '统计规则',
       settingsSidebarGroup: '侧栏入口',
       detailsSessionsTitle: '会话记录',
@@ -622,7 +621,6 @@ window.__ModuleLoader__.load({
       settingsSectionGeneral: '统计口径',
       settingsSectionDisplay: '明细展示',
       settingsSectionBasics: '统计与显示',
-      settingsBasicsHint: '统计规则与侧栏显示，修改后立即生效',
       settingsSectionFormat: '数字格式',
       settingsFormatHint: '选择后整页立即预览并自动保存，刷新后沿用已保存的格式。',
       settingsFormatShared: '侧栏、概览、趋势、会话与导出共用这一格式。',
@@ -1068,7 +1066,6 @@ window.__ModuleLoader__.load({
       trendDistributionDay: 'Daily · Active time',
       trendDistributionHint: 'Darker means more active time; empty means inactive, dashed means not yet started',
       settingsSidebarPreview: 'Sidebar preview',
-      settingsAutoSave: 'Changes save automatically',
       settingsRulesGroup: 'Statistics',
       settingsSidebarGroup: 'Sidebar',
       detailsSessionsTitle: 'Sessions',
@@ -1175,7 +1172,6 @@ window.__ModuleLoader__.load({
       settingsSectionGeneral: 'Counting rules',
       settingsSectionDisplay: 'Detail display',
       settingsSectionBasics: 'Counting and display',
-      settingsBasicsHint: 'Counting rules and sidebar display; changes apply immediately',
       settingsSectionFormat: 'Number format',
       settingsFormatHint: 'The whole page previews immediately and the choice is saved automatically; the saved format survives refresh.',
       settingsFormatShared: 'The sidebar, overview, trend, sessions and exports all use this format.',
@@ -1839,7 +1835,7 @@ window.__ModuleLoader__.load({
       return { year: targetYear, months, bars }
     }
 
-    /** 菜单选项文案：跨度与月份都按界面语言生成；中文「近3个月/全年/1月…12月」，英文沿用原缩写。 */
+    /** 菜单选项文案：跨度与月份都按界面语言生成；中文「近三个月/全年/1月…12月」，英文沿用原缩写。 */
     function heatRangeOptionLabel(option, t) {
       if (typeof option.value === 'number') {
         return heatMonthLabels(t)[option.value - 1] ?? option.label
@@ -4729,6 +4725,30 @@ window.__ModuleLoader__.load({
       return event?.key === 'Enter' || event?.key === ' ' || event?.key === 'Spacebar'
     }
 
+    /**
+     * 柱形轮廓：顶部保留圆头，柱脚只收浅圆角。
+     * 四角共用同一半径时，柱脚会收成一个尖点；底部半径收小后落成短平脚。
+     */
+    function barOutline(x, y, width, height) {
+      const clamp = (value, max) => Math.max(0, Math.min(value, max))
+      const topRx = clamp(width * 0.42, width / 2)
+      const topRy = clamp(width * 0.32, height / 2)
+      const bottomRx = clamp(width * 0.26, width / 2)
+      const bottomRy = clamp(width * 0.18, height / 2)
+      const x2 = x + width
+      const y2 = y + height
+      const n = (value) => Math.round(value * 100) / 100
+      return `M ${n(x + topRx)} ${n(y)}`
+        + ` H ${n(x2 - topRx)}`
+        + ` A ${n(topRx)} ${n(topRy)} 0 0 1 ${n(x2)} ${n(y + topRy)}`
+        + ` V ${n(y2 - bottomRy)}`
+        + ` A ${n(bottomRx)} ${n(bottomRy)} 0 0 1 ${n(x2 - bottomRx)} ${n(y2)}`
+        + ` H ${n(x + bottomRx)}`
+        + ` A ${n(bottomRx)} ${n(bottomRy)} 0 0 1 ${n(x)} ${n(y2 - bottomRy)}`
+        + ` V ${n(y + topRy)}`
+        + ` A ${n(topRx)} ${n(topRy)} 0 0 1 ${n(x + topRx)} ${n(y)} Z`
+    }
+
     /** 原生 SVG 双系列柱状图；每个时段分组带透明命中区，悬浮或聚焦时整体放大并浮出数值。 */
     function renderTrendChart(trend, period, t, isZh, hover, actions = {}, format = 'hms') {
       const width = 1000
@@ -4750,17 +4770,16 @@ window.__ModuleLoader__.load({
       const gap = Math.max(1, barSlot * 0.05)
       const renderBar = (key, x, duration, fill, index) => {
         const barHeight = Math.max(1.5, (duration / peak) * usable)
-        return h('rect', {
+        const y = baseline - barHeight
+        return h('path', {
           key,
           className: 'cs-bar cs-reveal-y',
           style: chartStagger(index, count),
-          x,
-          y: baseline - barHeight,
-          width: barWidth,
-          height: barHeight,
-          rx: barWidth * 0.42,
-          ry: Math.min(barWidth * 0.32, barHeight / 2),
+          d: barOutline(x, y, barWidth, barHeight),
           fill,
+          'data-bar-x': Math.round(x * 100) / 100,
+          'data-bar-width': Math.round(barWidth * 100) / 100,
+          'data-bar-height': Math.round(barHeight * 100) / 100,
         })
       }
       const groups = []
@@ -5970,9 +5989,7 @@ window.__ModuleLoader__.load({
       ]
       return [
         h('div', { className: 'cs-settings-card-head' },
-          h('div', null,
-            h('h3', null, t('settingsSectionBasics')),
-            h('p', { className: 'cs-settings-card-sub' }, t('settingsBasicsHint'))),
+          h('h3', null, t('settingsSectionBasics')),
           options.status ?? null),
         options.split ? h('div', { className: 'cs-settings-sections' },
           h('div', { className: 'cs-settings-list' }, h('h4', null, t('settingsRulesGroup')), ...rows.slice(0, 4)),
@@ -8345,8 +8362,9 @@ window.__ModuleLoader__.load({
       const appearanceMode = normalizeAppearance(appearance)
       const importRange = importPreview ? importPreviewRange(importPreview.payload) : ''
       const importReportCount = Object.keys(ANALYSIS_PERIOD_LABELS).filter((period) => importPreview?.payload?.reports?.[period]).length
+      // 卡头只显示保存过程中的即时反馈；空闲时不放常驻小字，避免与标题抢位置。
       const saveStatus = h('div', { className: 'cs-settings-feedback' },
-        h('span', { className: `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`, role: 'status' }, message || t('settingsAutoSave')),
+        h('span', { className: `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`, role: 'status' }, message),
         loadFailed || onRetrySave ? h('button', { type: 'button', className: 'cs-btn', onClick: loadFailed ? onRetryLoad : onRetrySave }, t('settingsRetry')) : null)
       return [h('div', { className: 'cs-settings cs-settings-board' },
         h('div', { className: 'cs-settings-grid' },
@@ -10761,7 +10779,7 @@ window.__ModuleLoader__.load({
       /* 统一悬停浮层：固定定位后由 JS 按视口夹取，后续热力图可直接复用。 */
       .cs-hover-tip {
         position: fixed; left: 0; top: 0; z-index: 90;
-        min-width: 132px; max-width: 264px; padding: 8px 10px; border-radius: 8px;
+        width: max-content; max-width: 264px; padding: 8px 10px; border-radius: 8px;
         background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1);
         box-shadow: 0 12px 30px rgba(0, 0, 0, .24); pointer-events: none;
         font-size: 11px; line-height: 1.7; font-variant-numeric: tabular-nums;
@@ -11476,7 +11494,8 @@ window.__ModuleLoader__.load({
       .cs-heat-legend-stat > span { font-size: 10px; line-height: 12px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
       .cs-heat-legend-stat > b { font-size: 11.5px; line-height: 14px; font-weight: 620; color: var(--dsw-alias-label-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
       .cs-heat-legend-divider { width: 1px; height: 18px; flex: none; background: var(--dsw-alias-border-l1); }
-      .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+      /* 底部留 4px 吸收格子悬停放大的外扩，普通概览不在最后一行冒出纵向滚动条。 */
+      .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
       /* 近半年网格会横向滚动：星期刻度钉在滚动视口左缘，不再随网格滑走。 */
       .heatmap-body:not(.is-year) { gap: 0; }
       .heatmap-body:not(.is-year) .heat-weekdays {
@@ -11666,11 +11685,14 @@ window.__ModuleLoader__.load({
         flex: 0 1 auto; min-height: 0; overflow-x: auto; overflow-y: visible;
       }
       .cs-heatmap-focus .heat-plot { flex: 1 1 auto; width: 100%; min-width: 0; }
-      /* 3m/6m 首屏：星期刻度与固定像素周网格作为一个整体居中，月份刻度与网格同宽。 */
+      /* 3m/6m 首屏：星期刻度与固定像素周网格作为一个整体居中，月份刻度与网格同宽。
+         四周留出 10px：格子悬停放大 1.35 倍时会向边缘外扩，正好被这段内边距吸收，
+         不再把右侧或底部的贴合边撑成滚动条。 */
       .cs-heatmap-focus .heatmap-body:not(.is-year) {
         --cs-heat-cell: clamp(12px, min(var(--cs-heat-cell-limit), calc(
-          (100cqw - 34px - (var(--cs-heat-columns) - 1) * var(--cs-heat-gap)) / var(--cs-heat-columns)
+          (100cqw - 54px - (var(--cs-heat-columns) - 1) * var(--cs-heat-gap)) / var(--cs-heat-columns)
         )), 52px);
+        padding: 10px;
         width: fit-content; max-width: 100%; margin: 0 auto;
         justify-content: flex-start;
       }
@@ -12062,7 +12084,7 @@ window.__ModuleLoader__.load({
       /* 设置页独立挂载，悬停浮层样式随模块一起加载，不等同页面的图表浮层。 */
       .cs-hover-tip {
         position: fixed; left: 0; top: 0; z-index: 90;
-        min-width: 132px; max-width: 264px; padding: 8px 10px; border-radius: 8px;
+        width: max-content; max-width: 264px; padding: 8px 10px; border-radius: 8px;
         background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1);
         box-shadow: 0 12px 30px rgba(0, 0, 0, .24); pointer-events: none;
         font-size: 11px; line-height: 1.7; font-variant-numeric: tabular-nums;

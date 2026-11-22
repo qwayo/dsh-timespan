@@ -66,7 +66,7 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
       normalizeBackfill, normalizeDashboard, useDashboard, approximateNoticeVisible,
       buildTopbarNotices, renderTopbarNotices, renderTopbarNoticeChip, DetailGlyph,
       localDayCount, averageMsPerDay, clampTipPosition, renderHoverTip,
-      buildTrendTip, buildCompositionTip, renderTrendChart, reviewTrendSlotCount, HoverTip, useHoverTip, hoverTipProps,
+      buildTrendTip, buildCompositionTip, renderTrendChart, barOutline, reviewTrendSlotCount, HoverTip, useHoverTip, hoverTipProps,
       renderBackfillNotices, isBackfillUnread,
       Select, isSelectOutside, createSelectOutsideHandler,
       renderWorkspaceRanking, Info, renderInfo, DshTimespanIcon: typeof DshTimespanIcon === 'function' ? DshTimespanIcon : undefined,
@@ -1499,7 +1499,7 @@ function fakeEvent(rect = { left: 100, top: 80, width: 24, height: 100, right: 1
 }
 
 test('客户端：柱图每个时段分组有可聚焦命中区并浮出活跃与任务', async () => {
-  const { renderTrendChart, ChartReveal, React } = await loadClientFunctions()
+  const { renderTrendChart, barOutline, ChartReveal, React } = await loadClientFunctions()
   const labels = { activeLabel: '活跃', taskLabel: '任务' }
   const t = (key) => labels[key] ?? key
   const trend = [
@@ -1518,17 +1518,24 @@ test('客户端：柱图每个时段分组有可聚焦命中区并浮出活跃�
   const reveal = React.render(ChartReveal, { className: 'cs-chart' })
   assert.equal(reveal.props['data-chart-settled'], undefined, '图表不永久关闭入场动画')
   assert.match(reveal.props['data-chart-reveal'], /^(visible|pending)$/)
-  for (const { props: { rx, ry, width, height } } of bars) {
-    assert.ok(rx > width / 3 && rx < width / 2, '圆角向端面中央延伸，留出短平边')
-    assert.ok(ry > 0 && ry < rx && ry <= height / 2, '端面弧度较浅，短柱圆角不超过柱高一半')
+  for (const { props } of bars) {
+    assert.equal(props.d?.startsWith('M '), true, '柱形用路径绘制，顶部与柱脚可以分开设置圆角')
   }
+  const outline = barOutline(0, 0, 10, 30)
+  const arcs = [...outline.matchAll(/A ([\d.]+) ([\d.]+) 0 0 1/g)]
+    .map(([, rx, ry]) => ({ rx: Number(rx), ry: Number(ry) }))
+  assert.equal(arcs.length, 4, '轮廓由四个圆角弧线组成')
+  assert.deepEqual(arcs[0], { rx: 4.2, ry: 3.2 }, '顶部圆头保持原来的半径')
+  assert.deepEqual(arcs[1], { rx: 2.6, ry: 1.8 }, '柱脚圆角收小，落成短平脚')
+  assert.ok(arcs[1].rx < arcs[0].rx && arcs[1].ry < arcs[0].ry, '柱脚不再和顶部一样尖')
   const wideChart = renderTrendChart(trend, 'week', t, false, null, { barRatio: 0.26, barMax: 24 })
   const wideBars = allOf(wideChart, byClass('cs-bar'))
-  assert.equal(wideBars[0].props.width, 24, '回顾图柱宽保持克制，不铺满半个槽位')
+  assert.equal(wideBars[0].props['data-bar-width'], 24, '回顾图柱宽保持克制，不铺满半个槽位')
   const scarceChart = renderTrendChart(trend, 'week', t, false, null, { barRatio: 0.26, barMax: 24, slotCount: 7 })
   const scarceBars = allOf(scarceChart, byClass('cs-bar'))
-  assert.equal(scarceBars[0].props.width, 24, '本周只进行到四天时柱宽仍按完整一周计算，不会突然变粗')
-  const scarceGap = scarceBars[1].props.x - (scarceBars[0].props.x + scarceBars[0].props.width)
+  assert.equal(scarceBars[0].props['data-bar-width'], 24, '本周只进行到四天时柱宽仍按完整一周计算，不会突然变粗')
+  const scarceGap = scarceBars[1].props['data-bar-x']
+    - (scarceBars[0].props['data-bar-x'] + scarceBars[0].props['data-bar-width'])
   assert.ok(Math.abs(scarceGap - (1000 / 7) * 0.05) < 0.01, '成对柱的间距同样按完整周期槽位计算，不被拉散')
   for (const group of groups) {
     assert.equal(group.props.tabIndex, 0, '每个分组可被 Tab 聚焦')
@@ -2073,7 +2080,7 @@ test('客户端：图表活跃与任务使用可区分的设计 token', async ()
   const tree = renderTrendChart([
     { key: 'a', from, to: from + 3_600_000, activeMs: 3_600_000, taskMs: 1_800_000 },
   ], 'day', (key) => key, true)
-  const fills = findNodes(tree, (node) => node.type === 'rect' && String(node.props.className ?? '').split(/\s+/).includes('cs-bar')).map((node) => node.props.fill)
+  const fills = findNodes(tree, (node) => node.type === 'path' && String(node.props.className ?? '').split(/\s+/).includes('cs-bar')).map((node) => node.props.fill)
   assert.ok(fills.includes('var(--cs-chart-active)'), '活跃柱使用图形专用 --cs-chart-active，独立于状态文字颜色')
   assert.ok(fills.includes('var(--cs-task)'), '任务柱使用 --cs-task')
   assert.ok(fills.every((fill) => typeof fill === 'string' && fill.startsWith('var(--cs-')), '图表只使用设计 token 着色')
@@ -5141,7 +5148,7 @@ test('客户端：条状图首屏独立成页，按可用高度重排并给出�
   assert.ok(chartSvg, 'SVG 视图高度随首屏高度重算')
   const bars = allOf(page, byClass('cs-bar'))
   assert.ok(bars.length >= 2, '首屏仍渲染真实柱形')
-  const tallest = Math.max(...bars.map((bar) => bar.props.height))
+  const tallest = Math.max(...bars.map((bar) => bar.props['data-bar-height']))
   assert.equal(tallest, TREND_FOCUS_HEIGHT - 12, '柱高按可用高度计算而不是拉宽')
 
   const groups = allOf(page, byClass('cs-bar-group'))

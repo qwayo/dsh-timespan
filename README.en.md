@@ -59,7 +59,7 @@ The package is published to npm; this is the easiest route. Say this in a sessio
 
 > Install the plugin @qwayo/dsh-timespan
 
-`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.5.2` instead. Restart DSH when it says a restart is needed.
+`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.5.3` instead. Restart DSH when it says a restart is needed.
 
 ### Option 2: install from GitHub
 
