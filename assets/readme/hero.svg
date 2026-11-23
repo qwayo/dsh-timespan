@@ -2,6 +2,18 @@
   <title id="hero-title">dsh-timespan 记录并回顾 DSH 使用时长</title>
   <desc id="hero-desc">记录在线、活跃与任务时长，提供独立的正计时、倒计时与按需生成的时间回顾。右侧以 TimeSpan 标识为基础示意三种时长的构成。</desc>
 
+  <defs>
+    <linearGradient id="timespan-terracotta" x2="0" y2="1">
+      <stop stop-color="#be7766"/><stop offset="1" stop-color="#844033"/>
+    </linearGradient>
+    <g id="timespan-mark" fill="#30302b">
+      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z"/>
+      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z" transform="translate(24) scale(-1 1)" fill="url(#timespan-terracotta)"/>
+      <path d="M6.1 13.05q0-.45.45-.59l7.98-2.57q.33-.11.19.21l-.63 1.58q-.13.33-.46.44l-6.88 2.21q-.65.21-.65-.44Z"/>
+      <path d="M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z" fill="url(#timespan-terracotta)"/>
+    </g>
+  </defs>
+
   <!-- 画布：白色背景与浅色边框 -->
   <rect width="1200" height="360" rx="24" fill="#ffffff"/>
   <rect x="0.75" y="0.75" width="1198.5" height="358.5" rx="23.25" fill="none" stroke="#dedfdd" stroke-width="1.5"/>
@@ -9,13 +21,7 @@
   <!-- 左侧标题区 -->
   <g id="title-block">
     <g transform="translate(72 54)">
-      <g transform="translate(0 -2)" fill="none" stroke-width="2.2" stroke-linecap="round">
-        <path d="M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23" stroke="#1f4e94"/>
-        <path d="M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31" stroke="#C29BE8"/>
-        <path d="M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77" stroke="#79b3f9"/>
-        <path d="M12 12l4-4" stroke="#133463" stroke-width="2"/>
-        <circle cx="12" cy="12" r="1.8" fill="#133463" stroke="none"/>
-      </g>
+      <use href="#timespan-mark" transform="translate(0 -2)"/>
       <text x="27" y="15" font-size="17" letter-spacing="2.8" fill="#606568"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">DSH 插件 · 时长统计</text>
     </g>

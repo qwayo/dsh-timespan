@@ -1,6 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" xml:lang="zh-CN" width="1200" height="494" viewBox="0 0 1200 494" role="img" aria-labelledby="struct-title struct-desc">
   <title id="struct-title">dsh-timespan Bundle 结构</title>
-  <desc id="struct-desc">包清单与加载补丁连接 DSH Host 和 Web Client 两个入口。Host 使用八个领域模块处理统计和计时，五个适配模块处理 RPC、回顾与只读工具。Client 挂载侧栏、全局浮层、仪表盘与设置。仓库还包括测试、架构决策、双语元数据和 README 配图。</desc>
+  <desc id="struct-desc">包清单与加载补丁连接 DSH Host 和 Web Client 两个入口。Host 使用八个领域模块处理统计和计时，六个适配模块处理 RPC、回顾、命令与只读工具。Client 挂载侧栏、全局浮层、仪表盘与设置。仓库还包括测试、架构决策、双语元数据和 README 配图。</desc>
+
+  <defs>
+    <linearGradient id="timespan-terracotta" x2="0" y2="1">
+      <stop stop-color="#be7766"/><stop offset="1" stop-color="#844033"/>
+    </linearGradient>
+    <g id="timespan-mark" fill="#30302b">
+      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z"/>
+      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z" transform="translate(24) scale(-1 1)" fill="url(#timespan-terracotta)"/>
+      <path d="M6.1 13.05q0-.45.45-.59l7.98-2.57q.33-.11.19.21l-.63 1.58q-.13.33-.46.44l-6.88 2.21q-.65.21-.65-.44Z"/>
+      <path d="M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z" fill="url(#timespan-terracotta)"/>
+    </g>
+  </defs>
 
   <rect width="1200" height="494" rx="24" fill="#ffffff"/>
   <rect x="0.75" y="0.75" width="1198.5" height="492.5" rx="23.25" fill="none" stroke="#dedfdd" stroke-width="1.5"/>
@@ -9,16 +21,10 @@
 
     <!-- 眉题 -->
     <g transform="translate(72 40)">
-      <g transform="translate(0 -2)" fill="none" stroke-width="2.2" stroke-linecap="round">
-        <path d="M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23" stroke="#1f4e94"/>
-        <path d="M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31" stroke="#7a5aa6"/>
-        <path d="M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77" stroke="#79b3f9"/>
-        <path d="M12 12l4-4" stroke="#133463" stroke-width="2"/>
-        <circle cx="12" cy="12" r="1.8" fill="#133463" stroke="none"/>
-      </g>
+      <use href="#timespan-mark" transform="translate(0 -2)"/>
       <text x="34" y="17" font-size="26" font-weight="700" fill="#181a1c">Bundle 结构</text>
       <text x="1056" y="16" text-anchor="end" font-size="18" fill="#606568"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">@qwayo/dsh-timespan · v0.5.2</text>
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">@qwayo/dsh-timespan · v0.5.3</text>
     </g>
 
     <!-- ===== 第一层：bundle 清单 ===== -->
@@ -72,8 +78,8 @@
       <rect x="408" y="270" width="270" height="100" rx="12" fill="#f7f8f9" stroke="#c3cad4" stroke-width="1.5"/>
       <text x="424" y="298" font-size="20" font-weight="700" fill="#181a1c"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">src/host/</text>
-      <text x="424" y="326" font-size="18" fill="#42494e">Host 适配层 · 5 个模块</text>
-      <text x="424" y="352" font-size="18" fill="#606568">RPC、回顾与只读工具</text>
+      <text x="424" y="326" font-size="18" fill="#42494e">Host 适配层 · 6 个模块</text>
+      <text x="424" y="352" font-size="18" fill="#606568">RPC、回顾、命令与工具</text>
 
       <rect x="694" y="270" width="434" height="100" rx="12" fill="none" stroke="#1f4e94" stroke-width="1.5" stroke-dasharray="6 5"/>
       <text x="712" y="298" font-size="21" font-weight="700" fill="#181a1c">4 个 DSH 挂载点位</text>
@@ -88,7 +94,7 @@
       <rect x="72" y="394" width="252" height="64" rx="10" fill="#f7f8f9" stroke="#c3cad4" stroke-width="1.2"/>
       <text x="88" y="416" font-size="20" font-weight="700" fill="#181a1c"
             font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">test/</text>
-      <text x="88" y="445" font-size="18" fill="#606568">15 个 node:test 测试文件</text>
+      <text x="88" y="445" font-size="18" fill="#606568">16 个 node:test 测试文件</text>
 
       <rect x="340" y="394" width="252" height="64" rx="10" fill="#f7f8f9" stroke="#c3cad4" stroke-width="1.2"/>
       <text x="356" y="416" font-size="20" font-weight="700" fill="#181a1c"

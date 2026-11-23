@@ -214,7 +214,7 @@ function createTimespanStatsToolDefinition(service) {
     isConcurrencySafe: () => true,
     async execute(args, exec) {
       if (exec?.signal?.aborted) throw new Error('timespan_stats 已取消')
-      return executeTimespanStats(service, args)
+      return queryTimespanStats(service, args)
     },
   }
 }
@@ -232,7 +232,7 @@ export function registerTimespanStatsTool(ctx, service) {
   return tools.register(createTimespanStatsToolDefinition(service))
 }
 
-async function executeTimespanStats(service, rawArgs) {
+export function queryTimespanStats(service, rawArgs, { allTime = false, currentScope = false } = {}) {
   const args = rawArgs !== null && typeof rawArgs === 'object' && !Array.isArray(rawArgs) ? rawArgs : {}
   const period = args.period === undefined ? 'day' : args.period
   if (!PERIODS.includes(period)) {
@@ -261,14 +261,15 @@ async function executeTimespanStats(service, rawArgs) {
   }
 
   const query = { period, view: 'summary', groupBy }
-  if (from !== undefined) query.from = from
+  if (from !== undefined || allTime) query.from = from ?? 0
   if (toStart !== undefined) query.to = nextLocalDayStart(toStart)
   if (args.workspace !== undefined) query.workspace = args.workspace
   if (args.session !== undefined) query.session = args.session
+  if (currentScope) query.filterById = true
 
   const stats = service.queryStats(query)
   const filterFailure = describeFilterFailure(stats.filters)
-  if (filterFailure !== null) return filterFailure
+  if (filterFailure !== null && !(currentScope && filterFailure.error.code.endsWith('_not_found'))) return filterFailure
   // 页面、导出与工具共用 Host 设置里的同一份格式；工具没有自己的格式参数。
   const durationFormat = normalizeDurationFormat(service.getSettings?.().durationFormat)
   return successValue(stats, period, groupBy, { from, to: toStart }, durationFormat)

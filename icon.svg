@@ -1,26 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="dsh-timespan">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="dsh-timespan">
   <style>
     :root {
-      --icon-bg: #f4f5f7;
-      --ring-high: #1f4e94;
-      --ring-low: #79b3f9;
-      --ring-task: #7a5aa6;
-      --hand: #133463;
+      --icon-bg: #f5f2ea;
+      --icon-ink: #30302b;
+      --icon-top: #be7766;
+      --icon-bottom: #844033;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --icon-bg: #242729;
-        --ring-high: #79b3f9;
-        --ring-low: #3f6ba8;
-        --ring-task: #c29be8;
-        --hand: #ffffff;
+        --icon-bg: #21211f;
+        --icon-ink: #efe8db;
+        --icon-top: #e9ae97;
+        --icon-bottom: #aa5d50;
       }
     }
   </style>
-  <rect width="64" height="64" rx="16" fill="var(--icon-bg)"/>
-  <path d="M11.46 27.63 A21 21 0 0 1 52.54 27.63" fill="none" stroke="var(--ring-high)" stroke-width="5" stroke-linecap="round"/>
-  <path d="M52.54 36.37 A21 21 0 0 1 36.37 52.54" fill="none" stroke="var(--ring-task)" stroke-width="5" stroke-linecap="round"/>
-  <path d="M27.63 52.54 A21 21 0 0 1 11.46 36.37" fill="none" stroke="var(--ring-low)" stroke-width="5" stroke-linecap="round"/>
-  <path d="M32 32 43 21" fill="none" stroke="var(--hand)" stroke-width="5" stroke-linecap="round"/>
-  <circle cx="32" cy="32" r="4" fill="var(--hand)"/>
+  <defs>
+    <path id="bracket" d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z"/>
+    <linearGradient id="terracotta" x2="0" y2="1">
+      <stop stop-color="var(--icon-top)"/>
+      <stop offset="1" stop-color="var(--icon-bottom)"/>
+    </linearGradient>
+  </defs>
+  <rect width="24" height="24" rx="5.75" fill="var(--icon-bg)"/>
+  <g transform="translate(2 2) scale(.833333)">
+    <use href="#bracket" fill="var(--icon-ink)"/>
+    <use href="#bracket" transform="translate(24) scale(-1 1)" fill="url(#terracotta)"/>
+    <path d="M6.1 13.05q0-.45.45-.59l7.98-2.57q.33-.11.19.21l-.63 1.58q-.13.33-.46.44l-6.88 2.21q-.65.21-.65-.44Z" fill="var(--icon-ink)"/>
+    <path d="M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z" fill="url(#terracotta)"/>
+  </g>
 </svg>

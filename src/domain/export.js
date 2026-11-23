@@ -53,11 +53,11 @@ export function exportMimeType(format) {
 }
 
 /**
- * JSON 备份保留原始区间、任务与设置，以及最近完成计时和各周期报告。
+ * JSON 备份保留原始区间、任务与设置，以及手动计时历史和各周期报告。
  * 活动计时和分析请求日志不属于备份。
- * @param {{ exportedAt: number, settings: object, intervals: object[], tasks: object[], lastTimerResult: object|null, reports: object }} input
+ * @param {{ exportedAt: number, settings: object, intervals: object[], tasks: object[], timerHistory: object[], reports: object }} input
  */
-export function buildJsonExport({ exportedAt, settings, intervals, tasks, lastTimerResult, reports }) {
+export function buildJsonExport({ exportedAt, settings, intervals, tasks, timerHistory, reports }) {
   return JSON.stringify(
     {
       format: EXPORT_FORMAT,
@@ -66,7 +66,8 @@ export function buildJsonExport({ exportedAt, settings, intervals, tasks, lastTi
       settings,
       intervals,
       tasks,
-      lastTimerResult,
+      lastTimerResult: timerHistory[0] ?? null,
+      timerHistory,
       reports,
     },
     null,

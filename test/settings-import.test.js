@@ -305,6 +305,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
     sidebarDotPosition: 'end',
     language: 'en',
     approximateNoticeDismissed: true,
+    timerPresetMinutes: 40,
     evilField: '不应写入',
   }
 
@@ -322,6 +323,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
     sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
+    timerPresetMinutes: 25,
     timerSound: true,
     floatingEnabled: true,
     floatingShowClock: false,
@@ -346,6 +348,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
   assert.equal(restored.sidebarDotPosition, 'end', '状态点位置随备份一起恢复')
   assert.equal(restored.language, 'en', '界面语言随备份一起恢复')
   assert.equal(restored.approximateNoticeDismissed, true)
+  assert.equal(restored.timerPresetMinutes, 40)
   assert.equal(Object.hasOwn(restored, 'evilField'), false, '未知字段被 normalizeSettings 白名单丢弃')
 
   // 局部恢复：payload.settings 只给出一项时，其余沿用当前值。
@@ -355,6 +358,7 @@ test('导入：默认不恢复设置；restoreSettings:true 才合并且未知�
   assert.equal(partial.weekStartsOn, 7, '局部恢复保留其它字段')
   assert.equal(partial.language, 'en', '局部恢复保留界面语言')
   assert.equal(partial.approximateNoticeDismissed, true, '局部恢复保留布尔开关')
+  assert.equal(partial.timerPresetMinutes, 40)
 })
 
 test('导入：回填状态收口为 done + 当前版本，dataGeneration 逐次递增', async () => {

@@ -25,17 +25,18 @@ Scope: there is no separate "idle time" metric, and task time is not part of act
 - A permanent sidebar entry shows the duration you select (online by default) and today's ring; hovering for about 200 ms shows a tooltip
 - The dashboard has five views: Overview, Trend, Sessions, Review and Settings. A single overview card shows the headline metric (today's online duration by default), two supporting durations, and weekly and monthly totals, with horizontal bars for shares. The headline, trend chart and heatmap each open in a focus view. In the headline focus view, choose from five durations and see the corresponding share in a ring. The Trend view also shows time distribution and trend insights. Module icons beside overview card titles move on hover; after about 600 ms they show a one-line description, and keyboard focus shows it immediately.
 - The bottom row shows the daily active heatmap, workspace task ranking and recent sessions, from left to right. The heatmap resets to the last 3 months when you enter Overview. The year view spans a row of its own, with weeks starting on Monday.
-- The plugin mark swaps its ring lightness with the theme: dark mode has a light upper arc, dark lower-left arc and white needle; light mode reverses the two arcs and uses a deep-blue needle, so the white needle no longer disappears on white
+- The mark pairs start and end brackets with a segmented diagonal. The right bracket and short segment use a terracotta gradient. The rest uses warm graphite in light mode and bone white in dark mode.
 - Workspace → Sessions: workspaces are grouped by name and session count. Select a session row or title to preview its statistics on the right; use the separate Open session action to enter the host conversation. If opening fails, the statistics remain available and the session is highlighted. Choose today, last 3 days, last week, last 30 days or all time; all-time results are shown in batches.
 - The read-only agent tool `timespan_stats`: query by day, week, month or a custom date range in a conversation, using the same data as the dashboard
+- Use `/timespan` in a session to open the native command picker. `/timespan stats session` shows all-time results for this session. Use `stats today|week|month` for app-wide totals or `stats workspace` for the current workspace. `timer 25m` starts a countdown, and `timer start|pause|resume|stop|status` controls the shared manual timer. `review` opens the Review page with this session selected so you can check the scope before generating.
 - Settings: interface language (Chinese by default, English available; affects this plugin's wording only), idle threshold (1–15 min), start of the statistical week (Monday / Sunday), appearance (follows the system by default), palette (Sky Blue by default), six number formats (compact units by default, e.g. `2h 48m`; decimal hours are also available, e.g. `2.80 h`), whether to show subagent detail, and whether the sidebar shows status text and a permanent duration (online by default). Dismissible page notices (approximate records, backfill status, previous report, and similar) are collected into compact chips between the Settings tab and the status dot in the dashboard top bar; hover for the full explanation. Appearance, palette, timer, zoom and session action icons respond with brief semantic motion on hover. The plugin section in DSH Settings links to its GitHub project page, issues and a star prompt from the top right, with instant hover notes and icon motion.
 - Export JSON / CSV, and import backups de-duplicated by ID. New exports use the `dsh-timespan-export` format; older `chronoscope-export` backups still import. Destructive actions such as clearing data ask for a second confirmation.
 - On first enable, task time is backfilled for existing historical sessions
 - Sky Blue, Graphite, Cyan and Coral support both light and dark appearance. Coral uses `#FF5B3B` as its primary color.
-- The frosted conversation timer starts at the top right, below the conversation header, with the same safe margin as the left side. Drag it to save a position; it docks after 3 seconds near an edge with the pointer away, and restores on hover. Settings can hide it or add the optional analog clock, which is off by default. Right-click and choose Exit floating timer to save the hidden state; enable it again in Settings. Timing and completion reminders continue while it is hidden.
-- The dashboard and floating window control one global stopwatch or countdown, separate from online, active and task statistics. Timing survives page changes, sleep and restarts using elapsed wall time; paused time is excluded. A countdown stops at zero with a quiet notice and an optional chime, enabled by default. Only the current timer and latest completed result are kept. Hover or focus the dot beside that result to reveal its delete icon.
+- The liquid-glass timer starts at the top right and remembers where you drag it. It shows the manual timer first, or the current agent task and waiting status. Open it to see both. While idle, it docks after 3 seconds near an edge with the pointer away. Settings can hide it or enable the analog clock. Timing and reminders continue while hidden.
+- The dashboard and floating window share one manual timer, separate from online, active and task statistics. Timing survives page changes, sleep and restarts, with paused time excluded. A countdown stops at zero with a quiet notice and an optional chime, enabled by default. Settings controls the default countdown for the `/timespan` menu and timer panel. Scroll through the last 30 completed runs to see when they finished, the mode and the elapsed time.
 - Generate a review in the Review tab, just before Settings, for today, this week or this month, optionally narrowed to a workspace or session. Reports show key durations, activity rhythm, workspace distribution and concise findings using the statistics captured at generation, include sources and coverage, and retain the latest successful result per review scope. Failures preserve the previous report. Analysis itself is excluded from task time. Copy the report as Markdown or export a .md file.
-- Choose an existing DSH Provider and model in Settings. Statistical records are stored locally; generating a report sends the selected statistics and conversation material to that Provider. JSON backups include reports and the latest timer result. Import never starts or replaces an active timer; clearing data removes these records and stops timing.
+- Choose an existing DSH Provider and model in Settings. Statistical records are stored locally. Generating a report sends the selected statistics and conversation material to that Provider. JSON backups include reports and timer history. Import preserves the current timer state. Clearing data removes those records and stops timing.
 
 ## How it works
 
@@ -59,7 +60,7 @@ The package is published to npm; this is the easiest route. Say this in a sessio
 
 > Install the plugin @qwayo/dsh-timespan
 
-`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.5.2` instead. Restart DSH when it says a restart is needed.
+`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.5.3` instead. Restart DSH when it says a restart is needed.
 
 ### Option 2: install from GitHub
 
@@ -151,6 +152,7 @@ dsh-timespan/
 │  │  ├─ export.js               # JSON/CSV serialization
 │  │  └─ backfill.js             # historical session backfill planning
 │  └─ host/                      # Host adapter layer
+│     ├─ command.js              # /timespan session command
 │     ├─ rpc.js                  # /api/dsh-timespan in-package private RPC
 │     ├─ analysis.js             # analysis lifecycle, cancellation and successful reports
 │     ├─ analysis-input.js       # scoped statistics, conversation evidence and coverage
@@ -168,8 +170,9 @@ Core files:
 | `index.js` | Host entry: opens the `chrono_scope` v1 storage domain (legacy key, kept compatible), registers the 30-second heartbeat, the `session/event` listener, the in-package RPC and the `timespan_stats` tool |
 | `client.js` | Client entry: the `sidebar.panellist` sidebar entry, the `shell.overlay` presence heartbeat, the `main` dashboard and the `settings.section` settings page |
 | `src/domain/dsh-timespan-domain.js` | Automatic statistics: online/active/task intervals, the four-part breakdown, attribution, union/sum, queries and data operations; also coordinates independent timer state |
-| `src/host/rpc.js` | The private channel between Client and Host: `presence`, `queryStats`, `queryDailySeries`, `getSettings`, `setSettings`, `resetSettings`, `exportData`, `importData`, `clearData`, `getBackfillStatus`, `markBackfillRead`, `retryBackfill`, `getTimer`, `controlTimer`, `claimTimerNotification`, `getAnalysisModels`, `getAnalysisState`, `generateAnalysis`, `cancelAnalysis` |
+| `src/host/rpc.js` | The private channel between Client and Host: `presence`, `queryStats`, `queryDailySeries`, `getSettings`, `setSettings`, `resetSettings`, `exportData`, `importData`, `clearData`, `getBackfillStatus`, `markBackfillRead`, `retryBackfill`, `getTimer`, `getRunningTask`, `controlTimer`, `claimTimerNotification`, `getAnalysisModels`, `getAnalysisState`, `generateAnalysis`, `cancelAnalysis` |
 | `src/host/tool.js` | Turns `timespan_stats` arguments into a `queryStats` query; it never computes a second set of numbers |
+| `src/host/command.js` | Registers `/timespan`, reuses stats and manual timing, and returns results to the DSH session |
 | `package.json` | Declares the package name, version, `exports` and the published file list; `dsh.bundle.patch` points at `cordis.patch.yml` and `dsh.client` declares how the Web client loads it |
 
 </details>

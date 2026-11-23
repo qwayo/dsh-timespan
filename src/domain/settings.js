@@ -8,6 +8,7 @@
  */
 
 import { DEFAULT_DURATION_FORMAT, normalizeDurationFormat } from './duration-format.js'
+import { MAX_COUNTDOWN_MS } from './manual-timer.js'
 import { MONDAY_WEEK_START, normalizeWeekStart } from './periods.js'
 
 /** 空闲阈值允许范围（分钟）。UI 与 Host 都按这个范围收敛。 */
@@ -50,6 +51,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   language: DEFAULT_LANGUAGE,
   // 「近似数据」说明是否已被用户关闭；属于展示偏好，默认未关闭。
   approximateNoticeDismissed: false,
+  timerPresetMinutes: 25,
   timerSound: true,
   // 关闭会话悬浮窗只改变展示，不停止独立计时或到期提醒。
   floatingEnabled: true,
@@ -136,6 +138,11 @@ function normalizeAnalysisChoice(value) {
   return typeof value === 'string' && value.length <= 256 ? value.trim() : ''
 }
 
+function normalizeTimerPresetMinutes(value) {
+  return Number.isInteger(value) && value >= 1 && value <= MAX_COUNTDOWN_MS / 60_000
+    ? value : DEFAULT_SETTINGS.timerPresetMinutes
+}
+
 /**
  * 把任意输入（含缺省、脏数据）收敛成完整、合法的设置对象。
  * 未知字段一律丢弃，避免把页面草稿或旧版本字段写进权威状态。
@@ -153,6 +160,7 @@ export function normalizeSettings(value) {
     sidebarDotPosition: normalizeSidebarDotPosition(source.sidebarDotPosition),
     language: normalizeLanguage(source.language),
     approximateNoticeDismissed: normalizeApproximateNoticeDismissed(source.approximateNoticeDismissed),
+    timerPresetMinutes: normalizeTimerPresetMinutes(source.timerPresetMinutes),
     timerSound: source.timerSound !== false,
     floatingEnabled: source.floatingEnabled !== false,
     floatingShowClock: source.floatingShowClock === true,
@@ -183,6 +191,7 @@ export function mergeSettings(current, patch) {
     approximateNoticeDismissed: Object.hasOwn(incoming, 'approximateNoticeDismissed')
       ? incoming.approximateNoticeDismissed
       : base.approximateNoticeDismissed,
+    timerPresetMinutes: Object.hasOwn(incoming, 'timerPresetMinutes') ? incoming.timerPresetMinutes : base.timerPresetMinutes,
     timerSound: Object.hasOwn(incoming, 'timerSound') ? incoming.timerSound : base.timerSound,
     floatingEnabled: Object.hasOwn(incoming, 'floatingEnabled') ? incoming.floatingEnabled : base.floatingEnabled,
     floatingShowClock: Object.hasOwn(incoming, 'floatingShowClock') ? incoming.floatingShowClock : base.floatingShowClock,

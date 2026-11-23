@@ -53,11 +53,14 @@ window.__ModuleLoader__.load({
     const SIDEBAR_DOT_POSITION_DEFAULT = 'inline'
     const PAGE_REFRESH_MS = 10_000
     const TIMER_REFRESH_MS = 2_000
+    const TIMER_NOTICE_MS = 7_000
+    const COMMAND_FEEDBACK_MS = 4_000
     /** DSH 设置页右上角的项目入口：项目页与 Issue 列表，Star 入口复用项目页。 */
     const PROJECT_REPOSITORY_URL = 'https://github.com/qwayo/dsh-timespan'
     const PROJECT_ISSUES_URL = `${PROJECT_REPOSITORY_URL}/issues`
     const ANALYSIS_REFRESH_MS = 1_250
     const COUNTDOWN_MAX_MINUTES = 7 * 24 * 60
+    const DEFAULT_TIMER_PRESET_MINUTES = 25
     const FLOATING_POSITION_KEY = 'dsh-timespan.floatingPosition'
     const FLOATING_GAP = 12
     const FLOATING_DOCK_DELAY = 3_000
@@ -236,9 +239,8 @@ window.__ModuleLoader__.load({
       searchPlaceholder: '搜索工作区或会话',
       detailsEmpty: '没有匹配的工作区或会话',
       settingsPageTitle: '仪表盘设置',
-      settingsPageHint: '改动即存本机并立即生效，重启后仍然生效。',
       settingsSectionAppearance: '外观与配色',
-      settingsAppearanceHint: '只影响本机显示，不写入统计设置；切换后立即生效。',
+      settingsAppearanceHint: '切换后立即生效，只影响本机的显示',
       settingsAppearanceLocal: '仅本机',
       settingsRecheck: '重新扫描历史任务',
       settingsRechecking: '正在扫描…',
@@ -258,7 +260,7 @@ window.__ModuleLoader__.load({
       heatmapEmpty: '暂无每日记录',
       heatmapError: '暂时无法读取每日活跃',
       heatRangeLabel: '统计范围',
-      heatRange3m: '近3个月',
+      heatRange3m: '近三个月',
       heatRange6m: '近半年',
       heatRangeYear: '全年',
       heatRangeMonth: '{month}',
@@ -308,14 +310,23 @@ window.__ModuleLoader__.load({
       timerMinutes: '分',
       timerSeconds: '秒',
       timerDurationInvalid: '请输入 1 秒至 7 天的时长，秒数为 0–59。',
-      timerLastResult: '上次完成',
+      timerHistory: '计时记录',
+      timerHistoryElapsed: '实际用时',
+      timerHistoryNewer: '较新的计时记录',
+      timerHistoryOlder: '较早的计时记录',
+      timerHostRestart: '请完整退出并重开 DSH，加载新版计时功能',
       timerDeleteResult: '删除这条计时记录',
-      timerResultElapsed: '累计 {time}',
+      timerUnderSecond: '<1 秒',
       timerSoundBlocked: '当前页面需要交互才能播放声音。',
       timerPlaySound: '播放提示音',
       timerSoundFailed: '提示音播放失败，可再次尝试。',
       floatingTitle: '悬浮计时',
       floatingOpen: '展开悬浮计时',
+      floatingTask: '任务中',
+      floatingApproval: '等你确认',
+      floatingQuestion: '等你回复',
+      floatingTimeUp: '时间到',
+      floatingRemaining: '剩余',
       floatingMinimize: '收起悬浮计时',
       floatingMove: '拖动悬浮窗；方向键微调，Shift 加速，Home 复位',
       floatingWake: '展开贴边悬浮窗',
@@ -327,14 +338,28 @@ window.__ModuleLoader__.load({
       settingsFloatingEnabled: '显示会话悬浮窗',
       settingsFloatingEnabledHint: '关闭只隐藏悬浮窗，计时和到期提醒继续运行。',
       settingsFloatingClock: '增加指针时钟',
-      settingsFloatingHint: '默认位于会话左上角、标题栏下方。靠边后移开鼠标 3 秒收起，靠近展开；右键可退出。',
+      settingsFloatingHint: '默认位于会话右上角、标题栏下方。空闲时靠边并移开鼠标 3 秒后吸附，靠近展开，右键可退出。',
+      commandGroupStats: '查时长',
+      commandSessionStats: '本会话累计',
+      commandTodayStats: '今日统计',
+      commandGroupTimer: '手动计时',
+      commandStopwatch: '开始正计时',
+      commandCountdown: '开始 {minutes} 分钟倒计时',
+      commandTimerStatus: '查看计时状态',
+      commandReview: '回顾当前会话',
+      commandCurrentSession: '当前会话',
+      commandReviewResult: '回顾范围为当前会话，请核对范围后生成。',
+      commandUnavailable: '当前会话无法执行 /timespan。',
       timerNoticeError: '到期提醒未能同步，请重试。',
       timerClose: '关闭',
-      settingsTimerTitle: '到期提醒',
+      settingsTimerTitle: '倒计时',
+      settingsTimerPreset: '默认倒计时',
+      settingsTimerPresetHint: '用于 /timespan 菜单和计时面板的初始时长',
+      settingsTimerPresetInvalid: '请输入 1–10,080 分钟的整数',
       settingsTimerSound: '播放提示音',
       settingsTimerSoundHint: '倒计时结束时播放短提示音。',
       settingsAnalysisTitle: '分析模型',
-      settingsAnalysisHint: '使用 DSH 已配置的模型，独立于会话模型。',
+      settingsAnalysisHint: '使用 DSH 已配置的模型，独立于会话模型',
       analysisProvider: 'Provider',
       analysisModel: '模型',
       analysisChooseProvider: '选择 Provider',
@@ -515,7 +540,6 @@ window.__ModuleLoader__.load({
       trendDistributionDay: '按天 · 活跃时长',
       trendDistributionHint: '颜色越深，活跃越久；空白表示无活跃，虚线表示尚未开始',
       settingsSidebarPreview: '侧栏效果',
-      settingsAutoSave: '更改后自动保存',
       settingsRulesGroup: '统计规则',
       settingsSidebarGroup: '侧栏入口',
       detailsSessionsTitle: '会话记录',
@@ -581,7 +605,6 @@ window.__ModuleLoader__.load({
       subagentDetailHint: '共 {count} 条，合计 {duration}（不计入总计）',
       settingsNav: 'TimeSpan',
       settingsTitle: 'TimeSpan 设置',
-      settingsHint: '改动即存本机并立即生效，重启后仍然生效。',
       settingsIdleLabel: '空闲阈值',
       settingsIdleHint: '页面可见且聚焦时，无操作超过阈值便停止累计活跃时长',
       settingsIdleUnit: '分钟',
@@ -622,10 +645,9 @@ window.__ModuleLoader__.load({
       settingsSectionGeneral: '统计口径',
       settingsSectionDisplay: '明细展示',
       settingsSectionBasics: '统计与显示',
-      settingsBasicsHint: '统计规则与侧栏显示，修改后立即生效',
       settingsSectionFormat: '数字格式',
-      settingsFormatHint: '选择后整页立即预览并自动保存，刷新后沿用已保存的格式。',
-      settingsFormatShared: '侧栏、概览、趋势、会话与导出共用这一格式。',
+      settingsFormatHint: '选择后整页立即预览并自动保存，刷新后沿用已保存的格式',
+      settingsFormatShared: '侧栏、概览、趋势、会话与导出共用这一格式',
       formatHintHms: '时:分:秒',
       formatHintShort: '紧凑单位',
       formatHintZh: '中文单位',
@@ -644,9 +666,9 @@ window.__ModuleLoader__.load({
       settingsResetDone: '已恢复初始设置',
       settingsResetError: '恢复初始设置失败，请重试',
       settingsSectionNotices: '通知记录',
-      settingsNoticesHint: '这里保留每次历史任务回填的完成记录；如果旧会话任务没有出现，可重新扫描一次。',
+      settingsNoticesHint: '保留每次历史任务回填的完成记录，旧会话任务缺失时可重新扫描',
       dataTitle: '数据管理',
-      dataHint: 'JSON 备份包含统计原始记录、设置、最近计时结果和 AI 报告。CSV 导出每日统计。',
+      dataHint: 'JSON 备份包含统计原始记录、设置、计时历史和 AI 报告，CSV 导出每日统计',
       exportJson: '导出 JSON',
       exportCsv: '导出 CSV',
       exporting: '正在导出…',
@@ -655,7 +677,7 @@ window.__ModuleLoader__.load({
       exportError: '导出失败，请重试',
       clearData: '清空全部数据',
       clearStepTitle: '确认清空？',
-      clearStepHint: '清空会停止当前计时，删除本机的统计、最近计时结果和 AI 报告。设置与 DSH 会话日志会保留。此操作无法撤销。',
+      clearStepHint: '清空会停止当前计时，删除本机的统计、计时历史和 AI 报告。设置与 DSH 会话日志会保留。此操作无法撤销。',
       clearConfirm: '确认清空',
       clearCancel: '取消',
       clearing: '正在清空…',
@@ -675,7 +697,7 @@ window.__ModuleLoader__.load({
       importIntervals: '时间区间',
       importTasks: '任务',
       importReports: 'AI 报告',
-      importTimerResult: '含最近计时结果',
+      importTimerResults: '计时记录',
       importRestoreSettings: '一并导入文件中的设置',
       importConfirm: '确认导入',
       importCancel: '取消',
@@ -789,9 +811,8 @@ window.__ModuleLoader__.load({
       searchPlaceholder: 'Search workspaces or sessions',
       detailsEmpty: 'No matching workspaces or sessions',
       settingsPageTitle: 'Dashboard settings',
-      settingsPageHint: 'Settings stay on this device, apply to later statistics immediately and survive restarts.',
       settingsSectionAppearance: 'Appearance and colors',
-      settingsAppearanceHint: 'Affects this browser only and never changes statistics. Applies immediately.',
+      settingsAppearanceHint: 'Display changes apply immediately in this browser only',
       settingsAppearanceLocal: 'This device',
       settingsRecheck: 'Rescan history tasks',
       settingsRechecking: 'Scanning…',
@@ -861,14 +882,23 @@ window.__ModuleLoader__.load({
       timerMinutes: 'min',
       timerSeconds: 'sec',
       timerDurationInvalid: 'Enter a duration from 1 second to 7 days, with seconds between 0 and 59.',
-      timerLastResult: 'Last completed',
+      timerHistory: 'Timer history',
+      timerHistoryElapsed: 'Elapsed',
+      timerHistoryNewer: 'Newer timer records',
+      timerHistoryOlder: 'Older timer records',
+      timerHostRestart: 'Quit and reopen DSH to load the updated timer',
       timerDeleteResult: 'Delete this timer result',
-      timerResultElapsed: '{time} elapsed',
+      timerUnderSecond: '<1 s',
       timerSoundBlocked: 'Interact with this page to play the chime.',
       timerPlaySound: 'Play chime',
       timerSoundFailed: 'Could not play the chime. You can try again.',
       floatingTitle: 'Floating timer',
       floatingOpen: 'Open floating timer',
+      floatingTask: 'Task running',
+      floatingApproval: 'Awaiting confirmation',
+      floatingQuestion: 'Awaiting your reply',
+      floatingTimeUp: 'Time is up',
+      floatingRemaining: 'Remaining',
       floatingMinimize: 'Minimize floating timer',
       floatingMove: 'Drag to move; arrow keys to adjust, Shift for larger steps, Home to reset',
       floatingWake: 'Restore docked timer',
@@ -880,14 +910,28 @@ window.__ModuleLoader__.load({
       settingsFloatingEnabled: 'Show conversation timer',
       settingsFloatingEnabledHint: 'Hiding the window keeps timing and completion reminders running.',
       settingsFloatingClock: 'Include analog clock',
-      settingsFloatingHint: 'Starts at the top left below the conversation header. Docks after 3 seconds near an edge; hover to restore, or right-click to exit.',
+      settingsFloatingHint: 'Starts at the top right below the conversation header. While idle, it docks after 3 seconds near an edge. Hover to restore or right-click to exit.',
+      commandGroupStats: 'Time stats',
+      commandSessionStats: 'This session',
+      commandTodayStats: "Today's stats",
+      commandGroupTimer: 'Manual timer',
+      commandStopwatch: 'Start stopwatch',
+      commandCountdown: 'Start a {minutes}-minute countdown',
+      commandTimerStatus: 'Show timer status',
+      commandReview: 'Review this session',
+      commandCurrentSession: 'Current session',
+      commandReviewResult: 'Review scope set to this session. Check the scope before generating.',
+      commandUnavailable: '/timespan is unavailable in this session.',
       timerNoticeError: 'Could not sync the countdown reminder. Try again.',
       timerClose: 'Close',
-      settingsTimerTitle: 'Countdown reminder',
+      settingsTimerTitle: 'Countdown',
+      settingsTimerPreset: 'Default countdown',
+      settingsTimerPresetHint: 'Used as the starting duration in the /timespan menu and timer panel',
+      settingsTimerPresetInvalid: 'Enter a whole number from 1 to 10,080 minutes',
       settingsTimerSound: 'Play chime',
       settingsTimerSoundHint: 'Play a short sound when a countdown finishes.',
       settingsAnalysisTitle: 'Analysis model',
-      settingsAnalysisHint: 'Use a model configured in DSH, independently of your session model.',
+      settingsAnalysisHint: 'Use a model configured in DSH, independently of your session model',
       analysisProvider: 'Provider',
       analysisModel: 'Model',
       analysisChooseProvider: 'Select a provider',
@@ -1068,7 +1112,6 @@ window.__ModuleLoader__.load({
       trendDistributionDay: 'Daily · Active time',
       trendDistributionHint: 'Darker means more active time; empty means inactive, dashed means not yet started',
       settingsSidebarPreview: 'Sidebar preview',
-      settingsAutoSave: 'Changes save automatically',
       settingsRulesGroup: 'Statistics',
       settingsSidebarGroup: 'Sidebar',
       detailsSessionsTitle: 'Sessions',
@@ -1134,7 +1177,6 @@ window.__ModuleLoader__.load({
       subagentDetailHint: '{count} tasks · {duration} total (excluded from totals)',
       settingsNav: 'TimeSpan',
       settingsTitle: 'TimeSpan settings',
-      settingsHint: 'Settings stay on this device, apply to later statistics immediately and survive restarts.',
       settingsIdleLabel: 'Idle threshold',
       settingsIdleHint: 'While the page is visible and focused, active time stops after this long without input',
       settingsIdleUnit: 'min',
@@ -1175,10 +1217,9 @@ window.__ModuleLoader__.load({
       settingsSectionGeneral: 'Counting rules',
       settingsSectionDisplay: 'Detail display',
       settingsSectionBasics: 'Counting and display',
-      settingsBasicsHint: 'Counting rules and sidebar display; changes apply immediately',
       settingsSectionFormat: 'Number format',
-      settingsFormatHint: 'The whole page previews immediately and the choice is saved automatically; the saved format survives refresh.',
-      settingsFormatShared: 'The sidebar, overview, trend, sessions and exports all use this format.',
+      settingsFormatHint: 'Preview the format immediately and save it automatically for future visits',
+      settingsFormatShared: 'The sidebar, overview, trend, sessions and exports all use this format',
       formatHintHms: 'Hours:minutes:seconds',
       formatHintShort: 'Compact units',
       formatHintZh: 'Chinese units',
@@ -1197,9 +1238,9 @@ window.__ModuleLoader__.load({
       settingsResetDone: 'Initial settings restored',
       settingsResetError: 'Could not restore initial settings; please retry',
       settingsSectionNotices: 'Notifications',
-      settingsNoticesHint: 'Keeps a record of each history-task backfill. If old session tasks are missing, rescan once.',
+      settingsNoticesHint: 'Review completed backfills or rescan when older session tasks are missing',
       dataTitle: 'Data',
-      dataHint: 'JSON backs up raw statistics, settings, the last timer result and AI reports. CSV exports daily totals.',
+      dataHint: 'JSON backs up raw statistics, settings, timer history and AI reports, while CSV exports daily totals',
       exportJson: 'Export JSON',
       exportCsv: 'Export CSV',
       exporting: 'Exporting…',
@@ -1208,7 +1249,7 @@ window.__ModuleLoader__.load({
       exportError: 'Export failed; please retry',
       clearData: 'Clear all data',
       clearStepTitle: 'Clear everything?',
-      clearStepHint: 'This stops the current timer and deletes local statistics, the last timer result and AI reports. Settings and DSH session logs are kept. This cannot be undone.',
+      clearStepHint: 'This stops the current timer and deletes local statistics, timer history and AI reports. Settings and DSH session logs are kept. This cannot be undone.',
       clearConfirm: 'Confirm clear',
       clearCancel: 'Cancel',
       clearing: 'Clearing…',
@@ -1228,7 +1269,7 @@ window.__ModuleLoader__.load({
       importIntervals: 'Intervals',
       importTasks: 'Tasks',
       importReports: 'AI reports',
-      importTimerResult: 'Includes the last timer result',
+      importTimerResults: 'Timer records',
       importRestoreSettings: 'Also import settings from the file',
       importConfirm: 'Import',
       importCancel: 'Cancel',
@@ -1308,22 +1349,21 @@ window.__ModuleLoader__.load({
       return `client_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`
     }
 
-    function DshTimespanIcon(props) {
-      const size = typeof props?.size === 'number' ? props.size : 16
+    function DshTimespanIcon({ size = 16 } = {}) {
+      const gradient = `timespan-logo-${React.useId()}`
+      const bracket = 'M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z'
+      const accent = `url(#${gradient})`
       return h('svg', {
         className: 'dsh-timespan-nav-icon', width: size, height: size,
-        viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true,
+        viewBox: '0 0 24 24', 'aria-hidden': true,
       },
-      h('path', { d: 'M3.69 10.23 A8.5 8.5 0 0 1 20.31 10.23', stroke: 'var(--cs-brand-ring-high, currentColor)',
-        strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
-      // 圆环一共三段：上半段与左下段随主题对调明暗，右下段固定任务紫；每处留 24° 圆心角空档，
-      // 两端半圆端帽占去一部分后仍有约 1.36 个画布单位的可见空隙。指针在浅色主题改用深色，避免白针落在白底上。
-      h('path', { d: 'M20.31 13.77 A8.5 8.5 0 0 1 13.77 20.31', stroke: 'var(--cs-task, #C29BE8)',
-        strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
-      h('path', { d: 'M10.23 20.31 A8.5 8.5 0 0 1 3.69 13.77', stroke: 'var(--cs-brand-ring-low, #133463)',
-        strokeWidth: 2.2, strokeLinecap: 'round', fill: 'none' }),
-      h('path', { d: 'M12 12l4-4', stroke: 'var(--cs-brand-hand, #ffffff)', strokeWidth: 2, strokeLinecap: 'round' }),
-      h('circle', { cx: 12, cy: 12, r: 1.8, fill: 'var(--cs-brand-hand, #ffffff)' }))
+      h('defs', null, h('linearGradient', { id: gradient, x2: '0', y2: '1', colorInterpolation: 'linearRGB' },
+        h('stop', { stopColor: 'var(--cs-logo-top, #be7766)' }),
+        h('stop', { offset: '1', stopColor: 'var(--cs-logo-bottom, #844033)' }))),
+      h('path', { d: bracket, fill: 'var(--cs-logo-ink, #30302b)' }),
+      h('path', { d: bracket, transform: 'translate(24) scale(-1 1)', fill: accent }),
+      h('path', { d: 'M6.1 13.05q0-.45.45-.59l7.98-2.57q.33-.11.19.21l-.63 1.58q-.13.33-.46.44l-6.88 2.21q-.65.21-.65-.44Z', fill: 'var(--cs-logo-ink, #30302b)' }),
+      h('path', { d: 'M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z', fill: accent }))
     }
 
     const APPEARANCE_ICONS = {
@@ -1433,6 +1473,9 @@ window.__ModuleLoader__.load({
         return h('svg', common,
           h('circle', { cx: 8, cy: 8, r: 5.5 }),
           h('path', { d: 'M8 4.7V8l2.2 1.4' }))
+      }
+      if (name === 'resume') {
+        return h('svg', common, h('path', { d: 'M5.4 3.8 12.2 8l-6.8 4.2z', fill: 'currentColor', strokeWidth: 1.2 }))
       }
       if (name === 'report') {
         return h('svg', common,
@@ -1839,7 +1882,7 @@ window.__ModuleLoader__.load({
       return { year: targetYear, months, bars }
     }
 
-    /** 菜单选项文案：跨度与月份都按界面语言生成；中文「近3个月/全年/1月…12月」，英文沿用原缩写。 */
+    /** 菜单选项文案：跨度与月份都按界面语言生成；中文「近三个月/全年/1月…12月」，英文沿用原缩写。 */
     function heatRangeOptionLabel(option, t) {
       if (typeof option.value === 'number') {
         return heatMonthLabels(t)[option.value - 1] ?? option.label
@@ -2259,6 +2302,7 @@ window.__ModuleLoader__.load({
         approximateNoticeDismissed: value?.approximateNoticeDismissed === true,
         analysisProvider: typeof value?.analysisProvider === 'string' ? value.analysisProvider : '',
         analysisModel: typeof value?.analysisModel === 'string' ? value.analysisModel : '',
+        timerPresetMinutes: isTimerPreset(value?.timerPresetMinutes) ? value.timerPresetMinutes : null,
         timerSound: value?.timerSound !== false,
         floatingEnabled: value?.floatingEnabled !== false,
         floatingShowClock: value?.floatingShowClock === true,
@@ -2280,6 +2324,7 @@ window.__ModuleLoader__.load({
         approximateNoticeDismissed: draft.approximateNoticeDismissed === true,
         analysisProvider: draft.analysisProvider ?? '',
         analysisModel: draft.analysisModel ?? '',
+        timerPresetMinutes: normalizeTimerPreset(draft.timerPresetMinutes),
         timerSound: draft.timerSound !== false,
         floatingEnabled: draft.floatingEnabled !== false,
         floatingShowClock: draft.floatingShowClock === true,
@@ -2297,7 +2342,7 @@ window.__ModuleLoader__.load({
       })
       const runtimeRef = React.useRef({
         state, mounted: false, active: false, lifecycle: 0, readId: 0, writing: false,
-        refreshPending: false, publishing: false, preview: false, timer: null,
+        refreshPending: false, publishing: false, preview: false, timer: null, retryPreset: false,
       })
       const runtime = runtimeRef.current
       runtime.onThemeReset = onThemeReset
@@ -2351,18 +2396,22 @@ window.__ModuleLoader__.load({
           runtime.state.phase !== 'loading' && runtime.state.phase !== 'load-error'
       }
 
-      async function save(next, resetting = false) {
+      async function save(next, { resetting = false, presetOnly = false } = {}) {
         if (!canEdit()) return false
         const lifecycle = runtime.lifecycle
         const isCurrent = () => runtime.active && lifecycle === runtime.lifecycle
         runtime.writing = true
+        runtime.retryPreset = presetOnly
         runtime.readId += 1
         clearFeedbackTimer()
         update({ draft: next, phase: 'saving', messageKey: resetting ? '' : 'settingsSaving', resetting })
         try {
+          // 其他设置的草稿可能来自另一个窗口，不能把旧预设随整份载荷写回。
+          const { timerPresetMinutes, ...otherSettings } = settingsPayload(next)
           const saved = resetting
             ? await resetSettingsToDefaults(ctx)
-            : await callSettings(ctx, 'setSettings', settingsPayload(next))
+            : await callSettings(ctx, 'setSettings', presetOnly ? { timerPresetMinutes } : otherSettings)
+          if (presetOnly && saved?.timerPresetMinutes !== timerPresetMinutes) throw new Error('主进程未确认新的倒计时预设')
           if (resetting) {
             const themeSaved = resetStoredTheme()
             if (runtime.mounted) runtime.onThemeReset?.(themeSaved)
@@ -2407,7 +2456,7 @@ window.__ModuleLoader__.load({
           runtime.preview = true
           notifyDurationFormatPreview(next.durationFormat)
         }
-        return save(next)
+        return save(next, { presetOnly: key === 'timerPresetMinutes' })
       }
 
       // 切到其它视图只关闭编辑流程；仍挂载的仪表盘需要接收已提交重置的主题结果。
@@ -2441,10 +2490,11 @@ window.__ModuleLoader__.load({
         busy: !enabled || state.draft === null || state.phase === 'loading' || state.phase === 'load-error' || state.phase === 'saving',
         patch,
         reload: () => reload(),
-        retrySave: () => runtime.state.messageKey === 'settingsSaveError' ? save(runtime.state.draft) : Promise.resolve(false),
+        retrySave: () => runtime.state.messageKey === 'settingsSaveError'
+          ? save(runtime.state.draft, { presetOnly: runtime.retryPreset }) : Promise.resolve(false),
         requestReset: () => { if (canEdit()) update({ resetStep: true }) },
         cancelReset: () => { if (!runtime.writing) update({ resetStep: false }) },
-        reset: () => runtime.state.resetStep ? save(runtime.state.draft, true) : Promise.resolve(false),
+        reset: () => runtime.state.resetStep ? save(runtime.state.draft, { resetting: true }) : Promise.resolve(false),
       }
     }
 
@@ -2546,6 +2596,19 @@ window.__ModuleLoader__.load({
       return { visible, focused }
     }
 
+    function isTimerPreset(value) {
+      return Number.isInteger(value) && value >= 1 && value <= COUNTDOWN_MAX_MINUTES
+    }
+
+    function normalizeTimerPreset(value) {
+      return isTimerPreset(value) ? value : DEFAULT_TIMER_PRESET_MINUTES
+    }
+
+    function timerHistory(timer) {
+      if (Array.isArray(timer?.history)) return timer.history
+      return timer?.lastResult ? [timer.lastResult] : []
+    }
+
     function countdownDuration(minutes, seconds) {
       const min = Number(minutes)
       const sec = Number(seconds)
@@ -2636,8 +2699,8 @@ window.__ModuleLoader__.load({
         waitingNotice = null
         const blocked = sound && !audio.play()
         clearTimeout(noticeTimeout)
-        update({ notice: { id, blocked, failed: false } })
-        if (!blocked) noticeTimeout = setTimeout(dismissNotice, 7_000)
+        update({ notice: { id, blocked, failed: false, shownAt: Date.now() } })
+        if (!blocked) noticeTimeout = setTimeout(dismissNotice, TIMER_NOTICE_MS)
       }
 
       async function claimNotice(id) {
@@ -2728,10 +2791,18 @@ window.__ModuleLoader__.load({
         async retry() {
           if (await refresh()) update({ actionError: '' })
         },
+        refreshAfterCommand() {
+          revision += 1
+          reading = null
+          void refresh()
+        },
+        prepareSound: () => { void audio.unlock() },
         async control(command) {
           if (state.busy || state.syncError || !state.timer) return
-          const targetId = command.action === 'clear-result' ? state.timer.lastResult?.id : state.timer.id
-          if (command.id !== targetId) {
+          const exists = command.action === 'clear-result'
+            ? timerHistory(state.timer).some((result) => result.id === command.id)
+            : command.id === state.timer.id
+          if (!exists) {
             update({ actionError: 'timerChanged' })
             void refresh()
             return
@@ -2770,6 +2841,70 @@ window.__ModuleLoader__.load({
       const [snapshot, setSnapshot] = React.useState(client.snapshot)
       React.useEffect(() => client.subscribe(setSnapshot), [client])
       return snapshot
+    }
+
+    function registerTimespanCommandUi(ctx, timerClient, reviewNavigation, t, publishFeedback = () => {}) {
+      const isReview = (result) => [zh.commandReviewResult, en.commandReviewResult].includes(result.text)
+      const isBlank = (sessionId) => ctx.sessions?.binding(sessionId)?.session.getSnapshot().blank === true
+      const followResult = (sessionId, result) => {
+        const text = result.text
+        const success = result.kind === 'success'
+        if (!success || !isReview(result)) {
+          // 计时成功回执为单行。新会话没有消息列表，其余结果也在浮层显示。
+          if (text) {
+            const autoDismiss = success && !text.includes('\n')
+            if (autoDismiss || isBlank(sessionId)) publishFeedback({ sessionId, text, autoDismiss })
+          }
+          if (success) timerClient.refreshAfterCommand()
+          return
+        }
+        const request = { sessionId, blank: isBlank(sessionId), revision: ++reviewNavigation.revision }
+        reviewNavigation.pending = request
+        try {
+          ctx.layout.selectPanel('dsh-timespan')
+        } catch (error) {
+          reviewNavigation.pending = null
+          throw error
+        }
+        reviewNavigation.receive?.()
+      }
+      ctx.on('command/executed', (sessionId, name, result) => {
+        if (name === 'timespan' && result) followResult(sessionId, result)
+      })
+      ctx.effect(() => ctx.commandUi.decorate({
+        name: 'timespan',
+        available: ({ sessionId }) => isRealSessionId(sessionId),
+        ui: {
+          kind: 'popupSelect',
+          async options(_session, signal) {
+            const timer = await callHost(ctx, 'getTimer', {}).catch(() => null)
+            signal.throwIfAborted()
+            const statsGroup = { name: 'stats', label: t('commandGroupStats') }
+            const timerGroup = { name: 'timer', label: t('commandGroupTimer') }
+            const timerOption = (id, label) => ({ id: 'timer ' + id, label, group: timerGroup })
+            const minutes = normalizeTimerPreset(timer?.timerPresetMinutes)
+            const running = timer?.status === 'running'
+            const timers = running || timer?.status === 'paused'
+              ? [running ? timerOption('pause', t('timerPause')) : timerOption('resume', t('timerResume')), timerOption('stop', t('timerComplete'))]
+              : timer === null ? [timerOption('status', t('commandTimerStatus'))]
+                : [timerOption('start', t('commandStopwatch')), timerOption(`${minutes}m`, t('commandCountdown').replace('{minutes}', minutes))]
+            return [
+              { id: 'stats session', label: t('commandSessionStats'), group: statsGroup },
+              { id: 'stats today', label: t('commandTodayStats'), group: statsGroup },
+              ...timers,
+              { id: 'review', label: t('commandReview') },
+            ]
+          },
+          async onSelect(option, { sessionId }) {
+            if (/^timer (?:\d+m|resume)$/u.test(option.id)) timerClient.prepareSound()
+            const reply = await ctx.remote.commands.execute(sessionId, '/timespan ' + option.id, [])
+            if (!reply.ok) throw new Error(reply.error?.message ?? t('commandUnavailable'))
+            const result = reply.value?.result
+            if (result?.kind !== 'success') throw new Error(result?.text ?? t('commandUnavailable'))
+            followResult(sessionId, result)
+          },
+        },
+      }), 'dsh-timespan: slash menu')
     }
 
     function useClockTick(enabled) {
@@ -2847,6 +2982,11 @@ window.__ModuleLoader__.load({
         },
         false,
       )
+      const pendingInteraction = useStandardValue(
+        props?.useSessionStatus,
+        (statuses) => statuses?.get?.(effectiveSessionId)?.pendingInteraction?.kind ?? null,
+        null,
+      )
 
       const facts = {
         visible: windowState.visible,
@@ -2910,6 +3050,35 @@ window.__ModuleLoader__.load({
         facts.foregroundRunning,
       ])
       return activePanelId === null && foregroundId !== null
+        ? { id: foregroundId, running: foregroundRunning, pendingInteraction }
+        : null
+    }
+
+    function useRunningTask(ctx, sessionId) {
+      const [reading, setReading] = React.useState(null)
+      React.useEffect(() => {
+        setReading(null)
+        if (!sessionId) return undefined
+        let active = true
+        let pending = false
+        const refresh = async () => {
+          if (pending || !readWindowState().visible) return
+          pending = true
+          try {
+            const task = await callHost(ctx, 'getRunningTask', { sessionId })
+            if (active) setReading(task && Number.isFinite(task.elapsedMs)
+              ? { sessionId, elapsedMs: task.elapsedMs, receivedAt: Date.now() } : null)
+          } catch {
+            if (active) setReading(null)
+          } finally {
+            pending = false
+          }
+        }
+        void refresh()
+        const poll = setInterval(refresh, TIMER_REFRESH_MS)
+        return () => { active = false; clearInterval(poll) }
+      }, [ctx, sessionId])
+      return reading?.sessionId === sessionId ? reading : null
     }
 
     /**
@@ -3459,11 +3628,46 @@ window.__ModuleLoader__.load({
       }, h('div', { className: 'cs-collapse-body' }, content))
     }
 
+    function TimerHistory({ history, client, disabled, needsRestart, t }) {
+      const listRef = React.useRef(null)
+      const scrollable = history.length > 3
+      const scroll = (direction) => {
+        const list = listRef.current
+        if (list) list.scrollBy({ top: direction * list.clientHeight })
+      }
+      return h('section', { className: 'cs-timer-history', 'aria-label': t('timerHistory') },
+        h('div', { className: `cs-timer-history-head${scrollable ? ' has-scroll' : ''}` },
+          h('span', null, t('timerHistory'), h('small', null, history.length)),
+          history.length ? h('span', { className: 'cs-timer-history-elapsed-label' }, t('timerHistoryElapsed')) : null,
+          scrollable ? h('div', { className: 'cs-timer-history-scroll' },
+            [[-1, 'timerHistoryNewer', 'm3 7 3-3 3 3'], [1, 'timerHistoryOlder', 'm3 5 3 3 3-3']].map(([direction, key, path]) =>
+              h('button', { key, type: 'button', title: t(key), 'aria-label': t(key), onClick: () => scroll(direction) },
+                h('svg', { viewBox: '0 0 12 12', width: 12, height: 12, fill: 'none', 'aria-hidden': true },
+                  h('path', { d: path, stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))))) : null),
+        history.length ? h('ul', { ref: listRef, className: 'cs-timer-history-list', tabIndex: scrollable ? 0 : undefined },
+          history.map((result) => {
+            const completedAt = formatNoticeTime(result.completedAt, true)
+            const mode = t(result.mode === 'countdown' ? 'timerCountdown' : 'timerStopwatch')
+            const elapsed = result.elapsedMs > 0 && result.elapsedMs < 1000 ? t('timerUnderSecond') : timerDigits(result.elapsedMs)
+            return h('li', { className: 'cs-timer-result', key: result.id },
+              h('time', { dateTime: new Date(result.completedAt).toISOString(), title: completedAt }, completedAt === '—' ? completedAt : completedAt.slice(-14, -3)),
+              h('span', { className: 'cs-timer-result-mode' }, mode),
+              h('strong', { className: 'cs-timer-result-elapsed' }, elapsed),
+              h('button', { type: 'button', className: 'cs-timer-result-delete', disabled,
+                title: t('timerDeleteResult'), 'aria-label': `${t('timerDeleteResult')} · ${mode} · ${completedAt}`,
+                onClick: () => client.control({ action: 'clear-result', id: result.id }),
+              }, h('span', { className: 'cs-delete-dot', 'aria-hidden': true }),
+              h(DetailGlyph, { name: 'delete', size: 15 })))
+          })) : null,
+        needsRestart ? h('p', { className: 'cs-timer-feedback', role: 'status' }, t('timerHostRestart')) : null)
+    }
+
     function TimerControls({ client, snapshot, at, t }) {
       const [mode, setMode] = React.useState('stopwatch')
-      const [minutes, setMinutes] = React.useState('25')
+      const [customMinutes, setMinutes] = React.useState(null)
       const [seconds, setSeconds] = React.useState('0')
       const { timer, receivedAt, busy, syncError, actionError, noticeError } = snapshot
+      const minutes = customMinutes ?? String(normalizeTimerPreset(timer?.timerPresetMinutes))
       const [savingDelayed, setSavingDelayed] = React.useState(false)
       React.useEffect(() => {
         if (!busy) { setSavingDelayed(false); return undefined }
@@ -3473,11 +3677,13 @@ window.__ModuleLoader__.load({
       const status = timer?.status
       const isIdle = status === 'idle'
       const countdown = (isIdle ? mode : timer?.mode) === 'countdown'
+      const showRemaining = countdown && status !== 'completed'
       const durationMs = countdownDuration(minutes, seconds)
       const invalid = isIdle && countdown && durationMs === null
       const projection = timer ? projectTimer(timer, receivedAt, at) : null
-      const value = isIdle && countdown ? durationMs : countdown ? projection?.remainingMs : projection?.elapsedMs
-      const result = timer?.lastResult
+      const value = isIdle && countdown ? durationMs : showRemaining ? projection?.remainingMs : projection?.elapsedMs
+      const history = timerHistory(timer)
+      const needsRestart = Boolean(timer && !Array.isArray(timer.history))
       const disabled = busy || syncError || !timer
       const action = (name, key, primary = false, extra = {}) => h('button', {
         type: 'button', className: `cs-timer-button${primary ? ' is-primary' : ''}`,
@@ -3500,7 +3706,7 @@ window.__ModuleLoader__.load({
             key: option, type: 'button', 'aria-pressed': mode === option, disabled,
             onClick: () => setMode(option),
           }, t(label)))) : timer ? h('span', { className: 'cs-timer-mode' }, t(countdown ? 'timerCountdown' : 'timerStopwatch')) : null),
-        h(TimerReadout, { identity: isIdle ? mode : timer?.mode, value, roundUp: countdown, className: 'cs-timer-readout', role: 'timer', 'aria-live': 'off' }),
+        h(TimerReadout, { identity: isIdle ? mode : timer?.mode, value, roundUp: showRemaining, className: 'cs-timer-readout', role: 'timer', 'aria-live': 'off' }),
         h(AnimatedCollapse, { open: countdown && !isIdle && timer?.durationMs > 0 }, countdown && timer?.durationMs > 0 ? h('progress', {
           className: 'cs-timer-progress', max: timer.durationMs, value: projection.elapsedMs, 'aria-label': t('timerCountdown'),
         }) : null),
@@ -3520,15 +3726,8 @@ window.__ModuleLoader__.load({
             className: 'cs-timer-button', type: 'button', disabled: busy, onClick: client.retry,
           }, t('timerRefresh'))) : null,
         !timer && !syncError ? h('div', { className: 'cs-timer-feedback', role: 'status' }, t('timerSyncing')) : null,
-        h(AnimatedCollapse, { open: Boolean(result), className: 'cs-result-collapse' }, result ? h('div', { className: 'cs-timer-result' },
-          h('div', { className: 'cs-timer-result-copy' },
-            h('span', null, `${t('timerLastResult')} · ${t(result.mode === 'countdown' ? 'timerCountdown' : 'timerStopwatch')}`),
-            h('span', null, `${t('timerResultElapsed').replace('{time}', timerDigits(result.elapsedMs))} · ${formatNoticeTime(result.completedAt)}`)),
-          h('button', { type: 'button', className: 'cs-timer-result-delete', disabled,
-            title: t('timerDeleteResult'), 'aria-label': t('timerDeleteResult'),
-            onClick: () => client.control({ action: 'clear-result', id: result.id }),
-          }, h('span', { className: 'cs-delete-dot', 'aria-hidden': true }),
-          h(DetailGlyph, { name: 'delete', size: 15 }))) : null))
+        h(AnimatedCollapse, { open: history.length > 0 || needsRestart }, history.length || needsRestart
+          ? h(TimerHistory, { history, client, disabled, needsRestart, t }) : null))
     }
 
     /** 退出后才隐藏表面；只在表面本身改变透明度，避免祖先图层隔断磨砂背景。 */
@@ -3669,7 +3868,7 @@ window.__ModuleLoader__.load({
         h('p', { className: error ? 'is-error' : undefined, role: error ? 'status' : undefined }, t(error ? 'floatingExitError' : 'floatingExitHint')))
     }
 
-    function FloatingTimer({ client, snapshot, showClock = false, onExit, exitBusy = false, exitError = false, t }) {
+    function FloatingTimer({ client, snapshot, runningTask = null, pendingInteraction = null, showClock = false, onExit, exitBusy = false, exitError = false, t }) {
       const [position, setPosition] = React.useState(readFloatingPosition)
       const [viewport, setViewport] = React.useState(() => ({ width: window.innerWidth, height: window.innerHeight }))
       const [size, setSize] = React.useState({ width: 40, height: 40 })
@@ -3695,15 +3894,34 @@ window.__ModuleLoader__.load({
       pointRef.current = effectivePosition
       const ignoreClickRef = React.useRef(false)
       const focusAfterWakeRef = React.useRef(false)
-      const panelVisible = useSurfaceFade(expanded && !docked, panelRef)
-      const visibleDock = panelVisible ? null : docked
       const timer = snapshot.timer
-      const at = useClockTick(expanded && !docked || timer?.status === 'running')
-      const rect = floatingRect(effectivePosition, size, viewport)
-      const projection = timer ? projectTimer(timer, snapshot.receivedAt, at) : null
-      const digits = timer && timer.status !== 'idle'
-        ? timerDigits(projection.remainingMs ?? projection.elapsedMs, timer.mode === 'countdown') : ''
+      const recentExpiry = Boolean(snapshot.notice && Date.now() - snapshot.notice.shownAt < TIMER_NOTICE_MS)
+      const paused = timer?.status === 'paused'
+      const hasManual = timer?.status === 'running' || paused
+      const waitingLabel = pendingInteraction === 'approval' || pendingInteraction === 'plan-review' ? 'floatingApproval'
+        : pendingInteraction === 'question' ? 'floatingQuestion' : null
       const error = snapshot.syncError ? 'timerSyncError' : snapshot.actionError || (snapshot.noticeError ? 'timerNoticeError' : '')
+      const hasReadout = hasManual || runningTask !== null || waitingLabel !== null || recentExpiry || Boolean(error)
+      const panelVisible = useSurfaceFade(expanded && (!docked || hasReadout), panelRef)
+      const visibleDock = panelVisible || hasReadout ? null : docked
+      const at = useClockTick(expanded && !visibleDock || timer?.status === 'running' || runningTask !== null || recentExpiry)
+      const rect = floatingRect(effectivePosition, size, viewport)
+      const compactDigits = (ms, roundUp) => timerDigits(ms, roundUp).replace(/^00:/, '')
+      const projection = hasManual ? projectTimer(timer, snapshot.receivedAt, at) : null
+      const manualReadout = hasManual ? {
+        label: paused ? 'timerPaused' : timer.mode === 'countdown' ? 'floatingRemaining' : 'timerRunning',
+        digits: snapshot.syncError ? '' : compactDigits(projection.remainingMs ?? projection.elapsedMs, timer.mode === 'countdown'),
+      } : null
+      const taskReadout = runningTask || waitingLabel ? {
+        label: waitingLabel ?? 'floatingTask',
+        digits: runningTask ? compactDigits(runningTask.elapsedMs + Math.max(0, at - runningTask.receivedAt)) : '',
+      } : null
+      const readout = manualReadout ?? (recentExpiry ? { label: 'floatingTimeUp', digits: '' } : taskReadout)
+      const showReadoutLabel = readout && readout.label !== 'timerRunning' && readout.label !== 'timerPaused'
+
+      React.useEffect(() => {
+        if (hasReadout && docked) setDocked(null)
+      }, [hasReadout, docked])
 
       function place(next) {
         pointRef.current = next
@@ -3756,7 +3974,7 @@ window.__ModuleLoader__.load({
         const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
         observer?.observe(content)
         return () => observer?.disconnect()
-      }, [expanded, visibleDock, showClock, panelVisible])
+      }, [expanded, visibleDock, showClock, panelVisible, readout?.label, readout?.digits?.length])
 
       React.useEffect(() => {
         if (!focusAfterWakeRef.current || docked || !expanded && panelVisible) return
@@ -3767,12 +3985,12 @@ window.__ModuleLoader__.load({
 
       React.useEffect(() => {
         // 用户仍在悬浮窗里阅读、拖动、用键盘或编辑倒计时，均不自动收起。
-        if (docked || hovered || focused || dragging || menuPoint) return undefined
+        if (hasReadout || docked || hovered || focused || dragging || menuPoint) return undefined
         const edge = floatingEdge(rect, viewport)
         if (!edge) return undefined
         const timeout = setTimeout(() => setDocked(edge), FLOATING_DOCK_DELAY)
         return () => clearTimeout(timeout)
-      }, [docked, hovered, focused, dragging, menuPoint, position, anchor, size, viewport])
+      }, [hasReadout, docked, hovered, focused, dragging, menuPoint, position, anchor, size, viewport])
 
       function startDrag(event) {
         if (event.button !== 0 || event.isPrimary === false) return
@@ -3793,6 +4011,7 @@ window.__ModuleLoader__.load({
         const dy = event.clientY - drag.y
         if (!drag.moved && Math.hypot(dx, dy) < 4) return
         drag.moved = true
+        rootRef.current?.style?.setProperty('--cs-glass-x', Math.min(100, Math.max(0, 25 + dx / 5)) + '%')
         place(moveFloatingPosition(drag.position, drag.size, drag.viewport, dx, dy))
       }
 
@@ -3804,6 +4023,7 @@ window.__ModuleLoader__.load({
         if (cancelled) place(drag.savedPosition)
         else if (drag.moved) saveFloatingPosition(pointRef.current)
         if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+        rootRef.current?.style?.removeProperty('--cs-glass-x')
         setDragging(false)
       }
 
@@ -3854,14 +4074,16 @@ window.__ModuleLoader__.load({
           onFocus: () => wake(true), onClick: () => wake(true) }, h('span', { 'aria-hidden': true })) : null,
         h('div', { ref: contentRef, className: 'cs-floating-content', hidden: !!visibleDock },
           !expanded && !panelVisible ? h('button', { ...dragProps, ref: entryRef, type: 'button',
-            className: `cs-floating-entry${timer?.status === 'running' ? ' is-running' : ''}${error ? ' has-error' : ''}`,
-            'aria-label': `${t('floatingOpen')}${error ? ` · ${t(error)}` : ''}`, 'aria-expanded': false,
+            className: `cs-floating-entry${readout ? ' has-readout' : ''}${readout && readout === taskReadout ? ' is-task' : ''}${timer?.status === 'running' ? ' is-running' : ''}${error ? ' has-error' : ''}`,
+            'aria-label': [t('floatingOpen'), readout && t(readout.label), readout?.digits, error && t(error)].filter(Boolean).join(' · '), 'aria-expanded': false,
             title: t('floatingMove'), onClick: (event) => {
               if (ignoreClickRef.current) { ignoreClickRef.current = false; return }
               focusAfterWakeRef.current = event.detail === 0
               setExpanded(true)
             },
-          }, h(DetailGlyph, { name: 'clock', size: 22 }), digits ? h('span', { className: 'cs-timer-compact-digits' }, digits) : null)
+          }, h(DetailGlyph, { name: paused ? 'resume' : 'clock', size: readout ? 16 : 22 }),
+          showReadoutLabel ? h('span', { className: 'cs-floating-label' }, t(readout.label)) : null,
+          readout?.digits ? h('span', { className: 'cs-timer-compact-digits' }, readout.digits) : null)
           : h('section', { ref: panelRef, className: 'cs-floating-panel', 'aria-label': t('floatingTitle'),
             inert: !expanded || docked ? '' : undefined, 'aria-hidden': !expanded || !!docked },
             h('div', { className: 'cs-floating-bar' },
@@ -3871,7 +4093,10 @@ window.__ModuleLoader__.load({
               h('button', { type: 'button', className: 'cs-floating-minimize', 'aria-label': t('floatingMinimize'), onClick: minimize },
                 h(DetailGlyph, { name: 'close', size: 15 }))),
             showClock ? h(ClockDial, { at, t }) : null,
-            h(TimerControls, { client, snapshot, at, t })) ))
+            h(TimerControls, { client, snapshot, at, t }),
+            taskReadout ? h('div', { className: 'cs-floating-task' },
+              h('span', null, t(taskReadout.label)),
+              taskReadout.digits ? h('span', { className: 'cs-timer-compact-digits' }, taskReadout.digits) : null) : null)))
     }
 
     function TimerPopover({ client, snapshot, t, hoverTip = null }) {
@@ -3935,7 +4160,8 @@ window.__ModuleLoader__.load({
 
       const visibleDigits = timer && timer.status !== 'idle'
       const projection = visibleDigits ? projectTimer(timer, snapshot.receivedAt, at) : null
-      const digits = visibleDigits ? timerDigits(projection.remainingMs ?? projection.elapsedMs, timer.mode === 'countdown') : null
+      const showRemaining = timer?.mode === 'countdown' && timer.status !== 'completed'
+      const digits = projection ? timerDigits(showRemaining ? projection.remainingMs : projection.elapsedMs, showRemaining) : null
       const label = t('timerTitle')
       const error = snapshot.syncError ? 'timerSyncError' : snapshot.actionError || (snapshot.noticeError ? 'timerNoticeError' : '')
       const triggerLabel = [label, digits, error ? t(error) : ''].filter(Boolean).join(' · ')
@@ -3958,7 +4184,7 @@ window.__ModuleLoader__.load({
           className: 'cs-timer-flyout', hidden: !panelVisible, inert: !expanded ? '' : undefined, 'aria-hidden': !expanded,
           style: position ? { left: position.left, top: position.top } : { visibility: 'hidden' },
         }, h('section', { className: 'cs-timer-panel', id: panelId, ref: panelRef, 'aria-label': label },
-          h(TimerControls, { client, snapshot, at, t }))))
+            h(TimerControls, { client, snapshot, at, t }))))
     }
 
     function DashboardTimer({ client, t, hoverTip = null }) {
@@ -3966,13 +4192,32 @@ window.__ModuleLoader__.load({
       return h(TimerPopover, { client, snapshot, t, hoverTip })
     }
 
-    function TimerOverlay({ ctx, client, conversation }) {
+    function CommandNotice({ result, onDismiss, t }) {
+      const noticeRef = React.useRef(null)
+      const text = React.useRef('')
+      const open = result !== null
+      if (open) text.current = result.text
+      const visible = useSurfaceFade(open, noticeRef)
+      if (!visible) {
+        text.current = ''
+        return null
+      }
+      return h('div', { ref: noticeRef, className: 'cs-timer-notice cs-command-result', inert: open ? undefined : '', 'aria-hidden': !open },
+        h('div', { role: 'status', className: 'cs-command-result-text' }, text.current),
+        h('button', { className: 'cs-timer-notice-close', type: 'button', 'aria-label': t('timerClose'), onClick: onDismiss },
+          h(DetailGlyph, { name: 'close', size: 16 })))
+    }
+
+    function TimerOverlay({ ctx, client, conversation, commandResult = null, onDismissCommand }) {
       useLanguageRevision()
       const theme = useStoredTheme()
       const snapshot = useTimerClient(client)
       const [display, setDisplay] = React.useState(null)
       const [exitBusy, setExitBusy] = React.useState(false)
       const [exitError, setExitError] = React.useState(false)
+      const inConversation = Boolean(conversation)
+      const taskSessionId = display?.enabled && (conversation?.running || conversation?.pendingInteraction) ? conversation.id : null
+      const runningTask = useRunningTask(ctx, taskSessionId)
       const settingsRuntime = React.useRef({ active: false, revision: 0, writing: false }).current
       React.useEffect(() => {
         settingsRuntime.active = true
@@ -3995,7 +4240,7 @@ window.__ModuleLoader__.load({
           window.removeEventListener('focus', load)
           document.removeEventListener('visibilitychange', visible)
         }
-      }, [ctx, conversation])
+      }, [ctx, inConversation])
       const exitFloating = async () => {
         if (!settingsRuntime.active || settingsRuntime.writing) return
         const ticket = ++settingsRuntime.revision
@@ -4021,8 +4266,9 @@ window.__ModuleLoader__.load({
       if (!conversation && !notice) return null
       return h('div', { className: `cs-timer-overlay ${sidebarThemeClass(theme.palette, theme.appearance, theme.systemDark)}` },
         h('style', null, CS_TIMER_CSS),
-        conversation && display?.enabled ? h(FloatingTimer, { client, snapshot, showClock: display.showClock,
+        conversation && display?.enabled ? h(FloatingTimer, { client, snapshot, runningTask, pendingInteraction: conversation.pendingInteraction, showClock: display.showClock,
           onExit: exitFloating, exitBusy, exitError, t }) : null,
+        conversation ? h(CommandNotice, { key: conversation.id, result: commandResult, onDismiss: onDismissCommand, t }) : null,
         notice ? h('div', { className: 'cs-timer-notice' },
           h(DetailGlyph, { name: 'clock', size: 18 }),
           h('div', { className: 'cs-timer-notice-message' },
@@ -4034,10 +4280,33 @@ window.__ModuleLoader__.load({
     }
 
     /** 心跳与计时提醒随整个宿主界面存在。 */
-    function createPresenceReporter(ctx, timerClient) {
+    function createPresenceReporter(ctx, timerClient, commandFeedback) {
       return function DshTimespanPresenceReporter(props) {
         const conversation = usePresenceReporter(props, ctx)
-        return h(TimerOverlay, { ctx, client: timerClient, conversation })
+        const sessionId = conversation?.id
+        const [result, setResult] = React.useState(null)
+        React.useEffect(() => {
+          commandFeedback.publish = (next) => {
+            if (next.sessionId === sessionId) setResult(next)
+          }
+          return () => { commandFeedback.publish = null }
+        }, [sessionId])
+        React.useEffect(() => {
+          if (!result) return undefined
+          const dismiss = () => setResult((current) => current === result ? null : current)
+          if (result.sessionId !== sessionId) {
+            dismiss()
+            return undefined
+          }
+          if (!result.autoDismiss) return undefined
+          const timeout = setTimeout(dismiss, COMMAND_FEEDBACK_MS)
+          return () => clearTimeout(timeout)
+        }, [result, sessionId])
+        return h(TimerOverlay, {
+          ctx, client: timerClient, conversation,
+          commandResult: result?.sessionId === sessionId ? result : null,
+          onDismissCommand: () => setResult(null),
+        })
       }
     }
 
@@ -4729,6 +4998,30 @@ window.__ModuleLoader__.load({
       return event?.key === 'Enter' || event?.key === ' ' || event?.key === 'Spacebar'
     }
 
+    /**
+     * 柱形轮廓：顶部保留圆头，柱脚只收浅圆角。
+     * 四角共用同一半径时，柱脚会收成一个尖点；底部半径收小后落成短平脚。
+     */
+    function barOutline(x, y, width, height) {
+      const clamp = (value, max) => Math.max(0, Math.min(value, max))
+      const topRx = clamp(width * 0.42, width / 2)
+      const topRy = clamp(width * 0.32, height / 2)
+      const bottomRx = clamp(width * 0.26, width / 2)
+      const bottomRy = clamp(width * 0.18, height / 2)
+      const x2 = x + width
+      const y2 = y + height
+      const n = (value) => Math.round(value * 100) / 100
+      return `M ${n(x + topRx)} ${n(y)}`
+        + ` H ${n(x2 - topRx)}`
+        + ` A ${n(topRx)} ${n(topRy)} 0 0 1 ${n(x2)} ${n(y + topRy)}`
+        + ` V ${n(y2 - bottomRy)}`
+        + ` A ${n(bottomRx)} ${n(bottomRy)} 0 0 1 ${n(x2 - bottomRx)} ${n(y2)}`
+        + ` H ${n(x + bottomRx)}`
+        + ` A ${n(bottomRx)} ${n(bottomRy)} 0 0 1 ${n(x)} ${n(y2 - bottomRy)}`
+        + ` V ${n(y + topRy)}`
+        + ` A ${n(topRx)} ${n(topRy)} 0 0 1 ${n(x + topRx)} ${n(y)} Z`
+    }
+
     /** 原生 SVG 双系列柱状图；每个时段分组带透明命中区，悬浮或聚焦时整体放大并浮出数值。 */
     function renderTrendChart(trend, period, t, isZh, hover, actions = {}, format = 'hms') {
       const width = 1000
@@ -4750,17 +5043,16 @@ window.__ModuleLoader__.load({
       const gap = Math.max(1, barSlot * 0.05)
       const renderBar = (key, x, duration, fill, index) => {
         const barHeight = Math.max(1.5, (duration / peak) * usable)
-        return h('rect', {
+        const y = baseline - barHeight
+        return h('path', {
           key,
           className: 'cs-bar cs-reveal-y',
           style: chartStagger(index, count),
-          x,
-          y: baseline - barHeight,
-          width: barWidth,
-          height: barHeight,
-          rx: barWidth * 0.42,
-          ry: Math.min(barWidth * 0.32, barHeight / 2),
+          d: barOutline(x, y, barWidth, barHeight),
           fill,
+          'data-bar-x': Math.round(x * 100) / 100,
+          'data-bar-width': Math.round(barWidth * 100) / 100,
+          'data-bar-height': Math.round(barHeight * 100) / 100,
         })
       }
       const groups = []
@@ -5645,8 +5937,9 @@ window.__ModuleLoader__.load({
       return h('section', { className: 'cs-settings-group cs-format-section' },
         h('div', { className: 'cs-format-head' },
           h('div', { className: 'cs-format-heading' },
-            h('h3', null, t('settingsSectionFormat')),
-            h('p', { className: 'cs-settings-row-hint' }, t('settingsFormatHint'))),
+            options.inlineHelp ? renderSettingsHeading(t, 'settingsSectionFormat', 'settingsFormatHint', 'settingsFormatShared')
+              : [h('h3', { key: 'title' }, t('settingsSectionFormat')),
+                  h('p', { key: 'hint', className: 'cs-settings-row-hint' }, t('settingsFormatHint'))]),
           !options.sidebarPreview ? h('div', { className: 'cs-format-preview', 'aria-live': 'polite' },
             h('span', null, t('formatPreviewLabel')),
             h('b', { key: current, className: 'cs-format-preview-value', 'data-format': current }, formatDuration(DURATION_FORMAT_SAMPLE_MS, current))) : null),
@@ -5674,7 +5967,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-format-live-value', 'aria-live': 'polite' }, h('span', null, t('formatPreviewLabel')),
             h('b', { key: current, className: 'cs-format-preview-value' }, formatDuration(DURATION_FORMAT_SAMPLE_MS, current))),
           h('div', { className: 'cs-format-sidebar' }, h('span', null, t('settingsSidebarPreview')), options.sidebarPreview)) : null,
-        h('p', { className: 'cs-format-shared' }, t('settingsFormatShared')))
+        options.inlineHelp ? null : h('p', { className: 'cs-format-shared' }, t('settingsFormatShared')))
     }
 
     /**
@@ -5717,9 +6010,7 @@ window.__ModuleLoader__.load({
           h('style', null, DSH_TIMESPAN_SETTINGS_CSS),
           h('div', { className: 'cs-settings-inner' },
             h('header', { className: 'cs-settings-header' },
-              h('div', { className: 'cs-settings-heading' },
-                h('h2', { className: 'cs-settings-title' }, t('settingsTitle')),
-                h('p', { className: 'cs-settings-hint' }, t('settingsHint'))),
+              h('h2', { className: 'cs-settings-title' }, t('settingsTitle')),
               h('nav', { className: 'cs-settings-links', 'aria-label': t('settingsLinksLabel') },
                 [
                   ['github', PROJECT_REPOSITORY_URL, 'settingsRepoAction'],
@@ -5788,7 +6079,7 @@ window.__ModuleLoader__.load({
     }
 
     /** 分析模型：先选 Provider 再选模型，目录可独立刷新。 */
-    function AnalysisModelSettings({ ctx, t, draft, busy, onPatch }) {
+    function AnalysisModelSettings({ ctx, t, draft, busy, onPatch, inlineHelp = false }) {
       const [catalog, setCatalog] = React.useState({ status: 'loading', value: null })
       const [revision, setRevision] = React.useState(0)
       React.useEffect(() => {
@@ -5809,9 +6100,10 @@ window.__ModuleLoader__.load({
       const selectedError = providerMissing ? 'analysisSavedProviderMissing' : modelMissing ? 'analysisSavedModelMissing' : ''
       const field = (label, value, options, disabled, onChange) => h('div', { className: 'cs-analysis-field' },
         h('span', null, t(label)), h(Select, { value, options, disabled, ariaLabel: t(label), onChange }))
-      return h('section', { className: 'cs-analysis-model-settings' },
+      return h('section', { className: `cs-analysis-model-settings${inlineHelp ? ' cs-settings-info-region' : ''}` },
         h('div', { className: 'cs-tools-settings-head' },
-          h('div', null, h('h3', null, t('settingsAnalysisTitle')), h('p', { className: 'cs-settings-row-hint' }, t('settingsAnalysisHint'))),
+          inlineHelp ? renderSettingsHeading(t, 'settingsAnalysisTitle', 'settingsAnalysisHint')
+            : h('div', null, h('h3', null, t('settingsAnalysisTitle')), h('p', { className: 'cs-settings-row-hint' }, t('settingsAnalysisHint'))),
           h('button', {
             type: 'button', className: 'cs-btn cs-model-catalog-refresh', disabled: catalog.status === 'loading',
             onClick: () => setRevision((value) => value + 1),
@@ -5827,7 +6119,70 @@ window.__ModuleLoader__.load({
         ready && !providers.length && !failures.length ? h('p', { className: 'cs-settings-row-hint' }, t('analysisCatalogEmpty')) : null)
     }
 
-    /** 悬浮窗与到期提醒：开关与说明按「显示 / 提醒」上下排列，设置板内与模型选择并排。 */
+    function CountdownPresetField({ t, value, busy, onPatch }) {
+      const available = isTimerPreset(value)
+      const [input, setInput] = React.useState(null)
+      const saveTimer = React.useRef(null)
+      const savingRef = React.useRef(false)
+      const patchRef = React.useRef(onPatch)
+      patchRef.current = onPatch
+      const id = React.useId()
+      const statusId = `${id}-feedback`
+      const minutes = Number(input)
+      const invalid = input !== null && !isTimerPreset(minutes)
+      const status = !busy && !available ? 'timerHostRestart' : invalid ? 'settingsTimerPresetInvalid' : ''
+
+      function clearSaveTimer() {
+        if (saveTimer.current !== null) window.clearTimeout(saveTimer.current)
+        saveTimer.current = null
+      }
+
+      async function commit() {
+        clearSaveTimer()
+        if (busy || !available || input === null || invalid || savingRef.current) return
+        savingRef.current = true
+        try {
+          if (minutes === value || await patchRef.current('timerPresetMinutes', minutes)) {
+            setInput((current) => current === input ? null : current)
+          }
+        } finally {
+          savingRef.current = false
+        }
+      }
+
+      React.useEffect(() => {
+        if (busy || !available || input === null || invalid) return undefined
+        saveTimer.current = window.setTimeout(() => { void commit() }, 600)
+        return clearSaveTimer
+      }, [input, value, busy])
+
+      return h('div', { className: 'cs-timer-preset' },
+        h('div', { className: 'cs-settings-row' },
+          h('span', { className: 'cs-settings-label' }, h('label', { htmlFor: id }, t('settingsTimerPreset')),
+            h('span', { className: 'cs-row-info' }, renderInfo(t('settingsTimerPresetHint')))),
+          h('div', { className: 'cs-settings-control' },
+            h('input', {
+              id, type: 'number', inputMode: 'numeric', min: 1, max: COUNTDOWN_MAX_MINUTES, step: 1,
+              value: input ?? String(normalizeTimerPreset(value)), disabled: !available, readOnly: busy,
+              'aria-invalid': invalid || undefined,
+              'aria-describedby': status ? statusId : undefined,
+              onChange: (event) => setInput(event.currentTarget.value),
+              onBlur: (event) => {
+                // 表单内切换焦点时继续等待，避免抢在另一项设置的点击前锁住表单。
+                if (event.relatedTarget && !event.relatedTarget.closest('.cs-settings')) void commit()
+              },
+              onKeyDown: (event) => {
+                if (input === null || (event.key !== 'Enter' && event.key !== 'Escape')) return
+                event.preventDefault()
+                event.stopPropagation()
+                if (event.key === 'Enter') void commit()
+                else { clearSaveTimer(); setInput(null) }
+              },
+            }), h('span', { 'aria-hidden': true }, t('settingsIdleUnit')))),
+        status ? h('p', { id: statusId, className: 'cs-settings-status is-error', role: 'status' }, t(status)) : null)
+    }
+
+    /** 悬浮窗开关与倒计时设置共用一列，设置板内与模型选择并排。 */
     function FloatingTimerSettings({ t, draft, busy, onPatch }) {
       return h('section', { className: 'cs-timer-reminder-settings' },
         h('h3', null, t('settingsFloatingTitle')),
@@ -5842,6 +6197,7 @@ window.__ModuleLoader__.load({
           }), t('settingsFloatingClock')),
         h('p', { className: 'cs-settings-row-hint' }, t('settingsFloatingHint')),
         h('h3', null, t('settingsTimerTitle')),
+        h(CountdownPresetField, { t, value: draft?.timerPresetMinutes, busy, onPatch }),
         h('label', { className: 'cs-settings-switch' },
           h('input', { type: 'checkbox', disabled: busy, checked: draft?.timerSound !== false,
             onChange: (event) => onPatch('timerSound', event.target.checked),
@@ -5854,6 +6210,14 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'cs-time-tools-settings' },
         h(AnalysisModelSettings, props),
         h(FloatingTimerSettings, props))
+    }
+
+    function renderSettingsHeading(t, titleKey, hintKey, extraHintKey) {
+      const hint = t(hintKey)
+      const lines = extraHintKey ? [hint, t(extraHintKey)] : null
+      return h('div', { className: 'cs-settings-heading-with-info' },
+        h('h3', null, t(titleKey)),
+        h('span', { className: 'cs-row-info' }, renderInfo(lines ? lines.join(' · ') : hint, null, lines)))
     }
 
     function settingsRow(t, labelKey, hintKey, ...controls) {
@@ -5970,9 +6334,7 @@ window.__ModuleLoader__.load({
       ]
       return [
         h('div', { className: 'cs-settings-card-head' },
-          h('div', null,
-            h('h3', null, t('settingsSectionBasics')),
-            h('p', { className: 'cs-settings-card-sub' }, t('settingsBasicsHint'))),
+          h('h3', null, t('settingsSectionBasics')),
           options.status ?? null),
         options.split ? h('div', { className: 'cs-settings-sections' },
           h('div', { className: 'cs-settings-list' }, h('h4', null, t('settingsRulesGroup')), ...rows.slice(0, 4)),
@@ -7904,13 +8266,13 @@ window.__ModuleLoader__.load({
         footerActions ? h('div', { className: 'cs-review-footer-actions' }, footerActions) : null)
     }
 
-    function AnalysisPage({ ctx, t, period, data, modelChoice, onRetryModel, onOpenSettings, onOpenSource, hoverTip, durationFormat, onNoticesChange = null, onReadyChange = null }) {
+    function AnalysisPage({ ctx, t, period, data, modelChoice, onRetryModel, onOpenSettings, onOpenSource, hoverTip, durationFormat, initialSessionId = '', initialBlank = false, onNoticesChange = null, onReadyChange = null }) {
       const analysis = useAnalysisState(ctx, onRetryModel)
-      const [selected, setSelected] = React.useState({ period, workspaceId: '', sessionId: '' })
+      const [selected, setSelected] = React.useState({ period, workspaceId: '', sessionId: initialSessionId })
       const [sourceFailure, setSourceFailure] = React.useState(null)
       const [, setNoticeVersion] = React.useState(0)
       const toolbarRef = React.useRef(null)
-      const [filtersOpen, setFiltersOpen] = React.useState(false)
+      const [filtersOpen, setFiltersOpen] = React.useState(initialSessionId !== '')
       React.useEffect(() => {
         if (filtersOpen) toolbarRef.current?.focus({ preventScroll: true })
       }, [filtersOpen])
@@ -7955,7 +8317,8 @@ window.__ModuleLoader__.load({
       const needsModel = Boolean(modelChoice && !modelConfigured)
       const modelError = errorKey === 'analysisModelRequired' || errorKey === 'analysisModelUnavailable'
       const { workspaceOptions, sessionOptions } = analysisScopeOptions(workspaces, workspaceId, t)
-      const unavailableScope = Boolean(coordinatesFresh && (workspaceId && !workspaceOptions.some((row) => row.value === workspaceId) ||
+      const blankSelection = initialBlank && initialSessionId === sessionId
+      const unavailableScope = blankSelection || Boolean(coordinatesFresh && (workspaceId && !workspaceOptions.some((row) => row.value === workspaceId) ||
         sessionId && !sessionOptions.some((row) => row.value === sessionId)))
       const scopeLocked = running || Boolean(operation.method) || !coordinatesReady
       const stage = operation.method ? (operation.method === 'generateAnalysis' ? 'analysisStarting' : 'analysisCancelling') : ANALYSIS_PHASE_LABELS[phase]
@@ -8003,7 +8366,7 @@ window.__ModuleLoader__.load({
 
       const generateLabel = t(reportError || operation.error ? 'analysisRetryGenerate' : report ? 'analysisRegenerate' : 'analysisGenerate')
       const generateGlyph = analysisGenerateGlyph(Boolean(report), Boolean(reportError || operation.error))
-      const selectionLabel = sessionOptions.find((row) => row.value === sessionId)?.label
+      const selectionLabel = (blankSelection ? t('commandCurrentSession') : sessionOptions.find((row) => row.value === sessionId)?.label)
         || workspaceOptions.find((row) => row.value === workspaceId)?.label || t('reviewAllScope')
       const canGenerate = Boolean(state) && !scopeLocked && !unavailableScope && modelConfigured && !loadError
       const generationActions = () => running ? h('button', { type: 'button', className: 'cs-btn cs-review-generate',
@@ -8345,26 +8708,28 @@ window.__ModuleLoader__.load({
       const appearanceMode = normalizeAppearance(appearance)
       const importRange = importPreview ? importPreviewRange(importPreview.payload) : ''
       const importReportCount = Object.keys(ANALYSIS_PERIOD_LABELS).filter((period) => importPreview?.payload?.reports?.[period]).length
+      const importedHistory = importPreview?.payload?.timerHistory
+      const importTimerCount = Array.isArray(importedHistory) ? importedHistory.length : Number(Boolean(importPreview?.payload?.lastTimerResult))
+      // 卡头只显示保存过程中的即时反馈；空闲时不放常驻小字，避免与标题抢位置。
       const saveStatus = h('div', { className: 'cs-settings-feedback' },
-        h('span', { className: `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`, role: 'status' }, message || t('settingsAutoSave')),
+        h('span', { className: `cs-settings-status${phase === 'error' || loadFailed ? ' is-error' : ''}`, role: 'status' }, message),
         loadFailed || onRetrySave ? h('button', { type: 'button', className: 'cs-btn', onClick: loadFailed ? onRetryLoad : onRetrySave }, t('settingsRetry')) : null)
       return [h('div', { className: 'cs-settings cs-settings-board' },
         h('div', { className: 'cs-settings-grid' },
           h('section', { className: 'cs-settings-card cs-settings-main cs-settings-basics-card' },
             ...renderBasicSettingsBody(t, draft, busy, onPatch, { selectClass: 'cs-settings-select', split: true, status: saveStatus })),
-          h('section', { className: 'cs-settings-card cs-settings-side cs-format-card' },
+          h('section', { className: 'cs-settings-card cs-settings-side cs-format-card cs-settings-info-region' },
             renderDurationFormatSection(t, draft?.durationFormat, {
               disabled: busy,
               onSelect: onSelectFormat,
+              inlineHelp: true,
               sidebarPreview: renderSidebarEntry({ stats: sidebarStats, theme: { palette, appearance, systemDark }, t,
                 showName: draft?.sidebarShowName === true, showDot: draft?.sidebarDotVisible !== false,
                 dotPosition: draft?.sidebarDotPosition, sidebarMetric: draft?.sidebarDuration, format: draft?.durationFormat }),
             })),
-          h('section', { className: 'cs-settings-card cs-settings-main cs-appearance-card' },
+          h('section', { className: 'cs-settings-card cs-settings-main cs-appearance-card cs-settings-info-region' },
             h('div', { className: 'cs-settings-card-head' },
-              h('div', null,
-                h('h3', null, t('settingsSectionAppearance')),
-                h('p', { className: 'cs-settings-row-hint' }, t('settingsAppearanceHint'))),
+              renderSettingsHeading(t, 'settingsSectionAppearance', 'settingsAppearanceHint'),
               h('span', { className: 'cs-settings-scope' }, t('settingsAppearanceLocal'))),
             h('div', { className: 'cs-appearance-panel' },
               h('div', { className: 'cs-appearance-group' },
@@ -8415,9 +8780,8 @@ window.__ModuleLoader__.load({
               onReset: onResetSettings,
             })),
           ...(props.timeTools ? [h('div', { className: 'cs-settings-card cs-settings-tools-card' }, props.timeTools)] : []),
-          h('section', { className: 'cs-settings-card cs-settings-main cs-notices-card' },
-            h('h3', null, t('settingsSectionNotices')),
-            h('p', { className: 'cs-settings-row-hint' }, t('settingsNoticesHint')),
+          h('section', { className: 'cs-settings-card cs-settings-main cs-notices-card cs-settings-info-region' },
+            renderSettingsHeading(t, 'settingsSectionNotices', 'settingsNoticesHint'),
             noticeState?.status === 'error'
               ? h('p', { className: 'cs-notice-empty' }, t('backfillNoticeUnavailable'))
               : noticeState?.data === null || noticeState?.data === undefined
@@ -8435,9 +8799,8 @@ window.__ModuleLoader__.load({
                 : retryError
                   ? h('span', { className: 'cs-data-status is-error', role: 'status' }, String(retryError))
                   : null)),
-          h('section', { className: 'cs-settings-card cs-settings-side cs-data-card' },
-            h('h3', null, t('dataTitle')),
-            h('p', { className: 'cs-settings-row-hint' }, t('dataHint')),
+          h('section', { className: 'cs-settings-card cs-settings-side cs-data-card cs-settings-info-region' },
+            renderSettingsHeading(t, 'dataTitle', 'dataHint'),
             h('div', { className: 'cs-data-actions' },
               h('button', {
                 type: 'button', className: 'cs-btn', disabled: dataBusy !== '',
@@ -8464,9 +8827,9 @@ window.__ModuleLoader__.load({
               ? h('div', { className: 'cs-import-preview' },
                   h('strong', null, t('importPreviewTitle')),
                   h('span', null, `${String(importPreview.filename ?? '')} · ${t('importIntervals')} ${importPreview.payload?.intervals?.length ?? 0} · ${t('importTasks')} ${importPreview.payload?.tasks?.length ?? 0}`),
-                  importReportCount || importPreview.payload?.lastTimerResult ? h('span', null, [
+                  importReportCount || importTimerCount ? h('span', null, [
                     importReportCount ? `${t('importReports')} ${importReportCount}` : '',
-                    importPreview.payload?.lastTimerResult ? t('importTimerResult') : '',
+                    importTimerCount ? `${t('importTimerResults')} ${importTimerCount}` : '',
                   ].filter(Boolean).join(' · ')) : null,
                   importRange ? h('span', { className: 'cs-settings-row-hint' }, importRange) : null,
                   h('label', { className: 'cs-settings-switch' },
@@ -8522,7 +8885,7 @@ window.__ModuleLoader__.load({
               : null)))]
     }
 
-    function createPage(ctx, timerClient = createTimerClient(ctx)) {
+    function createPage(ctx, timerClient = createTimerClient(ctx), reviewNavigation = null) {
       return function DshTimespanPage(props) {
         const t = props?.t ?? ((key) => key)
         // 语言切换后仪表盘整页换文案；isZh 仍在渲染时从 t 现读，不缓存。
@@ -8533,9 +8896,11 @@ window.__ModuleLoader__.load({
           catch { return 'day' }
         })
         const [view, setView] = React.useState(() => {
+          if (reviewNavigation?.pending) return 'analysis'
           try { return normalizeView(window.sessionStorage.getItem('dsh-timespan.view')) }
           catch { return 'overview' }
         })
+        const [slashReview, setSlashReview] = React.useState(() => reviewNavigation?.pending ?? null)
         // 首屏放大态持久化在浏览器本地设置：退出页面再进入仍保持，非法旧值回落普通概览。
         const [focus, setFocus] = React.useState(() => readStoredFocus())
         // 首屏主指标同样持久化：五个时长项切换后刷新、切视图、缩回再放大都保持。
@@ -8761,6 +9126,7 @@ window.__ModuleLoader__.load({
             switchingTimerRef.current = null
           }
           if (next === view) { setPendingView(null); setSwitchingView(false); return }
+          if (next !== 'analysis') setSlashReview(null)
           if (view === 'details') sessionBrowser.actions.clearHighlight()
           if (previewFormat !== null) {
             setPreviewFormat(null)
@@ -8783,6 +9149,26 @@ window.__ModuleLoader__.load({
             setSwitchingView(false)
           }, viewTransitionDelay(false))
         }
+        React.useEffect(() => {
+          if (!reviewNavigation) return undefined
+          const receive = () => {
+            const request = reviewNavigation.pending
+            if (!request) return
+            reviewNavigation.pending = null
+            if (switchingTimerRef.current !== null) {
+              window.clearTimeout(switchingTimerRef.current)
+              switchingTimerRef.current = null
+            }
+            setPendingView(null)
+            setSwitchingView(false)
+            setAnalysisReady(false)
+            setSlashReview(request)
+            setView('analysis')
+          }
+          reviewNavigation.receive = receive
+          receive()
+          return () => { if (reviewNavigation.receive === receive) reviewNavigation.receive = null }
+        }, [reviewNavigation])
         React.useEffect(() => () => {
           if (switchingTimerRef.current !== null) window.clearTimeout(switchingTimerRef.current)
         }, [])
@@ -9040,7 +9426,10 @@ window.__ModuleLoader__.load({
           }
           if (view === 'analysis') {
             return [h(AnalysisPage, {
-              ctx, t, data, period, modelChoice, hoverTip, durationFormat,
+              key: slashReview?.revision ?? 0,
+              ctx, t, data, period: slashReview ? 'day' : period, modelChoice, hoverTip, durationFormat,
+              initialSessionId: slashReview?.sessionId,
+              initialBlank: slashReview?.blank,
               onRetryModel: () => setSettingsLoadNonce((value) => value + 1),
               onOpenSettings: () => goToView('settings'),
               onOpenSource: (source) => openSessionInHost(ctx, source),
@@ -9077,7 +9466,7 @@ window.__ModuleLoader__.load({
               onRetryLoad: settingsEditor.reload,
               onRetrySave: settingsEditor.messageKey === 'settingsSaveError' ? settingsEditor.retrySave : undefined,
               timeTools: h(TimeToolsSettings, {
-                ctx, t, draft: settingsEditor.draft, busy: settingsEditor.busy, onPatch: settingsEditor.patch,
+                ctx, t, draft: settingsEditor.draft, busy: settingsEditor.busy, onPatch: settingsEditor.patch, inlineHelp: true,
               }),
               onExport,
               importPreview,
@@ -9133,7 +9522,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'cs-shell' },
             h('header', { className: 'cs-topbar' },
               h('div', { className: 'cs-brand' },
-                h('span', { className: 'cs-mark' }, h(DshTimespanIcon, { size: 36, active: true })),
+                h('span', { className: 'cs-mark' }, h(DshTimespanIcon, { size: 36 })),
                 h('div', { className: 'cs-brand-text' },
                   h('h1', null, t('title')))),
               h('span', { className: 'cs-topbar-divider', 'aria-hidden': true }),
@@ -9687,8 +10076,21 @@ window.__ModuleLoader__.load({
       .cs-timer-progress { display: block; width: 100%; height: 5px; accent-color: var(--timer-accent); }
       .cs-timer-feedback { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; margin: 0; font-size: 11px; color: var(--timer-muted); }
       .cs-timer-feedback.is-error { color: var(--cs-timer-error, var(--dsw-alias-state-error-primary)); }
-      .cs-timer-result { display: flex; align-items: center; gap: 7px; padding-top: 7px; border-top: 1px solid var(--timer-rule); color: var(--timer-muted); font-size: 11px; }
-      .cs-timer-result-copy { display: grid; gap: 1px; flex: 1; min-width: 0; }
+      .cs-timer-history { min-width: 0; padding-top: 7px; border-top: 1px solid var(--timer-rule); color: var(--timer-muted); font-size: 11px; }
+      .cs-timer-history-head { display: flex; align-items: center; gap: 6px; padding-inline-end: 34px; }
+      .cs-timer-history-head.has-scroll { padding-inline-end: 0; }
+      .cs-timer-history-head small { margin-inline-start: 6px; font-size: 10px; font-variant-numeric: tabular-nums; }
+      .cs-timer-history-elapsed-label { margin-inline-start: auto; }
+      .cs-timer-history-scroll { display: flex; gap: 2px; }
+      .cs-timer-history-scroll button { display: grid; place-items: center; width: 22px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--timer-ink); cursor: pointer; }
+      .cs-timer-history-scroll button:hover { background: color-mix(in srgb, var(--timer-accent) 14%, transparent); }
+      .cs-timer-history-list { max-height: 84px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; margin: 3px 0 0; padding: 0; list-style: none; }
+      .cs-timer-history-list:focus-visible { outline: 1px solid var(--timer-accent); outline-offset: -1px; border-radius: 6px; }
+      .cs-timer-result { height: 28px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(54px, max-content) 28px; align-items: center; gap: 5px; }
+      .cs-timer-result + .cs-timer-result { border-top: 1px solid var(--timer-rule); }
+      .cs-timer-result time { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; font-variant-numeric: tabular-nums; }
+      .cs-timer-result-mode { white-space: nowrap; }
+      .cs-timer-result-elapsed { color: var(--timer-ink); font: 650 11px/1 var(--timer-mono); text-align: end; white-space: nowrap; }
       .cs-timer-result-delete { position: relative; display: grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; color: var(--timer-muted); background: none; border: 0; border-radius: 6px; cursor: pointer; transition: color 150ms ease, background-color 150ms ease; }
       .cs-timer-result-delete:hover:not(:disabled) { color: var(--cs-timer-error, var(--dsw-alias-state-error-primary)); background: color-mix(in srgb, currentColor 8%, transparent); }
       .cs-delete-dot { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: currentColor; transition: opacity 140ms ease, transform 140ms ease; }
@@ -9712,27 +10114,66 @@ window.__ModuleLoader__.load({
       .cs-floating-content[hidden] { display: none; }
       .cs-floating-panel {
         width: min(246px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto;
-        padding: 9px 14px 14px; scrollbar-width: thin; border-radius: 18px;
-        background: color-mix(in srgb, var(--timer-paper) 94%, transparent);
-        border: 1px solid color-mix(in srgb, var(--timer-ink) 14%, transparent);
-        box-shadow: 0 12px 32px #00000020, inset 0 1px 0 color-mix(in srgb, var(--timer-ink) 7%, transparent);
+        padding: 9px 14px 14px; scrollbar-width: thin; border-radius: 22px;
       }
       .cs-floating-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
       .cs-floating-entry, .cs-floating-grip, .cs-floating-minimize, .cs-floating-dock {
         display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0;
         color: var(--timer-ink); background: none; border: 0; font: inherit; text-shadow: inherit; cursor: pointer;
       }
-      .cs-floating-entry { min-width: 40px; min-height: 40px; padding: 4px 6px; border-radius: 50%; touch-action: none; cursor: grab;
-        background: color-mix(in srgb, var(--timer-paper) 94%, transparent); border: 1px solid color-mix(in srgb, var(--timer-ink) 12%, transparent); }
+      .cs-floating-entry { min-width: 40px; min-height: 40px; padding: 4px 8px; border-radius: 999px; touch-action: none; cursor: grab; }
+      .cs-floating-entry.has-readout { min-height: 34px; padding-inline: 10px; }
+      .cs-floating-label { font-size: 12px; font-weight: 600; line-height: 1.2; }
+      .cs-floating-panel, .cs-floating-entry {
+        position: relative;
+        background-color: var(--timer-paper);
+        border: 1px solid color-mix(in srgb, var(--timer-ink) 19%, transparent);
+        box-shadow: 0 7px 20px #0002, inset 0 1px 1px #ffffffad, inset 0 -1px 1px #ffffff40;
+        transition: color 150ms ease;
+      }
+      .cs-floating-panel { box-shadow: 0 12px 30px #0003, inset 0 1px 1px #ffffffb0, inset 0 -1px 1px #ffffff36; }
+      .cs-timer-overlay.cs-appearance-dark :is(.cs-floating-panel, .cs-floating-entry) {
+        box-shadow: 0 8px 24px #0006, inset 0 1px 1px #ffffff50, inset 0 -1px 1px #ffffff22;
+      }
+      /* 高光只沿弧边移动，玻璃中央由实际的背景取样着色。 */
+      @supports (mask-composite: exclude) {
+        .cs-floating-panel::before, .cs-floating-entry::before {
+          content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+          background: linear-gradient(120deg, transparent 12%, #ffffffa8 42%, transparent 75%) var(--cs-glass-x, 24%) 0 / 165% 100% no-repeat;
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask-composite: exclude;
+          transition: background-position 180ms ease-out;
+        }
+        .cs-timer-overlay.cs-appearance-dark :is(.cs-floating-panel, .cs-floating-entry)::before { opacity: .5; }
+        .cs-floating-window.is-expanded .cs-floating-panel::before { animation: cs-glass-open 220ms ease-out; }
+        .cs-floating-window.is-dragging :is(.cs-floating-panel, .cs-floating-entry)::before { transition: none; }
+      }
+      @keyframes cs-glass-open { from { filter: brightness(1.5); } to { filter: brightness(1); } }
       @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+        .cs-floating-entry {
+          background-color: color-mix(in srgb, var(--timer-paper) 22%, transparent);
+          -webkit-backdrop-filter: blur(12px) saturate(1.18); backdrop-filter: blur(12px) saturate(1.18);
+        }
+        .cs-floating-panel {
+          background-color: color-mix(in srgb, var(--timer-paper) 42%, transparent);
+          -webkit-backdrop-filter: blur(18px) saturate(1.18); backdrop-filter: blur(18px) saturate(1.18);
+        }
+      }
+      @media (prefers-reduced-transparency: reduce) {
         .cs-floating-panel, .cs-floating-entry {
-          background: color-mix(in srgb, var(--timer-paper) 72%, transparent);
-          -webkit-backdrop-filter: blur(20px) saturate(1.15); backdrop-filter: blur(20px) saturate(1.15);
+          background-color: var(--timer-paper);
+          -webkit-backdrop-filter: none; backdrop-filter: none;
         }
       }
       .cs-floating-entry svg { filter: drop-shadow(0 0 5px var(--floating-halo)); }
       .cs-floating-entry.is-running { color: var(--timer-text-accent); }
+      .cs-floating-entry.is-task svg { color: var(--cs-task, var(--timer-text-accent)); }
       .cs-floating-entry.has-error { color: var(--cs-timer-error); }
+      .cs-floating-task {
+        display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+        margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--timer-rule);
+        font-size: 12px; color: var(--timer-ink);
+      }
       .cs-floating-grip { flex: 1; min-height: 26px; justify-content: flex-start; touch-action: none; cursor: grab; color: var(--timer-muted); }
       .cs-floating-minimize { min-width: 28px; min-height: 28px; color: var(--timer-muted); }
       .cs-floating-window.is-dragging, .cs-floating-window.is-dragging * { cursor: grabbing; user-select: none; }
@@ -9749,7 +10190,6 @@ window.__ModuleLoader__.load({
       .cs-floating-window .cs-timer-button.is-primary { background: color-mix(in srgb, var(--timer-accent) 8%, transparent); color: var(--timer-text-accent); font-weight: 650; }
       .cs-floating-window .cs-timer-button:hover:not(:disabled) { background: color-mix(in srgb, var(--timer-accent) 18%, transparent); }
       .cs-floating-window .cs-timer-unit input { width: 64px; background: none; border: 0; border-radius: 0; border-bottom: 1px solid var(--timer-rule); text-shadow: inherit; }
-      .cs-floating-window .cs-timer-result { border: 0; padding-top: 4px; }
       .cs-floating-window .cs-timer-heading strong { font-size: 12px; }
       .cs-floating-window .cs-timer-progress { height: 3px; }
       .cs-floating-dock { width: 100%; height: 100%; }
@@ -9758,17 +10198,20 @@ window.__ModuleLoader__.load({
       .cs-floating-window.is-docked { max-width: none; }
       .cs-timer-notice {
         position: fixed; z-index: 65; right: max(12px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom));
-        width: min(292px, calc(100vw - 24px)); display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 9px;
+        width: max-content; max-width: min(292px, calc(100vw - 24px)); display: flex; align-items: center; gap: 9px;
         padding: 12px; border: 1px solid var(--timer-rule); border-radius: 11px; pointer-events: auto;
         background: var(--timer-paper); box-shadow: 0 8px 26px #0003; animation: cs-tools-in 150ms ease-out both;
       }
-      .cs-timer-notice > svg { color: var(--timer-text-accent); }
-      .cs-timer-notice-message { display: grid; gap: 4px; font-size: 12px; }
+      .cs-timer-notice > svg { flex: none; color: var(--timer-text-accent); }
+      .cs-timer-notice.cs-command-result { bottom: 84px; max-width: min(360px, calc(100vw - 24px)); animation: none; }
+      .cs-command-result-text { max-height: min(220px, 35vh); overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap; font-size: 12px; }
+      .cs-timer-notice-message { display: grid; min-width: 0; gap: 4px; font-size: 12px; overflow-wrap: anywhere; }
       .cs-timer-notice-message span { color: var(--timer-muted); }
       .cs-timer-notice-message button { justify-self: start; }
-      .cs-timer-notice-close { display: grid; place-items: center; width: 25px; height: 25px; padding: 0; background: transparent; color: var(--timer-muted); }
+      .cs-timer-notice-close { display: grid; place-items: center; flex: none; width: 25px; height: 25px; padding: 0; background: transparent; color: var(--timer-muted); }
       @media (max-height: 540px) { .cs-clock-face svg { width: 105px; } }
-      @media (prefers-reduced-motion: reduce) { .cs-timer-notice, .cs-floating-entry { animation: none; }
+      @media (prefers-reduced-motion: reduce) { .cs-timer-notice, .cs-floating-entry, .cs-floating-window.is-expanded .cs-floating-panel::before { animation: none; }
+        .cs-floating-panel, .cs-floating-entry, .cs-floating-panel::before, .cs-floating-entry::before { transition: none; }
         .cs-timer-controls > .cs-collapse, .cs-selection-group[data-selection-motion="true"] > .cs-selection-thumb,
         .cs-timer-trigger, .cs-timer-result-delete, .cs-timer-button, .cs-delete-dot, .cs-timer-result-delete > svg { transition: none; }
         .cs-timer-trigger .cs-detail-glyph { animation: none !important; } }
@@ -10343,14 +10786,11 @@ window.__ModuleLoader__.load({
         --cs-ink-3: #6f7476;
         --cs-line: #dedfdd;
         --cs-focus: #292d30;
+        --cs-logo-bottom: #996bf3;
         /* 用户指定的焦点信息三档蓝，由深到浅；浅色外观下深是其强调色。 */
         --cs-signal-deep: #133463;
         --cs-signal: #1F4E94;
         --cs-signal-soft: #79B3F9;
-        /* 浅色外观：上半段深、左下段浅、指针深，和深色外观正好对调。 */
-        --cs-brand-ring-high: var(--cs-signal);
-        --cs-brand-ring-low: var(--cs-signal-soft);
-        --cs-brand-hand: var(--cs-signal-deep);
         --cs-accent: var(--cs-signal-deep);
         --cs-on-accent: #ffffff;
         --cs-live: var(--cs-signal);
@@ -10389,12 +10829,15 @@ window.__ModuleLoader__.load({
       }
       .cs-page.cs-palette-blue {
         --cs-signal-deep: #133463; --cs-signal: #1F4E94; --cs-signal-soft: #79B3F9;
+        --cs-logo-top: #4a9eff;
       }
       .cs-page.cs-palette-stone {
         --cs-signal-deep: #2b3033; --cs-signal: #4a5155; --cs-signal-soft: #aeb6b9;
+        --cs-logo-top: #9fadc0;
       }
       .cs-page.cs-palette-cyan {
         --cs-signal-deep: #0C4A52; --cs-signal: #0E7490; --cs-signal-soft: #67E8F9;
+        --cs-logo-top: #37c8dc;
       }
       .cs-page.cs-palette-stone:not(.cs-appearance-dark),
       .cs-page.cs-palette-cyan:not(.cs-appearance-dark) {
@@ -10407,8 +10850,8 @@ window.__ModuleLoader__.load({
         --cs-series-unknown: color-mix(in srgb, var(--cs-signal-soft) 15%, var(--cs-surface));
       }
       .cs-page.cs-palette-coral {
+        --cs-logo-top: #ffa363;
         ${CS_CORAL_LIGHT}
-        --cs-brand-ring-high: var(--cs-palette-primary);
         --cs-solid-ink: #30150E;
         --cs-heat-0: #fff1ed; --cs-heat-1: #ffddd1; --cs-heat-2: #ffb9a5;
         --cs-heat-3: #ff9077; --cs-heat-4: #FF5B3B; --cs-heat-5: #952f20;
@@ -10526,10 +10969,8 @@ window.__ModuleLoader__.load({
         --cs-signal-deep: #a9cffa;
         --cs-signal: #79B3F9;
         --cs-signal-soft: #3f6ba8;
-        /* 深色外观：上半段浅、左下段深、指针白，与浅色外观镜像。 */
-        --cs-brand-ring-high: var(--cs-signal);
-        --cs-brand-ring-low: var(--cs-signal-soft);
-        --cs-brand-hand: #ffffff;
+        --cs-logo-ink: #efe8db;
+        --cs-logo-bottom: #c5a4ff;
         --cs-accent: var(--cs-signal);
         --cs-on-accent: #171a19;
         --cs-task: #C29BE8;
@@ -10538,21 +10979,24 @@ window.__ModuleLoader__.load({
       /* 深色外观沿用珊瑚橙的做法：活跃项用各自的强主色，和发白的在线时长色拉开第一眼差异。 */
       .cs-page.cs-appearance-dark.cs-palette-blue {
         --cs-chart-active: #4F9BFF;
+        --cs-logo-top: #86c7ff;
       }
       /* 深色石墨灰：活跃项取整套配色里最亮的浅灰，在线降到中阶，热力最高档与任务模型保留原浅灰。 */
       .cs-page.cs-appearance-dark.cs-palette-stone {
         --cs-signal-deep: #8F9A9E; --cs-signal: #AEB6B9; --cs-signal-soft: #6C7477;
+        --cs-logo-top: #d3deeb;
         --cs-chart-active: #E6EDEF;
         --cs-heat-5: #D9DEE0;
         --cs-series-model: #D9DEE0;
       }
       .cs-page.cs-appearance-dark.cs-palette-cyan {
         --cs-signal-deep: #A5F3FC; --cs-signal: #22D3EE; --cs-signal-soft: #155E75;
+        --cs-logo-top: #7cf2f7;
         --cs-chart-active: #22D3EE;
       }
       .cs-page.cs-appearance-dark.cs-palette-coral {
+        --cs-logo-top: #ffc699;
         ${CS_CORAL_DARK}
-        --cs-brand-ring-high: var(--cs-palette-primary);
         --cs-heat-0: #352320; --cs-heat-1: #583027; --cs-heat-2: #853f31;
         --cs-heat-3: #bc5340; --cs-heat-4: #FF5B3B; --cs-heat-5: #ffad99;
       }
@@ -10761,7 +11205,7 @@ window.__ModuleLoader__.load({
       /* 统一悬停浮层：固定定位后由 JS 按视口夹取，后续热力图可直接复用。 */
       .cs-hover-tip {
         position: fixed; left: 0; top: 0; z-index: 90;
-        min-width: 132px; max-width: 264px; padding: 8px 10px; border-radius: 8px;
+        width: max-content; max-width: 264px; padding: 8px 10px; border-radius: 8px;
         background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1);
         box-shadow: 0 12px 30px rgba(0, 0, 0, .24); pointer-events: none;
         font-size: 11px; line-height: 1.7; font-variant-numeric: tabular-nums;
@@ -11476,7 +11920,8 @@ window.__ModuleLoader__.load({
       .cs-heat-legend-stat > span { font-size: 10px; line-height: 12px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
       .cs-heat-legend-stat > b { font-size: 11.5px; line-height: 14px; font-weight: 620; color: var(--dsw-alias-label-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
       .cs-heat-legend-divider { width: 1px; height: 18px; flex: none; background: var(--dsw-alias-border-l1); }
-      .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+      /* 底部留 4px 吸收格子悬停放大的外扩，普通概览不在最后一行冒出纵向滚动条。 */
+      .heatmap-body { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
       /* 近半年网格会横向滚动：星期刻度钉在滚动视口左缘，不再随网格滑走。 */
       .heatmap-body:not(.is-year) { gap: 0; }
       .heatmap-body:not(.is-year) .heat-weekdays {
@@ -11666,11 +12111,14 @@ window.__ModuleLoader__.load({
         flex: 0 1 auto; min-height: 0; overflow-x: auto; overflow-y: visible;
       }
       .cs-heatmap-focus .heat-plot { flex: 1 1 auto; width: 100%; min-width: 0; }
-      /* 3m/6m 首屏：星期刻度与固定像素周网格作为一个整体居中，月份刻度与网格同宽。 */
+      /* 3m/6m 首屏：星期刻度与固定像素周网格作为一个整体居中，月份刻度与网格同宽。
+         四周留出 10px：格子悬停放大 1.35 倍时会向边缘外扩，正好被这段内边距吸收，
+         不再把右侧或底部的贴合边撑成滚动条。 */
       .cs-heatmap-focus .heatmap-body:not(.is-year) {
         --cs-heat-cell: clamp(12px, min(var(--cs-heat-cell-limit), calc(
-          (100cqw - 34px - (var(--cs-heat-columns) - 1) * var(--cs-heat-gap)) / var(--cs-heat-columns)
+          (100cqw - 54px - (var(--cs-heat-columns) - 1) * var(--cs-heat-gap)) / var(--cs-heat-columns)
         )), 52px);
+        padding: 10px;
         width: fit-content; max-width: 100%; margin: 0 auto;
         justify-content: flex-start;
       }
@@ -12005,7 +12453,6 @@ window.__ModuleLoader__.load({
       .cs-settings *, .cs-settings *::before, .cs-settings *::after { box-sizing: border-box; }
       .cs-settings-inner { display: flex; flex-direction: column; gap: 18px; max-width: 720px; }
       .cs-settings-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-      .cs-settings-heading { min-width: 0; }
       .cs-settings-links { display: flex; align-items: center; gap: 2px; margin: -3px 0 0 auto; flex: none; }
       .cs-settings-link {
         position: relative; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
@@ -12062,7 +12509,7 @@ window.__ModuleLoader__.load({
       /* 设置页独立挂载，悬停浮层样式随模块一起加载，不等同页面的图表浮层。 */
       .cs-hover-tip {
         position: fixed; left: 0; top: 0; z-index: 90;
-        min-width: 132px; max-width: 264px; padding: 8px 10px; border-radius: 8px;
+        width: max-content; max-width: 264px; padding: 8px 10px; border-radius: 8px;
         background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1);
         box-shadow: 0 12px 30px rgba(0, 0, 0, .24); pointer-events: none;
         font-size: 11px; line-height: 1.7; font-variant-numeric: tabular-nums;
@@ -12077,7 +12524,6 @@ window.__ModuleLoader__.load({
         .cs-hover-tip { animation: none; transition: none; }
       }
       .cs-settings-title { margin: 0; font-size: 18px; line-height: 24px; font-weight: 650; }
-      .cs-settings-hint { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: var(--dsw-alias-label-secondary); }
       .cs-settings-group { display: flex; flex-direction: column; gap: 2px; }
       .cs-settings-group > h3 { margin: 0 0 6px; font-size: 12px; font-weight: 650; letter-spacing: .04em; color: var(--dsw-alias-label-secondary); }
       .cs-settings-row {
@@ -12118,6 +12564,12 @@ window.__ModuleLoader__.load({
       .cs-timer-reminder-settings { border-top: 1px solid var(--dsw-alias-border-l1); padding-top: 12px; }
       .cs-settings-board .cs-timer-reminder-settings { border-top: 0; border-inline-start: 1px solid var(--dsw-alias-border-l1); padding: 0 0 0 16px; }
       .cs-timer-reminder-settings .cs-settings-switch { margin: 5px 0 2px; }
+      .cs-timer-preset .cs-settings-row { grid-template-columns: minmax(0, 1fr) auto; min-height: 0; gap: 7px; padding: 4px 0; border: 0; }
+      .cs-timer-preset .cs-settings-label { display: flex; align-items: center; }
+      .cs-timer-preset .cs-settings-control { gap: 6px; font-size: 11px; color: var(--dsw-alias-label-secondary); }
+      .cs-timer-preset .cs-settings-control input[type="number"] { min-width: 0; width: 75px; padding: 4px 7px; font-variant-numeric: tabular-nums; }
+      .cs-timer-preset .cs-settings-control input[aria-invalid="true"] { border-color: var(--dsw-alias-state-error-primary); }
+      .cs-timer-preset .cs-settings-status { margin: 0 0 4px; }
       @media (max-width: 620px) {
         .cs-settings-board .cs-time-tools-settings { grid-template-columns: minmax(0, 1fr); }
         .cs-settings-board .cs-timer-reminder-settings { border: 0; border-top: 1px solid var(--dsw-alias-border-l1); padding: 12px 0 0; }
@@ -12132,6 +12584,8 @@ window.__ModuleLoader__.load({
       .cs-settings-side { grid-column: span 5; }
       .cs-settings-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
       .cs-settings-card-head h3 { margin: 0; font-size: 13px; line-height: 19px; font-weight: 650; }
+      .cs-settings-heading-with-info { min-width: 0; display: flex; align-items: center; margin-bottom: 4px; }
+      .cs-settings .cs-settings-heading-with-info h3 { margin: 0; font-size: 13px; line-height: 20px; font-weight: 650; }
       .cs-settings-card-sub { margin: 2px 0 0; font-size: 11.5px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
       .cs-settings-feedback { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; max-width: 45%; text-align: right; }
       .cs-settings-feedback .cs-settings-status { font-size: 11px; }
@@ -12151,18 +12605,17 @@ window.__ModuleLoader__.load({
       .cs-settings-sections .cs-settings-switch { font-size: 11px; gap: 5px; }
       .cs-settings-sections .cs-settings-row:last-child { border-bottom: 0; }
       .cs-settings-board .cs-format-card { align-self: stretch; }
-      /* 统计与显示：说明入口默认收起，悬停或键盘聚焦该行才出现，避免一排重复的感叹号。 */
+      /* 设置说明随对应的行或卡片出现，保留键盘与触屏入口。 */
       .cs-row-info {
         display: inline-flex; margin-left: 5px; vertical-align: middle;
         opacity: 0; transition: opacity 140ms ease;
       }
       /* 缩放只放在按钮上：包装层一旦有 transform，固定定位的提示会以它为包含块而跳位。 */
       .cs-row-info .cs-info > button { transform: translateY(1px) scale(.92); transition: transform 140ms ease; }
-      .cs-settings-row:hover .cs-row-info,
-      .cs-settings-row:focus-within .cs-row-info { opacity: 1; }
-      .cs-settings-row:hover .cs-row-info .cs-info > button,
-      .cs-settings-row:focus-within .cs-row-info .cs-info > button { transform: none; }
+      :is(.cs-settings-row, .cs-settings-info-region):is(:hover, :focus-within) .cs-row-info { opacity: 1; }
+      :is(.cs-settings-row, .cs-settings-info-region):is(:hover, :focus-within) .cs-row-info .cs-info > button { transform: none; }
       @media (hover: none) { .cs-row-info { opacity: 1; } .cs-row-info .cs-info > button { transform: none; } }
+      @media (prefers-reduced-motion: reduce) { .cs-row-info, .cs-row-info .cs-info > button { transition: none; } }
       /* 分析模型在设置板里不再拉满整行：两个下拉各自封顶，和上方统计行保持同一密度。 */
       .cs-settings-board .cs-analysis-model-fields { grid-template-columns: repeat(2, minmax(0, 230px)); justify-content: start; }
       .cs-settings-board .cs-format-card .cs-format-section {
@@ -12364,13 +12817,15 @@ window.__ModuleLoader__.load({
 
         // 活跃采集不依赖侧边栏入口是否固定；放在始终挂载的 frame-wide overlay。
         const timerClient = createTimerClient(ctx)
+        const commandFeedback = { publish: null }
+        const reviewNavigation = { pending: null, receive: null, revision: 0 }
         ctx.slots.inject('shell.overlay', () =>
           ctx.slots.register(
             {
               name: 'shell.overlay',
               id: 'dsh-timespan-presence',
             },
-            createPresenceReporter(ctx, timerClient),
+            createPresenceReporter(ctx, timerClient, commandFeedback),
           ),
         )
 
@@ -12395,9 +12850,12 @@ window.__ModuleLoader__.load({
               locale: NS,
               inject: () => ({ t }),
             },
-            createPage(ctx, timerClient),
+            createPage(ctx, timerClient, reviewNavigation),
           ),
         )
+        if (typeof ctx.inject === 'function') ctx.inject(['commandUi', 'remote', 'remote.commands', 'sessions', 'layout'], (scope) => {
+          registerTimespanCommandUi(scope, timerClient, reviewNavigation, t, (result) => commandFeedback.publish?.(result))
+        })
 
         // 设置页挂在 DSH 的 settings.section 上：设置只经 Host 公共操作
         // getSettings / setSettings 读写，页面不落任何业务状态副本。
