@@ -90,6 +90,7 @@ test('设置：首次安装默认紧凑单位、侧栏名称关闭且显示在�
     sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
+    timerPresetMinutes: 25,
     timerSound: true,
     floatingEnabled: true,
     floatingShowClock: false,
@@ -154,6 +155,12 @@ test('设置归一化：durationFormat 只认六种预设、sidebarDuration 只�
   for (const value of ['', 'EN', 'zh-CN', 'fr', null, undefined, 7]) {
     assert.equal(normalizeSettings({ language: value }).language, 'zh', `非法语言 ${String(value)} 回落中文`)
   }
+  for (const value of [1, 35, 10_080]) {
+    assert.equal(normalizeSettings({ timerPresetMinutes: value }).timerPresetMinutes, value)
+  }
+  for (const value of [0, 2.5, 10_081, '35', null, undefined]) {
+    assert.equal(normalizeSettings({ timerPresetMinutes: value }).timerPresetMinutes, 25)
+  }
   const merged = mergeSettings(
     { idleThresholdMinutes: 9, weekStartsOn: 7, showSubagents: false, durationFormat: 'zh' },
     { durationFormat: 'short', sidebarDuration: 'task' },
@@ -169,6 +176,7 @@ test('设置归一化：durationFormat 只认六种预设、sidebarDuration 只�
     sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
+    timerPresetMinutes: 25,
     timerSound: true,
     floatingEnabled: true,
     floatingShowClock: false,
@@ -348,6 +356,7 @@ test('导出 JSON：包含原始区间、原始任务与设置，字段未经裁
     sidebarDotPosition: 'inline',
     language: 'zh',
     approximateNoticeDismissed: false,
+    timerPresetMinutes: 25,
     timerSound: true,
     floatingEnabled: true,
     floatingShowClock: false,

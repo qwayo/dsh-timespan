@@ -8,6 +8,7 @@ function createTestReact() {
   let cursor = 0
   const hooks = []
   const effects = []
+  let nextId = 0
   return {
     createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
     useState(initial) {
@@ -36,6 +37,11 @@ function createTestReact() {
       hooks.length = 0
       effects.length = 0
       cursor = 0
+    },
+    useId() {
+      const index = cursor++
+      if (!(index in hooks)) hooks[index] = 'test-id-' + ++nextId
+      return hooks[index]
     },
     useRef(initial) {
       const index = cursor++
@@ -118,12 +124,12 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
       DEFAULT_LANGUAGE: typeof DEFAULT_LANGUAGE === 'string' ? DEFAULT_LANGUAGE : undefined,
       createSettingsSection: typeof createSettingsSection === 'function' ? createSettingsSection : undefined,
       createPage, useSettingsEditor, subscribeSettingsChanged, notifySettingsChanged,
-      countdownDuration, projectTimer, timerDigits, createTimerClient, TimerPopover, TimerControls, ClockDial, TimerReadout,
+      countdownDuration, projectTimer, timerDigits, createTimerClient, TimerPopover, TimerControls, TimerHistory, ClockDial, TimerReadout,
       analysisGenerateGlyph: typeof analysisGenerateGlyph === 'function' ? analysisGenerateGlyph : undefined,
-      AnalysisPage, AnalysisReport, TimeToolsSettings,
+      AnalysisPage, AnalysisReport, TimeToolsSettings, CountdownPresetField,
       AnalysisModelSettings: typeof AnalysisModelSettings === 'function' ? AnalysisModelSettings : undefined,
       FloatingTimerSettings: typeof FloatingTimerSettings === 'function' ? FloatingTimerSettings : undefined,
-      FloatingTimer, TimerOverlay, floatingRect, floatingEdge, moveFloatingPosition, normalizeFloatingPosition, floatingDockStyle, floatingConversationAnchor,
+      registerTimespanCommandUi, createPresenceReporter, CommandNotice, useRunningTask, FloatingTimer, TimerOverlay, floatingRect, floatingEdge, moveFloatingPosition, normalizeFloatingPosition, floatingDockStyle, floatingConversationAnchor,
       normalizeView: typeof normalizeView === 'function' ? normalizeView : undefined,
       nextTabIndex: typeof nextTabIndex === 'function' ? nextTabIndex : undefined,
       viewLabels: typeof viewLabels === 'function' ? viewLabels : undefined,
@@ -309,6 +315,73 @@ test('客户端设置编辑：读取失败时禁止写入，重试只使用 Host
   assert.equal(ready.draft.idleThresholdMinutes, '12')
   assert.equal(ready.draft.durationFormat, 'hms')
   assert.equal(harness.currentLanguage(), 'en')
+})
+
+test('客户端设置编辑：预设倒计时需主进程确认，其他设置不能覆盖旧草稿中的预设', async (t) => {
+  const harness = await createSettingsEditorHarness(t)
+  const editor = await harness.ready({ timerPresetMinutes: 25, timerSound: true })
+  const saving = editor.patch('timerPresetMinutes', 40)
+  harness.requests[1].succeed({ timerPresetMinutes: 25, timerSound: true })
+  assert.equal(await saving, false, '没有收到新值时不能报告保存成功')
+  assert.equal(harness.render().draft.timerPresetMinutes, 40, '失败保留输入以便重试')
+  assert.deepEqual({ ...harness.requests[1].payload }, { timerPresetMinutes: 40 })
+  const retrying = harness.render().retrySave()
+  assert.deepEqual({ ...harness.requests[2].payload }, { timerPresetMinutes: 40 })
+  harness.requests[2].succeed({ timerPresetMinutes: 40, timerSound: true })
+  assert.equal(await retrying, true)
+  const sound = harness.render().patch('timerSound', false)
+  assert.equal(Object.hasOwn(harness.requests[3].payload, 'timerPresetMinutes'), false, '另一处设置的旧草稿不回写预设')
+  harness.requests[3].succeed({ timerPresetMinutes: 50, timerSound: false })
+  assert.equal(await sound, true)
+  assert.equal(harness.render().draft.timerPresetMinutes, 50)
+})
+
+test('客户端设置编辑：默认倒计时合并连续输入并自动保存最后一个有效值', async (t) => {
+  const timers = new Map()
+  let nextTimer = 0
+  const { React, CountdownPresetField, translate } = await loadClientFunctions({
+    setTimeout(callback) { const id = ++nextTimer; timers.set(id, callback); return id },
+    clearTimeout(id) { timers.delete(id) },
+  })
+  t.after(() => React.unmount())
+  const patches = []
+  let value = 25
+  let busy = false
+  const render = () => {
+    const tree = React.render(CountdownPresetField, { t: translate, value, busy,
+      onPatch: async (key, minutes) => { patches.push([key, minutes]); value = minutes; return true },
+    })
+    React.flushEffects()
+    return tree
+  }
+  const input = () => findAll(render(), (node) => node.type === 'input')[0]
+  const change = (text) => input().props.onChange({ currentTarget: { value: text } })
+  assert.equal(findAll(render(), (node) => node.type === 'button').length, 0)
+
+  change('4')
+  assert.equal(input().props.value, '4')
+  const first = nextTimer
+  change('45')
+  assert.equal(input().props.value, '45')
+  assert.equal(timers.has(first), false)
+  assert.deepEqual(patches, [])
+  busy = true
+  assert.equal(input().props.readOnly, true)
+  assert.equal(timers.size, 0)
+  busy = false
+  assert.equal(input().props.value, '45')
+  timers.get(nextTimer)()
+  await new Promise(setImmediate)
+  assert.deepEqual(patches, [['timerPresetMinutes', 45]])
+
+  change('0')
+  assert.equal(input().props['aria-invalid'], true)
+  assert.equal(timers.size, 0)
+  change('60')
+  input().props.onBlur({ relatedTarget: { closest: () => null } })
+  await new Promise(setImmediate)
+  assert.equal(timers.size, 0, '离开表单时立即提交并撤销延时保存')
+  assert.deepEqual(patches, [['timerPresetMinutes', 45], ['timerPresetMinutes', 60]])
 })
 
 test('客户端设置编辑：自动保存期间互斥，返回值权威且自发刷新保留反馈', async (t) => {
@@ -737,6 +810,224 @@ function clientTimerView(status, fields = {}) {
   return { status, now: Date.now(), id: null, mode: null, durationMs: null, elapsedMs: 0, remainingMs: null, lastResult: null, notification: null, ...fields }
 }
 
+test('客户端 Slash 菜单随计时状态更新，回执覆盖已有消息的会话，回顾只定位发起会话', async () => {
+  const { registerTimespanCommandUi, translate } = await loadClientFunctions()
+  const host = scriptedClientRpc()
+  const navigation = { pending: null, revision: 0 }
+  let menu
+  let executed
+  let blank = true
+  const opened = []
+  const submissions = []
+  const feedback = []
+  const ctx = {
+    ...host.ctx,
+    commandUi: { decorate(value) { menu = value } },
+    effect(fn) { fn() },
+    on(name, fn) { assert.equal(name, 'command/executed'); executed = fn },
+    sessions: { binding() { return { session: { getSnapshot: () => ({ blank }) } } } },
+    layout: { selectPanel(panel) { opened.push(panel) } },
+    remote: { commands: { async execute(sessionId, line) {
+      submissions.push({ sessionId, line })
+      return { ok: true, value: { result: { kind: 'success', text: '计时反馈' } } }
+    } } },
+  }
+  let synchronized = 0
+  let prepared = 0
+  registerTimespanCommandUi(ctx, { prepareSound() { prepared += 1 }, refreshAfterCommand() { synchronized += 1 } }, navigation, translate, (reply) => feedback.push(reply))
+  const session = { sessionId: 'suite-session' }
+  const options = menu.ui.options(session, new AbortController().signal)
+  host.take('getTimer').success(clientTimerView('paused'))
+  const rows = Array.from(await options, (row) => row.id)
+  assert.deepEqual(rows, ['stats session', 'stats today', 'timer resume', 'timer stop', 'review'])
+  await menu.ui.onSelect({ id: 'timer stop' }, session)
+  assert.deepEqual(submissions, [{ sessionId: 'suite-session', line: '/timespan timer stop' }])
+  assert.equal(synchronized, 1)
+  assert.deepEqual({ ...feedback[0] }, { sessionId: 'suite-session', text: '计时反馈', autoDismiss: true })
+
+  executed('suite-session', 'timespan', { kind: 'success', text: '本会话\n暂无时长记录' })
+  executed('suite-session', 'timespan', { kind: 'error', text: '计时状态已变化，请重试。' })
+  assert.deepEqual(feedback.map((reply) => reply.autoDismiss), [true, false, false])
+  assert.deepEqual(opened, [])
+  executed('suite-session', 'timespan', { kind: 'success', text: translate('commandReviewResult') })
+  assert.deepEqual(opened, ['dsh-timespan'])
+  assert.equal(navigation.pending.sessionId, 'suite-session')
+  assert.equal(navigation.pending.blank, true)
+
+  blank = false
+  const timerResults = ['正计时 · 已用 00:00:00', '正计时 · 已暂停 · 已用 00:00:01', '正计时 · 已用 00:00:01', '已结束 · 已用 00:00:02']
+  for (const text of timerResults) executed(session.sessionId, 'timespan', { kind: 'success', text })
+  assert.deepEqual(feedback.slice(3).map((reply) => [reply.text, reply.autoDismiss]), timerResults.map((text) => [text, true]))
+  await menu.ui.onSelect({ id: 'timer resume' }, session)
+  assert.deepEqual({ ...feedback.at(-1) }, { sessionId: 'suite-session', text: '计时反馈', autoDismiss: true })
+  executed(session.sessionId, 'timespan', { kind: 'success', text: '本会话\n暂无时长记录' })
+  assert.equal(feedback.length, 8)
+
+  for (const [preset, minutes] of [[undefined, 25], [35, 35]]) {
+    const idleOptions = menu.ui.options(session, new AbortController().signal)
+    host.take('getTimer').success(clientTimerView('idle', { timerPresetMinutes: preset }))
+    const countdown = (await idleOptions).find((option) => option.id === `timer ${minutes}m`)
+    assert.equal(countdown?.label, `开始 ${minutes} 分钟倒计时`)
+    await menu.ui.onSelect(countdown, session)
+    assert.equal(submissions.at(-1).line, `/timespan timer ${minutes}m`)
+  }
+  assert.equal(prepared, 3, '继续和预设倒计时都准备提示音')
+})
+
+test('客户端 Slash 回执：成功提示自动关闭，旧回调不会清除新提示', async (t) => {
+  const scheduled = new Map()
+  let nextId = 0
+  const { React, createPresenceReporter } = await loadClientFunctions({
+    addEventListener() {}, removeEventListener() {}, setInterval() {}, clearInterval() {},
+  }, {
+    document: { visibilityState: 'visible', hasFocus: () => true, addEventListener() {}, removeEventListener() {} },
+    setTimeout(callback, delay) {
+      assert.equal(delay, 4_000)
+      scheduled.set(++nextId, callback)
+      return nextId
+    },
+    clearTimeout: (id) => scheduled.delete(id),
+  })
+  React.useCallback = (callback) => React.useRef(callback).current
+  t.after(() => React.unmount())
+
+  const commandFeedback = { publish: null }
+  const Reporter = createPresenceReporter({}, {}, commandFeedback)
+  const render = (sessionId = 'session') => {
+    const result = React.render(Reporter, {
+      useSessions: (select) => select({ ids: [sessionId], byId: { [sessionId]: { id: sessionId, retainedBy: { mainView: 1 } } } }),
+      usePanelInfo: (select) => select({ activePanelId: null }),
+    })
+    React.flushEffects()
+    return result.props
+  }
+  const started = { sessionId: 'session', text: '正计时', autoDismiss: true }
+  const paused = { ...started, text: '正计时 · 已暂停' }
+  render()
+  commandFeedback.publish(started)
+  assert.equal(render().commandResult, started)
+  const oldTimeout = scheduled.get(nextId)
+  commandFeedback.publish(paused)
+  assert.equal(render().commandResult, paused)
+  assert.equal(scheduled.size, 1)
+  oldTimeout()
+  assert.equal(render().commandResult, paused)
+  scheduled.get(nextId)()
+  assert.equal(render().commandResult, null)
+  assert.equal(scheduled.size, 0)
+
+  commandFeedback.publish(started)
+  render().onDismissCommand()
+  assert.equal(render().commandResult, null)
+  assert.equal(scheduled.size, 0)
+
+  commandFeedback.publish(started)
+  assert.equal(render().commandResult, started)
+  assert.equal(render('other').commandResult, null)
+  assert.equal(scheduled.size, 0)
+  const error = { sessionId: 'other', text: '计时操作失败', autoDismiss: false }
+  commandFeedback.publish(error)
+  commandFeedback.publish(paused)
+  assert.equal(render('other').commandResult, error)
+  assert.equal(scheduled.size, 0)
+  assert.equal(render().commandResult, null)
+})
+
+test('客户端 Slash 回执：渐隐后卸载，减少动效时直接关闭', async (t) => {
+  let reducedMotion = false
+  const animations = []
+  const surface = {
+    animate(keyframes, { duration }) {
+      const animation = {
+        opacity: Array.from(keyframes, (frame) => frame.opacity), duration, playState: 'running',
+        cancel() { this.playState = 'idle' },
+      }
+      animations.push(animation)
+      return animation
+    },
+  }
+  const { React, CommandNotice, translate } = await loadClientFunctions({
+    getComputedStyle: () => ({ opacity: '1' }), matchMedia: () => ({ matches: reducedMotion }),
+  })
+  t.after(() => React.unmount())
+  const render = (result) => {
+    const tree = React.render(CommandNotice, { result, t: translate })
+    if (tree) tree.props.ref.current = surface
+    React.flushEffects()
+    return tree
+  }
+  const result = { text: '正计时 · 已暂停' }
+  assert.equal(textOf(render(result)).trim(), result.text)
+  animations[0].onfinish()
+  const leaving = render(null)
+  assert.equal(textOf(leaving).trim(), result.text)
+  assert.equal(leaving.props.inert, '')
+  assert.equal(leaving.props['aria-hidden'], true)
+  const fade = animations.at(-1)
+  assert.deepEqual(fade.opacity, [1, 0])
+  assert.equal(fade.duration, 120)
+  fade.playState = 'finished'
+  fade.onfinish()
+  assert.equal(render(null), null)
+
+  reducedMotion = true
+  assert.ok(render(result))
+  assert.equal(render(null), null)
+  assert.equal(animations.length, 2)
+})
+
+test('客户端悬浮窗：任务显示可信等待状态，手动计时优先且展开仍可见任务', async (t) => {
+  const { React, FloatingTimer, DetailGlyph, translate } = await loadClientFunctions({
+    innerWidth: 900, innerHeight: 650, addEventListener() {}, removeEventListener() {},
+  }, { document: { activeElement: null } })
+  t.after(() => React.unmount())
+  const receivedAt = Date.now()
+  const render = (timer, pendingInteraction) => React.render(FloatingTimer, {
+    t: translate, client: {}, snapshot: { timer, receivedAt },
+    runningTask: { elapsedMs: 150_000, receivedAt }, pendingInteraction,
+  })
+  let tree = render(clientTimerView('idle'), 'approval')
+  assert.match(textOf(findByClass(tree, 'cs-floating-entry')), /等你确认.*02:30/)
+
+  tree = render(clientTimerView('running', { mode: 'stopwatch', elapsedMs: 5_000 }), 'approval')
+  const running = findByClass(tree, 'cs-floating-entry')
+  assert.match(textOf(running).trim(), /^\d{2}:\d{2}$/)
+  assert.match(running.props['aria-label'], /计时中/)
+
+  const timer = clientTimerView('paused', { mode: 'countdown', remainingMs: 1_115_000 })
+  tree = render(timer, 'approval')
+  const entry = findByClass(tree, 'cs-floating-entry')
+  assert.equal(textOf(entry).trim(), '18:35')
+  assert.match(entry.props['aria-label'], /已暂停.*18:35/)
+  assert.equal(findAll(entry, (node) => node.type === DetailGlyph)[0]?.props.name, 'resume')
+  entry.props.onClick({ detail: 1 })
+  tree = render(timer, 'approval')
+  assert.match(textOf(findByClass(tree, 'cs-floating-task')), /等你确认.*02:30/)
+})
+
+test('客户端悬浮窗：切换会话后丢弃上一个任务的迟到读数', async (t) => {
+  const { React, useRunningTask } = await loadClientFunctions()
+  const host = scriptedClientRpc()
+  t.after(() => React.unmount())
+  const render = (id) => {
+    const value = React.render(() => useRunningTask(host.ctx, id))
+    React.flushEffects()
+    return value
+  }
+  assert.equal(render('previous'), null)
+  const previous = host.take('getRunningTask')
+  assert.equal(render('current'), null)
+  const current = host.take('getRunningTask')
+  assert.equal(current.payload.sessionId, 'current')
+  previous.success({ elapsedMs: 123_000 })
+  await new Promise(setImmediate)
+  assert.equal(render('current'), null)
+  current.success({ elapsedMs: 4_000 })
+  await new Promise(setImmediate)
+  assert.equal(render('current')?.elapsedMs, 4_000)
+  assert.equal(render(null), null)
+})
+
 test('客户端配色：顶栏在四套配色间循环，珊瑚实底和任务紫分别保留', async () => {
   const storage = new Map()
   const { createPage, React, translate, dshTimespanCss, dshTimespanSidebarCss } = await loadClientFunctions({
@@ -901,25 +1192,54 @@ test('客户端删除记录使用完成结果 ID，两个入口同步且失败�
   const other = []
   t.after(client.subscribe(() => {}))
   t.after(client.subscribe((state) => other.push(state)))
+  const lastResult = { id: 'previous', mode: 'stopwatch', elapsedMs: 1_000 }
+  const older = { id: 'older', mode: 'countdown', elapsedMs: 30_000 }
   const running = clientTimerView('running', { id: 'current', mode: 'stopwatch', elapsedMs: 2_000,
-    lastResult: { id: 'previous', mode: 'stopwatch', elapsedMs: 1_000 } })
+    lastResult, history: [lastResult, older] })
   host.take('getTimer').success(running)
   await new Promise(setImmediate)
-  const failed = client.control({ action: 'clear-result', id: 'previous' })
+  const failed = client.control({ action: 'clear-result', id: 'older' })
   const deletion = host.take('controlTimer')
-  assert.equal(deletion.payload.id, 'previous')
+  assert.equal(deletion.payload.id, 'older')
   deletion.fail('storage-error')
   await failed
-  assert.equal(client.snapshot().timer.lastResult.id, 'previous')
+  assert.deepEqual(client.snapshot().timer.history, [lastResult, older])
   host.take('getTimer').success(running)
   await new Promise(setImmediate)
-  const retry = client.control({ action: 'clear-result', id: 'previous' })
-  host.take('controlTimer').success({ ...running, lastResult: null })
+  const retry = client.control({ action: 'clear-result', id: 'older' })
+  host.take('controlTimer').success({ ...running, history: [lastResult] })
   await retry
   assert.equal(client.snapshot().timer.id, 'current')
   assert.equal(client.snapshot().timer.status, 'running')
-  assert.equal(client.snapshot().timer.lastResult, null)
+  assert.equal(client.snapshot().timer.lastResult, lastResult)
+  assert.deepEqual(client.snapshot().timer.history, [lastResult])
   assert.equal(other.at(-1), client.snapshot())
+})
+
+test('客户端计时：兼容单条结果时明确提示重启，以免把旧快照当成完整历史', async (t) => {
+  const { React, TimerControls, TimerHistory, translate } = await loadClientFunctions()
+  t.after(() => React.unmount())
+  const run = { id: 'legacy', completedAt: Date.now(), mode: 'stopwatch', elapsedMs: 5_000 }
+  const snapshot = { timer: clientTimerView('idle', { lastResult: run }), receivedAt: Date.now() }
+  const render = () => {
+    const panel = React.render(TimerControls, { client: {}, snapshot, at: Date.now(), t: translate })
+    const { props } = findAll(panel, (node) => node.type === TimerHistory)[0]
+    React.unmount()
+    const history = React.render(TimerHistory, props)
+    React.unmount()
+    return history
+  }
+  assert.match(textOf(render()), /完整退出并重开 DSH/)
+  snapshot.timer = { ...snapshot.timer, history: [run], timerPresetMinutes: 25 }
+  assert.doesNotMatch(textOf(render()), /完整退出并重开 DSH/)
+  snapshot.timer.history = Array.from({ length: 4 }, (_, index) => ({ ...run, id: `run-${index}` }))
+  const tree = render()
+  const list = findByClass(tree, 'cs-timer-history-list')
+  const movement = []
+  list.props.ref.current = { clientHeight: 84, scrollBy: ({ top }) => movement.push(top) }
+  const buttons = findAll(findByClass(tree, 'cs-timer-history-scroll'), (node) => node.type === 'button')
+  for (const button of buttons) button.props.onClick()
+  assert.deepEqual(movement, [-84, 84], '上下两个入口各滚动一组记录')
 })
 
 test('客户端计时：快速保存无临时提示行，慢保存沿用状态位置且操作结束清理提示', async (t) => {
@@ -1935,44 +2255,36 @@ test('客户端：概览口径按行拆分，周/月补一句日均口径', asyn
   assert.ok(weekLines.includes(labels.dailyAverageHint), '周/月视图补充日均按自然日折算')
 })
 
-test('客户端：品牌时钟圆环三段固定，明暗两套主题对调上半与左下', async () => {
+test('客户端：品牌标识使用镜像括号、分段斜线及随配色切换的独立渐变', async () => {
   const { DshTimespanIcon } = await loadClientFunctions()
-  const icon = DshTimespanIcon({ size: 36 })
-  const hand = findAll(icon, (node) => node.type === 'path' && node.props?.d === 'M12 12l4-4')[0]
-  assert.equal(hand?.props?.stroke, 'var(--cs-brand-hand, #ffffff)', '指针颜色交给主题变量，浅色模式可切深色')
-  const topArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M3.69 10.23'))[0]
-  assert.ok(topArc, '圆环上半段单独画一段弧')
-  assert.match(topArc.props.d, /A8\.5 8\.5 0 0 1 20\.31 10\.23$/, '上半段跨过 12 点覆盖左右两侧')
-  assert.match(topArc.props.stroke, /var\(--cs-brand-ring-high, currentColor\)/, '上半段颜色交给主题变量')
-  const rightArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M20.31 13.77'))[0]
-  assert.ok(rightArc, '圆环右下段单独画一段弧')
-  assert.match(rightArc.props.d, /A8\.5 8\.5 0 0 1 13\.77 20\.31$/, '右下段从 3 点方向画到 6 点方向')
-  assert.match(rightArc.props.stroke, /var\(--cs-task, #C29BE8\)/, '右下段使用任务紫')
-  const leftArc = findAll(icon, (node) => node.type === 'path' && String(node.props?.d).startsWith('M10.23 20.31'))[0]
-  assert.ok(leftArc, '圆环左下段单独画一段弧')
-  assert.match(leftArc.props.d, /A8\.5 8\.5 0 0 1 3\.69 13\.77$/, '左下段从 6 点方向画到 9 点方向')
-  assert.match(leftArc.props.stroke, /var\(--cs-brand-ring-low, #133463\)/, '左下段使用主题对应的环形色')
-  for (const arc of [topArc, rightArc, leftArc]) {
-    assert.equal(arc.props.strokeLinecap, 'round', '每段两端都保留半圆端帽')
+  const icon = DshTimespanIcon({ size: 16 })
+  const second = DshTimespanIcon({ size: 36 })
+  const [gradient] = findAll(icon, (node) => node.type === 'linearGradient')
+  const [otherGradient] = findAll(second, (node) => node.type === 'linearGradient')
+  assert.notEqual(gradient.props.id, otherGradient.props.id)
+  assert.equal(gradient.props.colorInterpolation, 'linearRGB')
+  assert.equal(icon.props.width, 16)
+  const [start, finish, span, last] = findAll(icon, (node) => node.type === 'path')
+  assert.equal(start.props.d, finish.props.d)
+  assert.equal(finish.props.transform, 'translate(24) scale(-1 1)')
+  assert.notEqual(span.props.d, last.props.d)
+  assert.equal(span.props.fill, 'var(--cs-logo-ink, #30302b)')
+  assert.equal(finish.props.fill, 'url(#' + gradient.props.id + ')')
+  assert.equal(last.props.fill, finish.props.fill)
+  assert.match(gradient.children[0].props.stopColor, /--cs-logo-top/)
+  assert.match(gradient.children[1].props.stopColor, /--cs-logo-bottom/)
+  const css = await loadClientCss()
+  for (const [appearance, violet] of [['', '#996bf3'], ['.cs-appearance-dark', '#c5a4ff']]) {
+    assert.match(declarationsFor(css, `.cs-page${appearance}`), new RegExp(`--cs-logo-bottom:\\s*${violet};`))
+    const startColors = ['blue', 'stone', 'cyan', 'coral'].map((palette) => {
+      const rules = declarationsFor(css, `.cs-page${appearance}.cs-palette-${palette}`)
+      const top = rules.match(/--cs-logo-top:\s*([^;]+);/)?.[1]
+      assert.ok(top && top !== violet, `${palette}${appearance} 有独立的渐变起色`)
+      assert.doesNotMatch(rules, /--cs-logo-bottom:/, '配色共享当前外观的紫色终点')
+      return top
+    })
+    assert.equal(new Set(startColors).size, 4)
   }
-  const pointOf = (d, end) => {
-    const match = String(d).match(/^M([\d.]+) ([\d.]+) A8\.5 8\.5 0 0 1 ([\d.]+) ([\d.]+)$/)
-    assert.ok(match, `弧线路径格式可解析：${d}`)
-    const offset = end ? 2 : 0
-    return { x: Number(match[1 + offset]), y: Number(match[2 + offset]) }
-  }
-  const gapBetween = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) - 2.2
-  const visibleGaps = [
-    gapBetween(pointOf(topArc.props.d, true), pointOf(rightArc.props.d, false)),
-    gapBetween(pointOf(rightArc.props.d, true), pointOf(leftArc.props.d, false)),
-    gapBetween(pointOf(leftArc.props.d, true), pointOf(topArc.props.d, false)),
-  ]
-  for (const gap of visibleGaps) {
-    assert.ok(gap > 0.9, `半圆端帽之间仍留有可见空隙，实际 ${gap.toFixed(2)}`)
-  }
-  assert.equal(findAll(icon, (node) => node.type === 'path' && /A8\.5 8\.5/.test(String(node.props?.d))).length, 3, '圆环一共三段')
-  const center = findAll(icon, (node) => node.type === 'circle' && node.props?.r === 1.8)[0]
-  assert.equal(center?.props?.fill, 'var(--cs-brand-hand, #ffffff)', '轴心与指针同色，浅色模式一起变深')
 })
 
 test('客户端：配色归一化为 blue/stone/cyan，旧赤陶迁移青色、其余旧值回落默认蓝', async () => {
@@ -1998,10 +2310,7 @@ test('客户端：视觉基座导出三档蓝 token、四套配色与派生色�
   assert.match(css, /--cs-live\s*:\s*var\(--cs-signal\)/)
   assert.match(css, /--cs-task\s*:\s*#C29BE8/i, '任务系列使用与活跃蓝分开的紫罗兰辅助色')
   assert.doesNotMatch(css, /#7A5AA6|#5f418a/i, '浅色与深色外观使用同一个任务紫')
-  assert.match(css, /--cs-brand-ring-high\s*:\s*var\(--cs-signal\)/, '上下半圆环使用独立变量，便于主题对调')
-  assert.match(css, /--cs-brand-ring-low\s*:\s*var\(--cs-signal-soft\)/, '左下圆环在明暗主题都取同色系柔和档')
-  assert.match(css, /--cs-brand-hand\s*:\s*var\(--cs-signal-deep\)/, '浅色外观的指针与轴心改用深色，白针不再落在白底上')
-  assert.match(css, /--cs-brand-hand\s*:\s*#ffffff/, '深色外观的指针与轴心保持白色')
+  assert.match(css, /--cs-logo-ink\s*:\s*#efe8db/i)
   assert.match(css, /--cs-ring-track\s*:\s*color-mix\(/, '主页面也导出圆环轨道色')
   assert.match(css, /--cs-tone-faint\s*:/)
   assert.match(css, /--cs-tone-soft\s*:/)
@@ -2790,6 +3099,7 @@ test('客户端：侧栏状态、状态点与时长进入设置草稿、保存�
     showSubagents: false,
     sidebarShowName: false,
     sidebarDuration: 'task',
+    timerPresetMinutes: 40,
   })), JSON.stringify({
     idleThresholdMinutes: 9,
     weekStartsOn: 7,
@@ -2803,6 +3113,7 @@ test('客户端：侧栏状态、状态点与时长进入设置草稿、保存�
     approximateNoticeDismissed: false,
     analysisProvider: '',
     analysisModel: '',
+    timerPresetMinutes: 40,
     timerSound: true,
     floatingEnabled: true,
     floatingShowClock: false,
@@ -3789,7 +4100,15 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
   assert.doesNotMatch(text, /仪表盘设置|设置保存在本机/, 'Dashboard 设置页不再显示顶部标题与说明两行')
   assert.equal(allOf(tree, byClass('cs-settings-sections')).length, 1, '统计和侧栏设置独立分组')
   assert.equal(allOf(tree, byClass('cs-format-sidebar')).length, 1, '数字格式提供真实侧栏组件预览')
-  assert.match(text, /侧栏、概览、趋势、会话与导出共用这一格式/, '数字格式卡底部说明共用范围')
+  const formatCard = findByClass(tree, 'cs-format-card')
+  assert.equal(findByClass(formatCard, 'cs-format-shared'), undefined, '数字格式说明不再占底部一行')
+  const formatInfo = findByClass(formatCard, 'cs-row-info')
+  assert.ok(findAll(formatInfo, (node) => node.props?.lines?.some((line) => line.includes('侧栏、概览、趋势、会话与导出共用这一格式'))).length)
+  for (const cardClass of ['cs-appearance-card', 'cs-notices-card', 'cs-data-card']) {
+    const card = findByClass(tree, cardClass)
+    assert.ok(hasClass(card, 'cs-settings-info-region'))
+    assert.ok(findByClass(card, 'cs-settings-heading-with-info'))
+  }
   for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示状态', '侧栏状态点', '状态点位置', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '选择备份文件导入', '重新显示「近似记录」说明', '清空全部数据']) {
     assert.match(text, new RegExp(expected), `设置页包含「${expected}」`)
   }

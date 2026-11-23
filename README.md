@@ -25,17 +25,18 @@
 - 侧边栏有常驻入口，实时显示你选定的时长（默认在线）和今日构成环；悬停约 200ms 会显示说明
 - 仪表盘分概览、趋势、会话、回顾、设置五个视图。概览用一张统计卡显示主指标（默认今日在线时长）、两项副指标与本周、本月统计，占比用横条显示。主指标、趋势图和热力图都可放大成独立页。主指标放大页可切换五项时长，右侧圆环显示对应占比。趋势页还有时段分布和趋势洞察。概览各卡标题旁的模块图标悬停时轻动，停留约 600 毫秒显示一行功能简介，键盘聚焦立即显示。
 - 概览底排从左到右是每日活跃热力图、工作区任务排行、最近会话。热力图每次进入概览回到近三个月，切到全年时另起一行，以周一开头的周网格通栏展示。
-- 插件标识跟随浅色/深色外观对调圆环明暗：深色模式上半浅、左下深、白色指针；浅色模式上半深、左下浅、深蓝指针，白针不再落在白底上
+- 插件标识以起止括号和分段斜线表达时间跨度。右括号和斜线末段用陶红渐变，主体在浅色用暖石墨，在深色用骨白。
 - 工作区 → 会话：工作区按名称与会话数分组，点击会话行或标题后在右侧查看统计预览；右侧的「打开会话」才进入宿主会话页面，打开失败时保留统计并定位会话。统计范围可选今天、近 3 天、最近一周、近 30 天或全部，选全部时分批显示。
 - Agent 只读工具 `timespan_stats`：在对话里按日/周/月或自定义日期查询，数据与仪表盘同源
+- 会话命令 `/timespan` 打开原生操作菜单。`/timespan stats session` 查询本会话累计，`stats today|week|month` 查询应用级时长，`stats workspace` 查询当前工作区。`timer 25m` 开始倒计时，`timer start|pause|resume|stop|status` 控制共享的手动计时。`review` 打开回顾并预选当前会话，确认范围后可生成。
 - 设置：界面语言（默认中文，可切英文，只影响本插件文案）、空闲阈值（1–15 分钟）、周统计起始日（周一/周日）、外观（默认跟随系统）、配色（默认晴空蓝）、六种数字格式（默认紧凑单位，如 `2h 48m`；也支持小数小时，如 `2.80 h`）、子代理明细开关，以及侧栏是否显示状态文字和常驻时长（默认在线时长）。页面级可关闭提示（近似记录、回填状态、上一份报告等）统一收进仪表盘顶栏「设置」标签右侧、状态点左侧的胶囊，悬停查看完整说明；外观、配色、计时、缩放与会话操作图标悬停时按语义轻动。DSH 设置页的本插件模块右上角提供 GitHub 项目页、Issue 与 Star 入口，悬停立即显示说明并带图标动效。
 - 支持导出 JSON / CSV，导入备份时按 ID 去重。新格式是 `dsh-timespan-export`，旧的 `chronoscope-export` 备份也能导入。清空数据等破坏性操作会二次确认。
 - 首次启用时，自动回填已有历史会话的任务时长
 - 晴空蓝、石墨灰、松石青、珊瑚橙四套配色均支持浅色和深色外观；珊瑚橙主色为 `#FF5B3B`。
-- 会话页的磨砂悬浮窗默认位于右上角、标题栏下方，与左侧留同一安全边距，可拖动并记住位置；靠边且鼠标移开 3 秒后收起，靠近恢复。设置可关闭悬浮窗或增加指针钟（默认关闭）。右键「退出悬浮窗」会保存关闭状态，可从设置重新开启，计时和到期提醒继续运行。
-- 仪表盘与悬浮窗控制同一只全局正计时或倒计时，独立于在线、活跃和任务统计。切换页面、休眠或重启仍按实际经过时间恢复，暂停期间不累计；倒计时到期自动停止并轻提示，提示音默认开启、可关闭。只保留当前计时与最近一次完成结果，记录旁的小点在悬停或键盘聚焦时变为删除图标。
+- 会话页的液态玻璃浮窗默认位于右上角，可拖动并记住位置。它优先显示手动计时，其次显示当前 Agent 任务及等待状态，展开可同时查看。空闲时靠边且鼠标移开 3 秒后吸附，靠近恢复。设置可隐藏浮窗或开启指针钟。隐藏时计时和提醒继续。
+- 仪表盘与悬浮窗控制同一只全局正计时或倒计时，独立于在线、活跃和任务统计。切换页面、休眠或重启仍按实际经过时间恢复，暂停期间不累计。倒计时到期自动停止并轻提示，提示音默认开启、可关闭。可在设置里修改 `/timespan` 菜单和计时面板的默认倒计时。面板保留最近 30 条完成记录，滚动查看每次的完成时间、类型与实际用时。
 - 设置左侧的「回顾」页签支持手动生成回顾，范围可选今日、本周或本月，并结合同期统计与会话内容，可缩小到指定工作区或会话。报告以关键时长、投入节奏、工作区分布和分条结论呈现，图表固定于生成时，并包含来源和覆盖情况；各回顾范围保留最近一份成功结果；失败不覆盖旧报告。分析任务自身不计入任务时长。报告可复制为 Markdown 或导出 .md 文件。
-- 在设置中选择 DSH 已配置的 Provider 和模型用于分析。统计记录保存在本机；点击生成时，所选范围的统计与会话材料会发送给该 Provider。JSON 备份包含报告与最近计时结果，导入不会启动或覆盖当前计时；清空数据会一并清除它们并停止计时。
+- 在设置中选择 DSH 已配置的 Provider 和模型用于分析。统计记录保存在本机，点击生成时，所选范围的统计与会话材料会发送给该 Provider。JSON 备份包含报告与计时历史，导入保留当前计时状态。清空数据会一并清除它们并停止计时。
 
 ## 运行机制
 
@@ -151,6 +152,7 @@ dsh-timespan/
 │  │  ├─ export.js               # JSON/CSV 序列化
 │  │  └─ backfill.js             # 历史会话回填规划
 │  └─ host/                      # Host 适配层
+│     ├─ command.js              # /timespan 会话命令
 │     ├─ rpc.js                  # /api/dsh-timespan 包内私有 RPC
 │     ├─ analysis.js             # 分析生命周期、取消与成功报告保存
 │     ├─ analysis-input.js       # 同期统计与会话材料、来源及覆盖范围
@@ -168,8 +170,9 @@ dsh-timespan/
 | `index.js` | Host 侧入口：打开 `chrono_scope` v1 存储域（历史键，保持兼容），注册 30 秒心跳、`session/event` 监听、包内 RPC 与 `timespan_stats` 工具 |
 | `client.js` | Client 侧入口：`sidebar.panellist` 侧栏入口、`shell.overlay` presence 心跳、`main` 仪表盘、`settings.section` 设置页 |
 | `src/domain/dsh-timespan-domain.js` | 自动统计核心：在线/活跃/任务区间、任务四段构成、归属、并集/求和、查询与数据操作，并协调独立计时状态 |
-| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`queryDailySeries`、`getSettings`、`setSettings`、`resetSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill`、`getTimer`、`controlTimer`、`claimTimerNotification`、`getAnalysisModels`、`getAnalysisState`、`generateAnalysis`、`cancelAnalysis` |
+| `src/host/rpc.js` | Client 与 Host 的私有通道：`presence`、`queryStats`、`queryDailySeries`、`getSettings`、`setSettings`、`resetSettings`、`exportData`、`importData`、`clearData`、`getBackfillStatus`、`markBackfillRead`、`retryBackfill`、`getTimer`、`getRunningTask`、`controlTimer`、`claimTimerNotification`、`getAnalysisModels`、`getAnalysisState`、`generateAnalysis`、`cancelAnalysis` |
 | `src/host/tool.js` | 把 `timespan_stats` 参数转为 `queryStats` 查询，不另算一套数字 |
+| `src/host/command.js` | 注册 `/timespan`，复用统计查询与手动计时，返回 DSH 会话命令结果 |
 | `package.json` | 声明包名、版本、`exports`、发布文件列表；`dsh.bundle.patch` 指向 `cordis.patch.yml`，`dsh.client` 声明 Web 客户端加载方式 |
 
 </details>

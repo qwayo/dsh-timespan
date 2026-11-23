@@ -90,6 +90,11 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
         return importData(payload)
       case 'getTimer':
         return service.getTimer()
+      case 'getRunningTask': {
+        const sessionId = optionalString(payload?.sessionId)
+        if (!sessionId) throw new Error('getRunningTask 需要会话 ID')
+        return service.getRunningTask(sessionId)
+      }
       case 'controlTimer':
         return controlTimer(payload)
       case 'claimTimerNotification':
@@ -326,7 +331,7 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
   function setSettings(payload) {
     if (payload === null || typeof payload !== 'object') throw new Error('setSettings 载荷必须是对象')
     const patch = {}
-    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName', 'sidebarDuration', 'sidebarDotVisible', 'sidebarDotPosition', 'language', 'approximateNoticeDismissed', 'timerSound', 'floatingEnabled', 'floatingShowClock', 'analysisProvider', 'analysisModel']) {
+    for (const key of ['idleThresholdMinutes', 'weekStartsOn', 'showSubagents', 'durationFormat', 'sidebarShowName', 'sidebarDuration', 'sidebarDotVisible', 'sidebarDotPosition', 'language', 'approximateNoticeDismissed', 'timerPresetMinutes', 'timerSound', 'floatingEnabled', 'floatingShowClock', 'analysisProvider', 'analysisModel']) {
       if (Object.hasOwn(payload, key)) patch[key] = payload[key]
     }
     return service.setSettings(patch)
@@ -359,6 +364,7 @@ export function registerDshTimespanRpc(ctx, service, hooks = {}) {
       intervals: payload.intervals,
       tasks: payload.tasks,
       lastTimerResult: payload.lastTimerResult,
+      timerHistory: payload.timerHistory,
       reports: payload.reports,
       restoreSettings: payload.restoreSettings,
     })

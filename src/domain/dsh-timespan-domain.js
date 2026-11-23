@@ -27,7 +27,8 @@ import {
   canClaimManualTimerNotification,
   emptyManualTimer,
   manualTimerView,
-  parseManualTimerResult,
+  parseManualTimerHistory,
+  restoreManualTimerHistory,
   settleManualTimer,
 } from './manual-timer.js'
 import { DEFAULT_SETTINGS, mergeSettings, normalizeSettings, settingsToIdleMs } from './settings.js'
@@ -165,8 +166,8 @@ export function createDshTimespanDomain({ domain, clock }) {
   async function getTimer() {
     return withWriteLock(async () => {
       const at = now()
-      const { timer } = await readSettledTimer(at)
-      return manualTimerView(timer, at)
+      const { meta, timer } = await readSettledTimer(at)
+      return timerView(meta, timer, at)
     })
   }
 
@@ -176,8 +177,12 @@ export function createDshTimespanDomain({ domain, clock }) {
       const { meta, timer } = await readSettledTimer(at)
       const next = applyManualTimerAction(timer, input, at, () => createRecordId('timer', at))
       if (next !== timer) await domain.global.set({ ...meta, timer: next })
-      return manualTimerView(next, at)
+      return timerView(meta, next, at)
     })
+  }
+
+  function timerView(meta, timer, at) {
+    return { ...manualTimerView(timer, at), timerPresetMinutes: normalizeSettings(meta.settings).timerPresetMinutes }
   }
 
   async function claimTimerNotification(input) {
@@ -648,6 +653,12 @@ export function createDshTimespanDomain({ domain, clock }) {
     return null
   }
 
+  function getRunningTask(sessionId) {
+    const task = findOpenTask(sessionId)
+    if (task === null || task.source === 'backfill') return null
+    return { id: task.id, elapsedMs: Math.max(0, runningTaskEnd(task, now()) - task.start) }
+  }
+
   async function closeOpenTasks(predicate, endReason) {
     for (const [id, task] of tasks.entries()) {
       if (!isOpenTask(task) || !predicate(task)) continue
@@ -910,7 +921,7 @@ export function createDshTimespanDomain({ domain, clock }) {
     return queryStatsAt(options, now())
   }
 
-  function queryStatsAt({ from, to, period, weekStartsOn, view, groupBy, workspace, session, trendPeriod } = {}, current, analysis = false) {
+  function queryStatsAt({ from, to, period, weekStartsOn, view, groupBy, workspace, session, trendPeriod, filterById = false } = {}, current, analysis = false) {
     const requestedPeriod = isPeriod(period) ? period : null
     // 未显式指定时以 Host 设置为准：设置一改，周窗口、周期卡与趋势桶同步换边界。
     const weekStart = normalizeWeekStart(weekStartsOn ?? currentSettings().weekStartsOn)
@@ -929,7 +940,7 @@ export function createDshTimespanDomain({ domain, clock }) {
 
     // 工作区/会话筛选是查询期的投影过滤；解析不到的名称不静默忽略，交给调用方
     // 决定如何提示。过滤后的总计、分组与趋势都基于同一批筛选行。
-    const filters = resolveStatsFilters(workspace, session, analysis)
+    const filters = resolveStatsFilters(workspace ?? null, session ?? null, analysis || filterById)
     const matchRow = (row) => matchesStatsFilter(row, filters)
 
     const running = isOpen(currentInterval().interval)
@@ -1267,7 +1278,7 @@ export function createDshTimespanDomain({ domain, clock }) {
       const content = format === 'json'
         ? buildJsonExport({
             exportedAt, settings, intervals: intervalRows, tasks: taskRows,
-            lastTimerResult: (await readSettledTimer(exportedAt)).timer.lastResult,
+            timerHistory: (await readSettledTimer(exportedAt)).timer.history,
             reports: getAnalysisReports(),
           })
         : buildCsvExport({ dayRows: days.rows, durationFormat: settings.durationFormat })
@@ -1417,8 +1428,8 @@ export function createDshTimespanDomain({ domain, clock }) {
    * intervals / tasks 按各自稳定唯一键（优先记录自带 id，详见文件末尾
    * intervalImportKey / taskImportKey 的注释）跳过已存在记录，既不覆盖也不
    * 重复插入；设置默认不恢复，只有显式 restoreSettings === true 才把
-   * payload.settings 经白名单合并进当前 meta.settings。手动计时结果和报告
-   * 只填空位；导入文件中的活动状态或私有请求日志不进入存储。
+   * payload.settings 经白名单合并进当前 meta.settings。手动计时历史按 ID 补充，报告只填空位；
+   * 导入文件中的活动状态或私有请求日志不进入存储。
    * 导入结束按 clearData 同一套不变量收口：回填状态置 done + 当前版本、
    * 递增 dataGeneration、合并后 intervals 为空时重开一条在线区间；会话日志
    * 不属于本域，绝不触碰；只写本插件 storageDomain。
@@ -1441,10 +1452,10 @@ export function createDshTimespanDomain({ domain, clock }) {
       if (!Array.isArray(payload.tasks)) {
         throw importValidationError('invalid-tasks', '导入文件的 tasks 必须是数组')
       }
-      let lastTimerResult
+      let importedTimerHistory
       let importedReports
       try {
-        lastTimerResult = parseManualTimerResult(payload.lastTimerResult)
+        importedTimerHistory = parseManualTimerHistory(payload.timerHistory, payload.lastTimerResult)
       } catch (error) {
         throw importValidationError('invalid-timer-result', error.message)
       }
@@ -1504,7 +1515,7 @@ export function createDshTimespanDomain({ domain, clock }) {
       const nextMeta = {
         ...meta,
         settings,
-        timer: { ...timer, lastResult: timer.lastResult ?? lastTimerResult },
+        timer: restoreManualTimerHistory(timer, importedTimerHistory),
         // 照抄 clearData：回填收口为 done + 当前版本，避免下一次 RPC 兜底
         // 触发回填时把刚导入的数据当成需要重扫的历史。
         backfill: normalizeBackfillStatus({
@@ -2104,6 +2115,7 @@ export function createDshTimespanDomain({ domain, clock }) {
     saveAnalysisRequest,
     getAnalysisRequest,
     getTimer,
+    getRunningTask,
     controlTimer,
     claimTimerNotification,
     getSettings,

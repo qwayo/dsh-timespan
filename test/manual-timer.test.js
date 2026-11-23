@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createDshTimespanDomain } from '../src/domain/dsh-timespan-domain.js'
+import { createDshTimespanSpec } from '../src/domain/domain-spec.js'
 import { createMemoryDomain } from './helpers/memory-domain.js'
 
 const t0 = new Date(2026, 10, 18, 12).getTime()
@@ -141,7 +142,7 @@ test('删除最近结果独立于当前运行或暂停的计时，不重置也�
     if (paused) await service.controlTimer({ action: 'pause', id: current.id })
     const before = await service.getTimer()
     const after = await service.controlTimer({ action: 'clear-result', id: previous.id })
-    assert.deepEqual(after, { ...before, lastResult: null })
+    assert.deepEqual(after, { ...before, lastResult: null, history: [] })
     clock.wall += 1_000
     assert.equal((await service.getTimer()).elapsedMs, paused ? 2_000 : 3_000)
   }
@@ -163,6 +164,41 @@ test('删除失败可重试，过期页面不能删除新完成的记录', async
   await assert.rejects(service.controlTimer({ action: 'clear-result', id: first.id }), { code: 'stale-timer' })
   await assert.rejects(service.controlTimer({ action: 'clear-result' }), { code: 'invalid-timer-action' })
   assert.equal((await service.getTimer()).lastResult.id, second.id)
+})
+
+test('手动计时历史迁移旧结果、跨重启保留最近 30 条，删除旧条目不影响到期提醒', async () => {
+  const domain = createMemoryDomain()
+  const { schema, initial } = createDshTimespanSpec().global
+  const legacy = { id: 'legacy-run', mode: 'stopwatch', durationMs: null, startedAt: t0 - 5000,
+    elapsedMs: 2000, completedAt: t0 - 1000, reason: 'manual' }
+  await domain.global.set(schema.parse({ ...initial, timer: { current: null, lastResult: legacy, showCompleted: true } }))
+  const { service, clock } = await started({ domain })
+  assert.deepEqual((await service.getTimer()).history, [legacy])
+  const completed = []
+  for (let index = 0; index < 31; index += 1) {
+    const run = await service.controlTimer({ action: 'start', mode: 'stopwatch' })
+    clock.wall += 1000 + index
+    const result = await service.controlTimer({ action: 'complete', id: run.id })
+    completed.unshift(result.lastResult)
+  }
+  const countdown = await service.controlTimer({ action: 'start', mode: 'countdown', durationMs: 5_000 })
+  clock.wall += 6_000
+  const expired = await service.getTimer()
+  const removed = expired.history.at(-1).id
+  assert.deepEqual(expired.history.slice(1), completed.slice(0, 29))
+  assert.equal(expired.history[0].elapsedMs, 5_000)
+  assert.deepEqual(domain.global.get().timer.lastResult, expired.history[0], '旧版本仍可读取最近一次完成记录')
+  assert.deepEqual(expired.notification, { id: countdown.id })
+  await service.close()
+
+  const reopened = await started({ domain, at: clock.wall })
+  const current = await reopened.service.getTimer()
+  assert.deepEqual(current.history, expired.history)
+  const updated = await reopened.service.controlTimer({ action: 'clear-result', id: removed })
+  assert.deepEqual(updated.history, expired.history.slice(0, -1))
+  assert.equal(updated.id, countdown.id)
+  assert.equal(updated.status, 'completed')
+  assert.deepEqual(updated.notification, expired.notification)
 })
 
 function sampleReport(id, period = 'day') {
@@ -235,9 +271,12 @@ test('旧回顾只从匹配成功请求恢复图表，缺少或错期的材料�
   assert.equal(service.getAnalysisReports().day.snapshot, undefined)
 })
 
-test('备份只导出完成结果和报告，只恢复空位，不覆盖本机当前计时', async () => {
+test('备份导出计时历史和报告，导入去重且保留本机当前计时', async () => {
   const source = await started()
   await source.service.setSettings({ analysisProvider: 'provider', analysisModel: 'model', timerSound: false })
+  const older = await source.service.controlTimer({ action: 'start', mode: 'stopwatch' })
+  source.clock.wall += 2_000
+  await source.service.controlTimer({ action: 'complete', id: older.id })
   const startedTimer = await source.service.controlTimer({ action: 'start', mode: 'countdown', durationMs: 1_000 })
   source.clock.wall += 1_000
   await source.service.controlTimer({ action: 'start', mode: 'stopwatch' })
@@ -246,6 +285,7 @@ test('备份只导出完成结果和报告，只恢复空位，不覆盖本机�
   const file = await backup(source.service)
   assert.equal(file.lastTimerResult.id, startedTimer.id)
   assert.equal(file.lastTimerResult.reason, 'expired')
+  assert.deepEqual(file.timerHistory.map((record) => record.id), [startedTimer.id, older.id])
   assert.equal(file.reports.week.id, '源文件的周分析')
   assert.equal(Object.hasOwn(file, 'timer'), false)
 
@@ -254,6 +294,7 @@ test('备份只导出完成结果和报告，只恢复空位，不覆盖本机�
   const imported = await fresh.service.getTimer()
   assert.equal(imported.status, 'idle')
   assert.deepEqual(imported.lastResult, file.lastTimerResult)
+  assert.deepEqual(imported.history, file.timerHistory)
   assert.equal(imported.notification, null, '备份里的到期结果不再次提醒')
   assert.equal(fresh.service.getSettings().analysisModel, 'model')
   assert.equal(fresh.service.getSettings().timerSound, false)
@@ -264,11 +305,16 @@ test('备份只导出完成结果和报告，只恢复空位，不覆盖本机�
   const current = await target.service.controlTimer({ action: 'start', mode: 'countdown', durationMs: 2_000 })
   await target.service.saveAnalysisReport(sampleReport('本机的日分析'))
   await target.service.importData(file)
+  await target.service.importData(file)
   await target.service.importData(legacyBackup)
   const timer = await target.service.getTimer()
   assert.equal(timer.id, current.id)
   assert.equal(timer.status, 'running')
   assert.equal(timer.lastResult.id, local.id)
+  assert.deepEqual(timer.history.map((record) => record.id), [local.id, startedTimer.id, older.id])
+  const legacyTarget = await started()
+  await legacyTarget.service.importData({ ...legacyBackup, lastTimerResult: file.lastTimerResult })
+  assert.deepEqual((await legacyTarget.service.getTimer()).history, [file.lastTimerResult])
   assert.equal(target.service.getAnalysisReports().day.id, '本机的日分析')
   assert.equal(target.service.getAnalysisReports().week.id, '源文件的周分析')
 })
@@ -303,6 +349,7 @@ test('导入在写任何记录前拒绝无效、超长或伪造来源的报告',
   await assert.rejects(service.importData({ ...partialWriteProbe, lastTimerResult: { id: 'bad timer' } }), {
     code: 'invalid-timer-result',
   })
+  await assert.rejects(service.importData({ ...partialWriteProbe, timerHistory: [null] }), { code: 'invalid-timer-result' })
   assert.deepEqual(await backup(service), before)
   assert.equal(service.getDataGeneration(), 0, '拒绝的导入不推进代次')
 })
@@ -401,9 +448,11 @@ test('恢复设置保留计时和报告；取消或清空后旧分析不能回�
   const running = await service.controlTimer({ action: 'start', mode: 'stopwatch' })
   await service.saveAnalysisRequest(request, { generation })
   await service.saveAnalysisReport(sampleReport('报告'), { generation, requestId: request.id })
-  await service.setSettings({ timerSound: false, analysisProvider: 'custom', analysisModel: 'custom' })
+  await service.setSettings({ timerPresetMinutes: 35, timerSound: false, analysisProvider: 'custom', analysisModel: 'custom' })
+  assert.equal((await service.getTimer()).timerPresetMinutes, 35)
   const defaults = await service.resetSettings()
   assert.equal(defaults.timerSound, true)
+  assert.equal((await service.getTimer()).timerPresetMinutes, 25)
   assert.equal(defaults.analysisProvider, '')
   assert.equal(defaults.analysisModel, '')
   assert.equal((await service.getTimer()).id, running.id)

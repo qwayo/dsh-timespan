@@ -12,6 +12,7 @@ import { createDshTimespanSpec } from './src/domain/domain-spec.js'
 import { createDshTimespanDomain } from './src/domain/dsh-timespan-domain.js'
 import { registerDshTimespanRpc } from './src/host/rpc.js'
 import { registerTimespanStatsTool } from './src/host/tool.js'
+import { registerTimespanCommand } from './src/host/command.js'
 import { createAnalysisService } from './src/host/analysis.js'
 
 export const name = 'dsh-timespan'
@@ -201,6 +202,13 @@ export async function apply(ctx) {
 
     // 只读工具与页面共用同一个 queryStats 领域操作；工具随插件 fiber 自动注销。
     registerTimespanStatsTool(ctx, service)
+    // 没有交互命令服务的 DSH 组合仍可使用统计工具。命令跟随服务挂载和卸载。
+    if (typeof ctx.inject === 'function') ctx.inject(['commands'], (scope) =>
+      registerTimespanCommand(scope, service, {
+        getWorkspaceId: (session) => resolveWorkspace(session)?.id,
+        beforeStats: () => eventQueue,
+      }),
+    )
 
     ctx.effect(() => async () => {
       stopHeartbeat()
