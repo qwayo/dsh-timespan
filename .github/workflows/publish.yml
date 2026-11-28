@@ -1,16 +1,22 @@
-name: Publish to npm
+name: CD
 
-# 手动触发（Actions 页面 Run workflow 或 `gh workflow run publish.yml`）。
+# 发布流程（CD）。两种触发：
+#   1. push 到 master：package.json 的版本号若还没发布过，就跑门禁 → 发 npm → 打 tag、建 Release；
+#      版本号没动（普通合并）则整条流程跳过，是一次绿色的空跑。
+#   2. 手动触发：用于演练（dry_run）或失败重试；仍只允许从 master 运行。
 #
-# 为什么不用 push 自动发：npm 同名版本一旦发布就**不能覆盖**，只能 deprecate。
-# 这一步是整条链上唯一不可回滚的动作，必须有人按。参照 dsh-whale-widget 的取舍，
-# 它正是从「push 即发」改成了手动触发。
+# 闸门是「版本号必须前进」：npm 同名版本一旦发布就**不能覆盖**，只能 deprecate，
+# 这是整条链上唯一不可回滚的动作。所以合入 master 不会误发——只有先在 PR 里改掉
+# package.json 的 version，再合入，CD 才会真的发布。发布前重跑与 CI 相同的三条门禁。
 #
 # 前置（只需配置一次，在 npmjs.com 包设置里）：
-#   把本仓库的这条 workflow 登记为 Trusted Publisher，之后靠 OIDC 换临时凭证，
+#   把本仓库的 .github/workflows/publish.yml 登记为 Trusted Publisher，之后靠 OIDC 换临时凭证，
 #   仓库里不需要存 NPM_TOKEN。
+#   注意：Trusted Publisher 认的是这个文件名，改名会让发布认证失败。
 
 on:
+  push:
+    branches: [master]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -33,7 +39,8 @@ jobs:
     timeout-minutes: 15
     steps:
       # 手动触发时 GitHub 允许选分支；从非 master 发版会把「那个分支的版本」发出去。
-      - name: Guard — must run on master
+      - name: Guard — manual runs must use master
+        if: github.event_name == 'workflow_dispatch'
         run: |
           if [ "${GITHUB_REF}" != "refs/heads/master" ]; then
             echo "::error::发布只允许在 master 上触发（当前 ${GITHUB_REF}）。请在 Run workflow 里把 Use workflow from 选成 master。"
@@ -42,7 +49,7 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0   # 需要 tag 历史来判断版本是否已经发过
+          fetch-depth: 0   # 需要 tag 历史来生成 Release notes
 
       - uses: actions/setup-node@v7
         with:
@@ -85,29 +92,40 @@ jobs:
             console.log('package OK: ' + pkg.name + '@' + pkg.version)
           "
 
-      # 版本号没动就发不出去，也说明这次触发是误触
-      - name: Guard — version must be new
+      # CD 的闸门：版本号必须前进。普通合并没改版本号，这里跳过发布但不让流程变红。
+      - name: Resolve version
         id: version
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          NAME=$(node -p "require('./package.json').name")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
-            echo "::error::tag v${VERSION} 已存在，说明 package.json 的版本号没有前进。"
-            exit 1
-          fi
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$(node -p "require('./package.json').name")/${VERSION}")
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/${NAME}/${VERSION}")
           if [ "$CODE" = "200" ]; then
-            echo "::error::${VERSION} 已经发布在 npm 上，不能重复发布。"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "${NAME}@${VERSION} 已在 npm 上，这次没有推进版本号。"
+            if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" != "true" ]; then
+              echo "::error::${VERSION} 已经发布过，没有可发的新版本。请先把 package.json 的 version 前进再触发。"
+              exit 1
+            fi
+            echo "### CD 跳过：${NAME}@${VERSION} 已在 npm 上，这次合并没有推进版本号。" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # 版本没发过，但 tag 已经在：说明上一次发布只完成了一半，交给人确认。
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "::error::tag v${VERSION} 已存在，但 npm 上没有这个版本；状态不一致，请人工确认后再发。"
             exit 1
           fi
-          echo "版本 ${VERSION} 未发布过，继续。"
+          echo "${NAME}@${VERSION} 尚未发布，继续。"
 
       - name: Publish to npm
-        if: ${{ !inputs.dry_run }}
+        if: steps.version.outputs.skip == 'false' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         run: npm publish --access public
 
       - name: Create tag and GitHub Release
-        if: ${{ !inputs.dry_run }}
+        if: steps.version.outputs.skip == 'false' && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -127,7 +145,7 @@ jobs:
           gh release create "v${VERSION}" --target "$GITHUB_SHA" --title "v${VERSION}" --notes-file release_notes.md
 
       - name: Dry-run summary
-        if: ${{ inputs.dry_run }}
+        if: steps.version.outputs.skip == 'false' && github.event_name == 'workflow_dispatch' && inputs.dry_run
         run: |
           echo "### 演练结束（未发布、未建 Release）" >> "$GITHUB_STEP_SUMMARY"
-          echo "版本 ${{ steps.version.outputs.version }} 通过全部门禁，正式发布请去掉 dry_run 再跑一次。" >> "$GITHUB_STEP_SUMMARY"
+          echo "版本 ${{ steps.version.outputs.version }} 通过全部门禁，正式发布请去掉 dry_run 再跑一次，或直接合入 master。" >> "$GITHUB_STEP_SUMMARY"

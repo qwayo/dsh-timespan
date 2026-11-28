@@ -32,7 +32,7 @@ jobs:
       - name: Syntax check
         run: npm run check
 
-      # 207 个测试，0.9 秒；测试一律按本地时间构造，显式钉 UTC 避免跑在别的时区上行为漂移
+      # 336 个测试，约 1 秒；测试一律按本地时间构造，显式钉 UTC 避免跑在别的时区上行为漂移
       - name: Test
         run: npm test
         env:

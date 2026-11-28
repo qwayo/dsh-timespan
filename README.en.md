@@ -115,7 +115,7 @@ npm run check    # syntax check across all source and tests
 npm run audit    # quality gate: bundle manifest, identity strings, bilingual README, RPC contract table, ADR list and README assets
 ```
 
-Tests use `node:test` and need no external framework. The repo has no dependencies and no build step, so CI never runs `npm install`; pushes to `master` and every pull request run all three commands above.
+Tests use `node:test` and need no external framework. The repo has no dependencies and no build step, so CI never runs `npm install`; pushes to `master` and every pull request run all three commands above. When a merge to `master` advances the version in `package.json`, CD publishes to npm and creates a GitHub Release once the same gates pass; without a version bump the whole run is skipped, so ordinary merges never publish by accident.
 
 ## Project structure
 

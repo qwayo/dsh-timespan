@@ -115,7 +115,7 @@ npm run check    # 全部源码与测试的语法检查
 npm run audit    # 质量门禁：bundle 清单、身份字符串、双语 README、RPC 契约表、ADR 清单与配图一致性
 ```
 
-测试使用 `node:test`，不依赖外部测试框架。仓库零依赖、零构建，CI 不跑 `npm install`；push 到 `master` 与每个 PR 都会跑上面三条。
+测试使用 `node:test`，不依赖外部测试框架。仓库零依赖、零构建，CI 不跑 `npm install`；push 到 `master` 与每个 PR 都会跑上面三条。合入 `master` 时若 `package.json` 的版本号已前进，CD 会在同样的门禁通过后自动发布到 npm 并建 GitHub Release；版本号没动就整条跳过，普通合并不会误发。
 
 ## 项目结构
 
