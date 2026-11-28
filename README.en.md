@@ -60,7 +60,7 @@ The package is published to npm; this is the easiest route. Say this in a sessio
 
 > Install the plugin @qwayo/dsh-timespan
 
-`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, use `@qwayo/dsh-timespan@0.5.3` instead. Restart DSH when it says a restart is needed.
+`plugin_manager` fetches the latest version from the registry, installs and enables it. To pin a version, write `@qwayo/dsh-timespan@<version>`. Restart DSH when it says a restart is needed.
 
 ### Option 2: install from GitHub
 
@@ -115,7 +115,7 @@ npm run check    # syntax check across all source and tests
 npm run audit    # quality gate: bundle manifest, identity strings, bilingual README, RPC contract table, ADR list and README assets
 ```
 
-Tests use `node:test` and need no external framework. The repo has no dependencies and no build step, so CI never runs `npm install`; pushes to `master` and every pull request run all three commands above.
+Tests use `node:test` and need no external framework. The repo has no dependencies and no build step, so CI never runs `npm install`; pushes to `master` and every pull request run all three commands above. Releases are manual: bump the `version` in `package.json` only, then run the publish workflow from `master`.
 
 ## Project structure
 

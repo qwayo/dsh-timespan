@@ -60,7 +60,7 @@ dsh-timespan 分成两半：**Host** 是随 DSH 一起运行的后台，**Client
 
 > 帮我装插件 @qwayo/dsh-timespan
 
-`plugin_manager` 会从 registry 拉取最新版本，安装并默认启用。想固定版本就换成 `@qwayo/dsh-timespan@0.5.3`。提示需要重启时，重启 DSH 即可。
+`plugin_manager` 会从 registry 拉取最新版本，安装并默认启用。想固定版本就写成 `@qwayo/dsh-timespan@<版本号>`。提示需要重启时，重启 DSH 即可。
 
 ### 方式二：安装 GitHub 仓库
 
@@ -115,7 +115,7 @@ npm run check    # 全部源码与测试的语法检查
 npm run audit    # 质量门禁：bundle 清单、身份字符串、双语 README、RPC 契约表、ADR 清单与配图一致性
 ```
 
-测试使用 `node:test`，不依赖外部测试框架。仓库零依赖、零构建，CI 不跑 `npm install`；push 到 `master` 与每个 PR 都会跑上面三条。
+测试使用 `node:test`，不依赖外部测试框架。仓库零依赖、零构建，CI 不跑 `npm install`；push 到 `master` 与每个 PR 都会跑上面三条。发布走手动 workflow：发版只改 `package.json` 的 `version`，再在 master 上运行发布流程即可。
 
 ## 项目结构
 

@@ -11,10 +11,9 @@
  *   6. RPC 契约表：双语 README 列出的方法与 src/host/rpc.js 的 case 完全一致
  *   7. 文档清单：docs/adr/*.md 全部出现在 README 的相关文档里
  *   8. 配图成套：assets/readme 下四张图都有 .en.svg、两张 2 倍 PNG，且 PNG 被对应 README 引用
- *   9. 配图版本号：structure 图里的版本号与 package.json 一致
- *  10. 配图测试数：structure 图里的测试文件数量与磁盘一致
- *  11. 配图 ADR 数：structure 图里的架构决策记录数量与 docs/adr 一致
- *  12. README 配图：<img> 引用的文件都存在
+ *   9. 配图测试数：structure 图里的测试文件数量与磁盘一致
+ *  10. 配图 ADR 数：structure 图里的架构决策记录数量与 docs/adr 一致
+ *  11. README 配图：<img> 引用的文件都存在
  *
  * 运行：node tools/ci-audit.mjs
  * 退出码：0 = 全部通过，1 = 有不变量被破坏（逐条打印原因）
@@ -190,13 +189,6 @@ for (const asset of readmeAssets) {
 }
 
 // ── 9 & 10. 配图里的写死事实 ──────────────────────────────────────
-if (pkg?.version) {
-  for (const svg of ['assets/readme/structure.svg', 'assets/readme/structure.en.svg']) {
-    if (!read(svg).includes(`v${pkg.version}`)) {
-      fail('asset-version', `${svg} 里的版本号不是 v${pkg.version}（package.json 已改动，配图没跟上）`)
-    }
-  }
-}
 for (const [svg, template] of [
   ['assets/readme/structure.svg', `${testFiles.length} 个 node:test 测试文件`],
   ['assets/readme/structure.en.svg', `${testFiles.length} node:test files`],
@@ -228,7 +220,7 @@ for (const readme of ['README.md', 'README.en.md']) {
 const rules = [
   'manifest', 'identity', 'syntax-coverage', 'test-discovery',
   'readme-pair', 'rpc-table', 'adr-list', 'assets-pair',
-  'asset-version', 'asset-test-count', 'asset-adr-count', 'readme-images',
+  'asset-test-count', 'asset-adr-count', 'readme-images',
 ]
 
 if (failures.length === 0) {
