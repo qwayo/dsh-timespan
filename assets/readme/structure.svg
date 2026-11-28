@@ -3,14 +3,14 @@
   <desc id="struct-desc">包清单与加载补丁连接 DSH Host 和 Web Client 两个入口。Host 使用八个领域模块处理统计和计时，六个适配模块处理 RPC、回顾、命令与只读工具。Client 挂载侧栏、全局浮层、仪表盘与设置。仓库还包括测试、架构决策、双语元数据和 README 配图。</desc>
 
   <defs>
-    <linearGradient id="timespan-terracotta" x2="0" y2="1">
-      <stop stop-color="#be7766"/><stop offset="1" stop-color="#844033"/>
+    <linearGradient id="timespan-accent" x2="0" y2="1">
+      <stop stop-color="#4A9EFF"/><stop offset=".58" stop-color="#5D8BF4"/><stop offset="1" stop-color="#8A6CE8"/>
     </linearGradient>
     <g id="timespan-mark" fill="#30302b">
       <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z"/>
-      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z" transform="translate(24) scale(-1 1)" fill="url(#timespan-terracotta)"/>
+      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z" transform="translate(24) scale(-1 1)" fill="url(#timespan-accent)"/>
       <path d="M6.1 13.05q0-.45.45-.59l7.98-2.57q.33-.11.19.21l-.63 1.58q-.13.33-.46.44l-6.88 2.21q-.65.21-.65-.44Z"/>
-      <path d="M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z" fill="url(#timespan-terracotta)"/>
+      <path d="M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z" fill="url(#timespan-accent)"/>
     </g>
   </defs>
 

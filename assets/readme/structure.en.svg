@@ -3,14 +3,14 @@
   <desc id="struct-desc">Package and loader manifests connect to the DSH Host and Web Client entries. The Host uses eight domain modules for statistics and timers and six adapters for RPC, reviews, commands and the read-only tool. The Client mounts the sidebar, overlay, dashboard and settings. Tests, decision records, locales and README art round out the repository.</desc>
 
   <defs>
-    <linearGradient id="timespan-terracotta" x2="0" y2="1">
-      <stop stop-color="#be7766"/><stop offset="1" stop-color="#844033"/>
+    <linearGradient id="timespan-accent" x2="0" y2="1">
+      <stop stop-color="#4A9EFF"/><stop offset=".58" stop-color="#5D8BF4"/><stop offset="1" stop-color="#8A6CE8"/>
     </linearGradient>
     <g id="timespan-mark" fill="#30302b">
       <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z"/>
-      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z" transform="translate(24) scale(-1 1)" fill="url(#timespan-terracotta)"/>
+      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z" transform="translate(24) scale(-1 1)" fill="url(#timespan-accent)"/>
       <path d="M6.1 13.05q0-.45.45-.59l7.98-2.57q.33-.11.19.21l-.63 1.58q-.13.33-.46.44l-6.88 2.21q-.65.21-.65-.44Z"/>
-      <path d="M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z" fill="url(#timespan-terracotta)"/>
+      <path d="M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z" fill="url(#timespan-accent)"/>
     </g>
   </defs>
 

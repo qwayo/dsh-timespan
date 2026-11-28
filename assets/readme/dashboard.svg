@@ -16,14 +16,14 @@
       .rule { fill: none; stroke: #dedfdd; }
       .glyph { fill: none; stroke: #606568; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
     </style>
-    <linearGradient id="timespan-terracotta" x2="0" y2="1">
-      <stop stop-color="#be7766"/><stop offset="1" stop-color="#844033"/>
+    <linearGradient id="timespan-accent" x2="0" y2="1">
+      <stop stop-color="#4A9EFF"/><stop offset=".58" stop-color="#5D8BF4"/><stop offset="1" stop-color="#8A6CE8"/>
     </linearGradient>
     <g id="timespan-mark" fill="#30302b">
       <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z"/>
-      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z" transform="translate(24) scale(-1 1)" fill="url(#timespan-terracotta)"/>
+      <path d="M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z" transform="translate(24) scale(-1 1)" fill="url(#timespan-accent)"/>
       <path d="M6.1 13.05q0-.45.45-.59l7.98-2.57q.33-.11.19.21l-.63 1.58q-.13.33-.46.44l-6.88 2.21q-.65.21-.65-.44Z"/>
-      <path d="M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z" fill="url(#timespan-terracotta)"/>
+      <path d="M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z" fill="url(#timespan-accent)"/>
     </g>
     <g id="monitor" stroke-linejoin="round" stroke-linecap="round">
       <rect x="1.5" y="2.6" width="13" height="8.4" rx="1.7"/>
@@ -34,10 +34,6 @@
       <path d="M8 4.7V8l2.2 1.4" stroke="#79b3f9"/>
     </g>
     <path id="compare-detail" d="M3 9v4h4m2-10h4v4"/>
-    <g id="info">
-      <circle cx="8" cy="8" r="6"/>
-      <path d="M8 7.5v3.2M8 5v.1"/>
-    </g>
     <g id="heat" fill="#606568">
       <rect x="2.1" y="2.1" width="3.4" height="3.4" rx="1" opacity=".9"/>
       <rect x="6.3" y="2.1" width="3.4" height="3.4" rx="1" opacity=".4"/>
@@ -300,13 +296,14 @@
       <rect x="210.5" y="479.5" width="315" height="247" rx="10" class="card"/>
       <use xlink:href="#heat" x="229" y="498"/>
       <text x="251" y="512" class="heading">每日活跃</text>
-      <rect x="411.5" y="492.5" width="75" height="27" rx="7" class="card"/>
-      <text x="420" y="510" font-size="12" class="muted">近三个月</text>
-      <path d="m473 504 3.4 3.4 3.4-3.4" class="glyph"/>
+      <rect x="466.5" y="492.5" width="26" height="26" rx="7" fill="#f7f8f9"/>
+      <g transform="translate(479.5 505.5)" aria-hidden="true">
+        <circle cx="0" cy="0" r="6.4" fill="none" stroke="#c2ccd8" stroke-width="2.2" opacity=".14"/>
+        <path d="M0 -6.4A6.4 6.4 0 0 1 6.4 0" fill="none" stroke="#1f4e94" stroke-width="2.2" stroke-linecap="round"/>
+      </g>
       <use xlink:href="#compare-detail" x="501" y="489" class="glyph" opacity=".72"/>
 
       <g font-size="11" text-anchor="start">
-        <text x="261" y="551" class="muted">8月</text>
         <text x="310.5" y="551" class="muted">9月</text>
         <text x="376.5" y="551" class="muted">10月</text>
         <text x="442.5" y="551" class="muted">11月</text>
@@ -486,11 +483,6 @@
       </g>
     </g>
 
-    <g id="page-footer">
-      <text x="210" y="750" class="muted" font-size="12">今日活跃时长 4h 24m · 今日在线时长 6h 0m</text>
-      <text x="1150" y="750" class="muted" font-size="14" text-anchor="end">示例数据</text>
-      <use xlink:href="#info" x="1163" y="738" class="glyph"/>
-    </g>
   </g>
   <rect x=".5" y=".5" width="1199" height="773" rx="18.5" fill="none" stroke="#dedfdd"/>
 </svg>
