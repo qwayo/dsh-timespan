@@ -24,7 +24,7 @@
       <use href="#timespan-mark" transform="translate(0 -2)"/>
       <text x="34" y="17" font-size="26" font-weight="700" fill="#181a1c">Bundle structure</text>
       <text x="1056" y="16" text-anchor="end" font-size="18" fill="#606568"
-            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">@qwayo/dsh-timespan · v0.5.3</text>
+            font-family="ui-monospace, 'Cascadia Mono', Consolas, 'SFMono-Regular', Menlo, monospace">@qwayo/dsh-timespan</text>
     </g>
 
     <!-- ===== Row 1: bundle manifest ===== -->
