@@ -63,8 +63,6 @@ window.__ModuleLoader__.load({
     const DEFAULT_TIMER_PRESET_MINUTES = 25
     const FLOATING_POSITION_KEY = 'dsh-timespan.floatingPosition'
     const FLOATING_GAP = 12
-    const FLOATING_DOCK_DELAY = 3_000
-    const FLOATING_EDGE_DISTANCE = 36
     /** 每日活跃热力图的默认范围：最近 3 个本地日历月；#13 再扩展范围切换。 */
     const HEAT_DEFAULT_RANGE = '3m'
     /** 月份刻度：中文界面用「1月…12月」，英文界面沿用英文缩写。 */
@@ -138,6 +136,7 @@ window.__ModuleLoader__.load({
 
     const zh = {
       title: 'TimeSpan',
+      brandMark: 'TimeSpan 标识：点按重组，按住部件可拖动',
 
       todayActive: '今日活跃时长',
       todayOnline: '今日在线时长',
@@ -189,7 +188,8 @@ window.__ModuleLoader__.load({
       loading: '读取中…',
       error: '暂时无法读取时长统计，正在自动重试',
       sinceBoot: '活跃：页面可见、窗口聚焦且有键鼠操作时计入。',
-      localOnly: '数据仅保存在本机',
+      taskFoot: '任务：一次任务从开始到结束的耗时，按会话累加。',
+      metricScopeLabel: '指标口径',
       navTooltip: 'TimeSpan · 在线、活跃与任务时长',
       periodDay: '日',
       periodWeek: '周',
@@ -260,10 +260,11 @@ window.__ModuleLoader__.load({
       heatmapEmpty: '暂无每日记录',
       heatmapError: '暂时无法读取每日活跃',
       heatRangeLabel: '统计范围',
+      heatRangeSpan: '跨度',
       heatRange3m: '近三个月',
       heatRange6m: '近半年',
       heatRangeYear: '全年',
-      heatRangeMonth: '{month}',
+      heatRangeMonth: '单月',
       yearHeatTitle: '全年每日活跃',
       monthHeatTitle: '{month}每日活跃',
       monthBars: '月度活跃',
@@ -280,7 +281,6 @@ window.__ModuleLoader__.load({
       dailyAverageActive: '日均活跃',
       dailyAverageTask: '日均任务',
       dailyAverageHint: '日均按自然日计算',
-      recordSinceBoot: '在线和活跃从插件启用时开始记录，历史数据只回填任务时长。',
       paletteBlue: '晴空蓝',
       paletteStone: '石墨灰',
       paletteCyan: '松石青',
@@ -329,7 +329,6 @@ window.__ModuleLoader__.load({
       floatingRemaining: '剩余',
       floatingMinimize: '收起悬浮计时',
       floatingMove: '拖动悬浮窗；方向键微调，Shift 加速，Home 复位',
-      floatingWake: '展开贴边悬浮窗',
       floatingMenu: '悬浮窗菜单',
       floatingExit: '退出悬浮窗',
       floatingExitHint: '计时继续，可在设置中重新开启',
@@ -338,7 +337,7 @@ window.__ModuleLoader__.load({
       settingsFloatingEnabled: '显示会话悬浮窗',
       settingsFloatingEnabledHint: '关闭只隐藏悬浮窗，计时和到期提醒继续运行。',
       settingsFloatingClock: '增加指针时钟',
-      settingsFloatingHint: '默认位于会话右上角、标题栏下方。空闲时靠边并移开鼠标 3 秒后吸附，靠近展开，右键可退出。',
+      settingsFloatingHint: '默认位于会话右上角、标题栏下方。收起时是一枚无框时钟，悬停显示当前时间并点亮图标，点按展开；不会自动收起或吸附边缘，右键可退出。',
       commandGroupStats: '查时长',
       commandSessionStats: '本会话累计',
       commandTodayStats: '今日统计',
@@ -443,9 +442,9 @@ window.__ModuleLoader__.load({
       analysisSaveError: '报告保存失败，请重试。',
       analysisCancelError: '取消分析失败，请重试。',
       reportTitle: '时间回顾',
-      reviewDay: '时间回顾',
-      reviewWeek: '一周回顾',
-      reviewMonth: '月度回顾',
+      reviewDay: '今日回顾',
+      reviewWeek: '本周回顾',
+      reviewMonth: '本月回顾',
       reviewMetrics: '时间概况',
       reviewRhythm: '投入节奏',
       reviewRhythmHint: '按本周期的时间桶查看活跃与任务；柱越高，投入越集中',
@@ -666,9 +665,9 @@ window.__ModuleLoader__.load({
       settingsResetDone: '已恢复初始设置',
       settingsResetError: '恢复初始设置失败，请重试',
       settingsSectionNotices: '通知记录',
-      settingsNoticesHint: '保留每次历史任务回填的完成记录，旧会话任务缺失时可重新扫描',
+      settingsNoticesHint: '保留每次历史任务回填的完成记录，旧会话任务缺失时可重新扫描；在线和活跃从插件启用时开始记录，历史只回填任务时长',
       dataTitle: '数据管理',
-      dataHint: 'JSON 备份包含统计原始记录、设置、计时历史和 AI 报告，CSV 导出每日统计',
+      dataHint: 'JSON 备份包含统计、设置、计时历史和 AI 报告；CSV 只导出每日统计',
       exportJson: '导出 JSON',
       exportCsv: '导出 CSV',
       exporting: '正在导出…',
@@ -690,8 +689,8 @@ window.__ModuleLoader__.load({
       approximateShowNoData: '已重新开启；当前没有近似记录，所以提示条暂时不会出现',
       approximateShowError: '操作失败，请稍后重试',
       savedBadge: '已保存',
-      importData: '选择备份文件导入',
-      importHint: '导入 TimeSpan 的 JSON 备份。按 ID 合并统计，计时结果与各周期报告只填补本机空缺。当前计时保持原状态。',
+      importData: '导入备份',
+      importHint: '按 ID 合并统计；计时记录和各周期报告只填补本机空缺，当前计时保持不变。',
       importInvalid: '这不是有效的 dsh-timespan 备份（需要 format 为 dsh-timespan-export 或 chronoscope-export 且 version 为 1）。',
       importPreviewTitle: '待导入文件',
       importIntervals: '时间区间',
@@ -710,6 +709,7 @@ window.__ModuleLoader__.load({
 
     const en = {
       title: 'TimeSpan',
+      brandMark: 'TimeSpan mark: click to reassemble, drag a piece',
 
       todayActive: 'Active today',
       todayOnline: 'Online today',
@@ -761,7 +761,8 @@ window.__ModuleLoader__.load({
       loading: 'Loading…',
       error: 'Unable to read time statistics. Retrying automatically.',
       sinceBoot: 'Active: counted while the page is visible, the window is focused and there is input.',
-      localOnly: 'Data stays on this device',
+      taskFoot: 'Task: duration from task start to end, summed across sessions.',
+      metricScopeLabel: 'Metric definitions',
       navTooltip: 'TimeSpan · online, active and task time',
       periodDay: 'Day',
       periodWeek: 'Week',
@@ -832,10 +833,11 @@ window.__ModuleLoader__.load({
       heatmapEmpty: 'No daily records yet',
       heatmapError: 'Unable to read daily active time',
       heatRangeLabel: 'Range',
+      heatRangeSpan: 'Span',
       heatRange3m: '3 months',
       heatRange6m: '6 months',
       heatRangeYear: 'Year',
-      heatRangeMonth: '{month}',
+      heatRangeMonth: 'Month',
       yearHeatTitle: 'Daily active time · year',
       monthHeatTitle: 'Daily active time · {month}',
       monthBars: 'Monthly active',
@@ -852,7 +854,6 @@ window.__ModuleLoader__.load({
       dailyAverageActive: 'Daily active',
       dailyAverageTask: 'Daily task',
       dailyAverageHint: 'Daily averages use calendar days',
-      recordSinceBoot: 'Online and active time are recorded from plugin enablement; history only backfills task time.',
       paletteBlue: 'Sky Blue',
       paletteStone: 'Graphite',
       paletteCyan: 'Cyan',
@@ -901,7 +902,6 @@ window.__ModuleLoader__.load({
       floatingRemaining: 'Remaining',
       floatingMinimize: 'Minimize floating timer',
       floatingMove: 'Drag to move; arrow keys to adjust, Shift for larger steps, Home to reset',
-      floatingWake: 'Restore docked timer',
       floatingMenu: 'Floating timer menu',
       floatingExit: 'Exit floating timer',
       floatingExitHint: 'Timing continues; enable it again in Settings',
@@ -910,7 +910,7 @@ window.__ModuleLoader__.load({
       settingsFloatingEnabled: 'Show conversation timer',
       settingsFloatingEnabledHint: 'Hiding the window keeps timing and completion reminders running.',
       settingsFloatingClock: 'Include analog clock',
-      settingsFloatingHint: 'Starts at the top right below the conversation header. While idle, it docks after 3 seconds near an edge. Hover to restore or right-click to exit.',
+      settingsFloatingHint: 'Starts at the top right below the conversation header. Collapsed, it is a borderless clock: hover for the current time, click to open. It never collapses or docks on its own; right-click to exit.',
       commandGroupStats: 'Time stats',
       commandSessionStats: 'This session',
       commandTodayStats: "Today's stats",
@@ -1015,9 +1015,9 @@ window.__ModuleLoader__.load({
       analysisSaveError: 'Could not save the report. Try again.',
       analysisCancelError: 'Could not cancel the analysis. Try again.',
       reportTitle: 'Time review',
-      reviewDay: 'Daily review',
-      reviewWeek: 'Weekly review',
-      reviewMonth: 'Monthly review',
+      reviewDay: "Today's review",
+      reviewWeek: "This week's review",
+      reviewMonth: "This month's review",
       reviewMetrics: 'Time at a glance',
       reviewRhythm: 'Activity rhythm',
       reviewRhythmHint: 'Active and task time by bucket in this period; taller bars mean more focused time',
@@ -1238,9 +1238,9 @@ window.__ModuleLoader__.load({
       settingsResetDone: 'Initial settings restored',
       settingsResetError: 'Could not restore initial settings; please retry',
       settingsSectionNotices: 'Notifications',
-      settingsNoticesHint: 'Review completed backfills or rescan when older session tasks are missing',
+      settingsNoticesHint: 'Review completed backfills or rescan when older session tasks are missing; online and active time start at plugin enablement, while history only backfills task time',
       dataTitle: 'Data',
-      dataHint: 'JSON backs up raw statistics, settings, timer history and AI reports, while CSV exports daily totals',
+      dataHint: 'JSON backs up statistics, settings, timer history and reports; CSV exports daily totals',
       exportJson: 'Export JSON',
       exportCsv: 'Export CSV',
       exporting: 'Exporting…',
@@ -1262,8 +1262,8 @@ window.__ModuleLoader__.load({
       approximateShowNoData: 'Enabled again; there are no approximate records, so the banner will not appear yet',
       approximateShowError: 'Could not update the setting; please retry',
       savedBadge: 'Saved',
-      importData: 'Choose backup file to import',
-      importHint: 'Import a TimeSpan JSON backup. Statistics merge by ID. Timer results and reports fill empty slots. The current timer keeps its state.',
+      importData: 'Import backup',
+      importHint: 'Statistics merge by ID; timer results and reports fill empty slots, and the current timer keeps running.',
       importInvalid: 'This is not a valid dsh-timespan backup (format must be dsh-timespan-export or chronoscope-export and version must be 1).',
       importPreviewTitle: 'File to import',
       importIntervals: 'Intervals',
@@ -1349,10 +1349,22 @@ window.__ModuleLoader__.load({
       return `client_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`
     }
 
-    function DshTimespanIcon({ size = 16 } = {}) {
+    /**
+     * 品牌标识由四块组成：左括号、右括号、长斜线和短斜线。
+     * 每块单独成组，交互层可以只移动被按住的那一块；静态场景仍是一整枚图标。
+     */
+    function DshTimespanIcon({ size = 16, partTransforms = null } = {}) {
       const gradient = `timespan-logo-${React.useId()}`
       const bracket = 'M9 2.75H6.75A4.75 4.75 0 0 0 2 7.5v9a4.75 4.75 0 0 0 4.75 4.75H9q.4 0 .4-.4v-2.3q0-.4-.4-.4H6.95a1.85 1.85 0 0 1-1.85-1.85V7.7a1.85 1.85 0 0 1 1.85-1.85H9q.4 0 .4-.4v-2.3q0-.4-.4-.4Z'
       const accent = `url(#${gradient})`
+      const part = (name, child) => h('g', {
+        key: name,
+        className: `cs-logo-part cs-logo-part-${name}`,
+        'data-logo-part': name,
+        style: partTransforms?.[name]
+          ? { transform: `translate(${partTransforms[name].x}px, ${partTransforms[name].y}px)` }
+          : undefined,
+      }, child)
       return h('svg', {
         className: 'dsh-timespan-nav-icon', width: size, height: size,
         viewBox: '0 0 24 24', 'aria-hidden': true,
@@ -1360,10 +1372,74 @@ window.__ModuleLoader__.load({
       h('defs', null, h('linearGradient', { id: gradient, x2: '0', y2: '1', colorInterpolation: 'linearRGB' },
         h('stop', { stopColor: 'var(--cs-logo-top, #be7766)' }),
         h('stop', { offset: '1', stopColor: 'var(--cs-logo-bottom, #844033)' }))),
-      h('path', { d: bracket, fill: 'var(--cs-logo-ink, #30302b)' }),
-      h('path', { d: bracket, transform: 'translate(24) scale(-1 1)', fill: accent }),
-      h('path', { d: 'M6.1 13.05q0-.45.45-.59l7.98-2.57q.33-.11.19.21l-.63 1.58q-.13.33-.46.44l-6.88 2.21q-.65.21-.65-.44Z', fill: 'var(--cs-logo-ink, #30302b)' }),
-      h('path', { d: 'M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z', fill: accent }))
+      part('left', h('path', { d: bracket, fill: 'var(--cs-logo-ink, #30302b)' })),
+      part('right', h('path', { d: bracket, transform: 'translate(24) scale(-1 1)', fill: accent })),
+      part('slash', h('path', { d: 'M6.1 13.05q0-.45.45-.59l7.98-2.57q.33-.11.19.21l-.63 1.58q-.13.33-.46.44l-6.88 2.21q-.65.21-.65-.44Z', fill: 'var(--cs-logo-ink, #30302b)' })),
+      part('spark', h('path', { d: 'M15.49 9.94q.1-.26.37-.35l1.54-.49q.7-.22.7.52v.81q0 .45-.44.59l-2.54.81q-.29.09-.17-.2Z', fill: accent })))
+    }
+
+    /**
+     * 顶栏品牌标识：悬停时四块轻轻分开，按住任意一块可以把它拖离原位，松手弹回；
+     * 点按或键盘触发时四块小幅错位后重新拼好。拖动只在标识内部生效，不改变页面布局。
+     */
+    function BrandMark({ size = 36, label = '' } = {}) {
+      const [drag, setDrag] = React.useState(null)
+      const [burst, setBurst] = React.useState(false)
+      const dragRef = React.useRef(null)
+      const suppressClickRef = React.useRef(false)
+      const partTransforms = drag ? { [drag.part]: { x: drag.x, y: drag.y } } : null
+
+      const finishDrag = (event, moved) => {
+        const state = dragRef.current
+        if (!state || state.id !== event.pointerId) return
+        dragRef.current = null
+        setDrag(null)
+        suppressClickRef.current = moved
+        // pointerdown 阻止了默认行为，部分环境不会再派发 click；未拖动时在这里直接播重组。
+        if (!moved && !prefersReducedMotion()) setBurst(true)
+        if (event.currentTarget?.hasPointerCapture?.(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId)
+        }
+      }
+
+      return h('button', {
+        type: 'button',
+        className: `cs-mark${drag ? ' is-logo-dragging' : ''}${burst ? ' is-bursting' : ''}`,
+        'aria-label': label || undefined,
+        title: label || undefined,
+        onPointerDown: (event) => {
+          if (event.button !== 0 || event.isPrimary === false) return
+          const part = event.target?.closest?.('[data-logo-part]')?.getAttribute?.('data-logo-part')
+          if (!part) return
+          event.preventDefault?.()
+          suppressClickRef.current = false
+          event.currentTarget?.setPointerCapture?.(event.pointerId)
+          dragRef.current = { id: event.pointerId, part, x: event.clientX, y: event.clientY, moved: false }
+        },
+        onPointerMove: (event) => {
+          const state = dragRef.current
+          if (!state || state.id !== event.pointerId) return
+          const dx = event.clientX - state.x
+          const dy = event.clientY - state.y
+          if (!state.moved && Math.hypot(dx, dy) < 3) return
+          state.moved = true
+          // 标识很小，拖离距离收在 6 个用户单位内，松手后由弹簧过渡归位。
+          const distance = Math.hypot(dx, dy)
+          const scale = distance > 6 ? 6 / distance : 1
+          setDrag({ part: state.part, x: +(dx * scale).toFixed(1), y: +(dy * scale).toFixed(1) })
+        },
+        onPointerUp: (event) => finishDrag(event, dragRef.current?.moved === true),
+        onPointerCancel: (event) => finishDrag(event, true),
+        onLostPointerCapture: (event) => { if (dragRef.current) finishDrag(event, true) },
+        onClick: () => {
+          if (suppressClickRef.current) { suppressClickRef.current = false; return }
+          if (!prefersReducedMotion() && !burst) setBurst(true)
+        },
+        onAnimationEnd: (event) => {
+          const name = event?.animationName ?? ''
+          if (!name || String(name).startsWith('cs-logo-burst')) setBurst(false)
+        },
+      }, h(DshTimespanIcon, { size, partTransforms }))
     }
 
     const APPEARANCE_ICONS = {
@@ -1899,26 +1975,240 @@ window.__ModuleLoader__.load({
       return typeof label === 'string' && label !== '' && label !== key ? label : option.label
     }
 
+    let heatRangeIdSequence = 0
+
+    /** 单月图标：月份数字直接作为图形，软底片把数字收成一张小月卡。 */
+    function heatMonthGlyph(month, size) {
+      const digits = String(month)
+      return h('svg', {
+        viewBox: '0 0 20 20', width: size, height: size, fill: 'none', 'aria-hidden': true,
+        className: 'heat-range-glyph is-month', 'data-range': String(month),
+      },
+      h('rect', {
+        className: 'heat-range-month-tile',
+        x: 2.25, y: 2.25, width: 15.5, height: 15.5, rx: 4.4,
+        fill: 'currentColor', opacity: .09,
+      }),
+      h('text', {
+        className: 'heat-range-month-number',
+        x: 10, y: 13.35, textAnchor: 'middle',
+        fontSize: digits.length > 1 ? 8.9 : 11.8, fontWeight: 650,
+        fill: 'currentColor',
+      }, digits))
+    }
+
+    // 跨度用「一年中的占比」表达：3 个月四分之一圈、6 个月半圈、全年整圈。
+    // 圈宽固定，跨得再长也不会堆出密集的柱子。
+    const HEAT_SPAN_SWEEP = { '3m': 90, '6m': 180, year: 360 }
+    const HEAT_SPAN_RING = { center: 10, radius: 6.4, stroke: 2.2 }
+
+    /** 12 点起顺时针的极坐标；0° 在正上方，便于用扫过角度表示覆盖月数。 */
+    function heatSpanPoint(degrees, radius = HEAT_SPAN_RING.radius) {
+      const radians = (degrees - 90) * Math.PI / 180
+      return {
+        x: HEAT_SPAN_RING.center + Math.cos(radians) * radius,
+        y: HEAT_SPAN_RING.center + Math.sin(radians) * radius,
+      }
+    }
+
+    /** 跨度图标：12 点起顺时针扫过 1/4、1/2 或整圈，底下留一圈很淡的全年轨道。 */
+    function heatSpanGlyph(kind, size) {
+      const sweep = HEAT_SPAN_SWEEP[kind] ?? HEAT_SPAN_SWEEP['3m']
+      const { center, radius, stroke } = HEAT_SPAN_RING
+      const start = heatSpanPoint(0)
+      const end = heatSpanPoint(sweep)
+      const track = h('circle', {
+        className: 'heat-range-span-track', cx: center, cy: center, r: radius,
+        stroke: 'currentColor', strokeWidth: stroke, fill: 'none', opacity: .14,
+      })
+      const arc = sweep >= 360
+        ? h('circle', {
+            className: 'heat-range-span-arc', cx: center, cy: center, r: radius,
+            stroke: 'currentColor', strokeWidth: stroke, fill: 'none',
+          })
+        : h('path', {
+            className: 'heat-range-span-arc',
+            d: `M${start.x.toFixed(2)} ${start.y.toFixed(2)}` +
+              `A${radius} ${radius} 0 ${sweep > 180 ? 1 : 0} 1 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`,
+            stroke: 'currentColor', strokeWidth: stroke, strokeLinecap: 'round', fill: 'none',
+          })
+      return h('svg', {
+        viewBox: '0 0 20 20', width: size, height: size, fill: 'none', 'aria-hidden': true,
+        className: 'heat-range-glyph is-span', 'data-range': String(kind),
+      }, track, arc)
+    }
+
     /**
-     * 热力图范围选择器：复用页面统一的自定义下拉，向上弹出紧凑三列网格。
-     * 3 个跨度 + 12 个月份共 15 项，五排铺开，触发器与菜单都不占过多宽度。
+     * 范围图标换了两套直接表意的语言：单月用阿拉伯数字小月卡，跨度用一年中的占比环。
+     * 数字回答「哪个月」，四分之一／半／整圈回答「覆盖多长」；不再用日历填补，也不会随月数变密。
      */
-    function renderHeatRangePicker({ value, t, onSelectRange } = {}) {
+    function heatRangeGlyph(kind, size = 18) {
+      const normalized = normalizeHeatRangeValue(kind)
+      return typeof normalized === 'number' ? heatMonthGlyph(normalized, size) : heatSpanGlyph(normalized, size)
+    }
+
+    /**
+     * 热力图范围选择器：卡片右上角只留一枚范围图标，菜单分「跨度」与「单月」两组卡片。
+     * 单月图标直接显示阿拉伯数字，跨度图标用四分之一／半／整圈表达覆盖比例；
+     * 选中项用品牌色边框与浅底表达，不再使用日历格或对勾。
+     * 键盘沿用统一下拉的 roving activeIndex，焦点始终留在触发器上。
+     */
+    function HeatRangePicker({ value, t, onSelectRange, hoverTip = null }) {
       const normalized = normalizeHeatRangeValue(value)
       const options = HEAT_RANGE_OPTIONS.map((option) => ({
         value: option.value,
         label: heatRangeOptionLabel(option, t),
         key: `heat-range-${option.value}`,
       }))
-      return h(Select, {
-        value: normalized,
-        options,
-        placement: 'top',
-        menuVariant: 'grid',
-        className: 'heat-range-select',
-        ariaLabel: t('heatRangeLabel'),
-        onChange: (next) => onSelectRange?.(next),
-      })
+      const selectedIndex = options.findIndex((option) => String(option.value) === String(normalized))
+      const [open, setOpen] = React.useState(false)
+      const [activeIndex, setActiveIndex] = React.useState(selectedIndex >= 0 ? selectedIndex : 0)
+      const rootRef = React.useRef(null)
+      const triggerRef = React.useRef(null)
+      const menuRef = React.useRef(null)
+      const menuVisible = useSurfaceFade(open, menuRef)
+      const [position, setPosition] = React.useState(null)
+      const idRef = React.useRef(null)
+      if (idRef.current === null) idRef.current = `cs-heat-range-${++heatRangeIdSequence}`
+      const menuId = `${idRef.current}-menu`
+      const optionId = (index) => `${idRef.current}-option-${index}`
+      const current = options[selectedIndex] ?? options[0]
+
+      React.useEffect(() => {
+        if (!open || typeof document === 'undefined') return undefined
+        const handle = createSelectOutsideHandler(rootRef, () => setOpen(false))
+        document.addEventListener('pointerdown', handle, true)
+        return () => document.removeEventListener('pointerdown', handle, true)
+      }, [open])
+
+      // 菜单固定到视口，向上弹出；空间不足时由统一夹取翻到下方。
+      React.useEffect(() => {
+        if (!open || typeof window === 'undefined') return undefined
+        const trigger = triggerRef.current
+        const menu = menuRef.current
+        if (!trigger || !menu || typeof trigger.getBoundingClientRect !== 'function') return undefined
+        const place = () => {
+          const rect = trigger.getBoundingClientRect()
+          const menuWidth = menu.offsetWidth ?? 0
+          const right = Number.isFinite(rect.right) ? rect.right : rect.left + rect.width
+          // 图标按钮很小，菜单以触发器的右边缘为基准展开，避免整块浮层偏到卡片外。
+          setPosition(clampTipPosition(
+            { left: right - menuWidth, top: rect.top, width: menuWidth, height: rect.height },
+            { width: menuWidth, height: menu.offsetHeight ?? 0 },
+            { width: window.innerWidth ?? 0, height: window.innerHeight ?? 0 },
+            { gap: 6, prefer: 'top' },
+          ))
+        }
+        place()
+        if (typeof window.addEventListener === 'function') window.addEventListener('resize', place)
+        return () => {
+          if (typeof window.removeEventListener === 'function') window.removeEventListener('resize', place)
+        }
+      }, [open])
+
+      const openMenu = () => {
+        hoverTip?.hide?.()
+        setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
+        setOpen(true)
+      }
+      const choose = (option) => {
+        setOpen(false)
+        if (String(option.value) !== String(normalized)) onSelectRange?.(option.value)
+        triggerRef.current?.focus?.()
+      }
+      const onKeyDown = (event) => {
+        const key = event.key
+        if (key === 'Escape') {
+          if (open) {
+            event.preventDefault()
+            setOpen(false)
+          }
+          return
+        }
+        if (key === 'Tab') {
+          if (open) setOpen(false)
+          return
+        }
+        if (key === 'ArrowDown' || key === 'ArrowUp') {
+          event.preventDefault()
+          if (!open) openMenu()
+          else setActiveIndex((index) => nextSelectIndex(options, index, key === 'ArrowDown' ? 1 : -1))
+          return
+        }
+        if (key === 'Home' || key === 'End') {
+          if (!open) return
+          event.preventDefault()
+          setActiveIndex(edgeSelectIndex(options, key === 'Home' ? 'first' : 'last'))
+          return
+        }
+        if (key === 'Enter' || key === ' ') {
+          event.preventDefault()
+          if (!open) openMenu()
+          else if (activeIndex >= 0 && options[activeIndex]) choose(options[activeIndex])
+        }
+      }
+
+      const tile = (option, index) => {
+        const kind = typeof option.value === 'number' ? 'month' : option.value
+        const isSelected = String(option.value) === String(normalized)
+        return h('button', {
+          key: option.key,
+          id: optionId(index),
+          type: 'button',
+          role: 'option',
+          tabIndex: -1,
+          'aria-selected': isSelected,
+          className: `heat-range-tile${kind === 'month' ? ' is-month' : ' is-span'}${isSelected ? ' is-on' : ''}${index === activeIndex ? ' is-active' : ''}`,
+          onMouseEnter: () => setActiveIndex(index),
+          onClick: () => choose(option),
+        },
+          h('span', { key: 'glyph', className: 'heat-range-tile-glyph' },
+            heatRangeGlyph(option.value, kind === 'month' ? 18 : 20)),
+          h('span', { key: 'label', className: 'heat-range-tile-label' }, option.label))
+      }
+      const spanOptions = options.filter((option) => typeof option.value !== 'number')
+      const monthOptions = options.filter((option) => typeof option.value === 'number')
+
+      return h('div', { className: 'heat-range', ref: rootRef },
+        h('button', {
+          ref: triggerRef,
+          type: 'button',
+          className: 'heat-range-trigger',
+          'aria-label': `${t('heatRangeLabel')} · ${current.label}`,
+          'aria-haspopup': 'listbox',
+          'aria-expanded': open,
+          'aria-controls': menuId,
+          'aria-activedescendant': open && activeIndex >= 0 ? optionId(activeIndex) : undefined,
+          ...hoverTipProps(hoverTip, `${t('heatRangeLabel')} · ${current.label}`, [], { prefer: 'bottom' }),
+          onClick: () => { if (open) setOpen(false); else openMenu() },
+          onKeyDown,
+        },
+        h('span', { className: 'heat-range-trigger-glyph' }, heatRangeGlyph(current.value, 20))),
+        h('div', {
+          id: menuId,
+          ref: menuRef,
+          className: 'heat-range-menu',
+          role: 'listbox',
+          'aria-label': t('heatRangeLabel'),
+          'data-placement': position?.placement ?? 'top',
+          hidden: !menuVisible,
+          inert: open ? undefined : '',
+          'aria-hidden': !open,
+          style: position ? { left: `${position.left}px`, top: `${position.top}px` } : { left: '0px', top: '0px', visibility: 'hidden' },
+        },
+        h('div', { className: 'heat-range-section' },
+          h('span', { className: 'heat-range-caption' }, t('heatRangeSpan')),
+          h('div', { className: 'heat-range-tiles is-spans' },
+            spanOptions.map((option) => tile(option, options.indexOf(option))))),
+        h('div', { className: 'heat-range-section' },
+          h('span', { className: 'heat-range-caption' }, t('heatRangeMonth')),
+          h('div', { className: 'heat-range-tiles is-months' },
+            monthOptions.map((option) => tile(option, options.indexOf(option)))))))
+    }
+
+    /** 兼容原调用点：范围选择器已改为右上角图标与模块化卡片菜单。 */
+    function renderHeatRangePicker({ value, t, onSelectRange, hoverTip = null } = {}) {
+      return h(HeatRangePicker, { value, t, onSelectRange, hoverTip })
     }
 
     /** 热力等级：0 表示无活跃，其余按峰值比例向上取整并钳制在 1–5。 */
@@ -1942,7 +2232,7 @@ window.__ModuleLoader__.load({
      * 月份刻度记录在当月 1 日（范围首月记在首日）所在的列，因此刻度与格子严格对齐。
      * 月份与星期文案按界面语言注入：中文显示「1月…12月」与「一…日」，英文沿用缩写。
      */
-    function buildHeatGrid(days, range, monthLabels = HEAT_MONTH_LABELS_ZH, weekdayLabels = HEAT_WEEKDAY_LABELS_ZH) {
+    function buildHeatGrid(days, range, monthLabels = HEAT_MONTH_LABELS_ZH, weekdayLabels = HEAT_WEEKDAY_LABELS_ZH, options = {}) {
       const list = Array.isArray(days) ? days : []
       const from = Number(range?.from)
       const to = Number(range?.to)
@@ -2005,7 +2295,12 @@ window.__ModuleLoader__.load({
       }
       if (week.length > 0) weeks.push(week)
       result.weeks = weeks
-      result.months = months
+      // 近三个月/半年会因周一对齐带回上个月的几天；刻度只保留目标跨度内的月份，
+      // 避免首列同时出现「8月」「9月」而挤成一段。
+      const limit = Math.trunc(Number(options?.maxMonthLabels))
+      result.months = Number.isFinite(limit) && limit > 0 && months.length > limit
+        ? months.slice(months.length - limit)
+        : months
       return result
     }
 
@@ -3416,12 +3711,19 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** 本地当前时间 HH:MM:SS；指针钟与悬浮窗悬停读数共用同一格式。 */
+    function clockTimeText(at) {
+      const date = new Date(at)
+      return [date.getHours(), date.getMinutes(), date.getSeconds()]
+        .map((part) => String(part).padStart(2, '0')).join(':')
+    }
+
     function ClockDial({ at, t }) {
       const date = new Date(at)
       const seconds = date.getSeconds()
       const minutes = date.getMinutes()
       const hours = date.getHours()
-      const time = [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':')
+      const time = clockTimeText(at)
       return h('div', { className: 'cs-clock-face' },
         h('svg', { viewBox: '0 0 128 128', fill: 'none', 'aria-hidden': true },
           h('circle', { className: 'cs-clock-rim', cx: 64, cy: 64, r: 61 }),
@@ -3788,27 +4090,6 @@ window.__ModuleLoader__.load({
         y: spanY ? (rect.top - FLOATING_GAP + dy) / spanY : 0 })
     }
 
-    function floatingEdge(rect, viewport) {
-      const edges = [
-        ['left', rect.left], ['right', viewport.width - rect.left - rect.width],
-        ['top', rect.top], ['bottom', viewport.height - rect.top - rect.height],
-      ].sort((a, b) => a[1] - b[1])
-      return edges[0][1] <= FLOATING_EDGE_DISTANCE ? edges[0][0] : null
-    }
-
-    function floatingDockStyle(edge, rect, viewport) {
-      const vertical = edge === 'left' || edge === 'right'
-      const width = vertical ? 28 : 64
-      const height = vertical ? 64 : 28
-      return {
-        left: edge === 'left' ? 0 : edge === 'right' ? Math.max(0, viewport.width - width)
-          : Math.max(0, Math.min(viewport.width - width, rect.left + rect.width / 2 - width / 2)),
-        top: edge === 'top' ? 0 : edge === 'bottom' ? Math.max(0, viewport.height - height)
-          : Math.max(0, Math.min(viewport.height - height, rect.top + rect.height / 2 - height / 2)),
-        width, height,
-      }
-    }
-
     function readFloatingPosition() {
       try {
         const stored = JSON.parse(window.localStorage.getItem(FLOATING_POSITION_KEY))
@@ -3880,9 +4161,7 @@ window.__ModuleLoader__.load({
         anchor.right - size.width - FLOATING_GAP, anchor.top - FLOATING_GAP,
       )
       const [expanded, setExpanded] = React.useState(false)
-      const [docked, setDocked] = React.useState(null)
       const [hovered, setHovered] = React.useState(false)
-      const [focused, setFocused] = React.useState(false)
       const [dragging, setDragging] = React.useState(false)
       const rootRef = React.useRef(null)
       const contentRef = React.useRef(null)
@@ -3902,9 +4181,8 @@ window.__ModuleLoader__.load({
         : pendingInteraction === 'question' ? 'floatingQuestion' : null
       const error = snapshot.syncError ? 'timerSyncError' : snapshot.actionError || (snapshot.noticeError ? 'timerNoticeError' : '')
       const hasReadout = hasManual || runningTask !== null || waitingLabel !== null || recentExpiry || Boolean(error)
-      const panelVisible = useSurfaceFade(expanded && (!docked || hasReadout), panelRef)
-      const visibleDock = panelVisible || hasReadout ? null : docked
-      const at = useClockTick(expanded && !visibleDock || timer?.status === 'running' || runningTask !== null || recentExpiry)
+      const panelVisible = useSurfaceFade(expanded, panelRef)
+      const at = useClockTick(expanded || timer?.status === 'running' || runningTask !== null || recentExpiry)
       const rect = floatingRect(effectivePosition, size, viewport)
       const compactDigits = (ms, roundUp) => timerDigits(ms, roundUp).replace(/^00:/, '')
       const projection = hasManual ? projectTimer(timer, snapshot.receivedAt, at) : null
@@ -3918,27 +4196,20 @@ window.__ModuleLoader__.load({
       } : null
       const readout = manualReadout ?? (recentExpiry ? { label: 'floatingTimeUp', digits: '' } : taskReadout)
       const showReadoutLabel = readout && readout.label !== 'timerRunning' && readout.label !== 'timerPaused'
-
-      React.useEffect(() => {
-        if (hasReadout && docked) setDocked(null)
-      }, [hasReadout, docked])
+      // 悬停收起形态时显示当前时间；点击才展开面板，不做自动展开或自动收起。
+      const nowText = clockTimeText(at)
+      const nowBelow = rect.top < 56
+      const nowLeft = rect.left < 60
+      const showNow = hovered && !expanded && !panelVisible
 
       function place(next) {
         pointRef.current = next
         setPosition(next)
       }
 
-      function wake(keyboard = false) {
-        focusAfterWakeRef.current = keyboard
-        setDocked(null)
-        setExpanded(true)
-      }
-
       function minimize() {
         setExpanded(false)
-        setDocked(null)
         if (rootRef.current?.contains(document.activeElement) && document.activeElement?.matches(':focus-visible')) focusAfterWakeRef.current = true
-        setFocused(false)
       }
 
       React.useEffect(() => {
@@ -3964,7 +4235,7 @@ window.__ModuleLoader__.load({
 
       React.useEffect(() => {
         const content = contentRef.current
-        if (!content || visibleDock) return undefined
+        if (!content) return undefined
         const measure = () => {
           const bounds = content.getBoundingClientRect()
           if (bounds.width && bounds.height) setSize((previous) => previous.width === bounds.width && previous.height === bounds.height
@@ -3974,29 +4245,19 @@ window.__ModuleLoader__.load({
         const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
         observer?.observe(content)
         return () => observer?.disconnect()
-      }, [expanded, visibleDock, showClock, panelVisible, readout?.label, readout?.digits?.length])
+      }, [expanded, showClock, panelVisible, readout?.label, readout?.digits?.length])
 
       React.useEffect(() => {
-        if (!focusAfterWakeRef.current || docked || !expanded && panelVisible) return
+        if (!focusAfterWakeRef.current || !expanded && panelVisible) return
         focusAfterWakeRef.current = false
         if (expanded) moveRef.current?.focus()
         else entryRef.current?.focus()
-      }, [docked, expanded, panelVisible])
-
-      React.useEffect(() => {
-        // 用户仍在悬浮窗里阅读、拖动、用键盘或编辑倒计时，均不自动收起。
-        if (hasReadout || docked || hovered || focused || dragging || menuPoint) return undefined
-        const edge = floatingEdge(rect, viewport)
-        if (!edge) return undefined
-        const timeout = setTimeout(() => setDocked(edge), FLOATING_DOCK_DELAY)
-        return () => clearTimeout(timeout)
-      }, [hasReadout, docked, hovered, focused, dragging, menuPoint, position, anchor, size, viewport])
+      }, [expanded, panelVisible])
 
       function startDrag(event) {
         if (event.button !== 0 || event.isPrimary === false) return
         event.preventDefault()
         if (rootRef.current?.contains(document.activeElement)) document.activeElement.blur?.()
-        setFocused(false)
         event.currentTarget.setPointerCapture(event.pointerId)
         ignoreClickRef.current = false
         setMenuPoint(null)
@@ -4054,29 +4315,23 @@ window.__ModuleLoader__.load({
         setMenuPoint({ x: event.clientX || bounds.left + 20, y: event.clientY || bounds.top + 20 })
       }
       return h('div', {
-        ref: rootRef, className: `cs-timer-popover cs-floating-window${expanded ? ' is-expanded' : ''}${dragging ? ' is-dragging' : ''}${visibleDock ? ` is-docked dock-${visibleDock}` : ''}`,
-        style: visibleDock ? floatingDockStyle(visibleDock, rect, viewport) : { left: rect.left, top: rect.top },
-        'data-dock': visibleDock ?? 'none',
+        ref: rootRef, className: `cs-timer-popover cs-floating-window${expanded ? ' is-expanded' : ''}${dragging ? ' is-dragging' : ''}`,
+        style: { left: rect.left, top: rect.top },
+        'data-window-drag-exclude': '',
         onContextMenu: openMenu,
-        onPointerEnter: (event) => { if (event.pointerType !== 'touch') { setHovered(true); if (docked) wake() } },
+        onPointerEnter: (event) => { if (event.pointerType !== 'touch') setHovered(true) },
         onPointerLeave: () => setHovered(false),
-        onPointerDownCapture: (event) => setFocused(['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)),
-        onFocus: (event) => setFocused(event.target.matches?.(':focus-visible') || ['INPUT', 'SELECT', 'TEXTAREA'].includes(event.target.tagName)),
-        onBlur: (event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) },
         onKeyDown: (event) => {
-          setFocused(true)
           if (event.key === 'ContextMenu' || event.key === 'F10' && event.shiftKey) { openMenu(event); return }
           if (event.key === 'Escape' && expanded) { event.preventDefault(); event.stopPropagation(); minimize() }
         },
       },
         h(FloatingTimerMenu, { point: menuPoint, onClose: closeMenu, onExit, busy: exitBusy, error: exitError, t }),
-        visibleDock ? h('button', { type: 'button', className: 'cs-floating-dock', 'aria-label': t('floatingWake'),
-          onFocus: () => wake(true), onClick: () => wake(true) }, h('span', { 'aria-hidden': true })) : null,
-        h('div', { ref: contentRef, className: 'cs-floating-content', hidden: !!visibleDock },
+        h('div', { ref: contentRef, className: 'cs-floating-content' },
           !expanded && !panelVisible ? h('button', { ...dragProps, ref: entryRef, type: 'button',
             className: `cs-floating-entry${readout ? ' has-readout' : ''}${readout && readout === taskReadout ? ' is-task' : ''}${timer?.status === 'running' ? ' is-running' : ''}${error ? ' has-error' : ''}`,
             'aria-label': [t('floatingOpen'), readout && t(readout.label), readout?.digits, error && t(error)].filter(Boolean).join(' · '), 'aria-expanded': false,
-            title: t('floatingMove'), onClick: (event) => {
+            onClick: (event) => {
               if (ignoreClickRef.current) { ignoreClickRef.current = false; return }
               focusAfterWakeRef.current = event.detail === 0
               setExpanded(true)
@@ -4085,7 +4340,7 @@ window.__ModuleLoader__.load({
           showReadoutLabel ? h('span', { className: 'cs-floating-label' }, t(readout.label)) : null,
           readout?.digits ? h('span', { className: 'cs-timer-compact-digits' }, readout.digits) : null)
           : h('section', { ref: panelRef, className: 'cs-floating-panel', 'aria-label': t('floatingTitle'),
-            inert: !expanded || docked ? '' : undefined, 'aria-hidden': !expanded || !!docked },
+            inert: !expanded ? '' : undefined, 'aria-hidden': !expanded },
             h('div', { className: 'cs-floating-bar' },
               h('button', { ...dragProps, ref: moveRef, type: 'button', className: 'cs-floating-grip', title: t('floatingMove'), 'aria-label': t('floatingMove') },
                 h('svg', { width: 22, height: 12, viewBox: '0 0 22 12', 'aria-hidden': true },
@@ -4096,7 +4351,11 @@ window.__ModuleLoader__.load({
             h(TimerControls, { client, snapshot, at, t }),
             taskReadout ? h('div', { className: 'cs-floating-task' },
               h('span', null, t(taskReadout.label)),
-              taskReadout.digits ? h('span', { className: 'cs-timer-compact-digits' }, taskReadout.digits) : null) : null)))
+              taskReadout.digits ? h('span', { className: 'cs-timer-compact-digits' }, taskReadout.digits) : null) : null)),
+        showNow ? h('span', {
+          className: `cs-floating-now${nowBelow ? ' is-below' : ''}${nowLeft ? ' is-left' : ''}`,
+          'aria-hidden': true,
+        }, nowText) : null)
     }
 
     function TimerPopover({ client, snapshot, t, hoverTip = null }) {
@@ -5146,20 +5405,15 @@ window.__ModuleLoader__.load({
       return finite(data?.[field]) / localDayCount(data?.range)
     }
 
-    /** 概览口径收进 ⓘ：按在线、活跃、实际占用与历史数据逐条说明，避免挤成一整段。 */
-    function overviewInfoMessages(data, t) {
+    /** 主指标口径挂在首屏标题图标上：在线、活跃、实际占用与任务四条逐行说明。 */
+    function heroInfoLines(period, t) {
       return [
         t('onlineFoot'),
         t('sinceBoot'),
         t('unionFoot'),
-        data?.period && data.period !== 'day' ? t('dailyAverageHint') : null,
-        t('recordSinceBoot'),
+        t('taskFoot'),
+        period && period !== 'day' ? t('dailyAverageHint') : null,
       ].filter(Boolean)
-    }
-
-    /** 页脚数据摘要之外的通用说明（本机存储、近似记录）收进页面唯一的 ⓘ。 */
-    function footerInfoMessages(t, hasApproximate) {
-      return [t('localOnly'), hasApproximate === true ? t('approximateHint') : null].filter(Boolean)
     }
 
     /**
@@ -5716,8 +5970,7 @@ window.__ModuleLoader__.load({
     /**
      * 通用自定义下拉：开合、选中与键盘焦点都由组件自身状态驱动。
      * 外部只读写 value，并通过 onChange(value) 复用原有业务处理，不再依赖原生事件。
-     * menuVariant='grid' 时用两列网格一次展示全部选项；placement='top' 时向上弹出，
-     * 为热力图等选项较多的范围菜单预留同一套接口。
+     * placement='top' 时向上弹出；选中项用圆点与浅底表达，不再显示对勾。
      */
     function normalizeSelectOptions(options) {
       if (!Array.isArray(options)) return []
@@ -5809,12 +6062,7 @@ window.__ModuleLoader__.load({
         if (!trigger || !menu || typeof trigger.getBoundingClientRect !== 'function') return undefined
         const place = () => {
           const rect = trigger.getBoundingClientRect()
-          // fixed 定位下百分比宽度会按视口计算；先算出菜单最终最小宽度，再用它
-          // 参与夹取。否则首次展开会按未套用 minWidth 的自然宽度居中，视觉上偏右。
-          const gridWidth = String(props.className ?? '').includes('heat-range-select') ? 178 : 224
-          const minWidth = props.menuVariant === 'grid'
-            ? Math.max(gridWidth, Math.round(rect.width))
-            : Math.max(0, Math.round(rect.width))
+          const minWidth = Math.max(0, Math.round(rect.width))
           const next = clampTipPosition(
             { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
             { width: Math.max(menu.offsetWidth ?? 0, minWidth), height: menu.offsetHeight ?? 0 },
@@ -5874,7 +6122,7 @@ window.__ModuleLoader__.load({
       }
 
       return h('div', {
-        className: `cs-select${props.placement === 'top' ? ' is-top' : ''}${props.menuVariant === 'grid' ? ' is-grid' : ''}${props.className ? ` ${props.className}` : ''}`,
+        className: `cs-select${props.placement === 'top' ? ' is-top' : ''}${props.className ? ` ${props.className}` : ''}`,
         ref: rootRef,
       },
         h('button', {
@@ -5899,7 +6147,7 @@ window.__ModuleLoader__.load({
         h('div', {
           id: menuId,
           ref: menuRef,
-          className: `cs-select-menu${props.menuVariant === 'grid' ? ' is-grid' : ''}`,
+          className: 'cs-select-menu',
           role: 'listbox',
           'aria-label': props.ariaLabel,
           'data-placement': position?.placement ?? (props.placement === 'top' ? 'top' : 'bottom'),
@@ -5917,14 +6165,14 @@ window.__ModuleLoader__.load({
           role: 'option',
           tabIndex: -1,
           disabled: option.disabled,
-          className: `cs-opt${String(option.value) === String(props.value) ? ' is-on' : ''}${index === activeIndex ? ' is-active' : ''}${props.menuVariant === 'grid' && option.span === 2 ? ' is-span-2' : ''}`,
+          className: `cs-opt${String(option.value) === String(props.value) ? ' is-on' : ''}${index === activeIndex ? ' is-active' : ''}`,
           'aria-selected': String(option.value) === String(props.value),
           onMouseEnter: () => { if (!option.disabled) setActiveIndex(index) },
           onClick: () => choose(option),
         },
         h('span', { className: 'cs-opt-label' }, option.label),
         String(option.value) === String(props.value)
-          ? h('span', { className: 'cs-opt-check', 'aria-hidden': true }, '✓')
+          ? h('span', { className: 'cs-opt-dot', 'aria-hidden': true })
           : null))))
     }
 
@@ -7167,10 +7415,10 @@ window.__ModuleLoader__.load({
       const current = heroMetricTable(data, t)[metric]
       const value = formatDuration(current.value, format)
       const share = heroRingModel(data, t, metric)
-      const isLongRange = metric === 'week' || metric === 'month'
       const date = new Date(nowMs ?? Date.now())
       const locale = isZh ? 'zh-CN' : 'en'
       const dateLabel = date.toLocaleDateString(locale, { month: 'short', day: 'numeric', weekday: 'short' })
+      const infoLines = heroInfoLines(period, t)
       return h(SelectionGroup, {
         as: 'section', value: period, snapValue: 'day',
         className: 'cs-card cs-overview-metrics',
@@ -7186,9 +7434,14 @@ window.__ModuleLoader__.load({
             onClick: () => onSelectPeriod?.('day'),
           },
             h('span', { className: 'cs-cycle-head' },
-              h('span', { className: 'cs-card-icon' }, h(DetailGlyph, { name: heroMetricGlyph(metric), size: 16 })),
-              h('span', { className: 'cs-cycle-title' }, metric === 'active' ? t('focusTodayActive') : current.title),
-              isLongRange ? h('span', { className: 'cs-cycle-period' }, t('cycleToday')) : null),
+              // 主卡本身是按钮；口径图标只负责说明，点击不要连带切换周期。
+              h('span', { className: 'cs-card-icon has-tip', onClick: (event) => event.stopPropagation() }, h(Info, {
+                message: infoLines.join(' · '), lines: infoLines,
+                delay: 600, label: t('metricScopeLabel'),
+                icon: h(DetailGlyph, { name: heroMetricGlyph(metric), size: 16 }),
+                buttonClassName: 'cs-card-icon-btn',
+              })),
+              h('span', { className: 'cs-cycle-title' }, metric === 'active' ? t('focusTodayActive') : current.title)),
             h('strong', { className: `cs-hero-num is-metric-${tone}` }, renderDurationDigits(value)),
             h('time', { dateTime: localDateKey(date) }, dateLabel),
             renderShareTrack(share.label, share.percent, share.tone)),
@@ -7430,7 +7683,7 @@ window.__ModuleLoader__.load({
             })),
             h(TextFade, { text: titleText }))),
         h('div', { className: 'heat-card-actions' },
-          renderHeatRangePicker({ value: normalizedValue, t, onSelectRange }),
+          renderHeatRangePicker({ value: normalizedValue, t, onSelectRange, hoverTip }),
           zoomable ? renderZoomButton({ t, focus, onToggleFocus, value: 'heatmap' }) : null))
       let body
       if (!hasSeries) {
@@ -7526,7 +7779,8 @@ window.__ModuleLoader__.load({
           // 全年与 3m/6m 共用 7 行周网格；全年把月份刻度移到网格下方，贴近参考图的扁宽比例。
           const isYear = layout === 'year'
           const range = hasRangeValue ? resolved : (series.range ?? resolved)
-          const grid = buildHeatGrid(scopedDays, range, monthLabels, weekdayLabels)
+          const maxMonthLabels = isYear ? 12 : normalizedValue === '6m' ? 6 : 3
+          const grid = buildHeatGrid(scopedDays, range, monthLabels, weekdayLabels, { maxMonthLabels })
           const cells = renderWeekCells(grid)
           const { monthRow, weekdayRow } = renderWeekLabels(grid)
           // 3m/6m 网格比卡片宽，初始横向滚动要停在当前月（最右列），而不是范围起点；
@@ -8266,7 +8520,7 @@ window.__ModuleLoader__.load({
         footerActions ? h('div', { className: 'cs-review-footer-actions' }, footerActions) : null)
     }
 
-    function AnalysisPage({ ctx, t, period, data, modelChoice, onRetryModel, onOpenSettings, onOpenSource, hoverTip, durationFormat, initialSessionId = '', initialBlank = false, onNoticesChange = null, onReadyChange = null }) {
+    function AnalysisPage({ ctx, t, period, data, modelChoice, onRetryModel, onOpenSettings, onOpenSource, hoverTip, durationFormat, initialSessionId = '', initialBlank = false, onNoticesChange = null }) {
       const analysis = useAnalysisState(ctx, onRetryModel)
       const [selected, setSelected] = React.useState({ period, workspaceId: '', sessionId: initialSessionId })
       const [sourceFailure, setSourceFailure] = React.useState(null)
@@ -8279,10 +8533,6 @@ window.__ModuleLoader__.load({
       const reviewPeriod = selected.period
       const { workspaceId, sessionId } = selected
       const { state, error: loadError, running, operation } = analysis
-      // 首次读取完成（或失败）后正文高度才稳定；此时再让页脚出现。
-      React.useEffect(() => {
-        onReadyChange?.(state !== null || Boolean(loadError))
-      }, [state, loadError, onReadyChange])
       const request = state?.request
       const reviewRange = reviewScopeRange(reviewPeriod, data)
       // 回顾的筛选范围跟随回顾自己的时间范围，不再借用仪表盘当前周期的明细。
@@ -8564,7 +8814,7 @@ window.__ModuleLoader__.load({
           renderTrendCard(data, t, isZh, hoverTip, durationFormat, shownPeriod, { showFoot: true }),
           h('section', { className: 'cs-card cs-trend-summary' },
             h('div', { className: 'cs-card-head' },
-              renderCardTitle(t('trendSummary'), 'summary', null, t('trendInfo'))),
+              renderCardTitle(t('trendSummary'), 'summary', null, `${t('trendInfo')} · ${t('dailyAverageHint')}`)),
             h('div', { className: 'cs-stat-grid' },
               renderStatBox(t('dailyAverageActive'), formatDuration(averageMsPerDay(data, 'activeMs'), durationFormat)),
               renderStatBox(t('dailyAverageTask'), formatDuration(averageMsPerDay(data, 'taskMs'), durationFormat)),
@@ -8817,12 +9067,12 @@ window.__ModuleLoader__.load({
                   'aria-label': t('importData'), disabled: dataBusy !== '',
                   onChange: (event) => onPickImportFile?.(event),
                 }))),
-            h('div', { className: 'cs-import-hint' },
-              h('span', null, t('importHint')),
+            h('div', { className: 'cs-data-file' },
               h('span', { className: 'cs-import-file-state', role: 'status' },
                 importPreview
                   ? `${t('importFilePicked')}${String(importPreview.filename ?? '')}`
-                  : t('importFileHint'))),
+                  : t('importFileHint')),
+              h('span', { className: 'cs-row-info' }, renderInfo(t('importHint')))),
             h(AnimatedCollapse, { open: Boolean(importPreview) }, importPreview
               ? h('div', { className: 'cs-import-preview' },
                   h('strong', null, t('importPreviewTitle')),
@@ -8852,10 +9102,11 @@ window.__ModuleLoader__.load({
               ? h('div', { className: 'cs-data-status is-error', role: 'status' }, String(importError))
               : null,
             h('div', { className: 'cs-approx-reveal' },
-              h('span', { className: 'cs-settings-row-hint' }, t('approximateShowAgainHint')),
-              h('button', {
-                type: 'button', className: 'cs-text-link', onClick: () => onShowApproximate?.(),
-              }, t('approximateShowAgain')),
+              h('div', { className: 'cs-approx-row' },
+                h('button', {
+                  type: 'button', className: 'cs-text-link', onClick: () => onShowApproximate?.(),
+                }, t('approximateShowAgain')),
+                h('span', { className: 'cs-row-info' }, renderInfo(t('approximateShowAgainHint')))),
               approximateMessage
                 ? h('span', { className: `cs-data-status${approximateMessage.error ? ' is-error' : ''}`, role: 'status' }, approximateMessage.text)
                 : null),
@@ -8911,8 +9162,6 @@ window.__ModuleLoader__.load({
         const [recentLimit, setRecentLimit] = React.useState(RECENT_SESSIONS_DEFAULT)
         const [switchingView, setSwitchingView] = React.useState(false)
         const [pendingView, setPendingView] = React.useState(null)
-        // 回顾页异步读取报告状态：正文未就绪前不渲染页脚，避免页脚在页面变高时闪一下。
-        const [analysisReady, setAnalysisReady] = React.useState(false)
         // 回顾页的上下文提示由页面上报到顶栏，离开回顾页即撤销，不跨视图残留。
         const [analysisNotices, setAnalysisNotices] = React.useState([])
         const switchingTimerRef = React.useRef(null)
@@ -9135,13 +9384,11 @@ window.__ModuleLoader__.load({
           if (prefersReducedMotion()) {
             setPendingView(null)
             setSwitchingView(false)
-            if (next === 'analysis') setAnalysisReady(false)
             setView(next)
             return
           }
           setPendingView(next)
           setSwitchingView(true)
-          if (next === 'analysis') setAnalysisReady(false)
           switchingTimerRef.current = window.setTimeout(() => {
             switchingTimerRef.current = null
             setView(next)
@@ -9161,7 +9408,6 @@ window.__ModuleLoader__.load({
             }
             setPendingView(null)
             setSwitchingView(false)
-            setAnalysisReady(false)
             setSlashReview(request)
             setView('analysis')
           }
@@ -9434,7 +9680,6 @@ window.__ModuleLoader__.load({
               onOpenSettings: () => goToView('settings'),
               onOpenSource: (source) => openSessionInHost(ctx, source),
               onNoticesChange: setAnalysisNotices,
-              onReadyChange: setAnalysisReady,
             })]
           }
           if (view === 'settings') {
@@ -9497,11 +9742,6 @@ window.__ModuleLoader__.load({
           })
         }
 
-        // 页脚说明按当前视图合并：顶部标题行的口径说明都收进这一枚 ⓘ，避免同一页出现两处。
-        const footerLines = [...footerInfoMessages(t, hasApproximate)]
-        if (view === 'overview') footerLines.push(...overviewInfoMessages(data, t))
-        else if (view === 'trend') footerLines.push(t('trendInfo'))
-
         const topbarNotices = buildTopbarNotices({
           t, backfill: data === null ? null : effectiveBackfill, hasApproximate, paletteSaveError,
           stateError: state.status === 'error' && data !== null,
@@ -9512,17 +9752,13 @@ window.__ModuleLoader__.load({
         // 通知集合变化（关闭、回填结束、离开回顾）时收起可能已失去锚点的浮层。
         const topbarNoticeSignature = topbarNotices.map((notice) => notice.key).join('|')
         React.useEffect(() => { hoverTip.hide() }, [topbarNoticeSignature])
-        // 回顾与会话的正文都是异步取数：高度稳定前不渲染页脚，避免它在页面上缘闪一下。
-        const footerReady = !switchingView &&
-          (view !== 'analysis' || analysisReady) &&
-          (view !== 'details' || sessionBrowser.model.loadStatus !== 'loading')
 
         return h('div', { className: view === 'overview' && focus !== null ? `${pageClassName} is-overview-focused` : pageClassName },
           h('style', null, DSH_TIMESPAN_CSS),
           h('div', { className: 'cs-shell' },
             h('header', { className: 'cs-topbar' },
               h('div', { className: 'cs-brand' },
-                h('span', { className: 'cs-mark' }, h(DshTimespanIcon, { size: 36 })),
+                h(BrandMark, { size: 36, label: t('brandMark') }),
                 h('div', { className: 'cs-brand-text' },
                   h('h1', null, t('title')))),
               h('span', { className: 'cs-topbar-divider', 'aria-hidden': true }),
@@ -9568,9 +9804,6 @@ window.__ModuleLoader__.load({
               },
                 view === 'settings' ? h('style', null, DSH_TIMESPAN_SETTINGS_CSS) : null,
                 ...renderView())),
-            data && footerReady
-              ? h('footer', { className: 'cs-foot' },
-                renderInfo(footerLines.join('；'), null, footerLines)) : null,
             h(HoverTip, { key: 'hover-tip', tip: hoverTip.tip })))
       }
     }
@@ -9645,10 +9878,6 @@ window.__ModuleLoader__.load({
         box-shadow: 0 14px 34px rgba(0, 0, 0, .16);
       }
       .cs-select-menu[hidden] { display: none !important; }
-      .cs-select-menu.is-grid {
-        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px;
-        min-width: 224px; max-height: none; overflow: visible; padding: 6px;
-      }
       .cs-opt {
         display: flex; align-items: center; justify-content: space-between; gap: 8px;
         width: 100%; min-width: 0; text-align: left; white-space: nowrap;
@@ -9659,18 +9888,11 @@ window.__ModuleLoader__.load({
       .cs-opt-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
       .cs-opt:hover:not(:disabled), .cs-opt.is-active { background: color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent); }
       .cs-opt:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -2px; }
-      .cs-opt.is-on { color: var(--dsw-alias-brand-primary); font-weight: 600; }
-      .cs-opt-check { flex: 0 0 auto; margin-left: 12px; font-size: 11px; }
-      .cs-select-menu.is-grid .cs-opt { justify-content: center; text-align: center; padding: 6px 8px; }
-      .cs-select-menu.is-grid .cs-opt.is-span-2 { grid-column: 1 / -1; justify-content: space-between; text-align: left; }
-      .cs-select-menu.is-grid .cs-opt.is-on:not(.is-span-2) { justify-content: center; gap: 6px; }
-      /* 热力图范围：15 项统一三列，菜单宽度只占触发器附近一小块。 */
-      .heat-range-select .cs-select-menu.is-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        min-width: 178px; gap: 1px; padding: 4px;
-      }
-      .heat-range-select .cs-select-menu.is-grid .cs-opt {
-        padding: 4px 5px; font-size: 11.5px; line-height: 16px; border-radius: 4px;
+      /* 选中项用浅底、品牌色和右侧圆点表达，不再放对勾。 */
+      .cs-opt.is-on { color: var(--dsw-alias-brand-primary); font-weight: 600; background: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent); }
+      .cs-opt-dot {
+        flex: 0 0 auto; width: 5px; height: 5px; margin-left: 12px; border-radius: 50%;
+        background: currentColor; box-shadow: 0 0 0 2.5px color-mix(in srgb, currentColor 16%, transparent);
       }
       /* 统计口径两个下拉统一收窄，不再撑大设置行。 */
       .cs-settings-select .cs-select-btn {
@@ -10100,6 +10322,8 @@ window.__ModuleLoader__.load({
       @media (hover: none) { .cs-delete-dot { display: none; } .cs-timer-result-delete > svg { opacity: 1; transform: none; } }
       .cs-floating-window {
         position: fixed; z-index: 26; width: max-content; max-width: calc(100vw - 24px); pointer-events: auto;
+        /* 覆盖 Windows 标题栏拖动区时必须自己声明可交互区域，否则浮窗靠近顶部时收不到指针事件。 */
+        -webkit-app-region: no-drag;
         background: transparent; border: 0; box-shadow: none;
         --timer-ink: var(--dsw-alias-label-primary);
         --timer-muted: var(--dsw-alias-label-secondary);
@@ -10117,40 +10341,47 @@ window.__ModuleLoader__.load({
         padding: 9px 14px 14px; scrollbar-width: thin; border-radius: 22px;
       }
       .cs-floating-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
-      .cs-floating-entry, .cs-floating-grip, .cs-floating-minimize, .cs-floating-dock {
+      .cs-floating-entry, .cs-floating-grip, .cs-floating-minimize {
         display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0;
         color: var(--timer-ink); background: none; border: 0; font: inherit; text-shadow: inherit; cursor: pointer;
       }
-      .cs-floating-entry { min-width: 40px; min-height: 40px; padding: 4px 8px; border-radius: 999px; touch-action: none; cursor: grab; }
-      .cs-floating-entry.has-readout { min-height: 34px; padding-inline: 10px; }
+      /* 收起态是一枚无框时钟：没有胶囊底与描边，只保留时钟本身和一层柔光。
+         它停在用户放下的位置，不会自动收起，也不做边缘吸附。 */
+      .cs-floating-entry {
+        min-width: 36px; min-height: 36px; padding: 0; border-radius: 50%;
+        color: var(--timer-text-accent); touch-action: none; cursor: grab;
+        transition: color 150ms ease;
+      }
+      .cs-floating-entry.has-readout { min-height: 34px; padding: 3px 10px; border-radius: 999px; color: var(--timer-ink); }
+      .cs-floating-entry.has-readout svg { color: var(--timer-text-accent); }
       .cs-floating-label { font-size: 12px; font-weight: 600; line-height: 1.2; }
-      .cs-floating-panel, .cs-floating-entry {
+      .cs-floating-panel { transition: color 150ms ease; }
+      .cs-floating-panel, .cs-floating-entry.has-readout {
         position: relative;
         background-color: var(--timer-paper);
         border: 1px solid color-mix(in srgb, var(--timer-ink) 19%, transparent);
         box-shadow: 0 7px 20px #0002, inset 0 1px 1px #ffffffad, inset 0 -1px 1px #ffffff40;
-        transition: color 150ms ease;
       }
       .cs-floating-panel { box-shadow: 0 12px 30px #0003, inset 0 1px 1px #ffffffb0, inset 0 -1px 1px #ffffff36; }
-      .cs-timer-overlay.cs-appearance-dark :is(.cs-floating-panel, .cs-floating-entry) {
+      .cs-timer-overlay.cs-appearance-dark :is(.cs-floating-panel, .cs-floating-entry.has-readout) {
         box-shadow: 0 8px 24px #0006, inset 0 1px 1px #ffffff50, inset 0 -1px 1px #ffffff22;
       }
       /* 高光只沿弧边移动，玻璃中央由实际的背景取样着色。 */
       @supports (mask-composite: exclude) {
-        .cs-floating-panel::before, .cs-floating-entry::before {
+        .cs-floating-panel::before, .cs-floating-entry.has-readout::before {
           content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
           background: linear-gradient(120deg, transparent 12%, #ffffffa8 42%, transparent 75%) var(--cs-glass-x, 24%) 0 / 165% 100% no-repeat;
           mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
           mask-composite: exclude;
           transition: background-position 180ms ease-out;
         }
-        .cs-timer-overlay.cs-appearance-dark :is(.cs-floating-panel, .cs-floating-entry)::before { opacity: .5; }
+        .cs-timer-overlay.cs-appearance-dark :is(.cs-floating-panel, .cs-floating-entry.has-readout)::before { opacity: .5; }
         .cs-floating-window.is-expanded .cs-floating-panel::before { animation: cs-glass-open 220ms ease-out; }
-        .cs-floating-window.is-dragging :is(.cs-floating-panel, .cs-floating-entry)::before { transition: none; }
+        .cs-floating-window.is-dragging :is(.cs-floating-panel, .cs-floating-entry.has-readout)::before { transition: none; }
       }
       @keyframes cs-glass-open { from { filter: brightness(1.5); } to { filter: brightness(1); } }
       @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
-        .cs-floating-entry {
+        .cs-floating-entry.has-readout {
           background-color: color-mix(in srgb, var(--timer-paper) 22%, transparent);
           -webkit-backdrop-filter: blur(12px) saturate(1.18); backdrop-filter: blur(12px) saturate(1.18);
         }
@@ -10160,15 +10391,22 @@ window.__ModuleLoader__.load({
         }
       }
       @media (prefers-reduced-transparency: reduce) {
-        .cs-floating-panel, .cs-floating-entry {
+        .cs-floating-panel, .cs-floating-entry.has-readout {
           background-color: var(--timer-paper);
           -webkit-backdrop-filter: none; backdrop-filter: none;
         }
       }
-      .cs-floating-entry svg { filter: drop-shadow(0 0 5px var(--floating-halo)); }
+      .cs-floating-entry svg {
+        display: block;
+        filter: drop-shadow(0 0 1px var(--timer-paper)) drop-shadow(0 0 6px var(--floating-halo));
+        transition: transform 160ms ease;
+      }
+      .cs-floating-entry:not(.has-readout):is(:hover, :focus-visible) svg { transform: scale(1.08); }
+      .cs-floating-entry:not(.has-readout):active svg { transform: scale(.96); }
       .cs-floating-entry.is-running { color: var(--timer-text-accent); }
       .cs-floating-entry.is-task svg { color: var(--cs-task, var(--timer-text-accent)); }
       .cs-floating-entry.has-error { color: var(--cs-timer-error); }
+      .cs-floating-entry.has-error svg { color: var(--cs-timer-error); }
       .cs-floating-task {
         display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
         margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--timer-rule);
@@ -10192,10 +10430,21 @@ window.__ModuleLoader__.load({
       .cs-floating-window .cs-timer-unit input { width: 64px; background: none; border: 0; border-radius: 0; border-bottom: 1px solid var(--timer-rule); text-shadow: inherit; }
       .cs-floating-window .cs-timer-heading strong { font-size: 12px; }
       .cs-floating-window .cs-timer-progress { height: 3px; }
-      .cs-floating-dock { width: 100%; height: 100%; }
-      .cs-floating-dock span { display: block; width: 4px; height: 36px; border-radius: 9px; background: var(--timer-text-accent); box-shadow: 0 0 8px var(--floating-halo); opacity: .65; }
-      .cs-floating-window:is(.dock-top, .dock-bottom) .cs-floating-dock span { width: 36px; height: 4px; }
-      .cs-floating-window.is-docked { max-width: none; }
+      /* 悬停收起形态时贴着一枚当前时间；不参与窗口尺寸测量，也不拦截指针。
+         贴顶时翻到下方，贴左时改从左侧对齐，避免被视口裁掉。 */
+      .cs-floating-now {
+        position: absolute; z-index: 1; right: 2px; bottom: calc(100% + 7px);
+        padding: 3px 8px; border-radius: 999px; pointer-events: none;
+        color: var(--timer-text-accent);
+        background: color-mix(in srgb, var(--timer-paper) 92%, transparent);
+        border: 1px solid color-mix(in srgb, var(--timer-ink) 14%, transparent);
+        box-shadow: 0 4px 12px #0000001f;
+        font: 600 11px/1.3 var(--timer-mono); font-variant-numeric: tabular-nums;
+        animation: cs-tools-in 120ms ease-out;
+      }
+      .cs-floating-now.is-below { bottom: auto; top: calc(100% + 7px); }
+      .cs-floating-now.is-left { right: auto; left: 0; }
+      .cs-timer-overlay.cs-appearance-dark .cs-floating-now { box-shadow: 0 4px 14px #00000059; }
       .cs-timer-notice {
         position: fixed; z-index: 65; right: max(12px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom));
         width: max-content; max-width: min(292px, calc(100vw - 24px)); display: flex; align-items: center; gap: 9px;
@@ -10210,8 +10459,8 @@ window.__ModuleLoader__.load({
       .cs-timer-notice-message button { justify-self: start; }
       .cs-timer-notice-close { display: grid; place-items: center; flex: none; width: 25px; height: 25px; padding: 0; background: transparent; color: var(--timer-muted); }
       @media (max-height: 540px) { .cs-clock-face svg { width: 105px; } }
-      @media (prefers-reduced-motion: reduce) { .cs-timer-notice, .cs-floating-entry, .cs-floating-window.is-expanded .cs-floating-panel::before { animation: none; }
-        .cs-floating-panel, .cs-floating-entry, .cs-floating-panel::before, .cs-floating-entry::before { transition: none; }
+      @media (prefers-reduced-motion: reduce) { .cs-timer-notice, .cs-floating-entry, .cs-floating-now, .cs-floating-window.is-expanded .cs-floating-panel::before { animation: none; }
+        .cs-floating-panel, .cs-floating-entry, .cs-floating-entry svg, .cs-floating-panel::before, .cs-floating-entry.has-readout::before { transition: none; }
         .cs-timer-controls > .cs-collapse, .cs-selection-group[data-selection-motion="true"] > .cs-selection-thumb,
         .cs-timer-trigger, .cs-timer-result-delete, .cs-timer-button, .cs-delete-dot, .cs-timer-result-delete > svg { transition: none; }
         .cs-timer-trigger .cs-detail-glyph { animation: none !important; } }
@@ -10458,11 +10707,51 @@ window.__ModuleLoader__.load({
       .cs-topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; min-height: 44px; }
       .cs-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
       .cs-mark {
-        width: 42px; height: 42px; border-radius: 0; flex: none;
+        appearance: none; flex: none; width: 42px; height: 42px; padding: 0;
         display: inline-flex; align-items: center; justify-content: center;
-        color: var(--cs-signal);
-        background: transparent;
-        border: 0; overflow: visible;
+        color: var(--cs-signal); background: transparent; border: 0; border-radius: 10px;
+        overflow: visible; cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none;
+      }
+      .cs-mark:is(:active, .is-logo-dragging) { cursor: grabbing; }
+      .cs-mark:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      .cs-mark svg { overflow: visible; }
+      /* 四块可以各自轻动：悬停轻轻分开，点按后小幅错位再拼回。 */
+      .cs-logo-part {
+        transform-box: fill-box; transform-origin: center;
+        transition: transform 240ms cubic-bezier(.2, .9, .25, 1.2);
+      }
+      .cs-mark.is-logo-dragging .cs-logo-part { transition: none; }
+      .cs-mark:hover .cs-logo-part-left { transform: translate(-1px, 0); }
+      .cs-mark:hover .cs-logo-part-right { transform: translate(1px, 0); }
+      .cs-mark:hover .cs-logo-part-slash { transform: translate(.4px, -.4px); }
+      .cs-mark:hover .cs-logo-part-spark { transform: translate(.9px, -.9px); }
+      .cs-mark.is-bursting .cs-logo-part-left { animation: cs-logo-burst-left 620ms cubic-bezier(.3, .8, .3, 1) both; }
+      .cs-mark.is-bursting .cs-logo-part-right { animation: cs-logo-burst-right 620ms cubic-bezier(.3, .8, .3, 1) both; }
+      .cs-mark.is-bursting .cs-logo-part-slash { animation: cs-logo-burst-slash 620ms cubic-bezier(.3, .8, .3, 1) both; }
+      .cs-mark.is-bursting .cs-logo-part-spark { animation: cs-logo-burst-spark 620ms cubic-bezier(.3, .8, .3, 1) both; }
+      @keyframes cs-logo-burst-left {
+        0%, 100% { transform: none; }
+        32% { transform: translate(-1.8px, 0) rotate(-6deg); }
+        64% { transform: translate(.7px, 0) rotate(1.5deg); }
+      }
+      @keyframes cs-logo-burst-right {
+        0%, 100% { transform: none; }
+        32% { transform: translate(1.8px, 0) rotate(6deg); }
+        64% { transform: translate(-.7px, 0) rotate(-1.5deg); }
+      }
+      @keyframes cs-logo-burst-slash {
+        0%, 100% { transform: none; }
+        32% { transform: translate(1.5px, -1.2px) rotate(3deg); }
+        64% { transform: translate(-.5px, .4px) rotate(-1deg); }
+      }
+      @keyframes cs-logo-burst-spark {
+        0%, 100% { transform: none; }
+        32% { transform: translate(1.3px, -1.5px) rotate(8deg); }
+        64% { transform: translate(-.4px, .5px) rotate(-2deg); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cs-logo-part { transition: none; }
+        .cs-mark.is-bursting .cs-logo-part { animation: none; }
       }
       .cs-brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
       .cs-brand-text h1 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 650; letter-spacing: -0.01em; }
@@ -10737,7 +11026,6 @@ window.__ModuleLoader__.load({
       .cs-session-last:hover { color: var(--dsw-alias-label-primary); }
       .cs-empty { padding: 22px 12px; text-align: center; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
       .cs-empty.is-small { padding: 10px; }
-      .cs-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; color: var(--dsw-alias-label-secondary); font-size: 11px; line-height: 16px; }
       .cs-loading { min-height: 340px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 1px dashed var(--dsw-alias-border-l1); border-radius: 14px; color: var(--dsw-alias-label-secondary); font-size: 12px; }
       .cs-loading strong { color: var(--dsw-alias-label-primary); font-size: 14px; font-weight: 600; }
       .cs-loading.is-error strong { color: var(--dsw-alias-state-error-primary); }
@@ -10773,7 +11061,6 @@ window.__ModuleLoader__.load({
         .cs-legend { gap: 8px; }
         .cs-brand-text h1 { font-size: 16px; }
         .cs-segment { padding: 4px 10px; }
-        .cs-foot { line-height: 18px; }
       }
 
       /* 视觉基座：焦点与活跃使用当前配色的信号色阶，任务总量使用独立任务紫；普通灰用于表面、边框、轨道与次级文字。 */
@@ -10875,7 +11162,7 @@ window.__ModuleLoader__.load({
       }
       .cs-shell { max-width: 1440px; gap: 18px; }
       .cs-topbar { min-height: 54px; margin-bottom: 4px; }
-      .cs-mark { width: 44px; height: 44px; border-radius: 0; background: transparent; color: var(--cs-signal); border: 0; }
+      .cs-mark { width: 44px; height: 44px; border-radius: 10px; background: transparent; color: var(--cs-signal); border: 0; }
       .cs-brand-text h1 { font-size: 20px; line-height: 26px; }
       .cs-icon-toggle {
         appearance: none; position: relative; display: inline-flex; align-items: center; justify-content: center;
@@ -11220,8 +11507,6 @@ window.__ModuleLoader__.load({
         .cs-hover-tip { animation: none; transition: none; }
         .cs-bar-group .cs-bar-pair, .cs-donut-seg, .cs-composition-row { transition: none; }
       }
-      .cs-foot { font-size: 12px; line-height: 1.6; }
-
       /* 数据管理：导出与清空。按钮沿用卡片体系，危险操作单独着色。 */
       .cs-data-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; }
       .cs-btn-file { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
@@ -11242,7 +11527,8 @@ window.__ModuleLoader__.load({
       .cs-text-link:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
       /* 数据管理底部的说明恢复区：与危险操作、导入区隔开，点击后有明确的结果反馈。 */
       .cs-approx-reveal { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--dsw-alias-border-l1); }
-      .cs-approx-reveal .cs-text-link { margin-top: 2px; }
+      .cs-approx-row { display: flex; align-items: center; gap: 2px; }
+      .cs-approx-reveal .cs-text-link { margin-top: 0; }
       .cs-approx-reveal .cs-data-status { margin-top: 4px; }
       .cs-data-spacer { flex: 1 1 auto; min-width: 8px; }
       .cs-btn {
@@ -11569,8 +11855,11 @@ window.__ModuleLoader__.load({
         55% { transform: scale(1.26); }
         100% { transform: scale(1.16); }
       }
+      /* 主卡是选择组（isolation 独立层叠），口径浮层会被后面的定位卡片盖住；
+         抬高一档，让标题图标的说明完整覆盖趋势、热力图等相邻模块。 */
       .cs-overview-metrics {
         --cs-indicator-color: var(--cs-chart-active); --cs-indicator-radius: 9px;
+        position: relative; z-index: 3;
         display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1.1fr) repeat(2, minmax(0, 1fr));
         align-items: stretch; min-height: 142px; padding: 12px 14px; gap: 4px;
       }
@@ -11641,7 +11930,6 @@ window.__ModuleLoader__.load({
       }
       .cs-overview-metrics .cs-cycle-today { padding-right: 30px; }
       .cs-cycle-today .cs-cycle-head { flex-wrap: wrap; gap: 4px 6px; }
-      .cs-cycle-today .cs-cycle-period { color: var(--cs-ink-2); font-size: 11px; }
       .cs-cycle-today.is-metric-online { --cs-metric-color: var(--cs-signal-deep); }
       .cs-cycle-today.is-metric-active { --cs-metric-color: var(--cs-chart-active); }
       .cs-cycle-today.is-metric-task { --cs-metric-color: var(--cs-task); }
@@ -11897,12 +12185,66 @@ window.__ModuleLoader__.load({
         --cs-heat-gap: 2px;
         --cs-heat-cell: clamp(9px, calc((100cqw - 30px - 13 * var(--cs-heat-gap)) / 14), 16px);
       }
-      /* 范围选择器只收窄触发器；弹出的三列 15 项菜单保持完整，避免选项被裁切。 */
-      .heat-range-select .cs-select-btn {
-        width: 78px; min-width: 78px; max-width: 78px;
-        min-height: 28px; padding: 4px 7px; gap: 5px;
+      /* 范围选择器：卡片右上角只留一枚范围图标，菜单按跨度与单月分组。 */
+      .heat-range { position: relative; display: inline-flex; vertical-align: middle; min-width: 0; }
+      .heat-range-trigger {
+        display: grid; place-items: center; flex: none; width: 26px; height: 26px; padding: 0;
+        color: var(--dsw-alias-label-secondary);
+        background: transparent; border: 1px solid transparent; border-radius: 7px; cursor: pointer;
+        transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease;
       }
-      .heat-range-select .cs-select-val { font-size: 11.5px; }
+      .heat-range-trigger:hover {
+        color: var(--dsw-alias-label-primary);
+        border-color: color-mix(in srgb, var(--dsw-alias-border-l1) 80%, transparent);
+        background: var(--dsw-alias-bg-layer-2);
+      }
+      .heat-range-trigger:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+      .heat-range-trigger[aria-expanded="true"] {
+        color: var(--dsw-alias-brand-primary);
+        border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, transparent);
+        background: color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent);
+      }
+      .heat-range-trigger-glyph { display: grid; place-items: center; color: inherit; }
+      .heat-range-trigger-glyph svg { display: block; }
+      .heat-range-glyph { display: block; overflow: visible; user-select: none; }
+      .heat-range-glyph text { font-family: inherit; font-weight: 650; font-variant-numeric: tabular-nums; }
+      .heat-range-menu {
+        position: fixed; z-index: 90; left: 0; top: 0; width: 252px; max-width: calc(100vw - 16px);
+        max-height: calc(100dvh - 24px); overflow-y: auto; padding: 9px;
+        border: 1px solid var(--dsw-alias-border-l1); border-radius: 11px;
+        background: var(--dsw-alias-bg-layer-1); box-shadow: 0 14px 34px rgba(0, 0, 0, .16);
+      }
+      .heat-range-menu[hidden] { display: none !important; }
+      .heat-range-section + .heat-range-section { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--dsw-alias-border-l1); }
+      .heat-range-caption { display: block; margin: 0 0 6px 3px; font-size: 10px; line-height: 12px; letter-spacing: .06em; color: var(--dsw-alias-label-secondary); }
+      .heat-range-tiles { display: grid; gap: 4px; }
+      .heat-range-tiles.is-spans { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .heat-range-tiles.is-months { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .heat-range-tile {
+        display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0;
+        padding: 4px 6px; border: 1px solid color-mix(in srgb, var(--dsw-alias-border-l1) 72%, transparent);
+        border-radius: 7px;
+        background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) 55%, transparent);
+        color: var(--dsw-alias-label-primary);
+        font: inherit; font-size: 11.5px; line-height: 16px; cursor: pointer;
+        transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+      }
+      .heat-range-tile.is-span { flex-direction: column; gap: 2px; min-height: 54px; }
+      .heat-range-tile.is-month { min-height: 32px; gap: 4px; padding: 4px; }
+      .heat-range-tile:hover, .heat-range-tile.is-active {
+        border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 28%, var(--dsw-alias-border-l1));
+        background: color-mix(in srgb, var(--dsw-alias-brand-primary) 7%, transparent);
+      }
+      .heat-range-tile:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: -2px; }
+      .heat-range-tile.is-on {
+        color: var(--dsw-alias-brand-primary);
+        border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 32%, transparent);
+        background: color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent);
+        font-weight: 600;
+      }
+      .heat-range-tile-glyph { display: grid; place-items: center; color: color-mix(in srgb, var(--cs-signal) 78%, var(--dsw-alias-label-secondary)); }
+      .heat-range-tile.is-on .heat-range-tile-glyph { color: currentColor; }
+      .heat-range-tile-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .heat-card-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
       /* 范围汇总收进模块图标的说明浮层：色带下方用细线隔开覆盖度圆环与两份读数。 */
       .cs-heat-legend-summary {
@@ -12280,8 +12622,8 @@ window.__ModuleLoader__.load({
       .cs-settings-grid { gap: 10px; align-content: start; }
       .cs-settings-card { align-self: start; }
       .cs-settings-card > .cs-settings-row { flex: 0 0 auto; }
-      .cs-import-hint { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
-      .cs-import-file-state { font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-primary); }
+      .cs-data-file { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 4px; padding-top: 8px; font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+      .cs-import-file-state { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-primary); }
 
       /* ===== 会话模块重塑：工作区退为轻量分组标题，会话行成为列表主体。 ===== */
       .cs-details-toolbar { gap: 12px; }

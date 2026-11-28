@@ -2,7 +2,7 @@
   "name": "@qwayo/dsh-timespan",
   "version": "0.5.3",
   "private": false,
-  "description": "dsh-timespan：记录并展示 DSH 的在线时长与任务时长",
+  "description": "dsh-timespan：记录 DSH 的在线、活跃与任务时长，提供 /timespan 命令与 Agent 只读查询",
   "keywords": [
     "dsh",
     "dsh-plugin",

@@ -76,8 +76,9 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
       renderBackfillNotices, isBackfillUnread,
       Select, isSelectOutside, createSelectOutsideHandler,
       renderWorkspaceRanking, Info, renderInfo, DshTimespanIcon: typeof DshTimespanIcon === 'function' ? DshTimespanIcon : undefined,
-      overviewInfoMessages: typeof overviewInfoMessages === 'function' ? overviewInfoMessages : undefined,
-      footerInfoMessages: typeof footerInfoMessages === 'function' ? footerInfoMessages : undefined,
+      BrandMark: typeof BrandMark === 'function' ? BrandMark : undefined,
+      heatRangeGlyph: typeof heatRangeGlyph === 'function' ? heatRangeGlyph : undefined,
+      heroInfoLines: typeof heroInfoLines === 'function' ? heroInfoLines : undefined,
       normalizePalette: typeof normalizePalette === 'function' ? normalizePalette : undefined,
       normalizeAppearance: typeof normalizeAppearance === 'function' ? normalizeAppearance : undefined,
       cycleAppearance: typeof cycleAppearance === 'function' ? cycleAppearance : undefined,
@@ -129,7 +130,7 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
       AnalysisPage, AnalysisReport, TimeToolsSettings, CountdownPresetField,
       AnalysisModelSettings: typeof AnalysisModelSettings === 'function' ? AnalysisModelSettings : undefined,
       FloatingTimerSettings: typeof FloatingTimerSettings === 'function' ? FloatingTimerSettings : undefined,
-      registerTimespanCommandUi, createPresenceReporter, CommandNotice, useRunningTask, FloatingTimer, TimerOverlay, floatingRect, floatingEdge, moveFloatingPosition, normalizeFloatingPosition, floatingDockStyle, floatingConversationAnchor,
+      registerTimespanCommandUi, createPresenceReporter, CommandNotice, useRunningTask, FloatingTimer, TimerOverlay, floatingRect, moveFloatingPosition, normalizeFloatingPosition, floatingConversationAnchor,
       normalizeView: typeof normalizeView === 'function' ? normalizeView : undefined,
       nextTabIndex: typeof nextTabIndex === 'function' ? nextTabIndex : undefined,
       viewLabels: typeof viewLabels === 'function' ? viewLabels : undefined,
@@ -185,6 +186,9 @@ async function loadClientFunctions(windowExtras = {}, globals = {}) {
       buildMonthGrid: typeof buildMonthGrid === 'function' ? buildMonthGrid : undefined,
       buildYearMatrix: typeof buildYearMatrix === 'function' ? buildYearMatrix : undefined,
       renderHeatRangePicker: typeof renderHeatRangePicker === 'function' ? renderHeatRangePicker : undefined,
+      HeatRangePicker: typeof HeatRangePicker === 'function' ? HeatRangePicker : undefined,
+      heatRangeGlyph: typeof heatRangeGlyph === 'function' ? heatRangeGlyph : undefined,
+      heatRangeOptionLabel: typeof heatRangeOptionLabel === 'function' ? heatRangeOptionLabel : undefined,
       renderTrendCard: typeof renderTrendCard === 'function' ? renderTrendCard : undefined,
       ChartReveal: typeof ChartReveal === 'function' ? ChartReveal : undefined,
       TextFade: typeof TextFade === 'function' ? TextFade : undefined,
@@ -1297,18 +1301,11 @@ test('客户端计时：读数缺失时保留占位，不把未知值画成零',
   assert.equal(textOf(tree).trim(), '––:––:––')
 })
 
-test('客户端悬浮窗：四边判定、越界拖动及窄窗重排都保留可达位置', async () => {
-  const { floatingRect, floatingEdge, moveFloatingPosition, normalizeFloatingPosition, floatingDockStyle } = await loadClientFunctions()
+test('客户端悬浮窗：四边越界拖动及窄窗重排都保留可达位置', async () => {
+  const { floatingRect, moveFloatingPosition, normalizeFloatingPosition } = await loadClientFunctions()
   const viewport = { width: 1440, height: 900 }
   const size = { width: 224, height: 300 }
   assert.equal(JSON.stringify(normalizeFloatingPosition({ x: NaN, y: 100 })), JSON.stringify({ x: .97, y: 1 }))
-  for (const [position, edge] of [[{ x: 0, y: .5 }, 'left'], [{ x: 1, y: .5 }, 'right'], [{ x: .5, y: 0 }, 'top'], [{ x: .5, y: 1 }, 'bottom']]) {
-    const rect = floatingRect(position, size, viewport)
-    assert.equal(floatingEdge(rect, viewport), edge)
-    const dock = floatingDockStyle(edge, rect, viewport)
-    assert.ok(dock.left >= 0 && dock.top >= 0 && dock.left + dock.width <= 1440 && dock.top + dock.height <= 900)
-  }
-  assert.equal(floatingEdge(floatingRect({ x: .5, y: .5 }, size, viewport), viewport), null)
   const moved = moveFloatingPosition({ x: .5, y: .5 }, size, viewport, 100_000, -100_000)
   assert.equal(JSON.stringify(moved), JSON.stringify({ x: 1, y: 0 }))
   const narrow = floatingRect(moved, size, { width: 180, height: 200 })
@@ -1339,16 +1336,16 @@ test('客户端悬浮窗：默认位置贴会话区右上角，左右留同一�
   assert.equal(Math.round(rect.left + rect.width), 988, '默认右边缘与左侧一样留 12px')
 })
 
-test('客户端悬浮窗：默认无钟、闲置贴边、靠近恢复，拖动与键盘焦点不会被收起', async (t) => {
+test('客户端悬浮窗：收起是常驻时钟，悬停显示时间、点按才展开', async (t) => {
   const timers = new Map()
-  const stored = new Map([['dsh-timespan.floatingPosition', JSON.stringify({ x: 1, y: .5 })]])
+  const stored = new Map([['dsh-timespan.floatingPosition', JSON.stringify({ x: .5, y: .5 })]])
   let nextTimer = 0
   const document = { activeElement: null }
-  const { React, FloatingTimer, ClockDial, translate } = await loadClientFunctions({
+  const { React, FloatingTimer, ClockDial, DetailGlyph, translate } = await loadClientFunctions({
     innerWidth: 1440, innerHeight: 900, addEventListener() {}, removeEventListener() {},
     localStorage: { getItem: (key) => stored.get(key), setItem: (key, value) => stored.set(key, value) },
   }, { document,
-    setTimeout(callback, delay) { assert.equal(delay, 3000); const id = ++nextTimer; timers.set(id, callback); return id },
+    setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, { delay, callback }); return id },
     clearTimeout(id) { timers.delete(id) },
   })
   t.after(() => React.unmount())
@@ -1363,31 +1360,43 @@ test('客户端悬浮窗：默认无钟、闲置贴边、靠近恢复，拖动�
   }
   render()
   let tree = render()
-  assert.equal(timers.size, 1)
-  ;[...timers.values()][0]()
-  tree = render()
-  assert.equal(tree.props['data-dock'], 'right')
+  assert.equal(tree.props['data-window-drag-exclude'], '', '悬浮窗声明窗口拖动排除区')
+  assert.equal(timers.size, 0, '不安排任何自动收起')
+  const entry = findByClass(tree, 'cs-floating-entry')
+  const clockNode = findAll(entry, (node) => node.type === DetailGlyph)[0]
+  assert.ok(clockNode, '收起态是一枚时钟')
+  assert.equal(clockNode.props.name, 'clock')
+  const clock = DetailGlyph(clockNode.props)
+  assert.equal(findAll(clock, (node) => node.type === 'circle').length, 1, '时钟只有一个圆环')
+  assert.equal(findAll(clock, (node) => node.type === 'path').length, 1, '时钟指针是一条路径')
+  assert.equal(findAll(clock, (node) => node.type === 'line').length, 0, '不画 12 个刻度')
+  assert.equal(findAll(clock, (node) => node.type === 'rect').length, 0, '不套玻璃圆面')
+  assert.equal(findByClass(tree, 'cs-floating-panel'), undefined, '默认不展开')
+  const idleStyle = `${tree.props.style.left},${tree.props.style.top}`
   tree.props.onPointerEnter({ pointerType: 'mouse' })
   tree = render()
-  assert.equal(tree.props['data-dock'], 'none')
-  assert.ok(findByClass(tree, 'cs-floating-panel'))
+  const chip = findByClass(tree, 'cs-floating-now')
+  assert.ok(chip, '悬停显示当前时间')
+  assert.match(textOf(chip), /^\d{2}:\d{2}:\d{2}$/, '当前时间按 HH:MM:SS 显示')
+  assert.equal(findByClass(tree, 'cs-floating-entry').props.title, undefined, '不再叠加原生提示')
+  assert.equal(findByClass(tree, 'cs-floating-panel'), undefined, '悬停不展开')
+  assert.equal(`${tree.props.style.left},${tree.props.style.top}`, idleStyle, '悬停不移动窗口')
+  assert.equal(timers.size, 0, '悬停不安排展开或收起')
+  tree = render()
+  assert.ok(findByClass(tree, 'cs-floating-now'), '鼠标轻微移动时时间提示持续显示')
+  tree.props.onPointerLeave()
+  tree = render()
+  assert.equal(findByClass(tree, 'cs-floating-now'), undefined, '移开后时间提示消失')
+  assert.equal(timers.size, 0)
+  findByClass(tree, 'cs-floating-entry').props.onClick({ detail: 1 })
+  tree = render()
+  assert.ok(findByClass(tree, 'cs-floating-panel'), '点按才展开')
+  assert.equal(findByClass(tree, 'cs-floating-now'), undefined, '展开后不盖时间提示')
+  assert.equal(timers.size, 0, '展开后不会自动收起')
   assert.equal(findAll(tree, (node) => node.type === ClockDial).length, 0, '默认仅显示计时')
-  assert.equal(timers.size, 0, '悬浮窗有鼠标时不收起')
   props.showClock = true
   tree = render()
   assert.equal(findAll(tree, (node) => node.type === ClockDial).length, 1)
-  tree.props.onPointerLeave()
-  tree = render()
-  assert.equal(timers.size, 1)
-  tree.props.onFocus({ target: { matches: () => true, tagName: 'BUTTON' } })
-  tree = render()
-  assert.equal(timers.size, 0, '键盘操作时不收起')
-  tree.props.onPointerDownCapture({ target: { tagName: 'BUTTON' } })
-  tree = render()
-  assert.equal(timers.size, 1, '切回鼠标后可恢复闲置贴边')
-  tree.props.onKeyDown({ key: ' ' })
-  tree = render()
-  assert.equal(timers.size, 0, '按钮已被鼠标聚焦后改用键盘，即使没有新 focus 事件也不收起')
   const target = { setPointerCapture() {}, hasPointerCapture: () => false }
   const pointer = { button: 0, pointerId: 1, clientX: 1000, clientY: 300, currentTarget: target, preventDefault() {} }
   findByClass(tree, 'cs-floating-grip').props.onPointerDown(pointer)
@@ -1396,7 +1405,6 @@ test('客户端悬浮窗：默认无钟、闲置贴边、靠近恢复，拖动�
   findByClass(tree, 'cs-floating-grip').props.onPointerMove({ ...pointer, clientX: 650, clientY: 400 })
   tree = render()
   assert.ok(tree.props.style.left < startLeft)
-  assert.equal(timers.size, 0, '拖动中不收起')
   findByClass(tree, 'cs-floating-grip').props.onPointerUp(pointer)
   tree = render()
   assert.ok(JSON.parse(stored.get('dsh-timespan.floatingPosition')).x < 1, '松手保存布局位置')
@@ -1408,11 +1416,54 @@ test('客户端悬浮窗：默认无钟、闲置贴边、靠近恢复，拖动�
   findByClass(tree, 'cs-floating-grip').props.onPointerCancel(pointer)
   tree = render()
   assert.equal(tree.props.style.left, originalLeft, '取消拖动恢复原位')
-  tree.props.onKeyDown({ key: 'Escape', preventDefault() {}, stopPropagation() {} })
-  render() // 退出 effect 完成后才卸载面板；替身没有动画 API，直接进入下一次渲染。
+  findByClass(tree, 'cs-floating-minimize').props.onClick()
+  render()
   tree = render()
-  assert.ok(findByClass(tree, 'cs-floating-entry'))
+  assert.ok(findByClass(tree, 'cs-floating-entry'), '收起后回到时钟')
   assert.equal(findByClass(tree, 'cs-floating-panel'), undefined)
+  assert.equal(timers.size, 0, '收起后仍不安排自动收起')
+  props.snapshot = { ...snapshot, timer: clientTimerView('running', { mode: 'stopwatch', elapsedMs: 65_000 }) }
+  tree = render()
+  const readoutEntry = findByClass(tree, 'cs-floating-entry')
+  assert.ok(hasClass(readoutEntry, 'has-readout'), '有读数时入口切回玻璃胶囊')
+  assert.ok(findByClass(readoutEntry, 'cs-timer-compact-digits'), '收起后仍能看到用时')
+})
+
+test('客户端悬浮窗：空闲收起态是一枚无框时钟，只有读数态保留玻璃胶囊', async () => {
+  const css = await loadClientTimerCss()
+  const entry = declarationsFor(css, '.cs-floating-entry')
+  assert.match(entry, /min-width:\s*36px/, '时钟入口保持 36px 点击区')
+  assert.match(entry, /padding:\s*0/, '入口不再留胶囊内边距')
+  assert.match(entry, /border-radius:\s*50%/, '入口只剩圆形命中区')
+  const base = declarationsFor(css, '.cs-floating-entry, .cs-floating-grip, .cs-floating-minimize')
+  assert.match(base, /background:\s*none/, '空闲入口没有底色')
+  assert.match(base, /border:\s*0/, '空闲入口没有描边')
+  const readout = declarationsFor(css, '.cs-floating-entry.has-readout')
+  assert.match(readout, /border-radius:\s*999px/, '带读数时仍收成胶囊')
+  assert.match(readout, /padding:\s*3px 10px/, '读数胶囊只保留必要内边距')
+  assert.match(declarationsFor(css, '.cs-floating-panel, .cs-floating-entry.has-readout'),
+    /background-color:\s*var\(--timer-paper\)/, '玻璃表面只挂在面板与读数胶囊上')
+  assert.match(css, /\.cs-floating-entry\.has-readout::before/, '读数胶囊保留弧边高光')
+  assert.doesNotMatch(css, /\.cs-floating-entry::before/, '空闲时钟不再绘制胶囊高光')
+})
+
+test('客户端悬浮窗：收起时钟保持完整可见，只保留稳定的时间提示', async () => {
+  const css = await loadClientTimerCss()
+  assert.doesNotMatch(css, /cs-floating-entry-ghost/, '不再有静默淡出的隐形状态')
+  assert.doesNotMatch(css, /\.cs-floating-dock/, '不再有贴边收起态')
+  assert.doesNotMatch(css, /is-docked/, '不再有边缘吸附')
+  assert.doesNotMatch(declarationsFor(css, '.cs-floating-entry'), /opacity:/, '收起时钟不降低透明度')
+  assert.match(declarationsFor(css, '.cs-floating-entry:not(.has-readout):is(:hover, :focus-visible) svg'),
+    /transform:\s*scale\(1\.08\)/, '悬停仍轻微放大')
+  const chip = declarationsFor(css, '.cs-floating-now')
+  assert.match(chip, /position:\s*absolute/, '时间提示不参与窗口尺寸测量')
+  assert.match(chip, /bottom:\s*calc\(100%\s*\+\s*7px\)/, '默认浮在窗口上方')
+  assert.match(chip, /pointer-events:\s*none/, '时间提示不拦截指针')
+  assert.match(chip, /font:\s*600 11px\/1\.3 var\(--timer-mono\)/, '时间用等宽数字')
+  assert.match(declarationsFor(css, '.cs-floating-now.is-below'), /top:\s*calc\(100%\s*\+\s*7px\)/, '贴顶时翻到窗口下方')
+  assert.match(declarationsFor(css, '.cs-floating-now.is-left'), /left:\s*0/, '贴左时改从左侧对齐')
+  assert.match(css, /\.cs-timer-notice, \.cs-floating-entry, \.cs-floating-now, \.cs-floating-window\.is-expanded \.cs-floating-panel::before \{ animation: none; \}/,
+    '减少动效时不再淡入')
 })
 
 test('客户端悬浮窗：其他窗口改时钟设置后聚焦重读，迟到响应和卸载不残留', async (t) => {
@@ -2051,7 +2102,7 @@ test('客户端：顶栏通知排在设置导航之后、状态点之前', async
   assert.equal(right.indexOf('renderTopbarNotices(topbarNotices', notices + 1), -1, '通知只渲染一处')
 })
 
-test('客户端：自定义下拉显示选中项并打勾', async () => {
+test('客户端：自定义下拉用圆点与浅底标记选中项，不再打勾', async () => {
   const { Select, React } = await loadClientFunctions()
   const tree = React.render(Select, {
     value: 'dark',
@@ -2070,7 +2121,8 @@ test('客户端：自定义下拉显示选中项并打勾', async () => {
   assert.equal(options[0].props['aria-selected'], false)
   assert.equal(options[1].props['aria-selected'], true)
   assert.match(options[1].props.className, /is-on/)
-  assert.match(textOf(options[1]), /✓/)
+  assert.ok(allOf(options[1], byClass('cs-opt-dot')).length === 1, '选中项右侧显示圆点')
+  assert.doesNotMatch(textOf(options[1]), /✓/, '不再显示对勾')
 })
 
 test('客户端：自定义下拉接受字符串选项并保留字符串值', async () => {
@@ -2207,34 +2259,31 @@ test('客户端：自定义下拉点击外部关闭', async () => {
   assert.equal(closed, 1, '点击组件外部关闭')
 })
 
-test('客户端：范围菜单向上弹出并两列展示全部选项', async () => {
+test('客户端：普通下拉向上弹出时仍逐条展示选项，不再使用网格变体', async () => {
   const { Select, React } = await loadClientFunctions()
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const options = [
-    { value: '3m', label: '最近 3 个月', span: 2 },
-    { value: '6m', label: '近半年', span: 2 },
-    { value: 'year', label: '全年', span: 2 },
+    { value: '3m', label: '最近 3 个月' },
+    { value: '6m', label: '近半年' },
+    { value: 'year', label: '全年' },
     ...months.map((label, index) => ({ value: String(index + 1), label })),
   ]
   const tree = React.render(Select, {
     value: '3m',
     options,
-    menuVariant: 'grid',
     placement: 'top',
     ariaLabel: '热力图范围',
     onChange: () => {},
   })
   assert.match(findByClass(tree, 'cs-select').props.className, /is-top/)
-  assert.match(findByClass(tree, 'cs-select-menu').props.className, /is-grid/)
+  assert.equal(findByClass(tree, 'cs-select-menu').props.className, 'cs-select-menu')
   const rendered = findAllByClass(tree, 'cs-opt')
-  assert.equal(rendered.length, 15, '15 个范围选项一次全部渲染')
-  assert.match(rendered[0].props.className, /is-span-2/)
-  assert.match(rendered[2].props.className, /is-span-2/)
-  assert.doesNotMatch(rendered[3].props.className, /is-span-2/)
+  assert.equal(rendered.length, 15, '15 个选项一次全部渲染')
+  assert.ok(rendered.every((option) => !/is-span-2/.test(option.props.className)), '普通下拉不再支持跨列选项')
 })
 
-test('客户端：概览口径按行拆分，周/月补一句日均口径', async () => {
-  const { localDayCount, averageMsPerDay, overviewInfoMessages } = await loadClientFunctions()
+test('客户端：主指标口径按行拆进标题图标，周/月补一句日均口径', async () => {
+  const { localDayCount, averageMsPerDay, heroInfoLines } = await loadClientFunctions()
   const from = new Date(2026, 10, 2).getTime()
   const to = new Date(2026, 10, 3, 23, 59).getTime()
   assert.equal(localDayCount({ from, to }), 2, '两天按本地日历日计算')
@@ -2243,15 +2292,15 @@ test('客户端：概览口径按行拆分，周/月补一句日均口径', asyn
     onlineFoot: '在线：页面打开时长，包含挂机。',
     sinceBoot: '活跃：页面可见、窗口聚焦且有键鼠操作时计入。',
     unionFoot: '实际占用：多会话重叠的时段只计一次。',
+    taskFoot: '任务：一次任务从开始到结束的耗时，按会话累加。',
     dailyAverageHint: '日均：按自然日折算。',
-    recordSinceBoot: '在线和活跃从插件启用时开始记录，历史数据只回填任务时长。',
   }
   const t = (key) => labels[key] ?? key
-  const dayLines = overviewInfoMessages({ period: 'day' }, t)
+  const dayLines = heroInfoLines('day', t)
   assert.equal(dayLines.join('\n'), [
-    labels.onlineFoot, labels.sinceBoot, labels.unionFoot, labels.recordSinceBoot,
-  ].join('\n'), '日视图四条口径逐行展示，不混入已由页面说明的周期提示')
-  const weekLines = overviewInfoMessages({ period: 'week' }, t)
+    labels.onlineFoot, labels.sinceBoot, labels.unionFoot, labels.taskFoot,
+  ].join('\n'), '日视图四条口径逐行展示，不混入日均提示')
+  const weekLines = heroInfoLines('week', t)
   assert.ok(weekLines.includes(labels.dailyAverageHint), '周/月视图补充日均按自然日折算')
 })
 
@@ -2285,6 +2334,73 @@ test('客户端：品牌标识使用镜像括号、分段斜线及随配色切�
     })
     assert.equal(new Set(startColors).size, 4)
   }
+})
+
+test('客户端：顶栏品牌标识四块可拖离，点按后重组', async () => {
+  const { BrandMark, DshTimespanIcon, React } = await loadClientFunctions()
+  const props = { size: 36, label: 'TimeSpan 标识' }
+  const iconOf = (node) => DshTimespanIcon(findAll(node, (item) => item.type === DshTimespanIcon)[0].props)
+  React.render(BrandMark, props)
+  const tree = React.render(BrandMark, props)
+  const button = findByClass(tree, 'cs-mark')
+  assert.equal(button.type, 'button', '标识本身是可交互按钮')
+  assert.equal(button.props['aria-label'], 'TimeSpan 标识')
+  assert.equal(button.props.title, 'TimeSpan 标识')
+  const icon = iconOf(tree)
+  const parts = findAll(icon, (node) => node.type === 'g' && node.props['data-logo-part'])
+  assert.deepEqual(parts.map((part) => part.props['data-logo-part']), ['left', 'right', 'slash', 'spark'],
+    '标识拆成左括号、右括号与两段斜线')
+  assert.equal(findAll(icon, (node) => node.type === 'path').length, 4, '四块仍由四条路径构成')
+  assert.equal(icon.props['aria-hidden'], true, '图标本身对读屏隐藏')
+
+  button.props.onClick()
+  let next = React.render(BrandMark, props)
+  assert.match(findByClass(next, 'cs-mark').props.className, /is-bursting/, '点按后进入重组动画')
+  findByClass(next, 'cs-mark').props.onAnimationEnd({ animationName: 'cs-logo-burst-left' })
+  next = React.render(BrandMark, props)
+  assert.doesNotMatch(findByClass(next, 'cs-mark').props.className, /is-bursting/, '动画结束回到静止')
+
+  const capture = { set: false, released: false }
+  const currentTarget = {
+    setPointerCapture() { capture.set = true },
+    hasPointerCapture: () => capture.set,
+    releasePointerCapture() { capture.released = true },
+  }
+  const base = { button: 0, pointerId: 3, clientX: 10, clientY: 10, currentTarget, preventDefault() {} }
+  button.props.onPointerDown({ ...base, target: { closest: () => ({ getAttribute: () => 'spark' }) } })
+  assert.equal(capture.set, true, '按住部件时捕获指针')
+  button.props.onPointerMove({ ...base, clientX: 30, clientY: 10 })
+  next = React.render(BrandMark, props)
+  const dragged = findAll(iconOf(next), (node) => node.type === 'g' && node.props['data-logo-part'] === 'spark')[0]
+  assert.match(dragged.props.style.transform, /^translate\(6px, 0px\)$/, '拖离距离收在 6 个用户单位内')
+  assert.match(findByClass(next, 'cs-mark').props.className, /is-logo-dragging/)
+  findByClass(next, 'cs-mark').props.onPointerUp(base)
+  assert.equal(capture.released, true, '松手释放指针捕获')
+  next = React.render(BrandMark, props)
+  assert.equal(findAll(iconOf(next), (node) => node.type === 'g' && node.props['data-logo-part'] === 'spark')[0].props.style, undefined,
+    '松手后部件回到原位')
+  assert.doesNotMatch(findByClass(next, 'cs-mark').props.className, /is-logo-dragging/)
+
+  findByClass(next, 'cs-mark').props.onClick()
+  next = React.render(BrandMark, props)
+  assert.doesNotMatch(findByClass(next, 'cs-mark').props.className, /is-bursting/, '拖动后的 click 不会误触重组')
+  findByClass(next, 'cs-mark').props.onClick()
+  next = React.render(BrandMark, props)
+  assert.match(findByClass(next, 'cs-mark').props.className, /is-bursting/, '下一次普通点击重新播放')
+})
+
+test('客户端：品牌标识为部件分离与重组提供独立动效', async () => {
+  const css = await loadClientCss()
+  const mark = declarationsFor(css, '.cs-mark')
+  assert.match(mark, /width:\s*42px/, '标识保留 42px 命中区')
+  assert.match(mark, /cursor:\s*grab/, '标识可拖动')
+  assert.match(declarationsFor(css, '.cs-logo-part'), /transform-box:\s*fill-box/, '每块围绕自身中心变换')
+  for (const part of ['left', 'right', 'slash', 'spark']) {
+    assert.match(css, new RegExp(`\\.cs-mark:hover \\.cs-logo-part-${part} \\{ transform: translate`), `${part} 悬停时轻轻分开`)
+    assert.match(css, new RegExp(`\\.cs-mark\\.is-bursting \\.cs-logo-part-${part} \\{ animation: cs-logo-burst-${part}`), `${part} 有点按重组动画`)
+    assert.match(css, new RegExp(`@keyframes cs-logo-burst-${part}`), `${part} 有独立关键帧`)
+  }
+  assert.match(css, /\.cs-mark\.is-bursting \.cs-logo-part \{ animation: none; \}/, '减少动效时不再播放重组')
 })
 
 test('客户端：配色归一化为 blue/stone/cyan，旧赤陶迁移青色、其余旧值回落默认蓝', async () => {
@@ -2451,27 +2567,31 @@ test('客户端：ⓘ 悬停、聚焦与点击显示，说明保留完整语义�
   assert.ok(clamped.left <= 1200 - 200 - 8, '右边缘按视口夹取，说明文字读得全')
 })
 
-test('客户端：散落小字收进 ⓘ 消息，信息不丢失', async () => {
-  const { Info, React, overviewInfoMessages, footerInfoMessages } = await loadClientFunctions()
+test('客户端：主指标口径收进标题图标，页脚不再常驻感叹号', async () => {
+  const { Info, React, heroInfoLines } = await loadClientFunctions()
   const labels = {
-    recordSinceBoot: '在线和活跃从插件启用时开始记录，历史数据只回填任务时长。',
     unionFoot: '实际占用：多会话重叠的时段只计一次。',
     sinceBoot: '活跃：页面可见、窗口聚焦且有键鼠操作时计入。',
     onlineFoot: '在线：页面打开时长，包含挂机。',
-    localOnly: '数据仅保存在本机',
-    approximateHint: '部分记录按最后心跳或最后事件时间结束，时长可能偏短',
+    taskFoot: '任务：一次任务从开始到结束的耗时，按会话累加。',
   }
   const t = (key) => labels[key] ?? key
-  const data = { period: 'day', range: { from: Date.now(), to: Date.now() }, activeMs: 0, taskMs: 0 }
-  const overview = overviewInfoMessages(data, t)
-  assert.equal(overview.join('\n'), [labels.onlineFoot, labels.sinceBoot, labels.unionFoot, labels.recordSinceBoot].join('\n'))
-  const tree = React.render(Info, { message: overview.join('；'), lines: overview })
+  const lines = heroInfoLines('day', t)
+  assert.equal(lines.join('\n'), [labels.onlineFoot, labels.sinceBoot, labels.unionFoot, labels.taskFoot].join('\n'))
+  const tree = React.render(Info, { message: lines.join('；'), lines })
   assert.equal(findByClass(tree, 'cs-info-tip').props.className.includes('cs-info-tip-lines'), true, '口径说明使用分行样式')
   assert.equal(findAll(tree, (node) => hasClass(node, 'cs-info-line')).length, 4, '四条口径各自成行')
-  const footer = footerInfoMessages(t, true).join('；')
-  assert.match(footer, /数据仅保存在本机/)
-  assert.match(footer, /按最后心跳/)
-  assert.doesNotMatch(footer, /undefined/)
+  assert.doesNotMatch(lines.join('；'), /undefined/)
+})
+
+test('客户端：主卡口径浮层抬到相邻卡片之上', async () => {
+  const css = await loadClientCss()
+  const hero = declarationsFor(css, '.cs-overview-metrics')
+  assert.match(hero, /position:\s*relative/, '主卡保持定位，作为独立层叠的基准')
+  assert.match(hero, /z-index:\s*3/, '主卡高于后续趋势、热力图卡片与缩放按钮，口径浮层不再被遮挡')
+  const tip = declarationsFor(css, '.cs-info-tip')
+  assert.match(tip, /position:\s*fixed/, '说明浮层固定到视口')
+  assert.match(tip, /z-index:\s*90/, '说明浮层在所属层叠内保持最高')
 })
 
 test('客户端：模块标题图标提供延迟简介，不再常驻说明图标', async () => {
@@ -3732,6 +3852,7 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
     emptyDashboard: '暂无记录', recentSessions: '最近会话', recentSessionsHint: '按最近活动排序',
     unknownSession: '未命名会话', justNow: '刚刚', minutesAgo: '{n} 分钟前', hoursAgo: '{n} 小时前', daysAgo: '{n} 天前',
     trendSummary: '本周期概览', dailyAverageActive: '日均活跃', dailyAverageTask: '日均任务',
+    dailyAverageHint: '日均按自然日',
     taskCountShort: '任务次数', peakActive: '峰值活跃', activeShare: '活跃占比', searchPlaceholder: '搜索工作区或会话',
     trendBreakdownTitle: '时段分布', trendBreakdownHint: '按活跃与任务合计排序', trendBreakdownEmpty: '暂无时段数据',
     trendDistributionHint: '颜色越深，活跃越久',
@@ -3794,7 +3915,7 @@ test('客户端：概览、趋势、明细三个视图各有真实内容', async
     .filter((node) => node.props.buttonClassName === 'cs-card-icon-btn')
   assert.equal(trendInfos.length, 4, '趋势页四个模块标题都由左侧图标承载说明')
   const infoFor = (message) => trendInfos.find((node) => node.props.message === message)
-  assert.equal(infoFor(labels.trendInfo)?.props.icon.props.name, 'summary', '本周期概览用概览仪表图标')
+  assert.equal(infoFor(`${labels.trendInfo} · ${labels.dailyAverageHint}`)?.props.icon.props.name, 'summary', '本周期概览用概览仪表图标')
   assert.equal(infoFor(labels.trendDistributionHint)?.props.icon.props.name, 'clock', '时段分布沿用时钟图标')
   assert.equal(infoFor(labels.trendInsightsHint)?.props.icon.props.name, 'insight', '趋势洞察使用放大镜折线图标')
   assert.ok(trendInfos.every((node) => node.props.delay === 600), '停留片刻才浮出说明，避免扫过时闪动')
@@ -4031,7 +4152,7 @@ test('客户端：最近会话条数按底部行高动态限制在 3–6 条', a
 })
 
 test('客户端：Dashboard 设置页包含格式、外观、统计、通知、导出与二次确认清空', async () => {
-  const { renderSettingsView, normalizeBackfill, settingsDraft, React } = await loadClientFunctions()
+  const { renderSettingsView, normalizeBackfill, settingsDraft, React, Info } = await loadClientFunctions()
   const settingsCss = await loadSettingsCss()
   assert.equal(typeof renderSettingsView, 'function')
   const labels = {
@@ -4066,13 +4187,13 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     backfillNoticeRead: '已读', backfillNoticeUnread: '待确认', backfillNoticeKindInitial: '首次回填',
     backfillNoticeEmpty: '暂无通知记录', backfillNoticeUnavailable: '暂时无法读取通知记录',
     settingsRecheck: '重新扫描历史任务', settingsRechecking: '正在扫描…',
-    dataTitle: '数据管理', dataHint: '导出与清空', exportJson: '导出 JSON', exportCsv: '导出 CSV',
+    dataTitle: '数据管理', dataHint: '备份、导入与清空', exportJson: '导出 JSON', exportCsv: '导出 CSV',
     exporting: '正在导出…', clearData: '清空全部数据', clearStepTitle: '确认清空？',
     clearStepHint: '此操作不可撤销', clearConfirm: '确认清空', clearCancel: '取消', clearing: '正在清空…',
     settingsSave: '保存设置', settingsSaving: '正在保存…', settingsSaved: '已保存',
     settingsLoadError: '无法读取设置', settingsRetry: '重试', settingsSaveError: '保存失败',
-    savedBadge: '已保存', importData: '选择备份文件导入', importFileHint: '未选择文件',
-    importFilePicked: '已选择：', importHint: '按 ID 去重合并，已有记录不会被覆盖。',
+    savedBadge: '已保存', importData: '导入备份', importFileHint: '未选择文件',
+    importFilePicked: '已选择：', importHint: '按 ID 合并统计；当前计时保持不变。',
     importPreviewTitle: '待导入文件', importConfirm: '确认导入',
     approximateShowAgain: '重新显示「近似记录」说明', approximateShowAgainHint: '只在存在近似记录时出现，可在这里恢复。',
     backfillNoticeKindRetry: '手动重试', backfillDone: '历史任务回填完成',
@@ -4109,11 +4230,17 @@ test('客户端：Dashboard 设置页包含格式、外观、统计、通知、�
     assert.ok(hasClass(card, 'cs-settings-info-region'))
     assert.ok(findByClass(card, 'cs-settings-heading-with-info'))
   }
-  for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示状态', '侧栏状态点', '状态点位置', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '选择备份文件导入', '重新显示「近似记录」说明', '清空全部数据']) {
+  for (const expected of ['统计与显示', '数字格式', '外观与配色', '初始化设置', '活跃判定阈值', '每周起始', '显示子代理明细', '侧栏显示状态', '侧栏状态点', '状态点位置', '侧栏显示时长', '通知记录', '导出 JSON', '导出 CSV', '导入备份', '重新显示「近似记录」说明', '清空全部数据']) {
     assert.match(text, new RegExp(expected), `设置页包含「${expected}」`)
   }
   assert.match(text, /未选择文件/, '未选择文件时常显导入状态')
-  assert.match(text, /按 ID 去重合并/, '导入说明常显在按钮旁，不再藏进预览')
+  const dataCard = findByClass(tree, 'cs-data-card')
+  const fileRow = findByClass(dataCard, 'cs-data-file')
+  assert.equal(findAll(fileRow, (node) => node.type === Info).length, 1, '导入说明收进图标浮层')
+  assert.doesNotMatch(textOf(fileRow), /按 ID 合并统计/, '导入区不再常显长段说明')
+  const approxRow = findByClass(dataCard, 'cs-approx-row')
+  assert.equal(findAll(approxRow, (node) => node.type === Info).length, 1, '近似记录说明同样收进图标浮层')
+  assert.doesNotMatch(textOf(approxRow), /只在存在近似记录时出现/, '近似记录区不再常显长段说明')
   assert.match(text, /恢复初始设置/, '设置页提供恢复初始设置入口')
   assert.doesNotMatch(text, /保存设置/, '即点即存后不再有「保存设置」按钮')
   assert.equal(allOf(tree, byClass('cs-format-opt')).length, 6, '六个数字格式选项')
@@ -4438,14 +4565,17 @@ test('客户端：首屏主指标五个时长项可点切换，非法持久化�
     const mainValue = findByClass(main, 'cs-hero-num')
     assert.equal(textOf(mainValue).replace(/\s+/g, ''), value, `缩回概览仍显示 ${metric} 的数值`)
     assert.equal(hasClass(mainValue, `is-metric-${metric === 'online' ? 'online' : metric === 'task' ? 'task' : 'active'}`), true, '概览主数字按口径带语义色')
-    const mainGlyph = allOf(main, (node) => String(node.type?.name) === 'DetailGlyph')[0]
-    assert.equal(mainGlyph?.props?.name, {
+    const mainInfo = allOf(main, (node) => node.type?.name === 'Info')[0]
+    assert.equal(mainInfo?.props?.icon?.props?.name, {
       online: 'online', task: 'task', active: 'active', week: 'active-week', month: 'active-month',
     }[metric], '概览主卡图标按周期区分')
     const secondary = findByClass(overview, 'cs-overview-metric-pair')
     assert.equal(allOf(secondary, byClass('is-metric-online')).length, metric === 'online' ? 0 : 1, '副指标按在线/活跃/任务分别带语义色')
     const focusTitle = textOf(allOf(page, (node) => node.type === 'h2')[0]).trim()
     assert.equal(textOf(findByClass(main, 'cs-cycle-title')), metric === 'active' ? '今日活跃' : focusTitle)
+    if (metric === 'week' || metric === 'month') {
+      assert.doesNotMatch(textOf(findByClass(main, 'cs-cycle-head')), /今日/, '周/月主指标不再追加「今日」角标')
+    }
     const ring = findByClass(page, 'cs-hero-ring')
     assert.equal(textOf(findByClass(main, 'cs-cycle-share')), ring.props['aria-label'], '概览横条与放大页圆环的比例一致')
     assert.equal(main.props['aria-pressed'], true, '主指标的切换保留原有的下方统计周期')
@@ -4495,9 +4625,11 @@ test('客户端：首屏主指标五个时长项可点切换，非法持久化�
 })
 
 test('客户端：概览在首屏状态只渲染放大页，普通状态同时有首屏卡片与周期卡', async () => {
-  const { renderOverviewView } = await loadClientFunctions()
+  const { renderOverviewView, Info } = await loadClientFunctions()
   const t = (key) => ({
     overviewTitle: '周期概览', actualOccupied: '实际占用', cycleToday: '今日', cycleWeek: '本周', cycleMonth: '本月',
+    metricScopeLabel: '指标口径', onlineFoot: '在线含挂机', sinceBoot: '活跃需可见聚焦',
+    unionFoot: '实际占用重叠只计一次', taskFoot: '任务按会话累加', dailyAverageHint: '日均按自然日',
     taskCountUnit: '次任务', activeLabel: '活跃', taskLabel: '任务', selectedPeriod: '当前',
     compositionTitle: '任务时长构成', compositionInfo: '按会话累计',
     noTaskComposition: '暂无任务', accumulated: '累计工时', workspaceRanking: '工作区任务排行',
@@ -4537,6 +4669,15 @@ test('客户端：概览在首屏状态只渲染放大页，普通状态同时�
   assert.equal(allOf(composition, byClass('cs-tag')).length, 0, '任务构成标题右侧不再显示「累计工时」标签')
   assert.equal(allOf(normal, byClass('cs-ranking-share')).length, 0, '工作区排行不再单列可见的占比数字列')
   assert.equal(allOf(normal, byClass('cs-card-icon')).length, 6, '首屏、趋势、构成、热力图、排行、最近会话六个标题左侧各有图标')
+  const heroCard = allOf(normal, byClass('cs-cycle-today'))[0]
+  const heroInfo = allOf(heroCard, (node) => node.type === Info)[0]
+  assert.equal(heroInfo.props.label, '指标口径', '首屏主指标图标承载口径说明')
+  assert.equal(heroInfo.props.lines.join('|'), '在线含挂机|活跃需可见聚焦|实际占用重叠只计一次|任务按会话累加',
+    '在线、活跃、实际占用、任务四条口径挂在标题图标上')
+  let iconClickStopped = false
+  allOf(heroCard, byClass('cs-card-icon'))[0].props.onClick({ stopPropagation: () => { iconClickStopped = true } })
+  assert.equal(iconClickStopped, true, '查看口径说明不会连带触发主卡的周期切换')
+  assert.equal(allOf(normal, byClass('cs-foot')).length, 0, '页面底部不再保留独占一行的感叹号')
   const normalZoomButtons = allOf(normal, byClass('cs-zoom-btn'))
   assert.equal(normalZoomButtons.length, 3, '首屏卡片、趋势卡与热力图卡各有一个缩放按钮')
   assert.ok(normalZoomButtons.every((button) => button.props['aria-label'] === '设为首屏'))
@@ -4821,6 +4962,9 @@ test('客户端：热力图网格从周一开始且月份刻度对齐首日所�
   const range = { from: new Date(2026, 7, 7).getTime(), to: new Date(2026, 10, 8).getTime() }
   const grid = buildHeatGrid(buildHeatDays(range.from, range.to), range)
   assert.equal(grid.months.map((month) => month.abbr).join(','), '8月,9月,10月,11月', '默认中文四个月份刻度')
+  const limited = buildHeatGrid(buildHeatDays(range.from, range.to), range, undefined, undefined, { maxMonthLabels: 3 })
+  assert.equal(limited.months.map((month) => month.abbr).join(','), '9月,10月,11月',
+    '近三个月只保留目标跨度内的三个月刻度，丢掉首列附近的零碎上月标签')
   assert.equal(grid.weeks[0][4].dateKey, '2026-08-07', '首列只保留范围内的日期')
   for (const [abbr, monthNumber] of [['9月', 9], ['10月', 10], ['11月', 11]]) {
     const firstKey = `2026-${String(monthNumber).padStart(2, '0')}-01`
@@ -5097,7 +5241,7 @@ test('客户端热力图：更换范围的首帧不呈现旧数据，迟到响�
 })
 
 test('客户端：热力图首屏独立页给出六项范围统计、12 个月度条与退出按钮', async () => {
-  const { renderHeatmapFocusPage, Select } = await loadClientFunctions()
+  const { renderHeatmapFocusPage, HeatRangePicker, React } = await loadClientFunctions()
   const labels = {
     heatmapTitle: '每日活跃', heatmapFocusTitle: '每日活跃热力图',
     heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
@@ -5160,9 +5304,10 @@ test('客户端：热力图首屏独立页给出六项范围统计、12 个月�
   assert.equal(allOf(page, byClass('heat-month-bar'))[0].props['data-month'], '1月', '首屏月度条月份名使用中文')
   assert.equal(allOf(page, byClass('heat-focus-bars')).length, 1, '月度条区包成可拉伸的独立区块')
   assert.match(textOf(allOf(page, byClass('heat-focus-bars-head'))[0]), /月度活跃/, '月度条区给出可见标题')
-  const picker = allOf(page, (node) => node.type === Select)[0]
-  assert.ok(picker, '首屏复用统一自定义下拉')
-  assert.equal(picker.props.options.length, 15, '范围选择器一次展示全部 15 项')
+  const picker = allOf(page, (node) => node.type === HeatRangePicker)[0]
+  assert.ok(picker, '首屏复用模块化范围选择器')
+  const renderedPicker = React.render(HeatRangePicker, picker.props)
+  assert.equal(allOf(renderedPicker, byClass('heat-range-tile')).length, 15, '范围选择器一次展示全部 15 项')
   const zoom = allOf(page, byClass('cs-zoom-btn'))[0]
   assert.ok(zoom, '首屏页有缩放按钮')
   assert.equal(zoom.props['aria-label'], '退出首屏')
@@ -5221,6 +5366,30 @@ test('客户端：首屏月度条沿用热力图色阶并按峰值分级生长',
     declarationsFor(css, '.cs-heatmap-focus .heat-month-bars .cs-reveal-y'),
     /animation-delay:\s*calc\(200ms \+ var\(--cs-chart-delay, 0ms\)\)/,
     '首屏淡入结束后再开始逐月生长，避免入场被转场盖住')
+})
+
+test('客户端：近三个月月份刻度只保留三个月，首列零碎上月不再并排显示', async () => {
+  const { renderDailyHeatmap } = await loadClientFunctions()
+  const labels = {
+    heatmapTitle: '每日活跃', heatLegendLabel: '活跃程度图例', heatLegendLow: '低', heatLegendHigh: '高',
+    periodDay: '日', onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务',
+    noRecord: '无记录', heatDayTitle: '{month}月{day}日',
+    heatSummary: '累计活跃 {active} · {activeDays}/{observedDays} 天有活跃',
+    heatmapLoading: '正在加载每日活跃…', heatmapEmpty: '暂无每日记录',
+  }
+  const t = (key) => labels[key] ?? key
+  const from = new Date(2026, 7, 28).getTime()
+  const to = new Date(2026, 10, 29).getTime()
+  const series = { range: { from, to }, days: buildHeatDays(from, to) }
+  const tree = renderDailyHeatmap({
+    series, status: 'ready', t, format: 'hms',
+    nowMs: new Date(2026, 10, 28, 12).getTime(), rangeValue: '3m',
+    hoverTip: { tip: null, show() {}, hide() {} },
+  })
+  const monthRow = allOf(tree, byClass('heat-months'))[0]
+  const monthTexts = allOf(monthRow, (node) => node.type === 'span').map((node) => textOf(node).trim())
+  assert.deepEqual(monthTexts, ['9月', '10月', '11月'], '近三个月只保留 9/10/11 月刻度')
+  assert.doesNotMatch(monthTexts.join(','), /8月/, '范围起点带回的 8 月零碎几天不再单独占一个刻度')
 })
 
 test('客户端：热力图卡片含月份刻度、星期标签与色带浮层', async () => {
@@ -5876,12 +6045,13 @@ test('客户端：范围菜单上方空间不足时自动翻到下方并夹取�
   assert.ok(edge.left <= 1200 - 224 - 8, '右边缘按视口夹取')
 })
 
-test('客户端：热力图范围复用统一自定义下拉并一次展示 15 项', async () => {
-  const { renderDailyHeatmap, Select, React } = await loadClientFunctions()
+test('客户端：热力图范围选择器按跨度与单月分组，选中项用卡片高亮', async () => {
+  const { renderDailyHeatmap, HeatRangePicker, React } = await loadClientFunctions()
   const labels = {
     heatmapTitle: '每日活跃',
-    heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
-    heatRangeMonth: '{month}', periodDay: '日', onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务',
+    heatRangeLabel: '统计范围', heatRangeSpan: '跨度', heatRangeMonth: '单月',
+    heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
+    periodDay: '日', onlineLabel: '在线时长', activeLabel: '活跃', taskLabel: '任务',
     noRecord: '无记录', heatDayTitle: '{month}月{day}日',
     heatSummary: '累计活跃 {active} · {activeDays}/{observedDays} 天有活跃',
     heatmapLoading: '正在加载每日活跃…', heatmapEmpty: '暂无每日记录',
@@ -5895,46 +6065,102 @@ test('客户端：热力图范围复用统一自定义下拉并一次展示 15 �
     hoverTip: { tip: null, show() {}, hide() {} },
     rangeValue: '3m', onSelectRange: (value) => picked.push(value),
   })
-  const picker = allOf(tree, (node) => node.type === Select)[0]
-  assert.ok(picker, '卡片头部复用统一下拉组件')
+  const picker = allOf(tree, (node) => node.type === HeatRangePicker)[0]
+  assert.ok(picker, '卡片头部使用模块化范围选择器')
   assert.equal(picker.props.value, '3m')
-  assert.equal(picker.props.placement, 'top')
-  assert.equal(picker.props.menuVariant, 'grid')
-  assert.equal(picker.props.className, 'heat-range-select')
-  assert.equal(picker.props.ariaLabel, '统计范围')
+  assert.equal(typeof picker.props.onSelectRange, 'function')
   assert.equal(allOf(tree, (node) => node.type === 'details').length, 0, '不再渲染原生 details')
 
-  const rendered = React.render(Select, picker.props)
-  assert.equal(allOf(rendered, byClass('cs-select')).length, 1, '渲染统一自定义下拉')
-  assert.equal(findByClass(rendered, 'cs-select-btn').props['aria-expanded'], false, '收起态 aria-expanded=false')
-  const menuNode = findByClass(rendered, 'cs-select-menu')
+  const rendered = React.render(HeatRangePicker, picker.props)
+  const trigger = findByClass(rendered, 'heat-range-trigger')
+  assert.equal(trigger.props['aria-expanded'], false, '收起态 aria-expanded=false')
+  assert.equal(trigger.props['aria-label'], '统计范围 · 近3个月', '图标按钮用可访问名称说明当前范围')
+  assert.equal(textOf(trigger).trim(), '', '触发器不再显示文字与下拉箭头')
+  const glyphOf = (node) => findAll(node, (item) => item.type === 'svg' && hasClass(item, 'heat-range-glyph'))[0]
+  const arcsOf = (node) => findAll(node, (item) => hasClass(item, 'heat-range-span-arc'))
+  const tracksOf = (node) => findAll(node, (item) => hasClass(item, 'heat-range-span-track'))
+  const labelOf = (node) => textOf(findByClass(node, 'heat-range-tile-label')).trim()
+  const triggerGlyph = glyphOf(trigger)
+  assert.ok(triggerGlyph, '触发器是一枚范围图标')
+  assert.equal(triggerGlyph.props['data-range'], '3m', '触发器声明当前范围')
+  assert.equal(findAll(trigger, (node) => node.type === 'text').length, 0, '跨度图标不写文字')
+  assert.equal(arcsOf(triggerGlyph).length, 1, '近三个月用一段四分之一开口弧')
+  assert.equal(tracksOf(triggerGlyph).length, 1, '弧段下面保留一圈淡轨道')
+  const august = React.render(HeatRangePicker, { ...picker.props, value: 8 })
+  const augustTrigger = findByClass(august, 'heat-range-trigger')
+  assert.equal(augustTrigger.props['aria-label'], '统计范围 · 8月', '单月触发器直接报告月份')
+  const augustGlyph = glyphOf(augustTrigger)
+  assert.ok(hasClass(augustGlyph, 'is-month'), '单月触发器换成数字月卡')
+  assert.equal(textOf(augustGlyph).trim(), '8', '单月触发器显示月份数字')
+  const menuNode = findByClass(rendered, 'heat-range-menu')
   assert.equal(typeof menuNode.props.style.left, 'string', '菜单用内联 left 定位')
   assert.equal(typeof menuNode.props.style.top, 'string', '菜单用内联 top 定位（视口夹取）')
-  const options = allOf(rendered, byClass('cs-opt'))
-  assert.equal(options.length, 15, '一次渲染全部 15 项，不做滚动裁切')
-  assert.equal(options.filter((option) => hasClass(option, 'is-span-2')).length, 0, '15 项统一三列，不再让跨度选项横跨整行')
-  assert.match(textOf(options[0]), /近3个月/, '范围菜单含「近3个月」')
-  assert.match(textOf(options[1]), /近半年/, '范围菜单含「近半年」')
-  assert.match(textOf(options[2]), /全年/, '范围菜单含「全年」')
+  assert.equal(allOf(rendered, byClass('heat-range-section')).length, 2, '菜单分成跨度和单月两组')
+  const tiles = allOf(rendered, byClass('heat-range-tile'))
+  assert.equal(tiles.length, 15, '一次渲染全部 15 项，不做滚动裁切')
+  const glyphs = tiles.map(glyphOf)
+  assert.ok(glyphs.every(Boolean), '每个跨度与月份都带范围图标')
+  assert.equal(tiles.filter((tile) => hasClass(tile, 'is-on')).length, 1, '选中项只有一块卡片高亮')
+  assert.doesNotMatch(textOf(rendered), /✓/, '菜单不使用对勾')
+  assert.match(textOf(tiles[0]), /近3个月/, '范围菜单含「近3个月」')
+  assert.match(textOf(tiles[1]), /近半年/, '范围菜单含「近半年」')
+  assert.match(textOf(tiles[2]), /全年/, '范围菜单含「全年」')
   assert.deepEqual(
-    options.slice(3).map((option) => textOf(option).trim()),
+    tiles.slice(3).map(labelOf),
     ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-    '范围菜单 15 项含「1月」，12 个月份一律中文')
-  options.find((option) => textOf(option).trim() === '7月').props.onClick()
+    '单月分组包含 12 个月份，一律中文')
+  assert.deepEqual(
+    glyphs.slice(0, 3).map((glyph) => glyph.props['data-range']),
+    ['3m', '6m', 'year'], '跨度图标各自声明范围')
+  assert.deepEqual(
+    glyphs.slice(0, 3).map((glyph) => arcsOf(glyph).length),
+    [1, 1, 1], '每个跨度只有一段弧')
+  assert.deepEqual(
+    glyphs.slice(0, 3).map((glyph) => tracksOf(glyph).length),
+    [1, 1, 1], '每个跨度共用一圈淡轨道')
+  assert.equal(arcsOf(glyphs[0])[0].type, 'path', '近三个月用四分之一开口弧')
+  assert.equal(arcsOf(glyphs[1])[0].type, 'path', '近半年用半圈开口弧')
+  assert.equal(arcsOf(glyphs[2])[0].type, 'circle', '全年用整圈')
+  assert.equal(arcsOf(glyphs[0])[0].props.d, 'M10.00 3.60A6.4 6.4 0 0 1 16.40 10.00',
+    '近三个月扫过四分之一圈')
+  assert.equal(arcsOf(glyphs[1])[0].props.d, 'M10.00 3.60A6.4 6.4 0 0 1 10.00 16.40',
+    '近半年扫过半圈')
+  assert.notEqual(arcsOf(glyphs[0])[0].props.d, arcsOf(glyphs[1])[0].props.d, '3 个月与 6 个月的弧长不同')
+  assert.equal(tracksOf(glyphs[0])[0].props.opacity, .14, '轨道保持很淡的全年轮廓')
+  assert.deepEqual(
+    glyphs.slice(3).map((glyph) => textOf(glyph).trim()),
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+    '单月图标直接显示阿拉伯数字')
+  assert.ok(glyphs.slice(3).every((glyph) => findAll(glyph, (node) => hasClass(node, 'heat-range-month-tile')).length === 1),
+    '单月数字带一张软底片')
+  assert.ok(glyphs.slice(3).every((glyph) => findAll(glyph, (node) => node.type === 'rect').length === 1),
+    '单月不再铺日历格')
+  tiles.find((tile) => labelOf(tile) === '7月').props.onClick()
   assert.deepEqual(picked, [7], '点击月份回传数字范围值')
 })
 
-test('客户端：热力图范围复用统一下拉的向上三列菜单与自适应网格', async () => {
+test('客户端：热力图范围选择器使用模块卡片菜单与自适应网格', async () => {
   const { dshTimespanCss } = await loadClientFunctions()
   const css = dshTimespanCss()
-  const menu = declarationsFor(css, '.cs-select-menu.is-grid')
-  assert.match(menu, /display:\s*grid/)
-  assert.match(menu, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, '基础网格两列')
-  assert.match(menu, /max-height:\s*none/, '不限制高度，15 项一次可见')
-  assert.match(menu, /overflow:\s*visible/, '菜单不被裁切')
-  const rangeMenu = declarationsFor(css, '.heat-range-select .cs-select-menu.is-grid')
-  assert.match(rangeMenu, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/, '热力图范围菜单收紧为三列')
-  assert.match(rangeMenu, /min-width:\s*178px/, '菜单宽度不再占满卡片')
+  assert.doesNotMatch(css, /\.cs-select-menu\.is-grid/, '普通下拉不再保留网格变体')
+  const rangeMenu = declarationsFor(css, '.heat-range-menu')
+  assert.match(rangeMenu, /position:\s*fixed/, '范围菜单固定到视口')
+  assert.match(rangeMenu, /width:\s*252px/, '菜单宽度足够放下 4×3 月份卡片')
+  assert.match(rangeMenu, /max-height:\s*calc\(100dvh\s*-\s*24px\)/, '窄屏下菜单仍可滚动')
+  const spanTiles = declarationsFor(css, '.heat-range-tiles.is-spans')
+  assert.match(spanTiles, /grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/, '跨度选项三列')
+  const monthTiles = declarationsFor(css, '.heat-range-tiles.is-months')
+  assert.match(monthTiles, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/, '月份选项四列三排')
+  const selectedTile = declarationsFor(css, '.heat-range-tile.is-on')
+  assert.match(selectedTile, /border-color:/, '选中月份用品牌色边框')
+  assert.match(selectedTile, /background:/, '选中月份带浅底')
+  assert.doesNotMatch(selectedTile, /check|✓/, '选中月份不画对勾')
+  const trigger = declarationsFor(css, '.heat-range-trigger')
+  assert.match(trigger, /width:\s*26px/, '范围触发器收成 26px 图标按钮')
+  assert.match(trigger, /height:\s*26px/, '范围触发器保持正方形可点击区')
+  assert.match(trigger, /background:\s*transparent/, '图标按钮默认不画实底')
+  assert.doesNotMatch(css, /\.heat-range-trigger-label/, '触发器不再保留文字标签样式')
+  assert.match(declarationsFor(css, '.heat-range-tile.is-month'), /min-height:\s*32px/, '月份卡片容纳数字图标与文字')
   const settingsTrigger = declarationsFor(css, '.cs-settings-select .cs-select-btn')
   assert.match(settingsTrigger, /min-width:\s*72px/, '统计口径下拉收窄到 72px')
   assert.match(settingsTrigger, /min-height:\s*30px/, '统计口径下拉保持可点击高度')
@@ -6054,7 +6280,7 @@ test('客户端：热力图首屏上半区整幅热力图、下半区统计与�
 })
 
 test('客户端：概览把范围值与切换回调透传给每日热力图', async () => {
-  const { renderOverviewView, Select } = await loadClientFunctions()
+  const { renderOverviewView, HeatRangePicker, React } = await loadClientFunctions()
   const labels = {
     heatmapTitle: '每日活跃', yearHeatTitle: '全年每日活跃',
     heatRangeLabel: '统计范围', heatRange3m: '近3个月', heatRange6m: '近半年', heatRangeYear: '全年',
@@ -6083,20 +6309,23 @@ test('客户端：概览把范围值与切换回调透传给每日热力图', as
   const monthLabels = allOf(monthRow, (node) => node.type === 'span')
   assert.equal(monthLabels.length, 12, '全年仍有 12 个月份标签')
   assert.ok(monthLabels.every((node) => node.props.style.gridColumnStart >= 1), '月份标签按网格列定位')
-  const picker = allOf(card, (node) => node.type === Select)[0]
-  assert.ok(picker, '概览里的热力图复用统一选择器')
-  assert.ok(picker.props.options.some((option) => option.value === 11), '概览里的选择器有 11 月选项')
-  picker.props.onChange(11)
+  const picker = allOf(card, (node) => node.type === HeatRangePicker)[0]
+  assert.ok(picker, '概览里的热力图使用模块化范围选择器')
+  assert.equal(picker.props.value, 'year')
+  const renderedPicker = React.render(HeatRangePicker, picker.props)
+  const november = allOf(renderedPicker, byClass('heat-range-tile'))
+    .find((tile) => textOf(findByClass(tile, 'heat-range-tile-label')).trim() === '11月')
+  november.props.onClick()
   assert.deepEqual(picked, [11], '切换范围回调从概览透传到页面状态')
 })
 
 test('客户端：英文界面仍显示英文月份/星期与 3 months/6 months/Year', async () => {
-  const { renderDailyHeatmap, heatRangeLabel, Select, React } = await loadClientFunctions()
+  const { renderDailyHeatmap, heatRangeLabel, HeatRangePicker, React } = await loadClientFunctions()
   const en = {
     heatmapTitle: 'Daily time',
     yearHeatTitle: 'Daily time · year', monthHeatTitle: 'Daily time · {month}',
-    heatRangeLabel: 'Range', heatRange3m: '3 months', heatRange6m: '6 months',
-    heatRangeYear: 'Year', heatRangeMonth: '{month}',
+    heatRangeLabel: 'Range', heatRangeSpan: 'Span', heatRangeMonth: 'Month',
+    heatRange3m: '3 months', heatRange6m: '6 months', heatRangeYear: 'Year',
     periodDay: 'Day', onlineLabel: 'Online', activeLabel: 'Active', taskLabel: 'Task',
     noRecord: 'No record', heatDayTitle: '{month}/{day}',
     heatSummary: 'Total active {active} · Active on {activeDays}/{observedDays} days',
@@ -6130,26 +6359,33 @@ test('客户端：英文界面仍显示英文月份/星期与 3 months/6 months/
     ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     '英文界面单月星期刻度仍为 Mon…Sun')
 
-  const picker = allOf(weeks, (node) => node.type === Select)[0]
-  const rendered = React.render(Select, picker.props)
-  const options = allOf(rendered, byClass('cs-opt'))
+  const picker = allOf(weeks, (node) => node.type === HeatRangePicker)[0]
+  const rendered = React.render(HeatRangePicker, picker.props)
+  const options = allOf(rendered, byClass('heat-range-tile'))
   assert.match(textOf(options[0]), /3 months/, '跨度显示 3 months')
   assert.match(textOf(options[1]), /6 months/, '跨度显示 6 months')
   assert.match(textOf(options[2]), /Year/, '跨度显示 Year')
-  const monthTexts = options.slice(3).map((node) => textOf(node).trim())
+  const monthTexts = options.slice(3).map((node) => textOf(findByClass(node, 'heat-range-tile-label')).trim())
   assert.ok(monthTexts.includes('Jan'), '英文界面月份选项含 Jan')
   assert.ok(monthTexts.includes('Dec'), '英文界面月份选项含 Dec')
+  assert.deepEqual(
+    options.slice(3).map((node) => {
+      const glyph = findAll(node, (item) => item.type === 'svg' && hasClass(item, 'heat-range-glyph'))[0]
+      return textOf(glyph).trim()
+    }),
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+    '月份数字图标不随界面语言变化')
 })
 
-test('客户端：全年 Bento 跨行、范围选择器紧凑尺寸与顶栏图标按钮样式', async () => {
+test('客户端：全年 Bento 跨行、范围选择器模块尺寸与顶栏图标按钮样式', async () => {
   const css = await loadClientCss()
-  // 范围选择器只收窄触发器，弹出的两列 15 项菜单不变。
-  const rangeTrigger = declarationsFor(css, '.heat-range-select .cs-select-btn')
-  assert.match(rangeTrigger, /width:\s*78px/, '范围触发器收窄到 78px')
-  assert.match(rangeTrigger, /min-width:\s*78px/, '范围触发器最小宽度 78px')
-  assert.match(rangeTrigger, /max-width:\s*78px/, '范围触发器最大宽度 78px')
-  assert.match(rangeTrigger, /min-height:\s*28px/, '范围触发器最小高度 28px')
-  assert.match(rangeTrigger, /padding:\s*4px 7px/, '范围触发器内边距 4px 7px')
+  // 范围选择器收成卡片右上角的纯图标按钮。
+  const rangeTrigger = declarationsFor(css, '.heat-range-trigger')
+  assert.match(rangeTrigger, /width:\s*26px/, '范围触发器保持 26px 图标按钮')
+  assert.match(rangeTrigger, /height:\s*26px/, '范围触发器为正方形')
+  assert.match(declarationsFor(css, '.heat-range-trigger-glyph'), /display:\s*grid/, '触发器内直接承载范围图标')
+  assert.match(declarationsFor(css, '.heat-range-glyph text'), /font-weight:\s*650/, '月份数字沿用界面字体并加粗')
+  assert.match(declarationsFor(css, '.heat-range-glyph'), /overflow:\s*visible/, '图标不被窄触发按钮裁切')
   assert.match(declarationsFor(css, '.cs-overview-grid > .cs-heatmap-card'), /grid-column:\s*1\s*\/\s*-1/, '全年热力图跨满整行')
   assert.match(declarationsFor(css, '.cs-overview-bottom.is-year'), /grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1\.5fr\)/, '全年模式给最近会话留出更多空间')
   // 品牌图标与名称回到左对齐；顶栏右侧拆成两个 group 加一条分隔线，配色改成单枚循环图标按钮。
@@ -6659,6 +6895,7 @@ test('回顾图表与 Markdown 共用历史快照，时区标签不依赖当前�
   assert.match(textOf(tree), /在线不适用于筛选范围/)
   assert.match(textOf(tree), /尚无活跃或任务记录/)
   const markdown = analysisReportMarkdown(report, translate)
+  assert.match(markdown, /^# 今日回顾/)
   assert.match(markdown, /在线时长：—/)
   assert.match(markdown, /09:00/)
   assert.doesNotMatch(markdown, /NaN|Infinity/)
@@ -6693,7 +6930,7 @@ test('客户端 AI 导出：Markdown 保留报告正文、实际范围、出处�
   const markdown = analysisReportMarkdown(report, translate)
   const { from, to, generatedAt } = report
   const timestamp = (value) => formatNoticeTime(value, true)
-  assert.ok(markdown.startsWith('# 一周回顾\n'))
+  assert.ok(markdown.startsWith('# 本周回顾\n'))
   assert.ok(markdown.includes(`项目 / 跨域 / 回顾 🗓️ · ${timestamp(from)} – ${timestamp(to)}`))
   assert.ok(markdown.includes(`**生成时间** ${timestamp(generatedAt)}`))
   assert.match(markdown, /模型\*\* provider \/ 模型/)
@@ -6714,7 +6951,7 @@ test('客户端 AI 导出：Markdown 保留报告正文、实际范围、出处�
     content: { ...report.content, suggestions: '', work: [] },
     coverage: { ...report.coverage, failedSources: undefined },
   }, translate)
-  assert.match(legacy, /^# Weekly review/)
+  assert.match(legacy, /^# This week's review/)
   assert.match(legacy, /&lt;img src=x&gt;\n&amp;copy;/)
   assert.match(legacy, /This report saved only the number of failures/)
   assert.doesNotMatch(legacy, /\bChanges and suggestions\b|<img/)

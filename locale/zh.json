@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "TimeSpan",
-    "description": "记录 DSH 的在线时长、活跃时长与任务时长，可按日、周、月以及工作区、会话查看。所有数据只保存在本机。"
+    "description": "记录 DSH 的在线、活跃与任务时长，提供日/周/月仪表盘、工作区与会话明细、/timespan 命令与 Agent 只读 timespan_stats 工具。数据只保存在本机。"
   }
 }

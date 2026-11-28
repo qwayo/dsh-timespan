@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "TimeSpan",
-    "description": "Records how long DSH stays open and how much time you actually spend using it — online time, active time, and task time by day, week, month, workspace, and session. Data stays on this device."
+    "description": "Tracks online, active and task time in DSH with a day/week/month dashboard, per-workspace and per-session breakdowns, the /timespan command and a read-only timespan_stats tool for agents. Data stays on this device."
   }
 }
